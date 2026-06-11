@@ -1,0 +1,46 @@
+@import "tailwindcss";
+
+:root {
+  --background: #fff9f3;
+  --foreground: #321428;
+  --ivory: #fff9f3;
+  --rose: #c9828e;
+  --mauve: #9a5d76;
+  --champagne: #d9b66f;
+  --coral: #e46f64;
+  --plum: #321428;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  margin: 0;
+  background:
+    radial-gradient(circle at top left, rgba(217, 182, 111, 0.18), transparent 32rem),
+    linear-gradient(180deg, #fff9f3 0%, #fff6f0 44%, #fbefe9 100%);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.alyssa-shell {
+  min-height: 100vh;
+  color: var(--plum);
+}
+
+.focus-ring:focus {
+  border-color: var(--coral);
+  outline: 3px solid rgba(228, 111, 100, 0.18);
+}
