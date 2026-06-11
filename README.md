@@ -10,6 +10,10 @@ It is designed for Alyssa as:
 - A CTWA / WhatsApp attribution boundary for a future separate Alyssa CRM.
 - A booking, payment, show/no-show, lost, and follow-up feedback loop for future revenue attribution.
 
+## UI Localization Note
+
+The application UI is localized for Hong Kong internal growth and marketing users in Traditional Chinese / Hong Kong Cantonese where appropriate. Technical identifiers remain in English, including routes, API payload keys, UTM fields, CTWA fields, `source_type`, `tracking_status`, and `audit_reason` values.
+
 ## Local Setup
 
 ```bash

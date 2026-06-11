@@ -34,22 +34,21 @@ export default function FormsPage() {
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-              Form management
+              表格管理
             </p>
             <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-              Alyssa registration forms
+              Alyssa 登記表格設定
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              Form setup is treated as operational configuration: public token,
-              brand defaults, offer validation, allowed domains, and embed readiness
-              are all source-of-truth inputs.
+              這裡管理 public token、品牌預設值、療程 / 套餐驗證、
+              允許嵌入網域同 embed 狀態，確保每個 lead 都可以連回正確來源。
             </p>
           </div>
           <Link
             href="/embed-preview"
             className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#d95f55]"
           >
-            Test Wix Preview
+            測試 Wix 預覽
           </Link>
         </div>
 
@@ -58,30 +57,30 @@ export default function FormsPage() {
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                  Active seed form
+                  本機預設表格
                 </p>
                 <h2 className="mt-3 text-2xl font-bold text-[#321428]">
                   {alyssaDefaultForm.formName}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                  This local form mirrors the production shape. Supabase can replace
-                  the seed values with UUID-backed configuration without changing the
-                  iframe or public submit flow.
+                  呢個本機表格沿用正式資料模型。日後接駁 Supabase 後，
+                  可以用正式 UUID-backed 設定取代表格內容，而毋須改動 iframe
+                  或 public submit flow。
                 </p>
               </div>
               <span className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
-                Embed ready
+                可嵌入
               </span>
             </div>
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              <InfoCell label="Form token" value={alyssaDefaultForm.publicFormToken} copy />
-              <InfoCell label="Brand" value={alyssaBrand.name} />
-              <InfoCell label="Default treatment" value={defaultTreatment?.name ?? "Unset"} />
-              <InfoCell label="Default package" value={defaultPackage?.name ?? "Unset"} />
-              <InfoCell label="Default branch" value={defaultBranch?.name ?? "Unset"} />
+              <InfoCell label="表格 Token" value={alyssaDefaultForm.publicFormToken} copy />
+              <InfoCell label="品牌" value={alyssaBrand.name} />
+              <InfoCell label="預設療程" value={defaultTreatment?.name ?? "未設定"} />
+              <InfoCell label="預設套餐" value={defaultPackage?.name ?? "未設定"} />
+              <InfoCell label="預設分店" value={defaultBranch?.name ?? "未設定"} />
               <InfoCell
-                label="Allowed domains"
+                label="允許嵌入網域"
                 value={alyssaDefaultForm.allowedDomains.join(", ")}
                 copy
               />
@@ -93,21 +92,21 @@ export default function FormsPage() {
                 href={`/forms/${alyssaDefaultForm.id}`}
                 className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
               >
-                Open Config
+                開啟設定
               </Link>
               <Link
                 href={`/embed/${alyssaDefaultForm.publicFormToken}`}
                 className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
               >
-                Direct Iframe
+                直接打開 iframe
               </Link>
             </div>
           </article>
 
           <EmbedCodeCard
             code={embedCode}
-            title="Copy-ready Wix snippet"
-            description="Use this script tag on the parent page so UTM and click IDs are captured before iframe submission."
+            title="Wix 嵌入碼"
+            description="將呢段 script 放入 Wix parent page，讓 UTM 同 click IDs 可以喺 iframe submit 前先被擷取。"
           />
         </section>
       </div>

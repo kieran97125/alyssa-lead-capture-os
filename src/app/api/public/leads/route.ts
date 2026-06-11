@@ -114,7 +114,7 @@ export async function POST(request: NextRequest) {
       {
         ok: false,
         error: "required_fields_missing",
-        message: "Please enter a valid WhatsApp phone number.",
+        message: "請輸入有效 WhatsApp 電話號碼。",
       },
       { status: 400 }
     );

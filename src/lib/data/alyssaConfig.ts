@@ -12,17 +12,17 @@ export const alyssaBrand = {
 export const alyssaTreatments = [
   {
     id: "skin-renewal-consult",
-    name: "Skin analysis and consultation",
+    name: "膚質分析及療程諮詢",
     slug: "skin-renewal-consult",
     description:
-      "A beauty consultant reviews skin goals and recommends the best treatment path.",
+      "由專人了解你的膚況、改善目標同預算，建議合適療程方向。",
   },
   {
     id: "medical-beauty-trial",
-    name: "Medical beauty trial treatment",
+    name: "醫學美容體驗療程",
     slug: "medical-beauty-trial",
     description:
-      "A first-visit experience for clients who want to understand treatment options.",
+      "適合首次到訪、想了解療程效果同配搭方案的客人。",
   },
 ];
 
@@ -30,7 +30,7 @@ export const alyssaPackages = [
   {
     id: "consultation-booking",
     treatmentId: "skin-renewal-consult",
-    name: "Free consultation booking",
+    name: "免費諮詢預約",
     originalPrice: 0,
     promoPrice: 0,
     currency: "HKD",
@@ -39,7 +39,7 @@ export const alyssaPackages = [
   {
     id: "trial-package-388",
     treatmentId: "medical-beauty-trial",
-    name: "First-visit trial offer",
+    name: "首次體驗優惠",
     originalPrice: 980,
     promoPrice: 388,
     currency: "HKD",
@@ -48,9 +48,9 @@ export const alyssaPackages = [
 ];
 
 export const alyssaBranches = [
-  { id: "central", name: "Central", slug: "central" },
-  { id: "causeway-bay", name: "Causeway Bay", slug: "causeway-bay" },
-  { id: "tsim-sha-tsui", name: "Tsim Sha Tsui", slug: "tsim-sha-tsui" },
+  { id: "central", name: "中環", slug: "central" },
+  { id: "causeway-bay", name: "銅鑼灣", slug: "causeway-bay" },
+  { id: "tsim-sha-tsui", name: "尖沙咀", slug: "tsim-sha-tsui" },
 ];
 
 export const alyssaDefaultForm = {

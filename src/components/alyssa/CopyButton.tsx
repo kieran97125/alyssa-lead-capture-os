@@ -7,7 +7,7 @@ type Props = {
   label?: string;
 };
 
-export function CopyButton({ value, label = "Copy" }: Props) {
+export function CopyButton({ value, label = "複製" }: Props) {
   const [copied, setCopied] = useState(false);
 
   async function copyValue() {
@@ -26,7 +26,7 @@ export function CopyButton({ value, label = "Copy" }: Props) {
       onClick={copyValue}
       className="rounded-full border border-[#d9b66f] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348] transition hover:border-[#c9828e]"
     >
-      {copied ? "Copied" : label}
+      {copied ? "已複製" : label}
     </button>
   );
 }

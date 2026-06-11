@@ -2,34 +2,42 @@ import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 
 const sourcePerformance = [
-  "Leads by source_type",
-  "UTM source / medium / campaign performance",
-  "Click ID availability",
-  "CTWA availability",
-  "Organic / unknown source share",
-  "Tracking status distribution",
-  "UTM missing rate",
+  "按 source_type 分析 leads",
+  "UTM source / medium / campaign 成效",
+  "Click ID 覆蓋率",
+  "CTWA 資料覆蓋率",
+  "Organic / unknown leads 比例",
+  "tracking_status 分佈",
+  "UTM 缺失率",
 ];
 
 const outcomePerformance = [
-  "Booking requested count",
-  "Booking confirmed count",
-  "Paid leads",
-  "Booking-only leads",
-  "Payment failed leads",
-  "Revenue from paid leads",
-  "Campaign-to-booking conversion",
+  "已提交預約數",
+  "已確認預約數",
+  "已付款 leads",
+  "只預約未付款 leads",
+  "付款失敗 leads",
+  "已付款收入",
+  "Campaign 至預約轉化",
 ];
 
 const attributionAudit = [
-  "Complete UTM",
-  "Partial UTM",
-  "Click ID only",
-  "CTWA only",
-  "No source signal",
-  "Duplicate leads",
-  "Source snapshot details",
-  "Lead/contact event timeline",
+  "完整 UTM",
+  "部分 UTM",
+  "只有 Click ID",
+  "只有 CTWA",
+  "沒有來源訊號",
+  "重複 leads",
+  "source snapshot 詳情",
+  "lead / contact event timeline",
+];
+
+const sourceTypes = [
+  ["reg_form_utm", "表格提交並帶有 UTM / click ID / parent page 來源資料"],
+  ["whatsapp_ctwa", "WhatsApp Click-to-Ads 或 referral metadata 來源"],
+  ["organic_unknown", "未有可靠 UTM、click ID 或 CTWA 訊號"],
+  ["manual", "日後由 CRM 同事手動建立"],
+  ["imported", "由 spreadsheet 或舊系統匯入"],
 ];
 
 const crmFeedback = [
@@ -53,63 +61,81 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-                Internal growth dashboard
+                內部增長儀表板
               </p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
                 Alyssa Lead Capture OS
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                The dashboard is structured around the shared lead/source model:
-                source snapshots explain where leads came from, while bookings,
-                payments, and future CRM outcomes explain what happened next.
+                成效儀表板以 shared lead/source model 為核心：source snapshot
+                負責解釋 lead 從邊度嚟，bookings、payments 同日後 CRM outcome
+                則負責解釋之後發生咗咩結果。
               </p>
             </div>
             <div className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348]">
-              Live data state: waiting for Supabase connection
+              資料狀態：等待連接 Supabase
             </div>
           </div>
 
           <div className="mt-6 grid gap-3 md:grid-cols-4">
-            <ReadinessCard label="Public form" value="Ready" />
-            <ReadinessCard label="Source snapshots" value="Modeled" />
-            <ReadinessCard label="Lead events" value="Modeled" />
-            <ReadinessCard label="CRM feedback" value="Boundary ready" />
+            <ReadinessCard label="Public form" value="已準備" />
+            <ReadinessCard label="Source snapshots" value="已建模" />
+            <ReadinessCard label="Lead events" value="已建模" />
+            <ReadinessCard label="CRM feedback" value="接口已預留" />
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+            Source type 定義
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            {sourceTypes.map(([sourceType, description]) => (
+              <div key={sourceType} className="rounded-2xl bg-[#fff6f0] p-4">
+                <p className="font-mono text-xs font-bold text-[#5a2348]">
+                  {sourceType}
+                </p>
+                <p className="mt-2 text-xs leading-5 text-[#7b5a6a]">
+                  {description}
+                </p>
+              </div>
+            ))}
           </div>
         </section>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-2">
           <DashboardPanel
-            title="Source Performance"
-            eyebrow="Attribution source"
-            description="Where Alyssa leads came from, grouped by source type, UTM, click IDs, and CTWA evidence."
+            title="來源成效"
+            eyebrow="來源追蹤"
+            description="按 source_type、UTM、click IDs 同 CTWA evidence 分析 Alyssa leads 從邊度嚟。"
             items={sourcePerformance}
           />
           <DashboardPanel
-            title="Lead Outcome Performance"
-            eyebrow="Business result"
-            description="Booking and payment outcomes that will join back to the original source snapshots."
+            title="預約 / 付款結果"
+            eyebrow="業務結果"
+            description="預約同付款結果會連返原本 source snapshot，用嚟判斷邊個 campaign 真正帶來結果。"
             items={outcomePerformance}
           />
         </section>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <DashboardPanel
-            title="Attribution Audit"
-            eyebrow="Quality control"
-            description="Operational checks for missing UTM, partial tracking, CTWA-only leads, duplicates, and event timelines."
+            title="追蹤稽核"
+            eyebrow="資料品質"
+            description="檢查 UTM 缺失、部分追蹤、CTWA-only leads、重複 leads 同 event timeline。"
             items={attributionAudit}
           />
           <section className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
             <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-              Future CRM feedback
+              CRM 回寫結果
             </p>
             <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              Outcome events reserved for the WhatsApp CRM
+              為 WhatsApp CRM 預留的 outcome events
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-              These are not fake metrics. They are the event names the separate CRM
-              will write back so source performance can include confirmed appointments,
-              show/no-show, paid deals, and losses.
+              這裡不是假數據，而是日後獨立 CRM 會寫回來的 event names。
+              儀表板可以用這些 events 計算 confirmed appointments、show/no-show、
+              paid deals 同 lost leads。
             </p>
             <div className="mt-4 grid gap-2 sm:grid-cols-2">
               {crmFeedback.map((eventName) => (
@@ -128,17 +154,17 @@ export default function DashboardPage() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                Local verification
+                本機測試
               </p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                Test attribution before connecting production data
+                先測試來源追蹤，再連接正式資料
               </h2>
             </div>
             <Link
               href="/embed-preview"
               className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white"
             >
-              Open Embed Preview
+              開啟嵌入預覽
             </Link>
           </div>
         </section>
@@ -181,7 +207,7 @@ function DashboardPanel({
           <div key={item} className="flex items-center justify-between gap-4 py-3">
             <span className="text-sm font-semibold text-[#5a2348]">{item}</span>
             <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
-              Pending live data
+              等待正式資料
             </span>
           </div>
         ))}

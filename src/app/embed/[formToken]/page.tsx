@@ -269,7 +269,7 @@ export default function EmbedFormPage() {
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState("loading");
-    setMessage("Preparing your request...");
+    setMessage("正在處理你的預約...");
     await logPublicEvent("form_submit_attempt", { form_token: params.formToken }, attribution);
 
     try {
@@ -289,7 +289,7 @@ export default function EmbedFormPage() {
 
       if (!response.ok || !result.ok) {
         setState("error");
-        setMessage(result.message || "Submission failed. Please try again.");
+        setMessage(result.message || "暫時未能提交，請稍後再試。");
         await logPublicEvent(
           "form_submit_failed",
           { error: result.error || "submission_failed" },
@@ -299,10 +299,10 @@ export default function EmbedFormPage() {
       }
 
       setState("success");
-      setMessage("Your request has been received.");
+      setMessage("已收到你的預約資料。");
     } catch (error) {
       setState("error");
-      setMessage("Network error. Please try again.");
+      setMessage("網絡連線不穩定，請稍後再試。");
       await logPublicEvent(
         "form_submit_failed",
         { error: error instanceof Error ? error.message : "network_error" },
@@ -317,16 +317,15 @@ export default function EmbedFormPage() {
         <div className="bg-[#5a2348] px-6 py-6 text-white">
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#eac7ce]">
-              Alyssa Medical Beauty
+              Alyssa 醫學美容
             </p>
             <span className="rounded-full border border-white/20 px-3 py-1 text-xs font-bold text-[#fff6f0]">
-              Private request
+              專人跟進
             </span>
           </div>
-          <h1 className="mt-4 text-2xl font-bold">Personal consultation booking</h1>
+          <h1 className="mt-4 text-2xl font-bold">預約個人療程諮詢</h1>
           <p className="mt-2 text-sm leading-6 text-[#f8e8e2]">
-            Share your preferred treatment and appointment window. Alyssa will
-            follow up personally on WhatsApp.
+            填寫你有興趣嘅療程同預約時段，Alyssa 會透過 WhatsApp 跟進確認。
           </p>
         </div>
 
@@ -334,21 +333,21 @@ export default function EmbedFormPage() {
           {state === "success" ? (
             <section className="rounded-[26px] border border-emerald-200 bg-emerald-50 p-6 text-center">
               <p className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-600 text-lg font-bold text-white">
-                OK
+                完成
               </p>
               <h2 className="mt-4 text-2xl font-bold text-emerald-950">
-                Request received
+                已收到預約資料
               </h2>
               <p className="mt-3 text-sm leading-6 text-emerald-800">{message}</p>
               <p className="mt-4 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-emerald-900">
-                A team member will contact you by WhatsApp to confirm details.
+                Alyssa 團隊會透過 WhatsApp 聯絡你，確認療程同預約細節。
               </p>
             </section>
           ) : (
             <>
               <section className="rounded-3xl border border-[#ead9cf] bg-[#fff6f0] p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                  Selected treatment
+                  已選療程
                 </p>
                 <div className="mt-3 flex items-start justify-between gap-4">
                   <div>
@@ -360,13 +359,13 @@ export default function EmbedFormPage() {
                   <p className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-bold text-[#5a2348]">
                     {selectedPackage?.promoPrice > 0
                       ? `$${selectedPackage.promoPrice}`
-                      : "Free"}
+                      : "免費"}
                   </p>
                 </div>
               </section>
 
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                {["WhatsApp follow-up", "Secure source capture", "No card needed"].map(
+                {["WhatsApp 專人跟進", "已記錄來源追蹤", "無需信用卡"].map(
                   (item) => (
                     <p
                       key={item}
@@ -386,8 +385,8 @@ export default function EmbedFormPage() {
                   onChange={(event) => updateField("honeypot", event.target.value)}
                 />
 
-                <FormSection title="Treatment preferences">
-                  <Field label="Treatment">
+                <FormSection title="療程選項">
+                  <Field label="療程">
                     <select
                       className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
                       value={formData.treatment_id}
@@ -403,7 +402,7 @@ export default function EmbedFormPage() {
                     </select>
                   </Field>
 
-                  <Field label="Package">
+                  <Field label="套餐">
                     <select
                       className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
                       value={formData.package_id}
@@ -413,14 +412,14 @@ export default function EmbedFormPage() {
                     >
                       {availablePackages.map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.name} - {item.promoPrice > 0 ? `$${item.promoPrice}` : "Free"}
+                          {item.name} - {item.promoPrice > 0 ? `$${item.promoPrice}` : "免費"}
                         </option>
                       ))}
                     </select>
                   </Field>
 
                   {selectedPackage?.paymentRequired && (
-                    <Field label="Booking option">
+                    <Field label="預約選項">
                       <select
                         className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
                         value={formData.payment_option}
@@ -428,16 +427,16 @@ export default function EmbedFormPage() {
                           updateField("payment_option", event.target.value)
                         }
                       >
-                        <option value="pay_now">Pay deposit now</option>
-                        <option value="booking_only">Booking request only</option>
+                        <option value="pay_now">即時支付訂金</option>
+                        <option value="booking_only">先提交預約</option>
                       </select>
                     </Field>
                   )}
                 </FormSection>
 
-                <FormSection title="Your details">
+                <FormSection title="你的資料">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="Name">
+                    <Field label="姓名">
                       <input
                         required
                         className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
@@ -445,10 +444,10 @@ export default function EmbedFormPage() {
                         onChange={(event) =>
                           updateField("customer_name", event.target.value)
                         }
-                        placeholder="Your name"
+                        placeholder="你的稱呼"
                       />
                     </Field>
-                    <Field label="WhatsApp phone">
+                    <Field label="WhatsApp 電話">
                       <input
                         required
                         inputMode="tel"
@@ -460,7 +459,7 @@ export default function EmbedFormPage() {
                     </Field>
                   </div>
 
-                  <Field label="Email optional">
+                  <Field label="電郵（選填）">
                     <input
                       type="email"
                       className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
@@ -471,9 +470,9 @@ export default function EmbedFormPage() {
                   </Field>
                 </FormSection>
 
-                <FormSection title="Appointment preference">
+                <FormSection title="預約偏好">
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <Field label="Branch">
+                    <Field label="分店">
                       <select
                         className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
                         value={formData.branch_id}
@@ -488,7 +487,7 @@ export default function EmbedFormPage() {
                         ))}
                       </select>
                     </Field>
-                    <Field label="Date">
+                    <Field label="日期">
                       <input
                         type="date"
                         className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
@@ -498,7 +497,7 @@ export default function EmbedFormPage() {
                         }
                       />
                     </Field>
-                    <Field label="Time">
+                    <Field label="時間">
                       <select
                         className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
                         value={formData.appointment_time}
@@ -520,7 +519,7 @@ export default function EmbedFormPage() {
                   disabled={state === "loading"}
                   className="w-full rounded-full bg-[#e46f64] px-5 py-3.5 text-sm font-bold text-white shadow-[0_14px_30px_rgba(228,111,100,0.28)] transition hover:bg-[#d95f55] disabled:opacity-60"
                 >
-                  {state === "loading" ? "Submitting..." : "Reserve consultation time"}
+                  {state === "loading" ? "提交中..." : "確認預約"}
                 </button>
               </form>
 
@@ -531,7 +530,7 @@ export default function EmbedFormPage() {
               )}
 
               <p className="mt-4 text-center text-xs leading-5 text-[#8a6b78]">
-                Your details are used only for booking follow-up and consultation handling.
+                你的資料只會用作預約跟進及療程諮詢安排。
               </p>
             </>
           )}

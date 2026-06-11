@@ -8,7 +8,7 @@ type Props = {
 
 export function EmbedCodeCard({
   code,
-  title = "Embed script",
+  title = "嵌入 script",
   description,
 }: Props) {
   return (

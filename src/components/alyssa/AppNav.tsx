@@ -1,10 +1,10 @@
 import Link from "next/link";
 
 const navItems = [
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/forms", label: "Forms" },
-  { href: "/embed-preview", label: "Embed Preview" },
-  { href: "/embed/alyssa-main-form-dev-token", label: "Iframe" },
+  { href: "/dashboard", label: "成效儀表板" },
+  { href: "/forms", label: "表格管理" },
+  { href: "/embed-preview", label: "嵌入預覽" },
+  { href: "/embed/alyssa-main-form-dev-token", label: "表格 iframe" },
 ];
 
 export function AppNav() {
@@ -20,7 +20,7 @@ export function AppNav() {
               Alyssa
             </span>
             <span className="block text-xl font-bold text-[#321428]">
-              Lead Capture OS
+              Alyssa Lead Capture OS
             </span>
           </span>
         </Link>
