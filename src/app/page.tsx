@@ -1,7 +1,15 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { EmbedCodeCard } from "@/components/alyssa/EmbedCodeCard";
+import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
+import { getDefaultEmbedCode } from "@/lib/data/appUrl";
 
 export default function HomePage() {
+  const embedCode = getDefaultEmbedCode(
+    alyssaDefaultForm.publicFormToken,
+    alyssaDefaultForm.id
+  );
+
   return (
     <main className="alyssa-shell">
       <AppNav />
@@ -25,23 +33,18 @@ export default function HomePage() {
               Open Dashboard
             </Link>
             <Link
-              href="/embed/alyssa-main-form-dev-token"
+              href="/embed-preview"
               className="rounded-full border border-[#d9b66f] bg-white/70 px-5 py-3 text-sm font-bold text-[#5a2348]"
             >
-              Preview Form
+              Test Embed Preview
             </Link>
           </div>
         </div>
-        <div className="rounded-[28px] border border-[#ead9cf] bg-white/78 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.12)]">
-          <p className="text-sm font-bold text-[#9a5d76]">Embed script</p>
-          <pre className="mt-4 overflow-x-auto rounded-2xl bg-[#321428] p-4 text-xs leading-6 text-[#fff9f3]">
-{`<script
-  src="https://YOUR_DOMAIN/embed/alyssa-form.js"
-  data-form-token="FORM_PUBLIC_TOKEN"
-  data-brand="alyssa"
-  data-form-id="FORM_ID">
-</script>`}
-          </pre>
+        <div className="space-y-5">
+          <EmbedCodeCard
+            code={embedCode}
+            description="Environment-aware script URL for Wix page embeds."
+          />
           <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {[
               "Parent UTM capture",

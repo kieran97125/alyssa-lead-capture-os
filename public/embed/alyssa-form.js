@@ -68,6 +68,54 @@
     return "storage_blocked";
   }
 
+  function classifyDebugPayload(payload) {
+    var utmCount = [
+      "utm_source",
+      "utm_medium",
+      "utm_campaign",
+      "utm_id",
+      "utm_content",
+      "utm_term"
+    ].filter(function (key) {
+      return payload[key];
+    }).length;
+    var hasClickId = Boolean(
+      payload.fbclid ||
+      payload.gclid ||
+      payload.ttclid ||
+      payload.msclkid ||
+      payload.wbraid ||
+      payload.gbraid
+    );
+    var hasReferrer = Boolean(payload.referrer || payload.current_page_url || payload.landing_page_url);
+
+    if (utmCount >= 3) {
+      return { tracking_status: "complete_utm", audit_reason: "utm_found_on_parent_url" };
+    }
+
+    if (utmCount > 0) {
+      return { tracking_status: "partial_utm", audit_reason: "iframe_received_parent_payload" };
+    }
+
+    if (hasClickId) {
+      return { tracking_status: "click_id_only", audit_reason: "fbclid_found_without_utm" };
+    }
+
+    if (payload.source_capture_method === "parent_embed_script_local_storage_recovered") {
+      return { tracking_status: "storage_recovered", audit_reason: "recovered_from_local_storage" };
+    }
+
+    if (payload.source_capture_method === "parent_embed_script_session_storage_recovered") {
+      return { tracking_status: "storage_recovered", audit_reason: "recovered_from_session_storage" };
+    }
+
+    if (hasReferrer) {
+      return { tracking_status: "referrer_only", audit_reason: "organic_assigned_due_to_no_tracking_signal" };
+    }
+
+    return { tracking_status: "organic_unknown", audit_reason: "no_url_params_no_storage" };
+  }
+
   try {
     var script = document.currentScript;
     if (!script) return;
@@ -125,10 +173,27 @@
     writeStorage("alyssa_visitor_id", visitorId, window.localStorage);
     writeStorage("alyssa_session_id", sessionId, window.sessionStorage);
 
+    var debugClassification = classifyDebugPayload(latestTouch);
     var submittedTouch = Object.assign({}, latestTouch, {
       source_capture_method: captureMethod,
-      storage_status: classifyStorageStatus(localSaved, sessionSaved)
+      storage_status: classifyStorageStatus(localSaved, sessionSaved),
+      tracking_status: debugClassification.tracking_status,
+      audit_reason: debugClassification.audit_reason
     });
+    var debugPayload = {
+      submitted_touch_json: submittedTouch,
+      tracking_status: debugClassification.tracking_status,
+      audit_reason: debugClassification.audit_reason
+    };
+
+    window.__ALYSSA_LEAD_CAPTURE_DEBUG__ = debugPayload;
+
+    try {
+      window.dispatchEvent(
+        new CustomEvent("alyssa:attribution-captured", { detail: debugPayload })
+      );
+    } catch {
+    }
 
     var iframeUrl = new URL(embedOrigin + "/embed/" + encodeURIComponent(formToken));
     iframeUrl.searchParams.set("brand", brand);

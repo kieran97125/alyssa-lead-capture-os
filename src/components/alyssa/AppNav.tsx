@@ -3,7 +3,8 @@ import Link from "next/link";
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
   { href: "/forms", label: "Forms" },
-  { href: "/embed/alyssa-main-form-dev-token", label: "Embed Preview" },
+  { href: "/embed-preview", label: "Embed Preview" },
+  { href: "/embed/alyssa-main-form-dev-token", label: "Iframe" },
 ];
 
 export function AppNav() {

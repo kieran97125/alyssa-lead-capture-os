@@ -138,11 +138,6 @@ export default function EmbedFormPage() {
   const [state, setState] = useState<SubmitState>("idle");
   const [message, setMessage] = useState("");
   const [formStarted, setFormStarted] = useState(false);
-  const [leadMeta, setLeadMeta] = useState<{
-    leadId?: string;
-    snapshotId?: string;
-    trackingStatus?: string;
-  }>({});
   const [publicForm, setPublicForm] = useState<PublicFormConfig>(() =>
     normalizeForm(alyssaDefaultForm)
   );
@@ -274,7 +269,7 @@ export default function EmbedFormPage() {
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setState("loading");
-    setMessage("Submitting...");
+    setMessage("Preparing your request...");
     await logPublicEvent("form_submit_attempt", { form_token: params.formToken }, attribution);
 
     try {
@@ -304,14 +299,7 @@ export default function EmbedFormPage() {
       }
 
       setState("success");
-      setMessage(
-        "Your appointment request has been received. Alyssa will follow up on WhatsApp."
-      );
-      setLeadMeta({
-        leadId: result.lead_id,
-        snapshotId: result.source_snapshot_id,
-        trackingStatus: result.tracking_status,
-      });
+      setMessage("Your request has been received.");
     } catch (error) {
       setState("error");
       setMessage("Network error. Please try again.");
@@ -325,187 +313,248 @@ export default function EmbedFormPage() {
 
   return (
     <main className="min-h-screen bg-[#fff9f3] px-4 py-5 text-[#321428]">
-      <section className="mx-auto max-w-xl overflow-hidden rounded-[28px] border border-[#ead9cf] bg-white shadow-[0_24px_70px_rgba(90,35,72,0.14)]">
+      <section className="mx-auto max-w-xl overflow-hidden rounded-[30px] border border-[#ead9cf] bg-white shadow-[0_24px_70px_rgba(90,35,72,0.14)]">
         <div className="bg-[#5a2348] px-6 py-6 text-white">
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#eac7ce]">
-            Alyssa Medical Beauty
-          </p>
-          <h1 className="mt-3 text-2xl font-bold">Personal consultation booking</h1>
+          <div className="flex items-center justify-between gap-4">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#eac7ce]">
+              Alyssa Medical Beauty
+            </p>
+            <span className="rounded-full border border-white/20 px-3 py-1 text-xs font-bold text-[#fff6f0]">
+              Private request
+            </span>
+          </div>
+          <h1 className="mt-4 text-2xl font-bold">Personal consultation booking</h1>
           <p className="mt-2 text-sm leading-6 text-[#f8e8e2]">
-            Share your details and Alyssa will arrange the best next appointment window.
+            Share your preferred treatment and appointment window. Alyssa will
+            follow up personally on WhatsApp.
           </p>
         </div>
+
         <div className="p-6">
-          <div className="rounded-3xl border border-[#ead9cf] bg-[#fff6f0] p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-              Selected treatment
-            </p>
-            <div className="mt-3 flex items-start justify-between gap-4">
-              <div>
-                <p className="font-bold">{selectedTreatment?.name}</p>
-                <p className="mt-1 text-sm leading-6 text-[#7b5a6a]">
-                  {selectedTreatment?.description}
-                </p>
-              </div>
-              <p className="rounded-full bg-white px-4 py-2 text-sm font-bold text-[#5a2348]">
-                {selectedPackage?.promoPrice > 0
-                  ? `$${selectedPackage.promoPrice}`
-                  : "Free"}
+          {state === "success" ? (
+            <section className="rounded-[26px] border border-emerald-200 bg-emerald-50 p-6 text-center">
+              <p className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-600 text-lg font-bold text-white">
+                OK
               </p>
-            </div>
-          </div>
-
-          <form onSubmit={submitForm} className="mt-5 space-y-4">
-            <input
-              className="hidden"
-              tabIndex={-1}
-              value={formData.honeypot}
-              onChange={(event) => updateField("honeypot", event.target.value)}
-            />
-
-            <Field label="Treatment">
-              <select
-                className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
-                value={formData.treatment_id}
-                onChange={(event) => updateField("treatment_id", event.target.value)}
-              >
-                {treatments.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            <Field label="Package">
-              <select
-                className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
-                value={formData.package_id}
-                onChange={(event) => updateField("package_id", event.target.value)}
-              >
-                {availablePackages.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} - {item.promoPrice > 0 ? `$${item.promoPrice}` : "Free"}
-                  </option>
-                ))}
-              </select>
-            </Field>
-
-            {selectedPackage?.paymentRequired && (
-              <Field label="Booking option">
-                <select
-                  className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
-                  value={formData.payment_option}
-                  onChange={(event) => updateField("payment_option", event.target.value)}
-                >
-                  <option value="pay_now">Pay deposit now</option>
-                  <option value="booking_only">Booking request only</option>
-                </select>
-              </Field>
-            )}
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Name">
-                <input
-                  required
-                  className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
-                  value={formData.customer_name}
-                  onChange={(event) => updateField("customer_name", event.target.value)}
-                  placeholder="Your name"
-                />
-              </Field>
-              <Field label="WhatsApp phone">
-                <input
-                  required
-                  inputMode="tel"
-                  className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
-                  value={formData.phone}
-                  onChange={(event) => updateField("phone", event.target.value)}
-                  placeholder="9123 4567"
-                />
-              </Field>
-            </div>
-
-            <Field label="Email optional">
-              <input
-                type="email"
-                className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
-                value={formData.email}
-                onChange={(event) => updateField("email", event.target.value)}
-                placeholder="name@example.com"
-              />
-            </Field>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field label="Branch">
-                <select
-                  className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
-                  value={formData.branch_id}
-                  onChange={(event) => updateField("branch_id", event.target.value)}
-                >
-                  {branches.map((item) => (
-                    <option key={item.id} value={item.id}>
-                      {item.name}
-                    </option>
-                  ))}
-                </select>
-              </Field>
-              <Field label="Date">
-                <input
-                  type="date"
-                  className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
-                  value={formData.appointment_date}
-                  onChange={(event) => updateField("appointment_date", event.target.value)}
-                />
-              </Field>
-              <Field label="Time">
-                <select
-                  className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
-                  value={formData.appointment_time}
-                  onChange={(event) => updateField("appointment_time", event.target.value)}
-                >
-                  {["11:00", "12:00", "14:00", "16:00", "18:00", "19:30"].map(
-                    (time) => (
-                      <option key={time}>{time}</option>
-                    )
-                  )}
-                </select>
-              </Field>
-            </div>
-
-            <button
-              disabled={state === "loading"}
-              className="w-full rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white transition hover:bg-[#d95f55] disabled:opacity-60"
-            >
-              {state === "loading" ? "Submitting..." : "Confirm booking"}
-            </button>
-          </form>
-
-          {message && (
-            <div
-              className={`mt-5 rounded-2xl border px-4 py-3 text-sm font-semibold ${
-                state === "success"
-                  ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                  : state === "error"
-                    ? "border-red-200 bg-red-50 text-red-700"
-                    : "border-[#ead9cf] bg-[#fff6f0] text-[#5a2348]"
-              }`}
-            >
-              {message}
-              {state === "success" && (
-                <p className="mt-2 text-xs font-normal">
-                  Lead: {leadMeta.leadId} - Snapshot: {leadMeta.snapshotId} -
-                  Tracking: {leadMeta.trackingStatus}
+              <h2 className="mt-4 text-2xl font-bold text-emerald-950">
+                Request received
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-emerald-800">{message}</p>
+              <p className="mt-4 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-emerald-900">
+                A team member will contact you by WhatsApp to confirm details.
+              </p>
+            </section>
+          ) : (
+            <>
+              <section className="rounded-3xl border border-[#ead9cf] bg-[#fff6f0] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                  Selected treatment
                 </p>
+                <div className="mt-3 flex items-start justify-between gap-4">
+                  <div>
+                    <p className="font-bold">{selectedTreatment?.name}</p>
+                    <p className="mt-1 text-sm leading-6 text-[#7b5a6a]">
+                      {selectedTreatment?.description}
+                    </p>
+                  </div>
+                  <p className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-bold text-[#5a2348]">
+                    {selectedPackage?.promoPrice > 0
+                      ? `$${selectedPackage.promoPrice}`
+                      : "Free"}
+                  </p>
+                </div>
+              </section>
+
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                {["WhatsApp follow-up", "Secure source capture", "No card needed"].map(
+                  (item) => (
+                    <p
+                      key={item}
+                      className="rounded-2xl border border-[#ead9cf] bg-white px-3 py-2 text-center text-xs font-bold text-[#9a5d76]"
+                    >
+                      {item}
+                    </p>
+                  )
+                )}
+              </div>
+
+              <form onSubmit={submitForm} className="mt-5 space-y-5">
+                <input
+                  className="hidden"
+                  tabIndex={-1}
+                  value={formData.honeypot}
+                  onChange={(event) => updateField("honeypot", event.target.value)}
+                />
+
+                <FormSection title="Treatment preferences">
+                  <Field label="Treatment">
+                    <select
+                      className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                      value={formData.treatment_id}
+                      onChange={(event) =>
+                        updateField("treatment_id", event.target.value)
+                      }
+                    >
+                      {treatments.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  <Field label="Package">
+                    <select
+                      className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                      value={formData.package_id}
+                      onChange={(event) =>
+                        updateField("package_id", event.target.value)
+                      }
+                    >
+                      {availablePackages.map((item) => (
+                        <option key={item.id} value={item.id}>
+                          {item.name} - {item.promoPrice > 0 ? `$${item.promoPrice}` : "Free"}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+
+                  {selectedPackage?.paymentRequired && (
+                    <Field label="Booking option">
+                      <select
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                        value={formData.payment_option}
+                        onChange={(event) =>
+                          updateField("payment_option", event.target.value)
+                        }
+                      >
+                        <option value="pay_now">Pay deposit now</option>
+                        <option value="booking_only">Booking request only</option>
+                      </select>
+                    </Field>
+                  )}
+                </FormSection>
+
+                <FormSection title="Your details">
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    <Field label="Name">
+                      <input
+                        required
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
+                        value={formData.customer_name}
+                        onChange={(event) =>
+                          updateField("customer_name", event.target.value)
+                        }
+                        placeholder="Your name"
+                      />
+                    </Field>
+                    <Field label="WhatsApp phone">
+                      <input
+                        required
+                        inputMode="tel"
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
+                        value={formData.phone}
+                        onChange={(event) => updateField("phone", event.target.value)}
+                        placeholder="9123 4567"
+                      />
+                    </Field>
+                  </div>
+
+                  <Field label="Email optional">
+                    <input
+                      type="email"
+                      className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
+                      value={formData.email}
+                      onChange={(event) => updateField("email", event.target.value)}
+                      placeholder="name@example.com"
+                    />
+                  </Field>
+                </FormSection>
+
+                <FormSection title="Appointment preference">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <Field label="Branch">
+                      <select
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                        value={formData.branch_id}
+                        onChange={(event) =>
+                          updateField("branch_id", event.target.value)
+                        }
+                      >
+                        {branches.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                    <Field label="Date">
+                      <input
+                        type="date"
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
+                        value={formData.appointment_date}
+                        onChange={(event) =>
+                          updateField("appointment_date", event.target.value)
+                        }
+                      />
+                    </Field>
+                    <Field label="Time">
+                      <select
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                        value={formData.appointment_time}
+                        onChange={(event) =>
+                          updateField("appointment_time", event.target.value)
+                        }
+                      >
+                        {["11:00", "12:00", "14:00", "16:00", "18:00", "19:30"].map(
+                          (time) => (
+                            <option key={time}>{time}</option>
+                          )
+                        )}
+                      </select>
+                    </Field>
+                  </div>
+                </FormSection>
+
+                <button
+                  disabled={state === "loading"}
+                  className="w-full rounded-full bg-[#e46f64] px-5 py-3.5 text-sm font-bold text-white shadow-[0_14px_30px_rgba(228,111,100,0.28)] transition hover:bg-[#d95f55] disabled:opacity-60"
+                >
+                  {state === "loading" ? "Submitting..." : "Reserve consultation time"}
+                </button>
+              </form>
+
+              {message && state === "error" && (
+                <div className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                  {message}
+                </div>
               )}
-            </div>
+
+              <p className="mt-4 text-center text-xs leading-5 text-[#8a6b78]">
+                Your details are used only for booking follow-up and consultation handling.
+              </p>
+            </>
           )}
-          <p className="mt-4 text-center text-xs leading-5 text-[#8a6b78]">
-            Your details are used only for booking follow-up and consultation handling.
-          </p>
         </div>
       </section>
     </main>
+  );
+}
+
+function FormSection({
+  title,
+  children,
+}: {
+  title: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-3xl border border-[#ead9cf] bg-white p-4">
+      <p className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+        {title}
+      </p>
+      <div className="space-y-4">{children}</div>
+    </section>
   );
 }
 
