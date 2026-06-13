@@ -248,6 +248,14 @@ Basic Auth is a temporary outer protection layer for early Vercel previews and i
 
 The intended long-term layer is Supabase Auth plus role-based access control. Each team member should have their own login, a profile, a role, a status, and optional brand access.
 
+Team Access Enforcement V1 adds reusable permission helper foundations while keeping Basic Auth in place. The current internal app uses a temporary access context:
+
+- `source = "temporary_internal_access"`
+- `role = "owner"`
+- `brandAccess.scope = "all"`
+
+This does not mean real login exists yet. It prepares internal pages and navigation to understand the shape of role, module, and brand access before Supabase Auth is connected.
+
 Suggested roles:
 
 - `owner` - full business, settings, audit, and future CRM access.
@@ -276,6 +284,24 @@ Suggested shared access tables:
 - `user_module_permissions` - optional per-user overrides only if role defaults are not enough.
 
 The future Alyssa CRM app should reuse this access model where possible, especially `profiles`, roles, status, and brand access. This keeps Lead Capture OS and CRM from creating separate user islands.
+
+Implemented helper foundation in `src/lib/security/teamAccess.ts`:
+
+- `canAccessModule(role, module)`
+- `canAccessBrand(userAccess, brandId)`
+- `getRoleLabel(role)`
+- `getModuleLabel(module)`
+- `getVisibleModulesForRole(role)`
+- `getCurrentAccessContext()`
+- `getAccessibleBrandIds(userAccess, allBrandIds)`
+- `shouldIncludeBrandScopedRecord(userAccess, brandId)`
+
+Future brand-scoped pages should filter:
+
+- Leads by accessible brand IDs.
+- Performance data by accessible brand IDs.
+- Forms by accessible brand IDs.
+- Landing pages by accessible brand IDs.
 
 A draft SQL direction is documented in:
 

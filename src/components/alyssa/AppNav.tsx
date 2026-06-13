@@ -1,5 +1,10 @@
 import Link from "next/link";
 import { InternalProtectionBanner } from "@/components/alyssa/InternalProtectionBanner";
+import {
+  getCurrentAccessContext,
+  getRoleLabel,
+  getVisibleModulesForRole,
+} from "@/lib/security/teamAccess";
 
 const navItems = [
   { href: "/dashboard", label: "總覽" },
@@ -17,6 +22,11 @@ export function AppNav({
 }: {
   showInternalWarning?: boolean;
 }) {
+  const accessContext = showInternalWarning ? getCurrentAccessContext() : null;
+  const visibleModules = accessContext
+    ? getVisibleModulesForRole(accessContext.role)
+    : [];
+
   return (
     <>
       {showInternalWarning && <InternalProtectionBanner />}
@@ -47,6 +57,20 @@ export function AppNav({
             ))}
           </nav>
         </div>
+        {accessContext && (
+          <div className="border-t border-[#ead9cf]/70 bg-white/54">
+            <div className="mx-auto flex max-w-7xl flex-col gap-2 px-5 py-2 text-xs font-semibold text-[#7b5a6a] md:flex-row md:items-center md:justify-between">
+              <span>
+                Access mode: temporary internal access · Role:{" "}
+                {getRoleLabel(accessContext.role)} · Brand access:{" "}
+                {accessContext.brandAccess.scope === "all" ? "All brands" : "Limited brands"}
+              </span>
+              <span className="truncate">
+                Visible modules: {visibleModules.map((module) => module.label).join(", ")}
+              </span>
+            </div>
+          </div>
+        )}
       </header>
     </>
   );

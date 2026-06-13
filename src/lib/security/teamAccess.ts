@@ -17,6 +17,19 @@ export type AccessModule =
   | "system_audit"
   | "future_crm";
 
+export type BrandAccessScope = "all" | "limited";
+
+export type UserBrandAccess = {
+  scope: BrandAccessScope;
+  brandIds: string[];
+};
+
+export type CurrentAccessContext = {
+  source: "temporary_internal_access" | "supabase_auth";
+  role: TeamRole;
+  brandAccess: UserBrandAccess;
+};
+
 export const accessModules: Array<{ key: AccessModule; label: string }> = [
   { key: "dashboard", label: "總覽" },
   { key: "leads", label: "Leads" },
@@ -27,6 +40,16 @@ export const accessModules: Array<{ key: AccessModule; label: string }> = [
   { key: "system_audit", label: "系統稽核" },
   { key: "future_crm", label: "Future CRM" },
 ];
+
+export const roleLabels: Record<TeamRole, string> = {
+  owner: "Owner",
+  admin: "Admin",
+  manager: "Manager",
+  marketer: "Marketer",
+  cs: "CS",
+  designer: "Designer",
+  viewer: "Viewer",
+};
 
 export const roleAccess: Record<TeamRole, AccessModule[]> = {
   owner: [
@@ -74,3 +97,53 @@ export const roleDescriptions: Record<TeamRole, string> = {
 };
 
 export const teamRoles = Object.keys(roleAccess) as TeamRole[];
+
+export const temporaryInternalAccessContext: CurrentAccessContext = {
+  source: "temporary_internal_access",
+  role: "owner",
+  brandAccess: {
+    scope: "all",
+    brandIds: [],
+  },
+};
+
+export function canAccessModule(role: TeamRole, module: AccessModule) {
+  return roleAccess[role].includes(module);
+}
+
+export function canAccessBrand(userAccess: UserBrandAccess, brandId: string | null | undefined) {
+  if (userAccess.scope === "all") return true;
+  if (!brandId) return false;
+  return userAccess.brandIds.includes(brandId);
+}
+
+export function getRoleLabel(role: TeamRole) {
+  return roleLabels[role];
+}
+
+export function getModuleLabel(module: AccessModule) {
+  return accessModules.find((item) => item.key === module)?.label ?? module;
+}
+
+export function getVisibleModulesForRole(role: TeamRole) {
+  return roleAccess[role].map((module) => ({
+    key: module,
+    label: getModuleLabel(module),
+  }));
+}
+
+export function getCurrentAccessContext() {
+  return temporaryInternalAccessContext;
+}
+
+export function getAccessibleBrandIds(userAccess: UserBrandAccess, allBrandIds: string[]) {
+  if (userAccess.scope === "all") return allBrandIds;
+  return allBrandIds.filter((brandId) => canAccessBrand(userAccess, brandId));
+}
+
+export function shouldIncludeBrandScopedRecord(
+  userAccess: UserBrandAccess,
+  brandId: string | null | undefined
+) {
+  return canAccessBrand(userAccess, brandId);
+}

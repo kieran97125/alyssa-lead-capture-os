@@ -2,13 +2,20 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
 import {
   accessModules,
+  canAccessModule,
+  getCurrentAccessContext,
+  getModuleLabel,
+  getRoleLabel,
+  getVisibleModulesForRole,
   roleAccess,
   roleDescriptions,
   teamRoles,
-  type AccessModule,
 } from "@/lib/security/teamAccess";
 
 export default function TeamAccessSettingsPage() {
+  const currentAccess = getCurrentAccessContext();
+  const visibleModules = getVisibleModulesForRole(currentAccess.role);
+
   return (
     <main className="alyssa-shell">
       <AppNav showInternalWarning />
@@ -43,6 +50,41 @@ export default function TeamAccessSettingsPage() {
         </section>
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+          <h2 className="text-xl font-bold text-[#321428]">目前 access context</h2>
+          <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
+            這是臨時 internal preview context，不代表已有真實 team login。日後會由
+            Supabase Auth session、profiles、role 同 brand access 產生。
+          </p>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <InfoCell label="Access mode" value={currentAccess.source} />
+            <InfoCell label="Current role" value={getRoleLabel(currentAccess.role)} />
+            <InfoCell
+              label="Brand access"
+              value={
+                currentAccess.brandAccess.scope === "all"
+                  ? "All brands"
+                  : currentAccess.brandAccess.brandIds.join(", ")
+              }
+            />
+          </div>
+          <div className="mt-5">
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+              Visible modules
+            </p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {visibleModules.map((module) => (
+                <span
+                  key={module.key}
+                  className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#5a2348]"
+                >
+                  {module.label}
+                </span>
+              ))}
+            </div>
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
           <h2 className="text-xl font-bold text-[#321428]">角色模型</h2>
           <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
             以下係權限方向，唔代表已有真實用戶或完整 login system。
@@ -60,7 +102,7 @@ export default function TeamAccessSettingsPage() {
                       key={module}
                       className="rounded-full bg-white/78 px-3 py-1 text-xs font-bold text-[#5a2348]"
                     >
-                      {moduleLabel(module)}
+                      {getModuleLabel(module)}
                     </span>
                   ))}
                 </div>
@@ -97,7 +139,7 @@ export default function TeamAccessSettingsPage() {
                         key={module.key}
                         className="border-b border-[#f1e3dc] px-3 py-3"
                       >
-                        {roleAccess[role].includes(module.key) ? "可用" : "預留"}
+                        {canAccessModule(role, module.key) ? "可用" : "預留"}
                       </td>
                     ))}
                   </tr>
@@ -106,13 +148,30 @@ export default function TeamAccessSettingsPage() {
             </table>
           </div>
         </section>
+
+        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+          <h2 className="text-xl font-bold text-[#321428]">Brand access preparation</h2>
+          <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
+            當 Supabase Auth 接入後，內部資料頁應按可用品牌範圍過濾。V1 先提供 helper
+            foundation，暫時不隱藏主要頁面。
+          </p>
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {[
+              ["Leads", "只顯示使用者可存取品牌的 lead records。"],
+              ["Performance", "只計算可存取品牌的成效數據。"],
+              ["Forms", "只顯示可存取品牌的 form configuration。"],
+              ["Landing Pages", "只顯示可存取品牌的 campaign pages。"],
+            ].map(([title, body]) => (
+              <div key={title} className="rounded-2xl bg-[#fff6f0] p-4">
+                <h3 className="font-bold text-[#321428]">{title}</h3>
+                <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
+              </div>
+            ))}
+          </div>
+        </section>
       </div>
     </main>
   );
-}
-
-function moduleLabel(module: AccessModule) {
-  return accessModules.find((item) => item.key === module)?.label ?? module;
 }
 
 function InfoCard({ title, body }: { title: string; body: string }) {
@@ -120,6 +179,19 @@ function InfoCard({ title, body }: { title: string; body: string }) {
     <div className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
       <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
+    </div>
+  );
+}
+
+function InfoCell({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl bg-[#fff6f0] p-4">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+        {label}
+      </p>
+      <p className="mt-2 break-words text-sm font-semibold text-[#5a2348]">
+        {value}
+      </p>
     </div>
   );
 }
