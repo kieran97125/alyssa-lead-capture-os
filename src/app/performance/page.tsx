@@ -39,14 +39,14 @@ export default async function PerformancePage({
                 成效分析
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                按品牌、來源、廣告系列、療程套餐同分店分析正式登記資料。
+                按品牌、來源、廣告系列、療程、套餐同分店，查看登記、預約同預計療程金額。
               </p>
             </div>
             <Link
               href="/leads"
               className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
             >
-              查看最新 Leads
+              查看 Leads
             </Link>
           </div>
           <div className="mt-6 flex flex-wrap gap-2">
@@ -65,24 +65,24 @@ export default async function PerformancePage({
             ))}
           </div>
           <p className="mt-3 text-xs font-semibold text-[#7b5a6a]">
-            目前範圍：{range.label}。所有表格只顯示真實 Supabase-backed records。
+            目前期間：{range.label}
           </p>
           {error && (
             <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-              資料讀取失敗：{error.message}
+              資料暫時未能讀取，請稍後再試。
             </p>
           )}
         </section>
 
         <section className="mt-6 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
           <PerformanceTable
-            title="品牌表現"
+            title="品牌成效"
             columns={["品牌", "Leads", "預約", "已付款", "預計金額"]}
             rows={performance.brandPerformance}
             type="brand"
           />
           <PerformanceTable
-            title="來源 / 廣告系列表現"
+            title="來源 / 廣告系列成效"
             columns={[
               "來源",
               "廣告系列",
@@ -99,13 +99,13 @@ export default async function PerformancePage({
 
         <section className="mt-6 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
           <PerformanceTable
-            title="療程 / 套餐表現"
+            title="療程 / 套餐成效"
             columns={["療程", "套餐", "價錢", "Leads", "預約", "已付款"]}
             rows={performance.treatmentPerformance}
             type="treatment"
           />
           <PerformanceTable
-            title="分店表現"
+            title="分店成效"
             columns={["分店", "Leads", "預約", "佔比"]}
             rows={performance.branchPerformance}
             type="branch"
@@ -154,7 +154,7 @@ function PerformanceTable({
                   colSpan={columns.length}
                   className="px-3 py-6 text-center text-[#7b5a6a]"
                 >
-                  目前未有資料。
+                  目前期間未有資料。
                 </td>
               </tr>
             )}
@@ -174,8 +174,8 @@ function renderPerformanceCells(row: PerformanceRow, type: PerformanceTableType)
     return (
       <>
         <Cell>{row.label}</Cell>
-        <Cell>{row.meta?.[0] || "未設定"}</Cell>
-        <Cell>{row.meta?.[1] || "未設定"}</Cell>
+        <Cell>{row.meta?.[0] || "未標記"}</Cell>
+        <Cell>{row.meta?.[1] || "未標記"}</Cell>
         <Cell>{row.leads}</Cell>
         <Cell>{row.bookings}</Cell>
         <Cell>{row.paid}</Cell>
@@ -188,8 +188,8 @@ function renderPerformanceCells(row: PerformanceRow, type: PerformanceTableType)
     return (
       <>
         <Cell>{row.label}</Cell>
-        <Cell>{row.meta?.[0] || "未設定"}</Cell>
-        <Cell>{row.meta?.[1] || "未設定"}</Cell>
+        <Cell>{row.meta?.[0] || "未標記"}</Cell>
+        <Cell>{row.meta?.[1] || "未標記"}</Cell>
         <Cell>{row.leads}</Cell>
         <Cell>{row.bookings}</Cell>
         <Cell>{row.paid}</Cell>

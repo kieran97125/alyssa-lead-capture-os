@@ -12,29 +12,31 @@ export default function LandingPagesPage() {
             Landing Pages
           </p>
           <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-            Campaign testing layer
+            Campaign landing page foundation
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-            Alyssa Lead Capture OS 支援 Form-only embed 同簡單 campaign landing
-            page。Wix 仍然係主網站；landing page mode 用於快速 market testing。
+            Alyssa Lead Capture OS 可以用同一份表格設定做 form-only embed，
+            亦可以在日後加上 hero、文案、section 同 template，變成簡單 campaign
+            landing page。Wix 仍然係主網站；呢一層只用於快速測試 offer、campaign
+            同 market angle。
           </p>
         </section>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-2">
           <ModeCard
             title="Form-only embed"
-            description="設定品牌、療程、套餐、分店同 form token，產生 Wix embed script。Lead App 負責表格、UTM、source snapshot 同 attribution。"
+            description="設定品牌、療程、套餐、分店同 form token，產生 Wix embed script。Lead App 負責表格、來源擷取同廣告歸因。"
             status="已實作"
           />
           <ModeCard
             title="Campaign landing page"
-            description="用同一份 form config 包裝 hero、offer、CTA、FAQ/testimonial 等內容，快速測試 campaign。不是 Wix replacement。"
-            status="Foundation ready"
+            description="用同一份 form config 包裝 hero、offer、CTA、FAQ/testimonial 等內容，快速測試 campaign。這不是完整 Wix replacement，內容編輯同 template builder 仍屬準備階段。"
+            status="Foundation prepared"
           />
         </section>
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
-          <h2 className="text-xl font-bold text-[#321428]">Landing page configs</h2>
+          <h2 className="text-xl font-bold text-[#321428]">Campaign page configs</h2>
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
             {alyssaLandingPages.map((page) => (
               <article key={page.id} className="rounded-2xl bg-[#fff6f0] p-5">

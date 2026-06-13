@@ -23,18 +23,19 @@ export default function FormConfigPage() {
           {alyssaDefaultForm.formName}
         </h1>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-          呢個畫面用作 Wix embed 設定同日後 Supabase 正式表格設定的交接參考。
-          技術值保持英文，方便開發、部署同 CRM 對接。
+          呢個畫面用作 Wix embed 設定、品牌 / 療程 / 套餐 / 分店預設值、
+          同未來 landing page 生成的共同基礎。現時仍是 config-backed，
+          完整後台編輯會在下一階段建立。
         </p>
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-            Config state
+            設定狀態
           </p>
           <p className="mt-2 text-sm leading-6 text-[#5a2348]">
-            目前顯示本機 seed config，方便核對 production-ready embed path。
-            Supabase 連接後，呢個畫面應該讀取正式 `forms`、`brands`、
-            `treatments`、`packages` 同 `branches` 設定。
+            目前顯示 seed / config-backed 設定，方便核對正式 embed path。
+            Form-only mode 已可用於 Wix 頁面；landing page mode 會在加入
+            hero image、文案、section 同 template 後，用同一份表格設定生成 campaign page。
           </p>
         </section>
 
@@ -43,7 +44,7 @@ export default function FormConfigPage() {
             <h2 className="text-xl font-bold text-[#321428]">營運設定</h2>
             <dl className="mt-5 grid gap-3">
               {[
-                ["狀態", alyssaDefaultForm.status],
+                ["表格狀態", alyssaDefaultForm.status],
                 ["表格 Token", alyssaDefaultForm.publicFormToken],
                 ["允許嵌入網域", alyssaDefaultForm.allowedDomains.join(", ")],
                 ["預設療程 ID", alyssaDefaultForm.defaultTreatmentId],

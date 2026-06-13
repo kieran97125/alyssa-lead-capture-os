@@ -21,12 +21,15 @@ export type PerformanceRow = {
   meta?: string[];
 };
 
-export type LeadRow = {
+type LeadRecord = {
   id: string;
   created_at: string;
   submitted_at: string | null;
+  contact_id: string | null;
+  source_snapshot_id: string | null;
   customer_name: string | null;
   phone: string | null;
+  normalized_phone: string | null;
   appointment_date: string | null;
   appointment_time: string | null;
   price: number | string | null;
@@ -35,31 +38,62 @@ export type LeadRow = {
   payment_status: string | null;
   lead_status: string | null;
   booking_status: string | null;
-  brands?: { name: string | null } | { name: string | null }[] | null;
-  treatments?: { name: string | null } | { name: string | null }[] | null;
-  packages?:
-    | { name: string | null; promo_price: number | string | null }
-    | { name: string | null; promo_price: number | string | null }[]
-    | null;
-  branches?: { name: string | null } | { name: string | null }[] | null;
-  lead_source_snapshots?:
-    | {
-        utm_source: string | null;
-        utm_medium: string | null;
-        utm_campaign: string | null;
-        utm_content: string | null;
-        tracking_status: string | null;
-        audit_reason: string | null;
-      }
-    | {
-        utm_source: string | null;
-        utm_medium: string | null;
-        utm_campaign: string | null;
-        utm_content: string | null;
-        tracking_status: string | null;
-        audit_reason: string | null;
-      }[]
-    | null;
+  brand_id: string | null;
+  treatment_id: string | null;
+  package_id: string | null;
+  branch_id: string | null;
+};
+
+type ContactRecord = {
+  id: string;
+  customer_name: string | null;
+  phone: string | null;
+  normalized_phone: string | null;
+};
+
+type SourceSnapshotRecord = {
+  id: string;
+  lead_id: string | null;
+  utm_source: string | null;
+  utm_medium: string | null;
+  utm_campaign: string | null;
+  utm_content: string | null;
+  tracking_status: string | null;
+  audit_reason: string | null;
+};
+
+type BookingRecord = {
+  id: string;
+  lead_id: string;
+  appointment_date: string | null;
+  appointment_time: string | null;
+  booking_status: string | null;
+};
+
+type NameRecord = {
+  id: string;
+  name: string | null;
+};
+
+type PackageRecord = NameRecord & {
+  promo_price: number | string | null;
+  currency: string | null;
+};
+
+export type LeadRow = LeadRecord & {
+  contact: ContactRecord | null;
+  sourceSnapshot: SourceSnapshotRecord | null;
+  booking: BookingRecord | null;
+  brand: NameRecord | null;
+  treatment: NameRecord | null;
+  package: PackageRecord | null;
+  branch: NameRecord | null;
+};
+
+export type LeadRowsResult = {
+  range: ReturnType<typeof getDateRange>;
+  leads: LeadRow[];
+  error: Error | null;
 };
 
 export const dateRangeOptions: Array<{ key: DateRangeKey; label: string }> = [
@@ -69,11 +103,6 @@ export const dateRangeOptions: Array<{ key: DateRangeKey; label: string }> = [
   { key: "month", label: "本月" },
   { key: "custom", label: "自訂日期" },
 ];
-
-export function relation<T>(value: T | T[] | null | undefined) {
-  if (Array.isArray(value)) return value[0] ?? null;
-  return value ?? null;
-}
 
 export function asNumber(value: number | string | null | undefined) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
@@ -97,7 +126,7 @@ export function percent(value: number) {
 }
 
 export function formatDateTime(value: string | null) {
-  if (!value) return "未有登記";
+  if (!value) return "未有紀錄";
 
   return new Intl.DateTimeFormat("zh-HK", {
     dateStyle: "medium",
@@ -106,9 +135,13 @@ export function formatDateTime(value: string | null) {
   }).format(new Date(value));
 }
 
-export function formatAppointment(lead: LeadRow) {
-  if (!lead.appointment_date && !lead.appointment_time) return "未選";
-  return [lead.appointment_date, lead.appointment_time].filter(Boolean).join(" ");
+export function formatAppointment(
+  lead: Pick<LeadRow, "appointment_date" | "appointment_time" | "booking">
+) {
+  const appointmentDate = lead.booking?.appointment_date || lead.appointment_date;
+  const appointmentTime = lead.booking?.appointment_time || lead.appointment_time;
+  if (!appointmentDate && !appointmentTime) return "未選擇";
+  return [appointmentDate, appointmentTime].filter(Boolean).join(" ");
 }
 
 function hkDateToUtcIso(year: number, monthIndex: number, day: number) {
@@ -165,50 +198,58 @@ export function parseRange(value: string | string[] | undefined): DateRangeKey {
 }
 
 export function sourceLabel(lead: LeadRow) {
-  const snapshot = relation(lead.lead_source_snapshots);
+  const snapshot = lead.sourceSnapshot;
 
   if (lead.source_type === "whatsapp_ctwa") return "WhatsApp CTWA";
-  if (lead.source_type === "organic_unknown") return "Organic / unknown";
-  if (lead.source_type === "manual") return "Manual";
-  if (lead.source_type === "imported") return "Imported";
+  if (lead.source_type === "organic_unknown") return "自然流量 / 未知";
+  if (lead.source_type === "manual") return "人手建立";
+  if (lead.source_type === "imported") return "匯入資料";
 
   return [snapshot?.utm_source, snapshot?.utm_medium]
     .filter(Boolean)
-    .join(" / ") || "可追蹤來源";
+    .join(" / ") || "未標記來源";
 }
 
 export function campaignLabel(lead: LeadRow) {
-  const snapshot = relation(lead.lead_source_snapshots);
-  return snapshot?.utm_campaign || "未設定";
+  return lead.sourceSnapshot?.utm_campaign || "未標記廣告系列";
 }
 
 export function contentLabel(lead: LeadRow) {
-  const snapshot = relation(lead.lead_source_snapshots);
-  return snapshot?.utm_content || "未設定";
+  return lead.sourceSnapshot?.utm_content || "未標記素材";
 }
 
 export function businessStatus(lead: LeadRow) {
+  const bookingStatus = lead.booking?.booking_status || lead.booking_status;
   if (lead.payment_status === "paid") return "已付款";
   if (lead.lead_status === "lost") return "已流失";
-  if (lead.booking_status === "confirmed") return "已確認預約";
-  if (lead.payment_status === "pending") return "待付款確認";
+  if (bookingStatus === "confirmed") return "預約已確認";
+  if (lead.payment_status === "pending") return "等待付款";
   if (lead.payment_status === "booking_only") return "只預約未付款";
-  if (lead.lead_status === "submitted") return "已提交";
-  return lead.lead_status || "未設定";
+  if (lead.lead_status === "submitted") return "已登記";
+  return lead.lead_status || "未標記狀態";
+}
+
+export function displayCustomerName(lead: LeadRow) {
+  return lead.customer_name || lead.contact?.customer_name || "未填寫";
+}
+
+export function displayPhone(lead: LeadRow) {
+  return lead.phone || lead.contact?.phone || lead.normalized_phone || "未填寫";
 }
 
 export function isBooking(lead: LeadRow) {
+  const bookingStatus = lead.booking?.booking_status || lead.booking_status;
   return ["requested", "confirmed", "rescheduled", "show", "no_show"].includes(
-    lead.booking_status ?? ""
+    bookingStatus ?? ""
   );
 }
 
 export function isTrackable(lead: LeadRow) {
-  const snapshot = relation(lead.lead_source_snapshots);
+  const trackingStatus = lead.sourceSnapshot?.tracking_status;
   return (
     lead.source_type !== "organic_unknown" &&
-    snapshot?.tracking_status !== "organic_unknown" &&
-    snapshot?.tracking_status !== "missing"
+    trackingStatus !== "organic_unknown" &&
+    trackingStatus !== "missing"
   );
 }
 
@@ -216,7 +257,7 @@ export function countBy<T extends Record<string, unknown>>(rows: T[], key: keyof
   const counts = new Map<string, number>();
 
   rows.forEach((row) => {
-    const value = typeof row[key] === "string" && row[key] ? row[key] : "未設定";
+    const value = typeof row[key] === "string" && row[key] ? row[key] : "未標記";
     counts.set(value, (counts.get(value) ?? 0) + 1);
   });
 
@@ -258,10 +299,10 @@ export function buildPerformance(leads: LeadRow[]) {
   const branches = new Map<string, PerformanceRow>();
 
   leads.forEach((lead) => {
-    const brand = relation(lead.brands)?.name || "未設定品牌";
-    const treatment = relation(lead.treatments)?.name || "未設定療程";
-    const packageName = relation(lead.packages)?.name || "未設定套餐";
-    const branch = relation(lead.branches)?.name || "未設定分店";
+    const brand = lead.brand?.name || "未標記品牌";
+    const treatment = lead.treatment?.name || "未標記療程";
+    const packageName = lead.package?.name || "未標記套餐";
+    const branch = lead.branch?.name || "未標記分店";
     const source = sourceLabel(lead);
     const campaign = campaignLabel(lead);
     const content = contentLabel(lead);
@@ -309,52 +350,156 @@ export async function countRows(table: string) {
   return count ?? 0;
 }
 
-export async function getLeadRows(rangeKey: DateRangeKey, limit = 5000) {
-  if (!hasSupabaseAdminEnv()) {
-    return { range: getDateRange(rangeKey), leads: [], error: null };
-  }
+function ids(values: Array<string | null | undefined>) {
+  return Array.from(new Set(values.filter((value): value is string => Boolean(value))));
+}
 
-  const range = getDateRange(rangeKey);
+async function fetchByIds<T extends { id: string }>(
+  table: string,
+  columns: string,
+  idsToFetch: string[]
+) {
+  if (idsToFetch.length === 0) return new Map<string, T>();
+
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
-    .from("leads")
-    .select(
-      `
-        id,
-        created_at,
-        submitted_at,
-        customer_name,
-        phone,
-        appointment_date,
-        appointment_time,
-        price,
-        currency,
-        source_type,
-        payment_status,
-        lead_status,
-        booking_status,
-        brands(name),
-        treatments(name),
-        packages(name,promo_price),
-        branches(name),
-        lead_source_snapshots(
-          utm_source,
-          utm_medium,
-          utm_campaign,
-          utm_content,
-          tracking_status,
-          audit_reason
-        )
-      `
-    )
-    .gte("created_at", range.start)
-    .lt("created_at", range.end)
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .from(table)
+    .select(columns)
+    .in("id", idsToFetch);
 
-  return {
-    range,
-    leads: ((data ?? []) as unknown as LeadRow[]),
-    error,
-  };
+  if (error) throw error;
+  const rows = (data ?? []) as unknown as T[];
+  return new Map(rows.map((item) => [item.id, item]));
+}
+
+async function fetchBookingsByLeadIds(leadIds: string[]) {
+  if (leadIds.length === 0) return new Map<string, BookingRecord>();
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("bookings")
+    .select("id,lead_id,appointment_date,appointment_time,booking_status,created_at")
+    .in("lead_id", leadIds)
+    .order("created_at", { ascending: false });
+
+  if (error) throw error;
+
+  const bookings = new Map<string, BookingRecord>();
+  (data ?? []).forEach((booking) => {
+    if (!bookings.has(booking.lead_id)) {
+      bookings.set(booking.lead_id, booking as BookingRecord);
+    }
+  });
+  return bookings;
+}
+
+export async function getLeadRows(
+  rangeKey: DateRangeKey,
+  limit = 5000
+): Promise<LeadRowsResult> {
+  const range = getDateRange(rangeKey);
+
+  if (!hasSupabaseAdminEnv()) {
+    return { range, leads: [], error: null };
+  }
+
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("leads")
+      .select(
+        [
+          "id",
+          "created_at",
+          "submitted_at",
+          "contact_id",
+          "source_snapshot_id",
+          "customer_name",
+          "phone",
+          "normalized_phone",
+          "appointment_date",
+          "appointment_time",
+          "price",
+          "currency",
+          "source_type",
+          "payment_status",
+          "lead_status",
+          "booking_status",
+          "brand_id",
+          "treatment_id",
+          "package_id",
+          "branch_id",
+        ].join(",")
+      )
+      .gte("created_at", range.start)
+      .lt("created_at", range.end)
+      .order("created_at", { ascending: false })
+      .limit(limit);
+
+    if (error) throw error;
+
+    const leadRecords = (data ?? []) as unknown as LeadRecord[];
+    const [
+      contacts,
+      brands,
+      treatments,
+      packages,
+      branches,
+      snapshotsById,
+      bookingsByLeadId,
+    ] = await Promise.all([
+      fetchByIds<ContactRecord>(
+        "contacts",
+        "id,customer_name,phone,normalized_phone",
+        ids(leadRecords.map((lead) => lead.contact_id))
+      ),
+      fetchByIds<NameRecord>("brands", "id,name", ids(leadRecords.map((lead) => lead.brand_id))),
+      fetchByIds<NameRecord>(
+        "treatments",
+        "id,name",
+        ids(leadRecords.map((lead) => lead.treatment_id))
+      ),
+      fetchByIds<PackageRecord>(
+        "packages",
+        "id,name,promo_price,currency",
+        ids(leadRecords.map((lead) => lead.package_id))
+      ),
+      fetchByIds<NameRecord>(
+        "branches",
+        "id,name",
+        ids(leadRecords.map((lead) => lead.branch_id))
+      ),
+      fetchByIds<SourceSnapshotRecord>(
+        "lead_source_snapshots",
+        "id,lead_id,utm_source,utm_medium,utm_campaign,utm_content,tracking_status,audit_reason",
+        ids(leadRecords.map((lead) => lead.source_snapshot_id))
+      ),
+      fetchBookingsByLeadIds(leadRecords.map((lead) => lead.id)),
+    ]);
+
+    const leads = leadRecords.map((lead) => {
+      const sourceSnapshot =
+        (lead.source_snapshot_id && snapshotsById.get(lead.source_snapshot_id)) || null;
+
+      return {
+        ...lead,
+        contact: (lead.contact_id && contacts.get(lead.contact_id)) || null,
+        sourceSnapshot,
+        booking: bookingsByLeadId.get(lead.id) || null,
+        brand: (lead.brand_id && brands.get(lead.brand_id)) || null,
+        treatment: (lead.treatment_id && treatments.get(lead.treatment_id)) || null,
+        package: (lead.package_id && packages.get(lead.package_id)) || null,
+        branch: (lead.branch_id && branches.get(lead.branch_id)) || null,
+      };
+    });
+
+    return { range, leads, error: null };
+  } catch (error) {
+    console.error("business_metrics_query_failed", error);
+    return {
+      range,
+      leads: [],
+      error: error instanceof Error ? error : new Error("query_failed"),
+    };
+  }
 }

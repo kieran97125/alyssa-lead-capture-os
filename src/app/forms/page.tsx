@@ -12,10 +12,10 @@ import {
 import { getDefaultEmbedCode, getEmbedScriptUrl } from "@/lib/data/appUrl";
 
 const formState = [
-  ["Config source", "本機 seed config"],
-  ["Live Supabase", "尚未連接"],
-  ["Embed preview", "內部測試用途"],
-  ["Production path", "script / iframe 已預留"],
+  ["表格模式", "Form-only embed 已可用"],
+  ["設定來源", "Seed / config-backed"],
+  ["Landing page mode", "Foundation prepared"],
+  ["日後設定層", "品牌 / 療程 / 套餐 / 分店 / templates"],
 ];
 
 export default function FormsPage() {
@@ -47,8 +47,9 @@ export default function FormsPage() {
               Alyssa 登記表格設定
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              這裡管理 public token、品牌預設值、療程 / 套餐驗證、
-              允許嵌入網域同 embed 狀態，確保每個 lead 都可以連回正確來源。
+              這裡係表格設定 foundation：先管理 Wix embed 所需的表格 token、
+              預設品牌、療程、套餐、分店同允許嵌入網域。日後加入 hero copy、
+              圖片、內容 section 同 template 後，同一份表格設定可以延伸成簡單 campaign landing page。
             </p>
           </div>
           <Link
@@ -61,7 +62,7 @@ export default function FormsPage() {
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-            Form data state
+            設定定位
           </p>
           <div className="mt-4 grid gap-3 md:grid-cols-4">
             {formState.map(([label, value]) => (
@@ -80,19 +81,19 @@ export default function FormsPage() {
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                  本機預設表格
+                  主要登記表格
                 </p>
                 <h2 className="mt-3 text-2xl font-bold text-[#321428]">
                   {alyssaDefaultForm.formName}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                  呢個本機表格沿用正式資料模型。日後接駁 Supabase 後，
-                  可以用正式 UUID-backed 設定取代表格內容，而毋須改動 iframe
-                  或 public submit flow。
+                  呢個表格係現時 Wix form-only mode 的主要入口。品牌、療程、套餐、
+                  價錢同分店目前由 seed/config 提供；完整 admin editing 會作為下一層
+                  configuration system 建立，而唔會改動現有 submit flow。
                 </p>
               </div>
               <span className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
-                Production path ready
+                Embed path ready
               </span>
             </div>
 

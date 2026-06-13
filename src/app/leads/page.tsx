@@ -5,12 +5,13 @@ import {
   businessStatus,
   campaignLabel,
   dateRangeOptions,
+  displayCustomerName,
+  displayPhone,
   formatAppointment,
   formatDateTime,
   getLeadRows,
   money,
   parseRange,
-  relation,
   sourceLabel,
 } from "@/lib/data/businessMetrics";
 
@@ -36,10 +37,10 @@ export default async function LeadsPage({
                 Leads
               </p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                最新登記
+                最新登記紀錄
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                查看最新登記、客人資料、療程套餐、預約時間、來源同廣告系列。
+                查看每位客人的登記時間、品牌、療程、套餐、分店、來源、廣告系列同跟進狀態。
               </p>
             </div>
             <Link
@@ -69,16 +70,16 @@ export default async function LeadsPage({
             {["品牌", "狀態", "來源"].map((label) => (
               <div key={label} className="rounded-2xl bg-[#fff6f0] p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                  {label} filter
+                  {label}
                 </p>
                 <p className="mt-2 text-sm font-semibold text-[#5a2348]">
-                  TODO：下一步接入篩選
+                  篩選器準備中
                 </p>
               </div>
             ))}
             <div className="rounded-2xl bg-[#fff6f0] p-4">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                目前範圍
+                目前期間
               </p>
               <p className="mt-2 text-sm font-semibold text-[#5a2348]">
                 {range.label}
@@ -87,7 +88,7 @@ export default async function LeadsPage({
           </div>
           {error && (
             <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-              資料讀取失敗：{error.message}
+              資料暫時未能讀取，請稍後再試。
             </p>
           )}
         </section>
@@ -96,7 +97,7 @@ export default async function LeadsPage({
           <div className="flex items-end justify-between gap-4">
             <h2 className="text-xl font-bold text-[#321428]">Lead feed</h2>
             <p className="text-sm font-semibold text-[#7b5a6a]">
-              顯示最多 100 筆，最新優先
+              顯示最新 100 筆登記
             </p>
           </div>
           <div className="mt-4 overflow-x-auto">
@@ -124,59 +125,52 @@ export default async function LeadsPage({
               </thead>
               <tbody>
                 {leads.length > 0 ? (
-                  leads.map((lead) => {
-                    const brand = relation(lead.brands)?.name || "未設定";
-                    const treatment = relation(lead.treatments)?.name || "未設定";
-                    const packageName = relation(lead.packages)?.name || "未設定";
-                    const branch = relation(lead.branches)?.name || "未設定";
-
-                    return (
-                      <tr key={lead.id} className="align-top text-[#5a2348]">
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {formatDateTime(lead.created_at)}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {brand}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {lead.customer_name || "未填"}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {lead.phone || "未填"}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {treatment}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {packageName}
-                          <span className="block font-bold text-[#321428]">
-                            {money(asNumber(lead.price), lead.currency || "HKD")}
-                          </span>
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {branch}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {formatAppointment(lead)}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {sourceLabel(lead)}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          {campaignLabel(lead)}
-                        </td>
-                        <td className="border-b border-[#f1e3dc] px-3 py-3">
-                          <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
-                            {businessStatus(lead)}
-                          </span>
-                        </td>
-                      </tr>
-                    );
-                  })
+                  leads.map((lead) => (
+                    <tr key={lead.id} className="align-top text-[#5a2348]">
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {formatDateTime(lead.created_at)}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {lead.brand?.name || "未標記"}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {displayCustomerName(lead)}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {displayPhone(lead)}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {lead.treatment?.name || "未標記"}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {lead.package?.name || "未標記"}
+                        <span className="block font-bold text-[#321428]">
+                          {money(asNumber(lead.price), lead.currency || "HKD")}
+                        </span>
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {lead.branch?.name || "未標記"}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {formatAppointment(lead)}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {sourceLabel(lead)}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        {campaignLabel(lead)}
+                      </td>
+                      <td className="border-b border-[#f1e3dc] px-3 py-3">
+                        <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
+                          {businessStatus(lead)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
                 ) : (
                   <tr>
                     <td colSpan={11} className="px-3 py-6 text-center text-[#7b5a6a]">
-                      目前日期範圍未有正式登記資料。
+                      目前期間未有登記紀錄。
                     </td>
                   </tr>
                 )}
