@@ -50,26 +50,66 @@ function classifySubmittedTouch(touch: TouchPayload) {
   });
 }
 
-function getHostnameFromUrl(value: string | null) {
+function normalizeOrigin(value: string | null | undefined) {
   if (!value) return null;
+  const cleaned = String(value).trim();
+
+  if (!cleaned) return null;
 
   try {
-    return new URL(value).hostname.toLowerCase();
+    return new URL(cleaned).origin.toLowerCase();
   } catch {
-    return null;
+    try {
+      return new URL(`https://${cleaned}`).origin.toLowerCase();
+    } catch {
+      return null;
+    }
   }
 }
 
-function isAllowedDomain(allowedDomains: string[], currentPageUrl: string | null) {
-  if (allowedDomains.length === 0) return true;
+function uniqueOrigins(values: Array<string | null | undefined>) {
+  return Array.from(
+    new Set(values.map(normalizeOrigin).filter((value): value is string => Boolean(value)))
+  );
+}
 
-  const hostname = getHostnameFromUrl(currentPageUrl);
-  if (!hostname) return false;
+function isAllowedOrigin(
+  allowedOrigins: string[],
+  candidateOrigin: string,
+  rawAllowedDomains: string[]
+) {
+  if (allowedOrigins.includes(candidateOrigin)) return true;
 
-  return allowedDomains.some((domain) => {
-    const cleaned = String(domain).trim().toLowerCase();
-    return hostname === cleaned || hostname.endsWith(`.${cleaned}`);
-  });
+  try {
+    const candidateUrl = new URL(candidateOrigin);
+    return rawAllowedDomains.some((domain) => {
+      const cleaned = String(domain).trim().toLowerCase();
+      return (
+        (cleaned === "localhost" || cleaned === "127.0.0.1") &&
+        candidateUrl.hostname === cleaned
+      );
+    });
+  } catch {
+    return false;
+  }
+}
+
+function getOriginValidation(
+  allowedDomains: string[],
+  candidateValues: Array<string | null | undefined>
+) {
+  const allowedOrigins = uniqueOrigins(allowedDomains);
+  const receivedOrigins = uniqueOrigins(candidateValues);
+
+  if (allowedDomains.length === 0) {
+    return { allowed: true, allowedOrigins, receivedOrigins };
+  }
+
+  const allowed = receivedOrigins.some((origin) =>
+    isAllowedOrigin(allowedOrigins, origin, allowedDomains)
+  );
+
+  return { allowed, allowedOrigins, receivedOrigins };
 }
 
 async function createLocalResponse(payload: LeadSubmitPayload) {
@@ -145,9 +185,39 @@ export async function POST(request: NextRequest) {
 
   const currentPageUrl = cleanText(submittedTouch.current_page_url, 2000);
   const allowedDomains = (form.allowed_domains ?? []) as string[];
+  const originValidation = getOriginValidation(allowedDomains, [
+    request.headers.get("origin"),
+    request.headers.get("referer"),
+    submittedTouch.parent_origin,
+    submittedTouch.current_page_url,
+    submittedTouch.landing_page_url,
+    payload.first_touch_json?.parent_origin,
+    payload.first_touch_json?.current_page_url,
+    payload.first_touch_json?.landing_page_url,
+    payload.latest_touch_json?.parent_origin,
+    payload.latest_touch_json?.current_page_url,
+    payload.latest_touch_json?.landing_page_url,
+    payload.submitted_touch_json?.parent_origin,
+    payload.submitted_touch_json?.current_page_url,
+    payload.submitted_touch_json?.landing_page_url,
+  ]);
 
-  if (!isAllowedDomain(allowedDomains, currentPageUrl)) {
-    return NextResponse.json({ ok: false, error: "domain_not_allowed" }, { status: 403 });
+  if (!originValidation.allowed) {
+    console.warn("[Alyssa Lead Capture OS] domain_not_allowed", {
+      form_token: formToken,
+      received_origins: originValidation.receivedOrigins,
+      allowed_origins: originValidation.allowedOrigins,
+    });
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "domain_not_allowed",
+        received_origins: originValidation.receivedOrigins,
+        allowed_origins: originValidation.allowedOrigins,
+      },
+      { status: 403 }
+    );
   }
 
   const treatmentId = cleanText(payload.treatment_id, 80) || form.default_treatment_id;
