@@ -20,16 +20,21 @@ export default async function PublicLandingPage({
   const embedScriptUrl = getEmbedScriptUrl();
   const selectedPackage = context.package;
   const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";
+  const heroImageUrl = page.heroImageUrl || page.mobileHeroImageUrl;
 
   return (
     <main className="min-h-screen bg-[#fff9f3] text-[#321428]">
       <section
         className="relative flex min-h-[86vh] items-end overflow-hidden bg-[#321428] px-5 pb-12 pt-24 text-white md:min-h-[760px] md:pb-16"
-        style={{
-          backgroundImage: `linear-gradient(90deg, rgba(50,20,40,0.88), rgba(90,35,72,0.56), rgba(50,20,40,0.2)), url(${page.heroImageUrl})`,
-          backgroundPosition: "center",
-          backgroundSize: "cover",
-        }}
+        style={
+          heroImageUrl
+            ? {
+                backgroundImage: `linear-gradient(90deg, rgba(50,20,40,0.88), rgba(90,35,72,0.56), rgba(50,20,40,0.2)), url(${heroImageUrl})`,
+                backgroundPosition: "center",
+                backgroundSize: "cover",
+              }
+            : undefined
+        }
         aria-label="Alyssa medical beauty campaign hero"
       >
         <div className="mx-auto w-full max-w-7xl">
@@ -76,6 +81,15 @@ export default async function PublicLandingPage({
             {page.offerHeadline}
           </h2>
           <p className="mt-4 text-sm leading-7 text-[#6d4a5c]">{page.offerBody}</p>
+          <div className="mt-6">
+            <ImagePanel
+              imageUrl={page.offerImageUrl}
+              label="Offer visual"
+              title="體驗價值與療程感覺"
+              body="建議使用 treatment room、device close-up 或 premium wellness visual。"
+              ratioClass="aspect-[4/3]"
+            />
+          </div>
           <div className="mt-6 grid gap-3 sm:grid-cols-2">
             <InfoCard label="Treatment" value={context.treatment?.name ?? "未設定"} />
             <InfoCard label="Package" value={selectedPackage?.name ?? "未設定"} />
@@ -84,6 +98,13 @@ export default async function PublicLandingPage({
           </div>
         </div>
         <div className="grid gap-3">
+          <ImagePanel
+            imageUrl={page.treatmentImageUrl}
+            label="Treatment visual"
+            title={context.treatment?.name ?? "療程重點"}
+            body="用療程、產品或服務 visual 建立 desire 同 treatment value。"
+            ratioClass="aspect-[4/3]"
+          />
           {page.painPoints.map((item) => (
             <div key={item} className="rounded-[20px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
               <p className="text-sm font-semibold leading-6 text-[#5a2348]">{item}</p>
@@ -135,11 +156,21 @@ export default async function PublicLandingPage({
           </p>
           <h2 className="mt-2 text-3xl font-bold">預約流程簡單清晰</h2>
           <div className="mt-6 grid gap-4 md:grid-cols-3">
-            {page.processSteps.map((step) => (
+            {page.processSteps.map((step, index) => (
               <article
                 key={step.title}
                 className="rounded-[20px] border border-white/14 bg-white/8 p-5"
               >
+                <ProcessImage
+                  imageUrl={
+                    [
+                      page.processImage1Url,
+                      page.processImage2Url,
+                      page.processImage3Url,
+                    ][index] ?? ""
+                  }
+                  label={`Step ${index + 1}`}
+                />
                 <h3 className="text-lg font-bold">{step.title}</h3>
                 <p className="mt-2 text-sm leading-6 text-white/72">{step.body}</p>
               </article>
@@ -156,6 +187,15 @@ export default async function PublicLandingPage({
           <h2 className="mt-2 text-3xl font-bold text-[#321428]">
             為香港 campaign 同 WhatsApp 跟進而設
           </h2>
+          <div className="mt-6">
+            <ImagePanel
+              imageUrl={page.trustImageUrl}
+              label="Clinic / trust visual"
+              title="乾淨專業的環境感"
+              body="建議使用 clean clinic、reception 或 professional consultation visual。"
+              ratioClass="aspect-video"
+            />
+          </div>
         </div>
         <div className="grid gap-3">
           {page.trustItems.map((item) => (
@@ -236,6 +276,68 @@ function InfoCard({ label, value }: { label: string; value: string }) {
         {label}
       </p>
       <p className="mt-2 text-sm font-bold text-[#5a2348]">{value}</p>
+    </div>
+  );
+}
+
+function ImagePanel({
+  imageUrl,
+  label,
+  title,
+  body,
+  ratioClass,
+}: {
+  imageUrl: string;
+  label: string;
+  title: string;
+  body: string;
+  ratioClass: string;
+}) {
+  const hasImage = Boolean(imageUrl);
+
+  return (
+    <div
+      className={`flex ${ratioClass} min-h-64 items-end overflow-hidden rounded-[24px] border border-[#ead9cf] bg-[#321428] p-5 text-white shadow-sm`}
+      style={
+        hasImage
+          ? {
+              backgroundImage: `linear-gradient(180deg, rgba(50,20,40,0.08), rgba(50,20,40,0.78)), url(${imageUrl})`,
+              backgroundPosition: "center",
+              backgroundSize: "cover",
+            }
+          : undefined
+      }
+    >
+      <div>
+        <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/66">
+          {hasImage ? label : `${label} placeholder`}
+        </p>
+        <h3 className="mt-2 text-xl font-bold">{title}</h3>
+        <p className="mt-2 max-w-md text-sm leading-6 text-white/74">{body}</p>
+      </div>
+    </div>
+  );
+}
+
+function ProcessImage({ imageUrl, label }: { imageUrl: string; label: string }) {
+  const hasImage = Boolean(imageUrl);
+
+  return (
+    <div
+      className="mb-4 flex aspect-square items-end overflow-hidden rounded-[18px] border border-white/12 bg-white/10 p-4"
+      style={
+        hasImage
+          ? {
+              backgroundImage: `linear-gradient(180deg, rgba(50,20,40,0.04), rgba(50,20,40,0.72)), url(${imageUrl})`,
+              backgroundPosition: "center",
+              backgroundSize: "cover",
+            }
+          : undefined
+      }
+    >
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/70">
+        {hasImage ? label : `${label} visual placeholder`}
+      </p>
     </div>
   );
 }

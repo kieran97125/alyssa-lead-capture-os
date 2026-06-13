@@ -25,6 +25,13 @@ export type LandingPageConfig = {
   heroTitle: string;
   heroSubtitle: string;
   heroImageUrl: string;
+  mobileHeroImageUrl: string;
+  offerImageUrl: string;
+  treatmentImageUrl: string;
+  processImage1Url: string;
+  processImage2Url: string;
+  processImage3Url: string;
+  trustImageUrl: string;
   offerBadge: string;
   offerHeadline: string;
   offerBody: string;
@@ -69,6 +76,13 @@ export const alyssaLandingPages: LandingPageConfig[] = [
       "為首次了解 Alyssa 的客人而設，一頁完成療程了解、優惠確認同預約登記，同時保留廣告來源追蹤。",
     heroImageUrl:
       "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=1200&q=80",
+    mobileHeroImageUrl: "",
+    offerImageUrl: "",
+    treatmentImageUrl: "",
+    processImage1Url: "",
+    processImage2Url: "",
+    processImage3Url: "",
+    trustImageUrl: "",
     offerBadge: "HKD 388 First-Visit Trial",
     offerHeadline: "首次體驗優惠 HK$388",
     offerBody:
@@ -146,6 +160,76 @@ export function getLandingPageBySlug(slug: string) {
 
 export function getLandingPageById(id: string) {
   return alyssaLandingPages.find((page) => page.id === id) ?? null;
+}
+
+export const landingPageImageSlots = [
+  {
+    key: "heroImageUrl",
+    label: "Hero image",
+    recommendedType: "Premium clinic / consultation / glowing skin visual",
+    ratio: "16:9 或 4:3",
+  },
+  {
+    key: "mobileHeroImageUrl",
+    label: "Mobile hero image",
+    recommendedType: "手機首屏用人物、膚感或 clinic close-up",
+    ratio: "4:5",
+  },
+  {
+    key: "offerImageUrl",
+    label: "Offer image",
+    recommendedType: "Treatment room、device close-up、體驗價值 visual",
+    ratio: "1:1 或 4:5",
+  },
+  {
+    key: "treatmentImageUrl",
+    label: "Treatment image",
+    recommendedType: "療程、產品或服務重點 visual",
+    ratio: "1:1 或 4:5",
+  },
+  {
+    key: "processImage1Url",
+    label: "Process image 1",
+    recommendedType: "Consultation / skin analysis",
+    ratio: "1:1",
+  },
+  {
+    key: "processImage2Url",
+    label: "Process image 2",
+    recommendedType: "Treatment experience",
+    ratio: "1:1",
+  },
+  {
+    key: "processImage3Url",
+    label: "Process image 3",
+    recommendedType: "WhatsApp booking confirmation",
+    ratio: "1:1",
+  },
+  {
+    key: "trustImageUrl",
+    label: "Clinic / trust image",
+    recommendedType: "Clean clinic、professional environment、reception visual",
+    ratio: "16:9",
+  },
+] as const;
+
+export type LandingPageImageSlotKey = (typeof landingPageImageSlots)[number]["key"];
+
+export function getLandingPageImageUrl(
+  page: LandingPageConfig,
+  key: LandingPageImageSlotKey
+) {
+  return page[key];
+}
+
+export function getLandingPageImageStatus(page: LandingPageConfig) {
+  const filledCount = landingPageImageSlots.filter((slot) =>
+    Boolean(getLandingPageImageUrl(page, slot.key))
+  ).length;
+
+  if (filledCount === 0) return "尚未設定";
+  if (filledCount === landingPageImageSlots.length) return "已設定";
+  return "部分設定";
 }
 
 export function getLandingPageContext(page: LandingPageConfig) {

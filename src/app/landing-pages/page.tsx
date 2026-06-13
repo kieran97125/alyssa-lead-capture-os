@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import {
   alyssaLandingPages,
+  getLandingPageImageStatus,
   getLandingPageContext,
   type LandingPageConfig,
 } from "@/lib/data/landingPages";
@@ -106,6 +107,7 @@ export default function LandingPagesPage() {
                         <InfoCell label="Treatment" value={context.treatment?.name ?? "未設定"} />
                         <InfoCell label="Package / price" value={formatPrice(page)} />
                         <InfoCell label="Branch" value={context.branch?.name ?? "未設定"} />
+                        <InfoCell label="圖片素材" value={getLandingPageImageStatus(page)} />
                       </dl>
                     </div>
 

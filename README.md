@@ -101,6 +101,43 @@ Current implementation notes:
 - A future DB-backed `landing_pages` table can store template, hero, offer, section, FAQ, CTA, and status fields when the builder graduates from config preview.
 - The future WhatsApp CRM remains a separate app that writes outcomes back to the shared lead base.
 
+## Landing Page Content Editor Direction
+
+Landing Page Content Editor V1 is a structured editor foundation for campaign testing pages. It is not a full Wix replacement and not a drag-and-drop page builder.
+
+Current V1 supports an editor-like internal screen for:
+
+- Basic page settings.
+- Template selection foundation.
+- Hero title, subtitle, and image URL.
+- Offer badge, offer copy, and CTA copy.
+- Pain points and benefits.
+- Treatment / package / branch summary.
+- Process, trust cues, and FAQ.
+- Form connection and preview URL.
+- A live-style preview panel.
+
+The current editor UI is read-only / save-ready by design. Save and publish workflows should be added later with a DB-backed `landing_pages` table for fields such as template, status, slug, hero content, offer content, sections, FAQ, CTA, and publish metadata.
+
+Wix remains the main website. Lead Capture OS landing pages are for fast offer, angle, treatment, and audience testing while preserving the same lead capture and attribution flow.
+
+## Landing Page Image Asset Strategy
+
+Landing page mode uses structured image slots so marketers can prepare premium medical beauty / wellness assets for campaign testing. Images should support trust, desire, treatment value, and booking confidence without replacing the full Wix website.
+
+Recommended slots:
+
+- `hero_image_url` - desktop hero visual; premium clinic, consultation, or glowing-skin image. Recommended ratio: 16:9 or 4:3.
+- `mobile_hero_image_url` - mobile first-screen hero visual. Recommended ratio: 4:5.
+- `offer_image_url` - offer value image, treatment room, or device close-up. Recommended ratio: 1:1 or 4:5.
+- `treatment_image_url` - product, service, or treatment visual. Recommended ratio: 1:1 or 4:5.
+- `process_image_1_url` - consultation / skin analysis. Recommended ratio: 1:1.
+- `process_image_2_url` - treatment experience. Recommended ratio: 1:1.
+- `process_image_3_url` - WhatsApp booking confirmation. Recommended ratio: 1:1.
+- `trust_image_url` - clean clinic, professional environment, or reception visual. Recommended ratio: 16:9.
+
+Current V1 supports image URLs and premium placeholders. Upload, cropping, media library, Supabase Storage, Wix assets, and external image management are future work.
+
 ## UI Localization Note
 
 The application UI is localized for Hong Kong internal growth and marketing users in Traditional Chinese / Hong Kong Cantonese where appropriate. Technical identifiers remain in English, including routes, API payload keys, UTM fields, CTWA fields, `source_type`, `tracking_status`, and `audit_reason` values.
@@ -134,7 +171,7 @@ Open:
 - `/forms` - Form connection layer showing selected brand, treatment, package, branch, allowed domains, embed code, and landing page relationship.
 - `/forms/[formId]` - Form-level configuration detail for form-only embed and landing page mode reuse.
 - `/landing-pages` - Landing page management foundation covering form-only and campaign landing-page modes.
-- `/landing-pages/[pageId]` - Lightweight landing page config / editor preview foundation.
+- `/landing-pages/[pageId]` - Structured Landing Page Content Editor V1 with read-only/save-ready fields and preview panel.
 - `/lp/[slug]` - Public campaign landing page preview using the existing lead capture form path.
 - `/settings` - Configuration foundation overview and hierarchy.
 - `/settings/brands` - Brand settings view.
