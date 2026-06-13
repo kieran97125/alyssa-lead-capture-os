@@ -52,6 +52,13 @@ const crmFeedback = [
   "deal_lost",
 ];
 
+const dataState = [
+  ["目前資料", "本機 seed / local no-op"],
+  ["Live Supabase", "尚未連接"],
+  ["Dashboard 數字", "等待正式資料"],
+  ["Production path", "API / schema 已預留"],
+];
+
 export default function DashboardPage() {
   return (
     <main className="alyssa-shell">
@@ -73,15 +80,31 @@ export default function DashboardPage() {
               </p>
             </div>
             <div className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348]">
-              資料狀態：等待連接 Supabase
+              資料狀態：本機預覽，等待連接 Supabase
             </div>
           </div>
 
           <div className="mt-6 grid gap-3 md:grid-cols-4">
-            <ReadinessCard label="Public form" value="已準備" />
-            <ReadinessCard label="Source snapshots" value="已建模" />
-            <ReadinessCard label="Lead events" value="已建模" />
-            <ReadinessCard label="CRM feedback" value="接口已預留" />
+            <ReadinessCard label="Public form" value="production path ready" />
+            <ReadinessCard label="Source snapshots" value="schema ready" />
+            <ReadinessCard label="Lead events" value="schema ready" />
+            <ReadinessCard label="CRM feedback" value="contract reserved" />
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+            Data state
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            {dataState.map(([label, value]) => (
+              <div key={label} className="rounded-2xl bg-white/80 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                  {label}
+                </p>
+                <p className="mt-2 text-sm font-bold text-[#5a2348]">{value}</p>
+              </div>
+            ))}
           </div>
         </section>
 

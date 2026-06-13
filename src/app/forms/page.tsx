@@ -11,6 +11,13 @@ import {
 } from "@/lib/data/alyssaConfig";
 import { getDefaultEmbedCode, getEmbedScriptUrl } from "@/lib/data/appUrl";
 
+const formState = [
+  ["Config source", "本機 seed config"],
+  ["Live Supabase", "尚未連接"],
+  ["Embed preview", "內部測試用途"],
+  ["Production path", "script / iframe 已預留"],
+];
+
 export default function FormsPage() {
   const embedCode = getDefaultEmbedCode(
     alyssaDefaultForm.publicFormToken,
@@ -52,6 +59,22 @@ export default function FormsPage() {
           </Link>
         </div>
 
+        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+            Form data state
+          </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-4">
+            {formState.map(([label, value]) => (
+              <div key={label} className="rounded-2xl bg-white/80 p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                  {label}
+                </p>
+                <p className="mt-2 text-sm font-bold text-[#5a2348]">{value}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
         <section className="mt-7 grid gap-5 xl:grid-cols-[1fr_0.92fr]">
           <article className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
@@ -69,7 +92,7 @@ export default function FormsPage() {
                 </p>
               </div>
               <span className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
-                可嵌入
+                Production path ready
               </span>
             </div>
 

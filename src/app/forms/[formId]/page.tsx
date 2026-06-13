@@ -27,6 +27,17 @@ export default function FormConfigPage() {
           技術值保持英文，方便開發、部署同 CRM 對接。
         </p>
 
+        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+            Config state
+          </p>
+          <p className="mt-2 text-sm leading-6 text-[#5a2348]">
+            目前顯示本機 seed config，方便核對 production-ready embed path。
+            Supabase 連接後，呢個畫面應該讀取正式 `forms`、`brands`、
+            `treatments`、`packages` 同 `branches` 設定。
+          </p>
+        </section>
+
         <div className="mt-6 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
           <section className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
             <h2 className="text-xl font-bold text-[#321428]">營運設定</h2>
