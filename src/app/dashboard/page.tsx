@@ -1,4 +1,3 @@
-import type { ReactNode } from "react";
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import {
@@ -10,22 +9,6 @@ export const dynamic = "force-dynamic";
 
 type DashboardStatus = "local_noop" | "connected" | "query_failed";
 type DateRangeKey = "today" | "yesterday" | "last7" | "month" | "custom";
-
-type CountItem = {
-  label: string;
-  count: number;
-};
-
-type PerformanceRow = {
-  key: string;
-  label: string;
-  leads: number;
-  bookings: number;
-  paid: number;
-  amount: number;
-  share?: number;
-  meta?: string[];
-};
 
 type LeadRow = {
   id: string;
@@ -87,15 +70,6 @@ type DashboardSummary = {
     estimatedAmount: number;
     trackableRate: number;
   };
-  brandPerformance: PerformanceRow[];
-  sourcePerformance: PerformanceRow[];
-  treatmentPerformance: PerformanceRow[];
-  branchPerformance: PerformanceRow[];
-  audit: {
-    sourceSnapshots: number;
-    leadEvents: number;
-    trackingStatus: CountItem[];
-  };
 };
 
 const dateRangeOptions: Array<{ key: DateRangeKey; label: string }> = [
@@ -104,18 +78,6 @@ const dateRangeOptions: Array<{ key: DateRangeKey; label: string }> = [
   { key: "last7", label: "近7日" },
   { key: "month", label: "本月" },
   { key: "custom", label: "自訂日期" },
-];
-
-const crmFeedback = [
-  "booking_confirmed",
-  "booking_rescheduled",
-  "booking_cancelled",
-  "crm_followup_started",
-  "crm_followup_updated",
-  "show_up",
-  "no_show",
-  "deal_paid",
-  "deal_lost",
 ];
 
 function relation<T>(value: T | T[] | null | undefined) {
@@ -230,11 +192,6 @@ function campaignLabel(lead: LeadRow) {
   return snapshot?.utm_campaign || "未設定";
 }
 
-function contentLabel(lead: LeadRow) {
-  const snapshot = relation(lead.lead_source_snapshots);
-  return snapshot?.utm_content || "未設定";
-}
-
 function businessStatus(lead: LeadRow) {
   if (lead.payment_status === "paid") return "已付款";
   if (lead.lead_status === "lost") return "已流失";
@@ -245,12 +202,6 @@ function businessStatus(lead: LeadRow) {
   return lead.lead_status || "未設定";
 }
 
-function isBooking(lead: LeadRow) {
-  return ["requested", "confirmed", "rescheduled", "show", "no_show"].includes(
-    lead.booking_status ?? ""
-  );
-}
-
 function isTrackable(lead: LeadRow) {
   const snapshot = relation(lead.lead_source_snapshots);
   return (
@@ -258,105 +209,6 @@ function isTrackable(lead: LeadRow) {
     snapshot?.tracking_status !== "organic_unknown" &&
     snapshot?.tracking_status !== "missing"
   );
-}
-
-function countBy<T extends Record<string, unknown>>(rows: T[], key: keyof T) {
-  const counts = new Map<string, number>();
-
-  rows.forEach((row) => {
-    const value = typeof row[key] === "string" && row[key] ? row[key] : "未設定";
-    counts.set(value, (counts.get(value) ?? 0) + 1);
-  });
-
-  return Array.from(counts, ([label, count]) => ({ label, count })).sort(
-    (a, b) => b.count - a.count || a.label.localeCompare(b.label)
-  );
-}
-
-function addPerformance(
-  rows: Map<string, PerformanceRow>,
-  key: string,
-  label: string,
-  lead: LeadRow,
-  meta: string[] = []
-) {
-  const current =
-    rows.get(key) ??
-    ({
-      key,
-      label,
-      leads: 0,
-      bookings: 0,
-      paid: 0,
-      amount: 0,
-      meta,
-    } satisfies PerformanceRow);
-
-  current.leads += 1;
-  current.bookings += isBooking(lead) ? 1 : 0;
-  current.paid += lead.payment_status === "paid" ? 1 : 0;
-  current.amount += asNumber(lead.price);
-  rows.set(key, current);
-}
-
-function buildPerformance(leads: LeadRow[]) {
-  const brands = new Map<string, PerformanceRow>();
-  const sources = new Map<string, PerformanceRow>();
-  const treatments = new Map<string, PerformanceRow>();
-  const branches = new Map<string, PerformanceRow>();
-
-  leads.forEach((lead) => {
-    const brand = relation(lead.brands)?.name || "未設定品牌";
-    const treatment = relation(lead.treatments)?.name || "未設定療程";
-    const packageName = relation(lead.packages)?.name || "未設定套餐";
-    const branch = relation(lead.branches)?.name || "未設定分店";
-    const source = sourceLabel(lead);
-    const campaign = campaignLabel(lead);
-    const content = contentLabel(lead);
-
-    addPerformance(brands, brand, brand, lead);
-    addPerformance(
-      sources,
-      [source, campaign, content].join("|"),
-      source,
-      lead,
-      [campaign, content]
-    );
-    addPerformance(
-      treatments,
-      [treatment, packageName].join("|"),
-      treatment,
-      lead,
-      [packageName, money(asNumber(lead.price), lead.currency || "HKD")]
-    );
-    addPerformance(branches, branch, branch, lead);
-  });
-
-  return {
-    brandPerformance: Array.from(brands.values()).sort((a, b) => b.leads - a.leads),
-    sourcePerformance: Array.from(sources.values()).sort((a, b) => b.leads - a.leads),
-    treatmentPerformance: Array.from(treatments.values()).sort(
-      (a, b) => b.leads - a.leads
-    ),
-    branchPerformance: Array.from(branches.values())
-      .map((row) => ({
-        ...row,
-        share: leads.length > 0 ? row.leads / leads.length : 0,
-      }))
-      .sort((a, b) => b.leads - a.leads),
-  };
-}
-
-async function countRows(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-  table: string
-) {
-  const { count, error } = await supabase
-    .from(table)
-    .select("*", { count: "exact", head: true });
-
-  if (error) throw error;
-  return count ?? 0;
 }
 
 async function getDashboardSummary(rangeKey: DateRangeKey): Promise<DashboardSummary> {
@@ -383,67 +235,50 @@ async function getDashboardSummary(rangeKey: DateRangeKey): Promise<DashboardSum
         estimatedAmount: 0,
         trackableRate: 0,
       },
-      brandPerformance: [],
-      sourcePerformance: [],
-      treatmentPerformance: [],
-      branchPerformance: [],
-      audit: {
-        sourceSnapshots: 0,
-        leadEvents: 0,
-        trackingStatus: [],
-      },
     };
   }
 
   try {
     const supabase = createSupabaseAdminClient();
-    const [leadRowsResult, sourceSnapshots, leadEvents, snapshotRowsResult] =
-      await Promise.all([
-        supabase
-          .from("leads")
-          .select(
-            `
-              id,
-              created_at,
-              submitted_at,
-              customer_name,
-              phone,
-              appointment_date,
-              appointment_time,
-              price,
-              currency,
-              source_type,
-              payment_status,
-              lead_status,
-              booking_status,
-              brands(name),
-              treatments(name),
-              packages(name,promo_price),
-              branches(name),
-              lead_source_snapshots(
-                utm_source,
-                utm_medium,
-                utm_campaign,
-                utm_content,
-                tracking_status,
-                audit_reason
-              )
-            `
+    const leadRowsResult = await supabase
+      .from("leads")
+      .select(
+        `
+          id,
+          created_at,
+          submitted_at,
+          customer_name,
+          phone,
+          appointment_date,
+          appointment_time,
+          price,
+          currency,
+          source_type,
+          payment_status,
+          lead_status,
+          booking_status,
+          brands(name),
+          treatments(name),
+          packages(name,promo_price),
+          branches(name),
+          lead_source_snapshots(
+            utm_source,
+            utm_medium,
+            utm_campaign,
+            utm_content,
+            tracking_status,
+            audit_reason
           )
-          .gte("created_at", range.start)
-          .lt("created_at", range.end)
-          .order("created_at", { ascending: false })
-          .limit(5000),
-        countRows(supabase, "lead_source_snapshots"),
-        countRows(supabase, "lead_events"),
-        supabase.from("lead_source_snapshots").select("tracking_status").limit(5000),
-      ]);
+        `
+      )
+      .gte("created_at", range.start)
+      .lt("created_at", range.end)
+      .order("created_at", { ascending: false })
+      .limit(5000);
 
     if (leadRowsResult.error) throw leadRowsResult.error;
-    if (snapshotRowsResult.error) throw snapshotRowsResult.error;
 
     const leads = (leadRowsResult.data ?? []) as LeadRow[];
-    const performance = buildPerformance(leads);
     const totalLeads = leads.length;
     const trackableCount = leads.filter(isTrackable).length;
 
@@ -468,12 +303,6 @@ async function getDashboardSummary(rangeKey: DateRangeKey): Promise<DashboardSum
         estimatedAmount: leads.reduce((sum, lead) => sum + asNumber(lead.price), 0),
         trackableRate: totalLeads > 0 ? trackableCount / totalLeads : 0,
       },
-      ...performance,
-      audit: {
-        sourceSnapshots,
-        leadEvents,
-        trackingStatus: countBy(snapshotRowsResult.data ?? [], "tracking_status"),
-      },
     };
   } catch (error) {
     return {
@@ -495,15 +324,6 @@ async function getDashboardSummary(rangeKey: DateRangeKey): Promise<DashboardSum
         paidLeads: 0,
         estimatedAmount: 0,
         trackableRate: 0,
-      },
-      brandPerformance: [],
-      sourcePerformance: [],
-      treatmentPerformance: [],
-      branchPerformance: [],
-      audit: {
-        sourceSnapshots: 0,
-        leadEvents: 0,
-        trackingStatus: [],
       },
     };
   }
@@ -577,91 +397,37 @@ export default async function DashboardPage({
           <KpiCard label="可追蹤來源比例" value={percent(summary.kpis.trackableRate)} />
         </section>
 
-        <LatestLeadsTable leads={summary.leads.slice(0, 20)} />
+        <LatestLeadsTable leads={summary.leads.slice(0, 5)} />
 
-        <section className="mt-6 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
-          <PerformanceTable
-            title="品牌表現"
-            columns={["品牌", "Leads", "預約", "已付款", "預計金額"]}
-            rows={summary.brandPerformance}
-            type="brand"
+        <section className="mt-6 grid gap-5 lg:grid-cols-3">
+          <QuickLinkCard
+            href="/leads"
+            title="查看所有 Leads"
+            description="進入完整 latest leads feed，查看客人、電話、療程、套餐、分店、來源同狀態。"
           />
-          <PerformanceTable
-            title="來源 / 廣告系列表現"
-            columns={[
-              "來源",
-              "廣告系列",
-              "素材 / Content",
-              "Leads",
-              "預約",
-              "已付款",
-              "預計金額",
-            ]}
-            rows={summary.sourcePerformance}
-            type="source"
+          <QuickLinkCard
+            href="/performance"
+            title="查看成效分析"
+            description="按品牌、來源、廣告系列、療程套餐同分店分析表現。"
+          />
+          <QuickLinkCard
+            href="/system-audit"
+            title="查看系統稽核"
+            description="技術追蹤、事件紀錄同 CRM 回寫 contract 已移到內部頁。"
           />
         </section>
 
-        <section className="mt-6 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
-          <PerformanceTable
-            title="療程 / 套餐表現"
-            columns={["療程", "套餐", "價錢", "Leads", "預約", "已付款"]}
-            rows={summary.treatmentPerformance}
-            type="treatment"
-          />
-          <PerformanceTable
-            title="分店表現"
-            columns={["分店", "Leads", "預約", "佔比"]}
-            rows={summary.branchPerformance}
-            type="branch"
-          />
-        </section>
-
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
-          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                系統稽核
-              </p>
-              <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                來源追蹤稽核
-              </h2>
-            </div>
-            <p className="text-sm font-semibold text-[#7b5a6a]">
-              最新登記：{formatDateTime(summary.latestLeadAt)}
-            </p>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            <AuditCard label="Source snapshots" value={summary.audit.sourceSnapshots} />
-            <AuditCard label="Lead events" value={summary.audit.leadEvents} />
-            <AuditCard label="CRM outcome" value="等待日後回寫" />
-          </div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-            {summary.audit.trackingStatus.length > 0 ? (
-              summary.audit.trackingStatus.map((item) => (
-                <div key={item.label} className="rounded-2xl bg-[#fff6f0] p-3">
-                  <p className="font-mono text-xs font-bold text-[#5a2348]">
-                    {item.label}
-                  </p>
-                  <p className="mt-1 text-lg font-bold text-[#321428]">{item.count}</p>
-                </div>
-              ))
-            ) : (
-              <p className="text-sm font-semibold text-[#7b5a6a]">
-                未有來源追蹤分佈資料。
-              </p>
-            )}
-          </div>
-          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {crmFeedback.map((eventName) => (
-              <div
-                key={eventName}
-                className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-3 text-xs font-bold text-[#5a2348]"
-              >
-                {eventName}
-              </div>
-            ))}
-          </div>
+        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+            CRM 結果
+          </p>
+          <h2 className="mt-2 text-xl font-bold text-[#321428]">
+            等待未來 WhatsApp CRM app 回寫
+          </h2>
+          <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
+            Dashboard 目前只顯示 Lead Capture OS 已有的登記、預約、來源同 package
+            金額資料。show / no-show / lost / paid conversion 會等 CRM app 寫回後再顯示。
+          </p>
         </section>
       </div>
     </main>
@@ -676,6 +442,26 @@ function KpiCard({ label, value }: { label: string; value: string }) {
       </p>
       <p className="mt-2 text-2xl font-bold text-[#321428]">{value}</p>
     </div>
+  );
+}
+
+function QuickLinkCard({
+  href,
+  title,
+  description,
+}: {
+  href: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      href={href}
+      className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm transition hover:border-[#c9828e]"
+    >
+      <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
+      <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
+    </Link>
   );
 }
 
@@ -764,121 +550,5 @@ function LatestLeadsTable({ leads }: { leads: LeadRow[] }) {
         </table>
       </div>
     </section>
-  );
-}
-
-function PerformanceTable({
-  title,
-  columns,
-  rows,
-  type,
-}: {
-  title: string;
-  columns: string[];
-  rows: PerformanceRow[];
-  type: "brand" | "source" | "treatment" | "branch";
-}) {
-  return (
-    <section className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
-      <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
-      <div className="mt-4 overflow-x-auto">
-        <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
-          <thead>
-            <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
-              {columns.map((column) => (
-                <th key={column} className="border-b border-[#ead9cf] px-3 py-3">
-                  {column}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.length > 0 ? (
-              rows.map((row) => (
-                <tr key={row.key} className="text-[#5a2348]">
-                  {renderPerformanceCells(row, type)}
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td
-                  colSpan={columns.length}
-                  className="px-3 py-6 text-center text-[#7b5a6a]"
-                >
-                  目前未有資料。
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
-  );
-}
-
-function Cell({ children }: { children: ReactNode }) {
-  return <td className="border-b border-[#f1e3dc] px-3 py-3">{children}</td>;
-}
-
-function renderPerformanceCells(row: PerformanceRow, type: PerformanceTableProps) {
-  if (type === "source") {
-    return (
-      <>
-        <Cell>{row.label}</Cell>
-        <Cell>{row.meta?.[0] || "未設定"}</Cell>
-        <Cell>{row.meta?.[1] || "未設定"}</Cell>
-        <Cell>{row.leads}</Cell>
-        <Cell>{row.bookings}</Cell>
-        <Cell>{row.paid}</Cell>
-        <Cell>{money(row.amount)}</Cell>
-      </>
-    );
-  }
-
-  if (type === "treatment") {
-    return (
-      <>
-        <Cell>{row.label}</Cell>
-        <Cell>{row.meta?.[0] || "未設定"}</Cell>
-        <Cell>{row.meta?.[1] || "未設定"}</Cell>
-        <Cell>{row.leads}</Cell>
-        <Cell>{row.bookings}</Cell>
-        <Cell>{row.paid}</Cell>
-      </>
-    );
-  }
-
-  if (type === "branch") {
-    return (
-      <>
-        <Cell>{row.label}</Cell>
-        <Cell>{row.leads}</Cell>
-        <Cell>{row.bookings}</Cell>
-        <Cell>{percent(row.share ?? 0)}</Cell>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <Cell>{row.label}</Cell>
-      <Cell>{row.leads}</Cell>
-      <Cell>{row.bookings}</Cell>
-      <Cell>{row.paid}</Cell>
-      <Cell>{money(row.amount)}</Cell>
-    </>
-  );
-}
-
-type PerformanceTableProps = "brand" | "source" | "treatment" | "branch";
-
-function AuditCard({ label, value }: { label: string; value: number | string }) {
-  return (
-    <div className="rounded-2xl border border-[#ead9cf] bg-[#fff9f3] p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {label}
-      </p>
-      <p className="mt-2 text-lg font-bold text-[#321428]">{value}</p>
-    </div>
   );
 }

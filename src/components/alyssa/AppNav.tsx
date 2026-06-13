@@ -1,10 +1,13 @@
 import Link from "next/link";
 
 const navItems = [
-  { href: "/dashboard", label: "成效儀表板" },
+  { href: "/dashboard", label: "總覽" },
+  { href: "/leads", label: "Leads" },
+  { href: "/performance", label: "成效分析" },
   { href: "/forms", label: "表格管理" },
+  { href: "/landing-pages", label: "Landing Pages" },
   { href: "/embed-preview", label: "嵌入預覽" },
-  { href: "/embed/alyssa-main-form-dev-token", label: "表格 iframe" },
+  { href: "/system-audit", label: "系統稽核" },
 ];
 
 export function AppNav() {

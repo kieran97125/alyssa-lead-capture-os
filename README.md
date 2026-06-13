@@ -35,11 +35,33 @@ The contract is that Lead Capture OS creates the first attribution-backed lead r
 - Local app ready.
 - GitHub ready.
 - Vercel preview ready.
-- Supabase not connected yet.
-- Real lead insert pending.
+- Supabase-backed lead insert tested locally and on Vercel production.
+- Real lead insert path ready.
 - Wix embed production test pending.
 - Payment webhook authentication pending.
 - WhatsApp webhook authentication pending.
+
+## Product Modes
+
+Alyssa Lead Capture OS supports two output modes that share the same lead capture, UTM, source snapshot, booking, and event model.
+
+### Form-only mode
+
+- The user configures brand, treatment, package, branch, and form token.
+- The system generates an embed script.
+- The embed script is inserted into Wix pages.
+- Wix remains the main website and brand website.
+- Lead Capture OS handles form capture, UTM capture, source snapshots, lead attribution, bookings, and lead events.
+
+### Landing page mode
+
+- The same form config can be wrapped in a simple campaign landing page when a campaign needs hero copy, offer sections, treatment content, CTA copy, FAQ, testimonials, or visual assets.
+- Landing pages are for fast market testing and campaign experiments.
+- Landing page mode is not a full Wix replacement.
+- It remains a campaign testing layer backed by the same lead attribution model.
+- The current implementation uses local seed config for `landing_pages`; a future builder can persist fields such as `hero_title`, `hero_subtitle`, `hero_image_url`, `offer_badge`, `cta_text`, and `sections_json`.
+
+Future CRM connection remains separate. The future Alyssa CRM OS should read and write outcomes against the shared lead base instead of becoming part of the Lead Capture OS UI.
 
 ## UI Localization Note
 
@@ -68,11 +90,17 @@ Open:
 ## Route Map
 
 - `/` - Internal overview for the lead capture and shared attribution base.
-- `/dashboard` - Attribution dashboard shell for source quality, event readiness, and future booking/payment outcome reporting. It does not show live performance until Supabase is connected.
+- `/dashboard` - Executive overview for lead performance, top KPIs, latest few leads, and quick links.
+- `/leads` - Latest leads feed, newest first, with business-facing lead details.
+- `/performance` - Brand, source/campaign, treatment/package, and branch performance analysis.
 - `/forms` - Local seed form configuration, embed code, and production path reference.
 - `/forms/[formId]` - Form-level embed settings and operational values for handoff to live Supabase-backed configuration.
+- `/landing-pages` - Landing page management foundation covering form-only and campaign landing-page modes.
+- `/landing-pages/[pageId]` - Lightweight landing page config / editor preview foundation.
+- `/lp/[slug]` - Public campaign landing page preview using the existing lead capture form path.
 - `/embed-preview` - Internal Wix parent-page simulation that loads the real public embed script and shows attribution debug state.
 - `/embed/[formToken]` - Public iframe registration form rendered for a given form token.
+- `/system-audit` - Technical source/event/debug information such as source snapshots, lead events, tracking status, and CRM outcome contract markers.
 - `/thank-you` - Thank-you page that can receive lead/source identifiers and trigger thank-you tracking.
 - `/api/public/forms/[token]` - Public form config lookup; returns local seed config until Supabase is configured.
 - `/api/public/leads` - Public lead submission endpoint; creates contacts, source snapshots, leads, bookings, and events when Supabase is configured, otherwise returns a local no-op response.
