@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import {
@@ -8,36 +9,101 @@ import {
 export const dynamic = "force-dynamic";
 
 type DashboardStatus = "local_noop" | "connected" | "query_failed";
+type DateRangeKey = "today" | "yesterday" | "last7" | "month" | "custom";
 
 type CountItem = {
   label: string;
   count: number;
 };
 
+type PerformanceRow = {
+  key: string;
+  label: string;
+  leads: number;
+  bookings: number;
+  paid: number;
+  amount: number;
+  share?: number;
+  meta?: string[];
+};
+
+type LeadRow = {
+  id: string;
+  created_at: string;
+  submitted_at: string | null;
+  customer_name: string | null;
+  phone: string | null;
+  appointment_date: string | null;
+  appointment_time: string | null;
+  price: number | string | null;
+  currency: string | null;
+  source_type: string | null;
+  payment_status: string | null;
+  lead_status: string | null;
+  booking_status: string | null;
+  brands?: { name: string | null } | { name: string | null }[] | null;
+  treatments?: { name: string | null } | { name: string | null }[] | null;
+  packages?:
+    | { name: string | null; promo_price: number | string | null }
+    | { name: string | null; promo_price: number | string | null }[]
+    | null;
+  branches?: { name: string | null } | { name: string | null }[] | null;
+  lead_source_snapshots?:
+    | {
+        utm_source: string | null;
+        utm_medium: string | null;
+        utm_campaign: string | null;
+        utm_content: string | null;
+        tracking_status: string | null;
+        audit_reason: string | null;
+      }
+    | {
+        utm_source: string | null;
+        utm_medium: string | null;
+        utm_campaign: string | null;
+        utm_content: string | null;
+        tracking_status: string | null;
+        audit_reason: string | null;
+      }[]
+    | null;
+};
+
 type DashboardSummary = {
   status: DashboardStatus;
   statusLabel: string;
   statusDescription: string;
+  activeRange: DateRangeKey;
+  rangeLabel: string;
+  rangeStart: string;
+  rangeEnd: string;
   latestLeadAt: string | null;
   errorMessage: string | null;
-  totals: {
-    leads: number;
-    contacts: number;
-    sourceSnapshots: number;
-    bookings: number;
-    leadEvents: number;
+  leads: LeadRow[];
+  kpis: {
+    totalLeads: number;
+    newBookings: number;
+    bookingOnly: number;
+    paidLeads: number;
+    estimatedAmount: number;
+    trackableRate: number;
   };
-  leadsBySourceType: CountItem[];
-  leadsByPaymentStatus: CountItem[];
-  snapshotsByTrackingStatus: CountItem[];
+  brandPerformance: PerformanceRow[];
+  sourcePerformance: PerformanceRow[];
+  treatmentPerformance: PerformanceRow[];
+  branchPerformance: PerformanceRow[];
+  audit: {
+    sourceSnapshots: number;
+    leadEvents: number;
+    trackingStatus: CountItem[];
+  };
 };
 
-const sourceTypes = [
-  ["reg_form_utm", "表格提交並帶有 UTM / click ID / parent page 來源資料"],
-  ["whatsapp_ctwa", "WhatsApp Click-to-Ads 或 referral metadata 來源"],
-  ["organic_unknown", "未有可靠 UTM、click ID 或 CTWA 訊號"],
-  ["manual", "日後由 CRM 同事手動建立"],
-  ["imported", "由 spreadsheet 或舊系統匯入"],
+const dateRangeOptions: Array<{ key: DateRangeKey; label: string }> = [
+  { key: "today", label: "今日" },
+  { key: "yesterday", label: "昨日" },
+  { key: "last7", label: "近7日" },
+  { key: "month", label: "本月" },
+  { key: "custom", label: "自訂日期" },
 ];
 
 const crmFeedback = [
@@ -52,13 +118,147 @@ const crmFeedback = [
   "deal_lost",
 ];
 
-const emptyTotals = {
-  leads: 0,
-  contacts: 0,
-  sourceSnapshots: 0,
-  bookings: 0,
-  leadEvents: 0,
-};
+function relation<T>(value: T | T[] | null | undefined) {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+function asNumber(value: number | string | null | undefined) {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  if (typeof value === "string") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
+function money(value: number, currency = "HKD") {
+  return new Intl.NumberFormat("zh-HK", {
+    style: "currency",
+    currency,
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function percent(value: number) {
+  return `${Math.round(value * 100)}%`;
+}
+
+function formatDateTime(value: string | null) {
+  if (!value) return "未有登記";
+
+  return new Intl.DateTimeFormat("zh-HK", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Hong_Kong",
+  }).format(new Date(value));
+}
+
+function formatAppointment(lead: LeadRow) {
+  if (!lead.appointment_date && !lead.appointment_time) return "未選";
+  return [lead.appointment_date, lead.appointment_time].filter(Boolean).join(" ");
+}
+
+function hkDateToUtcIso(year: number, monthIndex: number, day: number) {
+  return new Date(Date.UTC(year, monthIndex, day) - 8 * 60 * 60 * 1000).toISOString();
+}
+
+function getDateRange(range: DateRangeKey) {
+  const now = new Date();
+  const hkNow = new Date(now.getTime() + 8 * 60 * 60 * 1000);
+  const year = hkNow.getUTCFullYear();
+  const month = hkNow.getUTCMonth();
+  const day = hkNow.getUTCDate();
+
+  if (range === "today") {
+    return {
+      key: range,
+      label: "今日",
+      start: hkDateToUtcIso(year, month, day),
+      end: hkDateToUtcIso(year, month, day + 1),
+    };
+  }
+
+  if (range === "yesterday") {
+    return {
+      key: range,
+      label: "昨日",
+      start: hkDateToUtcIso(year, month, day - 1),
+      end: hkDateToUtcIso(year, month, day),
+    };
+  }
+
+  if (range === "month") {
+    return {
+      key: range,
+      label: "本月",
+      start: hkDateToUtcIso(year, month, 1),
+      end: hkDateToUtcIso(year, month + 1, 1),
+    };
+  }
+
+  return {
+    key: range,
+    label: range === "custom" ? "自訂日期（暫用近7日）" : "近7日",
+    start: hkDateToUtcIso(year, month, day - 6),
+    end: hkDateToUtcIso(year, month, day + 1),
+  };
+}
+
+function parseRange(value: string | string[] | undefined): DateRangeKey {
+  const raw = Array.isArray(value) ? value[0] : value;
+  return dateRangeOptions.some((item) => item.key === raw)
+    ? (raw as DateRangeKey)
+    : "last7";
+}
+
+function sourceLabel(lead: LeadRow) {
+  const snapshot = relation(lead.lead_source_snapshots);
+
+  if (lead.source_type === "whatsapp_ctwa") return "WhatsApp CTWA";
+  if (lead.source_type === "organic_unknown") return "Organic / unknown";
+  if (lead.source_type === "manual") return "Manual";
+  if (lead.source_type === "imported") return "Imported";
+
+  return [snapshot?.utm_source, snapshot?.utm_medium]
+    .filter(Boolean)
+    .join(" / ") || "可追蹤來源";
+}
+
+function campaignLabel(lead: LeadRow) {
+  const snapshot = relation(lead.lead_source_snapshots);
+  return snapshot?.utm_campaign || "未設定";
+}
+
+function contentLabel(lead: LeadRow) {
+  const snapshot = relation(lead.lead_source_snapshots);
+  return snapshot?.utm_content || "未設定";
+}
+
+function businessStatus(lead: LeadRow) {
+  if (lead.payment_status === "paid") return "已付款";
+  if (lead.lead_status === "lost") return "已流失";
+  if (lead.booking_status === "confirmed") return "已確認預約";
+  if (lead.payment_status === "pending") return "待付款確認";
+  if (lead.payment_status === "booking_only") return "只預約未付款";
+  if (lead.lead_status === "submitted") return "已提交";
+  return lead.lead_status || "未設定";
+}
+
+function isBooking(lead: LeadRow) {
+  return ["requested", "confirmed", "rescheduled", "show", "no_show"].includes(
+    lead.booking_status ?? ""
+  );
+}
+
+function isTrackable(lead: LeadRow) {
+  const snapshot = relation(lead.lead_source_snapshots);
+  return (
+    lead.source_type !== "organic_unknown" &&
+    snapshot?.tracking_status !== "organic_unknown" &&
+    snapshot?.tracking_status !== "missing"
+  );
+}
 
 function countBy<T extends Record<string, unknown>>(rows: T[], key: keyof T) {
   const counts = new Map<string, number>();
@@ -73,6 +273,80 @@ function countBy<T extends Record<string, unknown>>(rows: T[], key: keyof T) {
   );
 }
 
+function addPerformance(
+  rows: Map<string, PerformanceRow>,
+  key: string,
+  label: string,
+  lead: LeadRow,
+  meta: string[] = []
+) {
+  const current =
+    rows.get(key) ??
+    ({
+      key,
+      label,
+      leads: 0,
+      bookings: 0,
+      paid: 0,
+      amount: 0,
+      meta,
+    } satisfies PerformanceRow);
+
+  current.leads += 1;
+  current.bookings += isBooking(lead) ? 1 : 0;
+  current.paid += lead.payment_status === "paid" ? 1 : 0;
+  current.amount += asNumber(lead.price);
+  rows.set(key, current);
+}
+
+function buildPerformance(leads: LeadRow[]) {
+  const brands = new Map<string, PerformanceRow>();
+  const sources = new Map<string, PerformanceRow>();
+  const treatments = new Map<string, PerformanceRow>();
+  const branches = new Map<string, PerformanceRow>();
+
+  leads.forEach((lead) => {
+    const brand = relation(lead.brands)?.name || "未設定品牌";
+    const treatment = relation(lead.treatments)?.name || "未設定療程";
+    const packageName = relation(lead.packages)?.name || "未設定套餐";
+    const branch = relation(lead.branches)?.name || "未設定分店";
+    const source = sourceLabel(lead);
+    const campaign = campaignLabel(lead);
+    const content = contentLabel(lead);
+
+    addPerformance(brands, brand, brand, lead);
+    addPerformance(
+      sources,
+      [source, campaign, content].join("|"),
+      source,
+      lead,
+      [campaign, content]
+    );
+    addPerformance(
+      treatments,
+      [treatment, packageName].join("|"),
+      treatment,
+      lead,
+      [packageName, money(asNumber(lead.price), lead.currency || "HKD")]
+    );
+    addPerformance(branches, branch, branch, lead);
+  });
+
+  return {
+    brandPerformance: Array.from(brands.values()).sort((a, b) => b.leads - a.leads),
+    sourcePerformance: Array.from(sources.values()).sort((a, b) => b.leads - a.leads),
+    treatmentPerformance: Array.from(treatments.values()).sort(
+      (a, b) => b.leads - a.leads
+    ),
+    branchPerformance: Array.from(branches.values())
+      .map((row) => ({
+        ...row,
+        share: leads.length > 0 ? row.leads / leads.length : 0,
+      }))
+      .sort((a, b) => b.leads - a.leads),
+  };
+}
+
 async function countRows(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   table: string
@@ -85,292 +359,308 @@ async function countRows(
   return count ?? 0;
 }
 
-async function getDashboardSummary(): Promise<DashboardSummary> {
+async function getDashboardSummary(rangeKey: DateRangeKey): Promise<DashboardSummary> {
+  const range = getDateRange(rangeKey);
+
   if (!hasSupabaseAdminEnv()) {
     return {
       status: "local_noop",
-      statusLabel: "本機模式：等待 Supabase",
+      statusLabel: "系統狀態：等待資料庫連接",
       statusDescription:
-        "目前未偵測到 Supabase server env vars，dashboard 只顯示 schema / API readiness，不顯示假數字。",
+        "目前未偵測到正式資料庫設定，dashboard 不會顯示假數字。",
+      activeRange: range.key,
+      rangeLabel: range.label,
+      rangeStart: range.start,
+      rangeEnd: range.end,
       latestLeadAt: null,
       errorMessage: null,
-      totals: emptyTotals,
-      leadsBySourceType: [],
-      leadsByPaymentStatus: [],
-      snapshotsByTrackingStatus: [],
+      leads: [],
+      kpis: {
+        totalLeads: 0,
+        newBookings: 0,
+        bookingOnly: 0,
+        paidLeads: 0,
+        estimatedAmount: 0,
+        trackableRate: 0,
+      },
+      brandPerformance: [],
+      sourcePerformance: [],
+      treatmentPerformance: [],
+      branchPerformance: [],
+      audit: {
+        sourceSnapshots: 0,
+        leadEvents: 0,
+        trackingStatus: [],
+      },
     };
   }
 
   try {
     const supabase = createSupabaseAdminClient();
-    const [
-      leads,
-      contacts,
-      sourceSnapshots,
-      bookings,
-      leadEvents,
-      leadRowsResult,
-      snapshotRowsResult,
-    ] = await Promise.all([
-      countRows(supabase, "leads"),
-      countRows(supabase, "contacts"),
-      countRows(supabase, "lead_source_snapshots"),
-      countRows(supabase, "bookings"),
-      countRows(supabase, "lead_events"),
-      supabase
-        .from("leads")
-        .select("source_type,payment_status,created_at")
-        .order("created_at", { ascending: false })
-        .limit(5000),
-      supabase
-        .from("lead_source_snapshots")
-        .select("tracking_status")
-        .limit(5000),
-    ]);
+    const [leadRowsResult, sourceSnapshots, leadEvents, snapshotRowsResult] =
+      await Promise.all([
+        supabase
+          .from("leads")
+          .select(
+            `
+              id,
+              created_at,
+              submitted_at,
+              customer_name,
+              phone,
+              appointment_date,
+              appointment_time,
+              price,
+              currency,
+              source_type,
+              payment_status,
+              lead_status,
+              booking_status,
+              brands(name),
+              treatments(name),
+              packages(name,promo_price),
+              branches(name),
+              lead_source_snapshots(
+                utm_source,
+                utm_medium,
+                utm_campaign,
+                utm_content,
+                tracking_status,
+                audit_reason
+              )
+            `
+          )
+          .gte("created_at", range.start)
+          .lt("created_at", range.end)
+          .order("created_at", { ascending: false })
+          .limit(5000),
+        countRows(supabase, "lead_source_snapshots"),
+        countRows(supabase, "lead_events"),
+        supabase.from("lead_source_snapshots").select("tracking_status").limit(5000),
+      ]);
 
     if (leadRowsResult.error) throw leadRowsResult.error;
     if (snapshotRowsResult.error) throw snapshotRowsResult.error;
 
-    const leadRows = leadRowsResult.data ?? [];
-    const snapshotRows = snapshotRowsResult.data ?? [];
+    const leads = (leadRowsResult.data ?? []) as LeadRow[];
+    const performance = buildPerformance(leads);
+    const totalLeads = leads.length;
+    const trackableCount = leads.filter(isTrackable).length;
 
     return {
       status: "connected",
-      statusLabel: "Supabase 已連接：live data-backed",
+      statusLabel: "系統狀態：資料庫已連接",
       statusDescription:
-        "Dashboard 正在讀取 Supabase contacts、leads、source snapshots、bookings 同 lead events。以下數字來自實際資料表。",
-      latestLeadAt: leadRows[0]?.created_at ?? null,
+        "正在讀取正式登記資料；最新登記、來源、療程、套餐、分店同預約狀態已同步。",
+      activeRange: range.key,
+      rangeLabel: range.label,
+      rangeStart: range.start,
+      rangeEnd: range.end,
+      latestLeadAt: leads[0]?.created_at ?? null,
       errorMessage: null,
-      totals: {
-        leads,
-        contacts,
-        sourceSnapshots,
-        bookings,
-        leadEvents,
+      leads,
+      kpis: {
+        totalLeads,
+        newBookings: leads.filter((lead) => lead.booking_status === "requested").length,
+        bookingOnly: leads.filter((lead) => lead.payment_status === "booking_only")
+          .length,
+        paidLeads: leads.filter((lead) => lead.payment_status === "paid").length,
+        estimatedAmount: leads.reduce((sum, lead) => sum + asNumber(lead.price), 0),
+        trackableRate: totalLeads > 0 ? trackableCount / totalLeads : 0,
       },
-      leadsBySourceType: countBy(leadRows, "source_type"),
-      leadsByPaymentStatus: countBy(leadRows, "payment_status"),
-      snapshotsByTrackingStatus: countBy(snapshotRows, "tracking_status"),
+      ...performance,
+      audit: {
+        sourceSnapshots,
+        leadEvents,
+        trackingStatus: countBy(snapshotRowsResult.data ?? [], "tracking_status"),
+      },
     };
   } catch (error) {
     return {
       status: "query_failed",
-      statusLabel: "Supabase 已配置，但 dashboard query failed",
+      statusLabel: "系統狀態：資料庫已設定，但讀取失敗",
       statusDescription:
-        "已偵測到 Supabase env vars，但 dashboard 讀取資料時失敗。請檢查 Vercel env、service role key、RLS / table 權限或 Supabase 連線狀態。",
+        "已偵測到正式資料庫設定，但 dashboard 暫時未能讀取資料。請檢查 Vercel env、service role key 或資料表權限。",
+      activeRange: range.key,
+      rangeLabel: range.label,
+      rangeStart: range.start,
+      rangeEnd: range.end,
       latestLeadAt: null,
       errorMessage: error instanceof Error ? error.message : "unknown_query_error",
-      totals: emptyTotals,
-      leadsBySourceType: [],
-      leadsByPaymentStatus: [],
-      snapshotsByTrackingStatus: [],
+      leads: [],
+      kpis: {
+        totalLeads: 0,
+        newBookings: 0,
+        bookingOnly: 0,
+        paidLeads: 0,
+        estimatedAmount: 0,
+        trackableRate: 0,
+      },
+      brandPerformance: [],
+      sourcePerformance: [],
+      treatmentPerformance: [],
+      branchPerformance: [],
+      audit: {
+        sourceSnapshots: 0,
+        leadEvents: 0,
+        trackingStatus: [],
+      },
     };
   }
 }
 
-function formatDateTime(value: string | null) {
-  if (!value) return "未有 lead";
-
-  return new Intl.DateTimeFormat("zh-HK", {
-    dateStyle: "medium",
-    timeStyle: "short",
-    timeZone: "Asia/Hong_Kong",
-  }).format(new Date(value));
-}
-
-export default async function DashboardPage() {
-  const summary = await getDashboardSummary();
-  const dataState = [
-    ["目前資料", summary.status === "connected" ? "Supabase live records" : "local_noop / no live data"],
-    ["Live Supabase", summary.statusLabel],
-    [
-      "Dashboard 數字",
-      summary.status === "connected" ? "實際資料表聚合" : "不顯示假數字",
-    ],
-    ["Latest lead", formatDateTime(summary.latestLeadAt)],
-  ];
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ range?: string | string[] }>;
+}) {
+  const params = await searchParams;
+  const summary = await getDashboardSummary(parseRange(params?.range));
 
   return (
     <main className="alyssa-shell">
       <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/82 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
-          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-                內部增長儀表板
+                Lead performance dashboard
               </p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                Alyssa Lead Capture OS
+                Alyssa 登記及來源成效
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                成效儀表板以 shared lead/source model 為核心：source snapshot
-                負責解釋 lead 從邊度嚟，bookings、payments 同日後 CRM outcome
-                則負責解釋之後發生咗咩結果。
+                用正式登記資料追蹤品牌、療程、套餐、分店、來源同廣告系列表現。
+                CRM 結果會等待未來 WhatsApp CRM app 回寫。
               </p>
             </div>
             <div className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348]">
-              資料狀態：{summary.statusLabel}
+              {summary.statusLabel}
             </div>
           </div>
 
-          <div className="mt-6 grid gap-3 md:grid-cols-4">
-            <ReadinessCard label="Public form" value="production path ready" />
-            <ReadinessCard label="Source snapshots" value="schema ready" />
-            <ReadinessCard label="Lead events" value="schema ready" />
-            <ReadinessCard label="CRM feedback" value="future CRM pending" />
-          </div>
-        </section>
-
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-            Data state
-          </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
-            {dataState.map(([label, value]) => (
-              <div key={label} className="rounded-2xl bg-white/80 p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                  {label}
-                </p>
-                <p className="mt-2 text-sm font-bold text-[#5a2348]">{value}</p>
-              </div>
+          <div className="mt-6 flex flex-wrap gap-2">
+            {dateRangeOptions.map((item) => (
+              <Link
+                key={item.key}
+                href={`/dashboard?range=${item.key}`}
+                className={`rounded-full px-4 py-2 text-sm font-bold transition ${
+                  summary.activeRange === item.key
+                    ? "bg-[#5a2348] text-white"
+                    : "border border-[#ead9cf] bg-white text-[#5a2348]"
+                }`}
+              >
+                {item.label}
+              </Link>
             ))}
           </div>
-          <p className="mt-4 text-sm leading-6 text-[#6d4a5c]">
-            {summary.statusDescription}
+          <p className="mt-3 text-xs font-semibold text-[#7b5a6a]">
+            目前範圍：{summary.rangeLabel}。自訂日期 UI 已預留，完整日期輸入下一步接入。
           </p>
           {summary.errorMessage && (
-            <p className="mt-3 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-              Query error: {summary.errorMessage}
+            <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              系統讀取錯誤：{summary.errorMessage}
             </p>
           )}
         </section>
 
-        <section className="mt-6 grid gap-3 md:grid-cols-5">
-          <MetricCard label="Total leads" value={summary.totals.leads} />
-          <MetricCard label="Contacts" value={summary.totals.contacts} />
-          <MetricCard
-            label="Source snapshots"
-            value={summary.totals.sourceSnapshots}
+        <section className="mt-6 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+          <KpiCard label="總 Leads" value={summary.kpis.totalLeads.toString()} />
+          <KpiCard label="新預約" value={summary.kpis.newBookings.toString()} />
+          <KpiCard label="只預約未付款" value={summary.kpis.bookingOnly.toString()} />
+          <KpiCard label="已付款 Leads" value={summary.kpis.paidLeads.toString()} />
+          <KpiCard
+            label="預計療程金額"
+            value={money(summary.kpis.estimatedAmount)}
           />
-          <MetricCard label="Bookings" value={summary.totals.bookings} />
-          <MetricCard label="Lead events" value={summary.totals.leadEvents} />
+          <KpiCard label="可追蹤來源比例" value={percent(summary.kpis.trackableRate)} />
         </section>
 
-        <section className="mt-6 grid gap-5 lg:grid-cols-3">
-          <CountPanel
-            title="Leads by source_type"
-            emptyText="未有 live leads"
-            items={summary.leadsBySourceType}
+        <LatestLeadsTable leads={summary.leads.slice(0, 20)} />
+
+        <section className="mt-6 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
+          <PerformanceTable
+            title="品牌表現"
+            columns={["品牌", "Leads", "預約", "已付款", "預計金額"]}
+            rows={summary.brandPerformance}
+            type="brand"
           />
-          <CountPanel
-            title="Leads by payment_status"
-            emptyText="未有 live leads"
-            items={summary.leadsByPaymentStatus}
+          <PerformanceTable
+            title="來源 / 廣告系列表現"
+            columns={[
+              "來源",
+              "廣告系列",
+              "素材 / Content",
+              "Leads",
+              "預約",
+              "已付款",
+              "預計金額",
+            ]}
+            rows={summary.sourcePerformance}
+            type="source"
           />
-          <CountPanel
-            title="Snapshots by tracking_status"
-            emptyText="未有 source snapshots"
-            items={summary.snapshotsByTrackingStatus}
+        </section>
+
+        <section className="mt-6 grid gap-5 xl:grid-cols-[1.1fr_0.9fr]">
+          <PerformanceTable
+            title="療程 / 套餐表現"
+            columns={["療程", "套餐", "價錢", "Leads", "預約", "已付款"]}
+            rows={summary.treatmentPerformance}
+            type="treatment"
+          />
+          <PerformanceTable
+            title="分店表現"
+            columns={["分店", "Leads", "預約", "佔比"]}
+            rows={summary.branchPerformance}
+            type="branch"
           />
         </section>
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-            Source type 定義
-          </p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            {sourceTypes.map(([sourceType, description]) => (
-              <div key={sourceType} className="rounded-2xl bg-[#fff6f0] p-4">
-                <p className="font-mono text-xs font-bold text-[#5a2348]">
-                  {sourceType}
-                </p>
-                <p className="mt-2 text-xs leading-5 text-[#7b5a6a]">
-                  {description}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-6 grid gap-5 lg:grid-cols-2">
-          <ReadOnlyPanel
-            title="來源成效"
-            eyebrow="來源追蹤"
-            description="按 source_type、UTM、click IDs 同 CTWA evidence 分析 Alyssa leads 從邊度嚟。"
-            items={[
-              "上方 source_type / tracking_status 聚合已讀 live Supabase 資料",
-              "UTM、click ID、CTWA 細分會保留在 source snapshots / dashboard views",
-              "Campaign-level conversion 會等待更多 live records 及 CRM outcome 回寫",
-            ]}
-            badge="live base ready"
-          />
-          <ReadOnlyPanel
-            title="預約 / 付款結果"
-            eyebrow="業務結果"
-            description="booking_only 代表未開始 payment flow；price 仍然係所選 package display price。CRM outcome 未接入前，不展示假 conversion。"
-            items={[
-              "bookings 已計入 live Supabase total",
-              "payment_status 已以 live leads 聚合顯示",
-              "show / no-show / paid / lost conversion 等待 future CRM app 回寫",
-            ]}
-            badge="partial live"
-          />
-        </section>
-
-        <section className="mt-6 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
-          <ReadOnlyPanel
-            title="追蹤稽核"
-            eyebrow="資料品質"
-            description="檢查 UTM 缺失、部分追蹤、CTWA-only leads、重複 leads 同 event timeline。"
-            items={[
-              "tracking_status 聚合已讀 live source snapshots",
-              "complete_utm / partial_utm / organic_unknown 等技術值保持原名",
-              "詳細 audit trail 仍保留在 lead_events 同 source snapshots",
-            ]}
-            badge="live audit base"
-          />
-          <section className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-              CRM 回寫結果
-            </p>
-            <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              為 WhatsApp CRM 預留的 outcome events
-            </h2>
-            <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-              這裡仍然等待未來獨立 WhatsApp CRM app 回寫 outcome events。
-              現時 dashboard 只顯示 Lead Capture OS 已有的 live base records，
-              不會假裝已經有 CRM follow-up、show/no-show 或 lost conversion。
-            </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              {crmFeedback.map((eventName) => (
-                <div
-                  key={eventName}
-                  className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-3 text-xs font-bold text-[#5a2348]"
-                >
-                  {eventName}
-                </div>
-              ))}
-            </div>
-          </section>
-        </section>
-
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
-          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
             <div>
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                Live submit path
+                系統稽核
               </p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                本機同 Vercel production submit 已可寫入 Supabase
+                來源追蹤稽核
               </h2>
             </div>
-            <Link
-              href="/embed-preview"
-              className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white"
-            >
-              開啟嵌入預覽
-            </Link>
+            <p className="text-sm font-semibold text-[#7b5a6a]">
+              最新登記：{formatDateTime(summary.latestLeadAt)}
+            </p>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-3">
+            <AuditCard label="Source snapshots" value={summary.audit.sourceSnapshots} />
+            <AuditCard label="Lead events" value={summary.audit.leadEvents} />
+            <AuditCard label="CRM outcome" value="等待日後回寫" />
+          </div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            {summary.audit.trackingStatus.length > 0 ? (
+              summary.audit.trackingStatus.map((item) => (
+                <div key={item.label} className="rounded-2xl bg-[#fff6f0] p-3">
+                  <p className="font-mono text-xs font-bold text-[#5a2348]">
+                    {item.label}
+                  </p>
+                  <p className="mt-1 text-lg font-bold text-[#321428]">{item.count}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm font-semibold text-[#7b5a6a]">
+                未有來源追蹤分佈資料。
+              </p>
+            )}
+          </div>
+          <div className="mt-5 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {crmFeedback.map((eventName) => (
+              <div
+                key={eventName}
+                className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-3 text-xs font-bold text-[#5a2348]"
+              >
+                {eventName}
+              </div>
+            ))}
           </div>
         </section>
       </div>
@@ -378,7 +668,211 @@ export default async function DashboardPage() {
   );
 }
 
-function ReadinessCard({ label, value }: { label: string; value: string }) {
+function KpiCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border border-[#ead9cf] bg-white/82 p-4 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+        {label}
+      </p>
+      <p className="mt-2 text-2xl font-bold text-[#321428]">{value}</p>
+    </div>
+  );
+}
+
+function LatestLeadsTable({ leads }: { leads: LeadRow[] }) {
+  return (
+    <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
+      <h2 className="text-xl font-bold text-[#321428]">最新登記</h2>
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-left text-sm">
+          <thead>
+            <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
+              {[
+                "登記時間",
+                "品牌",
+                "客人",
+                "電話",
+                "療程",
+                "套餐 / 價錢",
+                "分店",
+                "預約日期時間",
+                "來源",
+                "廣告系列",
+                "狀態",
+              ].map((heading) => (
+                <th key={heading} className="border-b border-[#ead9cf] px-3 py-3">
+                  {heading}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {leads.length > 0 ? (
+              leads.map((lead) => {
+                const brand = relation(lead.brands)?.name || "未設定";
+                const treatment = relation(lead.treatments)?.name || "未設定";
+                const packageName = relation(lead.packages)?.name || "未設定";
+                const branch = relation(lead.branches)?.name || "未設定";
+
+                return (
+                  <tr key={lead.id} className="align-top text-[#5a2348]">
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      {formatDateTime(lead.created_at)}
+                    </td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">{brand}</td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      {lead.customer_name || "未填"}
+                    </td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      {lead.phone || "未填"}
+                    </td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      {treatment}
+                    </td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      {packageName}
+                      <span className="block font-bold text-[#321428]">
+                        {money(asNumber(lead.price), lead.currency || "HKD")}
+                      </span>
+                    </td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">{branch}</td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      {formatAppointment(lead)}
+                    </td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      {sourceLabel(lead)}
+                    </td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      {campaignLabel(lead)}
+                    </td>
+                    <td className="border-b border-[#f1e3dc] px-3 py-3">
+                      <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
+                        {businessStatus(lead)}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })
+            ) : (
+              <tr>
+                <td colSpan={11} className="px-3 py-6 text-center text-[#7b5a6a]">
+                  目前日期範圍未有正式登記資料。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function PerformanceTable({
+  title,
+  columns,
+  rows,
+  type,
+}: {
+  title: string;
+  columns: string[];
+  rows: PerformanceRow[];
+  type: "brand" | "source" | "treatment" | "branch";
+}) {
+  return (
+    <section className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
+      <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
+      <div className="mt-4 overflow-x-auto">
+        <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+          <thead>
+            <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
+              {columns.map((column) => (
+                <th key={column} className="border-b border-[#ead9cf] px-3 py-3">
+                  {column}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row) => (
+                <tr key={row.key} className="text-[#5a2348]">
+                  {renderPerformanceCells(row, type)}
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td
+                  colSpan={columns.length}
+                  className="px-3 py-6 text-center text-[#7b5a6a]"
+                >
+                  目前未有資料。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function Cell({ children }: { children: ReactNode }) {
+  return <td className="border-b border-[#f1e3dc] px-3 py-3">{children}</td>;
+}
+
+function renderPerformanceCells(row: PerformanceRow, type: PerformanceTableProps) {
+  if (type === "source") {
+    return (
+      <>
+        <Cell>{row.label}</Cell>
+        <Cell>{row.meta?.[0] || "未設定"}</Cell>
+        <Cell>{row.meta?.[1] || "未設定"}</Cell>
+        <Cell>{row.leads}</Cell>
+        <Cell>{row.bookings}</Cell>
+        <Cell>{row.paid}</Cell>
+        <Cell>{money(row.amount)}</Cell>
+      </>
+    );
+  }
+
+  if (type === "treatment") {
+    return (
+      <>
+        <Cell>{row.label}</Cell>
+        <Cell>{row.meta?.[0] || "未設定"}</Cell>
+        <Cell>{row.meta?.[1] || "未設定"}</Cell>
+        <Cell>{row.leads}</Cell>
+        <Cell>{row.bookings}</Cell>
+        <Cell>{row.paid}</Cell>
+      </>
+    );
+  }
+
+  if (type === "branch") {
+    return (
+      <>
+        <Cell>{row.label}</Cell>
+        <Cell>{row.leads}</Cell>
+        <Cell>{row.bookings}</Cell>
+        <Cell>{percent(row.share ?? 0)}</Cell>
+      </>
+    );
+  }
+
+  return (
+    <>
+      <Cell>{row.label}</Cell>
+      <Cell>{row.leads}</Cell>
+      <Cell>{row.bookings}</Cell>
+      <Cell>{row.paid}</Cell>
+      <Cell>{money(row.amount)}</Cell>
+    </>
+  );
+}
+
+type PerformanceTableProps = "brand" | "source" | "treatment" | "branch";
+
+function AuditCard({ label, value }: { label: string; value: number | string }) {
   return (
     <div className="rounded-2xl border border-[#ead9cf] bg-[#fff9f3] p-4">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
@@ -386,85 +880,5 @@ function ReadinessCard({ label, value }: { label: string; value: string }) {
       </p>
       <p className="mt-2 text-lg font-bold text-[#321428]">{value}</p>
     </div>
-  );
-}
-
-function MetricCard({ label, value }: { label: string; value: number }) {
-  return (
-    <div className="rounded-2xl border border-[#ead9cf] bg-white/82 p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {label}
-      </p>
-      <p className="mt-2 text-3xl font-bold text-[#321428]">{value}</p>
-    </div>
-  );
-}
-
-function CountPanel({
-  title,
-  emptyText,
-  items,
-}: {
-  title: string;
-  emptyText: string;
-  items: CountItem[];
-}) {
-  return (
-    <section className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
-      <h2 className="text-lg font-bold text-[#321428]">{title}</h2>
-      <div className="mt-4 divide-y divide-[#ead9cf]">
-        {items.length > 0 ? (
-          items.map((item) => (
-            <div
-              key={item.label}
-              className="flex items-center justify-between gap-4 py-3"
-            >
-              <span className="break-all font-mono text-xs font-bold text-[#5a2348]">
-                {item.label}
-              </span>
-              <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-sm font-bold text-[#9a5d76]">
-                {item.count}
-              </span>
-            </div>
-          ))
-        ) : (
-          <p className="text-sm font-semibold text-[#7b5a6a]">{emptyText}</p>
-        )}
-      </div>
-    </section>
-  );
-}
-
-function ReadOnlyPanel({
-  title,
-  eyebrow,
-  description,
-  items,
-  badge,
-}: {
-  title: string;
-  eyebrow: string;
-  description: string;
-  items: string[];
-  badge: string;
-}) {
-  return (
-    <section className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {eyebrow}
-      </p>
-      <h2 className="mt-2 text-xl font-bold text-[#321428]">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
-      <div className="mt-4 divide-y divide-[#ead9cf]">
-        {items.map((item) => (
-          <div key={item} className="flex items-center justify-between gap-4 py-3">
-            <span className="text-sm font-semibold text-[#5a2348]">{item}</span>
-            <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
-              {badge}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
   );
 }
