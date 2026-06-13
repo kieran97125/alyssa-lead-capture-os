@@ -121,6 +121,37 @@ The current editor UI is read-only / save-ready by design. Save and publish work
 
 Wix remains the main website. Lead Capture OS landing pages are for fast offer, angle, treatment, and audience testing while preserving the same lead capture and attribution flow.
 
+## DB-backed Landing Page Builder Direction
+
+The current landing page editor is a config-preview foundation. A future DB-backed builder should store campaign page content and image assets in Supabase before full editing is enabled.
+
+Recommended model:
+
+- `landing_pages` - one record per campaign page, with slug, title, brand, treatment, package, branch, form, template, mode, status, current content, image assets, and published version reference.
+- `landing_page_versions` - version history for drafts and published versions.
+- `landing_page_templates` - optional template registry if templates become editable instead of local config.
+- `landing_page_assets` - optional asset registry once upload/media library exists.
+
+Recommended JSON fields:
+
+- `content_json` - hero, offer, CTA, pain points, benefits, sections, process, trust, and FAQ content.
+- `image_assets_json` - hero, mobile hero, offer, treatment, process, and trust image URLs or storage references.
+
+Future workflow:
+
+- Save draft: write a draft version without changing public output.
+- Internal preview: allow internal users to preview a draft version.
+- Publish: mark a selected version as published, update `published_version_id`, and make `/lp/[slug]` render only published content.
+- Archive: remove a campaign page from public rendering without deleting history.
+
+Public `/lp/[slug]` should read only published content. Internal preview routes can read draft content after team access is connected. Images may later come from Supabase Storage, Wix assets, or external URLs. Team access should control who can edit, publish, and archive pages.
+
+Draft SQL direction is documented in:
+
+```text
+supabase/drafts/20260614000200_landing_page_builder_foundation.sql
+```
+
 ## Landing Page Image Asset Strategy
 
 Landing page mode uses structured image slots so marketers can prepare premium medical beauty / wellness assets for campaign testing. Images should support trust, desire, treatment value, and booking confidence without replacing the full Wix website.

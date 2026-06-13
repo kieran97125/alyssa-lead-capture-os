@@ -251,6 +251,31 @@ export default async function LandingPageConfigPage({
                 <TextField label="Publish status" value={page.status} />
               </div>
             </EditorSection>
+
+            <EditorSection
+              eyebrow="Workflow"
+              title="儲存 / 發布流程預留"
+              description="此頁目前仍是 editor UI foundation；真正儲存與發布會在 DB-backed builder 階段加入。"
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <WorkflowCard
+                  title="Save draft"
+                  body="未來會將內容寫入 landing_page_versions，保留 draft version，不影響 public landing page。"
+                />
+                <WorkflowCard
+                  title="Internal preview"
+                  body="內部使用者可預覽 draft version，方便檢查文案、圖片同表格連接。"
+                />
+                <WorkflowCard
+                  title="Publish"
+                  body="發布時會更新 published_version_id，public /lp/[slug] 只讀 published content。"
+                />
+                <WorkflowCard
+                  title="Role permissions"
+                  body="日後由 team access 控制誰可以編輯、儲存 draft、發布或 archive。"
+                />
+              </div>
+            </EditorSection>
           </div>
 
           <PreviewPanel
@@ -384,6 +409,15 @@ function TemplateCard({
           {status}
         </span>
       </div>
+      <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
+    </article>
+  );
+}
+
+function WorkflowCard({ title, body }: { title: string; body: string }) {
+  return (
+    <article className="rounded-2xl bg-[#fff6f0] p-4">
+      <h3 className="font-bold text-[#321428]">{title}</h3>
       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
     </article>
   );

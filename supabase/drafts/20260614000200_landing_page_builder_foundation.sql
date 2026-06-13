@@ -1,0 +1,82 @@
+-- Draft only. Do not apply automatically until the DB-backed builder rollout is planned.
+-- Landing Page Builder Foundation V1 for Alyssa Lead Capture OS.
+
+-- Suggested enums:
+-- create type public.landing_page_mode as enum ('form_only', 'landing_page');
+-- create type public.landing_page_status as enum ('draft', 'published', 'archived');
+-- create type public.landing_page_version_status as enum ('draft', 'published', 'archived');
+
+-- Optional template registry. Can stay local config until templates become editable.
+-- create table public.landing_page_templates (
+--   id uuid primary key default gen_random_uuid(),
+--   template_key text not null unique,
+--   name text not null,
+--   use_case text null,
+--   supported_sections_json jsonb not null default '[]',
+--   status text not null default 'active',
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now()
+-- );
+
+-- Main page record. Public /lp/[slug] should read only rows with status = 'published'
+-- and should render the published_version_id content.
+-- create table public.landing_pages (
+--   id uuid primary key default gen_random_uuid(),
+--   slug text not null unique,
+--   title text not null,
+--   brand_id uuid null references public.brands(id) on delete set null,
+--   treatment_id uuid null references public.treatments(id) on delete set null,
+--   package_id uuid null references public.packages(id) on delete set null,
+--   branch_id uuid null references public.branches(id) on delete set null,
+--   form_id uuid null references public.forms(id) on delete set null,
+--   template_key text not null,
+--   mode public.landing_page_mode not null default 'landing_page',
+--   status public.landing_page_status not null default 'draft',
+--   content_json jsonb not null default '{}',
+--   image_assets_json jsonb not null default '{}',
+--   published_version_id uuid null,
+--   created_by uuid null references public.profiles(id) on delete set null,
+--   updated_by uuid null references public.profiles(id) on delete set null,
+--   published_at timestamptz null,
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now()
+-- );
+
+-- Version/draft history. Editors save drafts here; publishing marks one version
+-- as published and points landing_pages.published_version_id at it.
+-- create table public.landing_page_versions (
+--   id uuid primary key default gen_random_uuid(),
+--   page_id uuid not null references public.landing_pages(id) on delete cascade,
+--   version_number integer not null,
+--   content_json jsonb not null default '{}',
+--   image_assets_json jsonb not null default '{}',
+--   status public.landing_page_version_status not null default 'draft',
+--   created_by uuid null references public.profiles(id) on delete set null,
+--   created_at timestamptz not null default now(),
+--   unique (page_id, version_number)
+-- );
+
+-- Optional asset registry. This can wait until upload/media library exists.
+-- create table public.landing_page_assets (
+--   id uuid primary key default gen_random_uuid(),
+--   page_id uuid null references public.landing_pages(id) on delete cascade,
+--   asset_slot text not null,
+--   asset_url text not null,
+--   source text not null default 'external_url',
+--   alt_text text null,
+--   created_by uuid null references public.profiles(id) on delete set null,
+--   created_at timestamptz not null default now()
+-- );
+
+-- Suggested indexes:
+-- create index landing_pages_status_slug_idx on public.landing_pages(status, slug);
+-- create index landing_pages_brand_status_idx on public.landing_pages(brand_id, status);
+-- create index landing_page_versions_page_status_idx on public.landing_page_versions(page_id, status);
+
+-- Suggested workflow:
+-- 1. Save draft: insert a new landing_page_versions row with status = 'draft'.
+-- 2. Publish: mark selected version as 'published', update landing_pages.status = 'published',
+--    set landing_pages.published_version_id, copy latest content/image JSON if desired,
+--    and set published_at.
+-- 3. Archive: update landing_pages.status = 'archived'; public /lp/[slug] should stop rendering it.
+-- 4. Internal preview: allow internal users to preview draft versions without changing public output.
