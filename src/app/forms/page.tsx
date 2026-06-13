@@ -33,7 +33,7 @@ export default async function FormsPage() {
 
   return (
     <main className="alyssa-shell">
-      <AppNav />
+      <AppNav showInternalWarning />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { InternalProtectionBanner } from "@/components/alyssa/InternalProtectionBanner";
 
 const navItems = [
   { href: "/dashboard", label: "總覽" },
@@ -11,35 +12,42 @@ const navItems = [
   { href: "/system-audit", label: "系統稽核" },
 ];
 
-export function AppNav() {
+export function AppNav({
+  showInternalWarning = false,
+}: {
+  showInternalWarning?: boolean;
+}) {
   return (
-    <header className="sticky top-0 z-40 border-b border-[#ead9cf] bg-[#fff9f3]/92 backdrop-blur">
-      <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
-        <Link href="/" className="flex items-center gap-3">
-          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#5a2348] text-sm font-bold text-white shadow-sm">
-            A
-          </span>
-          <span>
-            <span className="block text-sm font-semibold uppercase tracking-[0.18em] text-[#9a5d76]">
-              Alyssa
+    <>
+      {showInternalWarning && <InternalProtectionBanner />}
+      <header className="sticky top-0 z-40 border-b border-[#ead9cf] bg-[#fff9f3]/92 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
+          <Link href="/" className="flex items-center gap-3">
+            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#5a2348] text-sm font-bold text-white shadow-sm">
+              A
             </span>
-            <span className="block text-xl font-bold text-[#321428]">
-              Alyssa Lead Capture OS
+            <span>
+              <span className="block text-sm font-semibold uppercase tracking-[0.18em] text-[#9a5d76]">
+                Alyssa
+              </span>
+              <span className="block text-xl font-bold text-[#321428]">
+                Alyssa Lead Capture OS
+              </span>
             </span>
-          </span>
-        </Link>
-        <nav className="flex flex-wrap gap-2">
-          {navItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-semibold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-      </div>
-    </header>
+          </Link>
+          <nav className="flex flex-wrap gap-2">
+            {navItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-semibold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+        </div>
+      </header>
+    </>
   );
 }

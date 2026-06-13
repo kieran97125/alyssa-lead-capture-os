@@ -127,7 +127,7 @@ Open:
 
 ## Route Map
 
-- `/` - Internal overview for the lead capture and shared attribution base.
+- `/` - Public product entry page for the lead capture and shared attribution base.
 - `/dashboard` - Executive overview for lead performance, top KPIs, latest few leads, and quick links.
 - `/leads` - Latest leads feed, newest first, with business-facing lead details.
 - `/performance` - Brand, source/campaign, treatment/package, and branch performance analysis.
@@ -152,6 +152,57 @@ Open:
 - `/api/public/thank-you` - Thank-you tracking endpoint.
 - `/api/webhooks/payment` - Payment outcome webhook placeholder; updates `payment_status` and logs payment events after authentication is added.
 - `/api/webhooks/whatsapp` - WhatsApp inbound / CTWA attribution webhook placeholder; creates or updates shared contact/source records after authentication is added.
+
+## Internal Access Boundary
+
+Alyssa Lead Capture OS separates public campaign/form routes from internal business and configuration routes.
+
+Public routes remain accessible for campaigns, Wix embeds, and lead capture:
+
+- `/`
+- `/lp/[slug]`
+- `/embed/[formToken]`
+- `/api/public/forms/[token]`
+- `/api/public/leads`
+- `/api/public/events`
+- `/api/public/thank-you`
+
+Internal routes are protected by a lightweight Basic Auth gate when credentials are configured:
+
+- `/dashboard`
+- `/leads`
+- `/performance`
+- `/forms`
+- `/forms/[formId]`
+- `/landing-pages`
+- `/landing-pages/[pageId]`
+- `/settings`
+- `/settings/brands`
+- `/settings/treatments`
+- `/settings/packages`
+- `/settings/branches`
+- `/settings/templates`
+- `/system-audit`
+- `/embed-preview`
+
+This boundary protects dashboards, lead lists, configuration views, landing page management, and system audit information before the project has a full admin login system.
+
+Set these environment variables in Vercel for preview or production internal use:
+
+```bash
+INTERNAL_BASIC_AUTH_USER=
+INTERNAL_BASIC_AUTH_PASSWORD=
+```
+
+When both values are set, visiting an internal route prompts for Basic Auth. Public landing pages, embedded forms, public lead submit APIs, static assets, and the public embed script remain reachable without Basic Auth.
+
+When these variables are missing, local development remains open and internal pages show this warning banner:
+
+```text
+內部頁面保護尚未設定，正式使用前請加入環境變數。
+```
+
+Do not commit real credentials. Longer term, this lightweight gate should be replaced or upgraded with Supabase Auth, role-based admin login, or another internal identity provider.
 
 ## Embed Preview
 
@@ -287,6 +338,8 @@ Payment status semantics:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
 - `PAYMENT_WEBHOOK_SECRET` - pending; must be added before production payment webhook use.
+- `INTERNAL_BASIC_AUTH_USER` - required before exposing internal business/config pages.
+- `INTERNAL_BASIC_AUTH_PASSWORD` - required before exposing internal business/config pages.
 - Future WhatsApp webhook secret / verification token - pending; must be added before production WhatsApp webhook use.
 
 ## Future Vercel Deployment
@@ -295,6 +348,7 @@ Do not deploy yet. Before deployment:
 
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
 - Configure Supabase environment variables in Vercel.
+- Configure `INTERNAL_BASIC_AUTH_USER` and `INTERNAL_BASIC_AUTH_PASSWORD` in Vercel before sharing internal dashboard/config URLs.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.
 - Run `npm run lint` and `npm run build`.

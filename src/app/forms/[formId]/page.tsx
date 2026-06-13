@@ -44,7 +44,7 @@ export default async function FormConfigPage({
 
   return (
     <main className="alyssa-shell">
-      <AppNav />
+      <AppNav showInternalWarning />
       <div className="mx-auto max-w-6xl px-5 py-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
