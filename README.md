@@ -63,6 +63,44 @@ Alyssa Lead Capture OS supports two output modes that share the same lead captur
 
 Future CRM connection remains separate. The future Alyssa CRM OS should read and write outcomes against the shared lead base instead of becoming part of the Lead Capture OS UI.
 
+## Configuration Layer Direction
+
+Configuration Foundation V1 introduces a clear hierarchy for campaign testing:
+
+```text
+Brand
+↓
+Treatment
+↓
+Package / Price
+↓
+Branch
+↓
+Form
+↓
+Form-only embed or Landing page mode
+```
+
+The current app exposes read-only settings pages for:
+
+- Brand settings.
+- Treatment settings.
+- Package / price settings.
+- Branch settings.
+- Landing Page Templates.
+
+Form-only mode uses this configuration layer to select a brand, treatment, package, and branch, then generate the Wix embed script.
+
+Landing page mode uses the same form/source/lead base and adds template, hero copy, offer copy, sections, FAQ, CTA, and visual content for simple campaign testing pages.
+
+Current implementation notes:
+
+- `brands`, `treatments`, `packages`, `branches`, and `forms` are read from existing Supabase tables when configured, with local config as a fallback for development.
+- Landing page templates and landing page config remain local config for now.
+- Full admin editing for brands, treatments, packages, branches, forms, templates, and landing pages is future work.
+- A future DB-backed `landing_pages` table can store template, hero, offer, section, FAQ, CTA, and status fields when the builder graduates from config preview.
+- The future WhatsApp CRM remains a separate app that writes outcomes back to the shared lead base.
+
 ## UI Localization Note
 
 The application UI is localized for Hong Kong internal growth and marketing users in Traditional Chinese / Hong Kong Cantonese where appropriate. Technical identifiers remain in English, including routes, API payload keys, UTM fields, CTWA fields, `source_type`, `tracking_status`, and `audit_reason` values.
@@ -93,11 +131,17 @@ Open:
 - `/dashboard` - Executive overview for lead performance, top KPIs, latest few leads, and quick links.
 - `/leads` - Latest leads feed, newest first, with business-facing lead details.
 - `/performance` - Brand, source/campaign, treatment/package, and branch performance analysis.
-- `/forms` - Local seed form configuration, embed code, and production path reference.
-- `/forms/[formId]` - Form-level embed settings and operational values for handoff to live Supabase-backed configuration.
+- `/forms` - Form connection layer showing selected brand, treatment, package, branch, allowed domains, embed code, and landing page relationship.
+- `/forms/[formId]` - Form-level configuration detail for form-only embed and landing page mode reuse.
 - `/landing-pages` - Landing page management foundation covering form-only and campaign landing-page modes.
 - `/landing-pages/[pageId]` - Lightweight landing page config / editor preview foundation.
 - `/lp/[slug]` - Public campaign landing page preview using the existing lead capture form path.
+- `/settings` - Configuration foundation overview and hierarchy.
+- `/settings/brands` - Brand settings view.
+- `/settings/treatments` - Treatment settings view.
+- `/settings/packages` - Package / price settings view.
+- `/settings/branches` - Branch settings view.
+- `/settings/templates` - Landing Page Templates foundation.
 - `/embed-preview` - Internal Wix parent-page simulation that loads the real public embed script and shows attribution debug state.
 - `/embed/[formToken]` - Public iframe registration form rendered for a given form token.
 - `/system-audit` - Technical source/event/debug information such as source snapshots, lead events, tracking status, and CRM outcome contract markers.

@@ -43,10 +43,10 @@ export default function LandingPagesPage() {
               </p>
             </div>
             <Link
-              href="/forms"
+              href="/settings/templates"
               className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
             >
-              查看表格設定
+              查看模板設定
             </Link>
           </div>
         </section>
@@ -69,7 +69,7 @@ export default function LandingPagesPage() {
             <div>
               <h2 className="text-xl font-bold text-[#321428]">Campaign pages</h2>
               <p className="mt-1 text-sm text-[#6d4a5c]">
-                目前由 local config 管理；日後可升級為後台 editable templates。
+                目前由 configuration foundation 管理；日後可升級為後台 editable templates。
               </p>
             </div>
             <span className="w-fit rounded-full bg-[#fff6f0] px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#9a5d76]">
@@ -117,6 +117,7 @@ export default function LandingPagesPage() {
                         <InfoCell label="Form ID" value={page.formId} mono />
                         <InfoCell label="Form token" value={page.formToken} mono />
                         <InfoCell label="Preview URL" value={previewUrl} mono />
+                        <InfoCell label="Public URL" value={previewUrl} mono />
                       </dl>
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Link

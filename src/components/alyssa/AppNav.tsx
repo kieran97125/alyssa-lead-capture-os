@@ -6,6 +6,7 @@ const navItems = [
   { href: "/performance", label: "成效分析" },
   { href: "/forms", label: "表格管理" },
   { href: "/landing-pages", label: "Landing Pages" },
+  { href: "/settings", label: "設定" },
   { href: "/embed-preview", label: "嵌入預覽" },
   { href: "/system-audit", label: "系統稽核" },
 ];

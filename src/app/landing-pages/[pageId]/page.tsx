@@ -42,6 +42,12 @@ export default async function LandingPageConfigPage({
             </div>
             <div className="flex flex-wrap gap-2">
               <Link
+                href="/settings/templates"
+                className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
+              >
+                查看模板設定
+              </Link>
+              <Link
                 href={previewUrl}
                 className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
               >
@@ -145,6 +151,7 @@ export default async function LandingPageConfigPage({
               ["Form ID", page.formId],
               ["Form token", page.formToken],
               ["Preview URL", previewUrl],
+              ["Public URL", previewUrl],
               ["Embed target", "alyssa-lp-form-target"],
             ]}
           />
