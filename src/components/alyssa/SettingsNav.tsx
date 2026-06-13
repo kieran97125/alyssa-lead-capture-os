@@ -7,6 +7,7 @@ const settingsItems = [
   { href: "/settings/packages", label: "套餐 / 價錢" },
   { href: "/settings/branches", label: "分店設定" },
   { href: "/settings/templates", label: "Landing Page Templates" },
+  { href: "/settings/team", label: "團隊權限" },
 ];
 
 export function SettingsNav() {

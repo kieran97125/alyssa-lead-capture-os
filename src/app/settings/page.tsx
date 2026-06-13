@@ -20,6 +20,7 @@ const settingLinks = [
   { href: "/settings/packages", title: "套餐 / 價錢", body: "套餐價值、優惠價同付款語意。" },
   { href: "/settings/branches", title: "分店設定", body: "分店、地址、營業時間同可用狀態。" },
   { href: "/settings/templates", title: "Landing Page Templates", body: "Campaign page template foundation。" },
+  { href: "/settings/team", title: "團隊權限", body: "登入系統、角色權限同品牌存取權限預留。" },
 ];
 
 export default async function SettingsPage() {

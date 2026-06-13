@@ -1,0 +1,64 @@
+-- Draft only. Do not apply automatically until Supabase Auth rollout is planned.
+-- Team Access Foundation V1 for Alyssa Lead Capture OS and future Alyssa CRM.
+
+-- Suggested enum direction:
+-- create type public.team_role as enum (
+--   'owner',
+--   'admin',
+--   'manager',
+--   'marketer',
+--   'cs',
+--   'designer',
+--   'viewer'
+-- );
+
+-- create type public.team_member_status as enum (
+--   'invited',
+--   'active',
+--   'suspended',
+--   'removed'
+-- );
+
+-- Suggested profiles table. Uses Supabase Auth user IDs.
+-- create table public.profiles (
+--   id uuid primary key references auth.users(id) on delete cascade,
+--   full_name text null,
+--   email text null,
+--   role public.team_role not null default 'viewer',
+--   status public.team_member_status not null default 'invited',
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now()
+-- );
+
+-- Suggested brand-level access table.
+-- create table public.user_brand_access (
+--   id uuid primary key default gen_random_uuid(),
+--   user_id uuid not null references public.profiles(id) on delete cascade,
+--   brand_id uuid not null references public.brands(id) on delete cascade,
+--   role public.team_role null,
+--   status public.team_member_status not null default 'active',
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now(),
+--   unique (user_id, brand_id)
+-- );
+
+-- Optional future module overrides. Start with role defaults unless the product
+-- needs exceptions for specific users.
+-- create table public.user_module_permissions (
+--   id uuid primary key default gen_random_uuid(),
+--   user_id uuid not null references public.profiles(id) on delete cascade,
+--   module_key text not null check (module_key in (
+--     'dashboard',
+--     'leads',
+--     'performance',
+--     'forms',
+--     'landing_pages',
+--     'settings',
+--     'system_audit',
+--     'future_crm'
+--   )),
+--   can_access boolean not null default true,
+--   created_at timestamptz not null default now(),
+--   updated_at timestamptz not null default now(),
+--   unique (user_id, module_key)
+-- );

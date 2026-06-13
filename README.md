@@ -142,6 +142,7 @@ Open:
 - `/settings/packages` - Package / price settings view.
 - `/settings/branches` - Branch settings view.
 - `/settings/templates` - Landing Page Templates foundation.
+- `/settings/team` - Team access, roles, and future login foundation.
 - `/embed-preview` - Internal Wix parent-page simulation that loads the real public embed script and shows attribution debug state.
 - `/embed/[formToken]` - Public iframe registration form rendered for a given form token.
 - `/system-audit` - Technical source/event/debug information such as source snapshots, lead events, tracking status, and CRM outcome contract markers.
@@ -203,6 +204,49 @@ When these variables are missing, local development remains open and internal pa
 ```
 
 Do not commit real credentials. Longer term, this lightweight gate should be replaced or upgraded with Supabase Auth, role-based admin login, or another internal identity provider.
+
+## Team Access Direction
+
+Basic Auth is a temporary outer protection layer for early Vercel previews and internal URLs. It protects internal pages before the product has proper team login, but it is not the long-term admin access model.
+
+The intended long-term layer is Supabase Auth plus role-based access control. Each team member should have their own login, a profile, a role, a status, and optional brand access.
+
+Suggested roles:
+
+- `owner` - full business, settings, audit, and future CRM access.
+- `admin` - system administrator for daily internal operations.
+- `manager` - management view across leads, performance, campaigns, and future CRM.
+- `marketer` - campaign, form, landing page, and performance role.
+- `cs` - customer-service role for leads and future WhatsApp CRM follow-up.
+- `designer` - landing page and form-content support role.
+- `viewer` - read-only overview and performance role.
+
+Suggested modules:
+
+- `dashboard`
+- `leads`
+- `performance`
+- `forms`
+- `landing_pages`
+- `settings`
+- `system_audit`
+- `future_crm`
+
+Suggested shared access tables:
+
+- `profiles` - one row per Supabase Auth user, with role and status.
+- `user_brand_access` - optional brand-level access for multi-brand growth.
+- `user_module_permissions` - optional per-user overrides only if role defaults are not enough.
+
+The future Alyssa CRM app should reuse this access model where possible, especially `profiles`, roles, status, and brand access. This keeps Lead Capture OS and CRM from creating separate user islands.
+
+A draft SQL direction is documented in:
+
+```text
+supabase/drafts/20260614000100_team_access_foundation.sql
+```
+
+This is intentionally a draft, not an applied migration. Full login, user management, invitations, password reset, and role editing remain future admin work.
 
 ## Embed Preview
 
