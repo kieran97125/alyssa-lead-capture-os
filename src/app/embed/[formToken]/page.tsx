@@ -107,6 +107,25 @@ function normalizeBranch(raw: Record<string, unknown>): BranchOption {
   };
 }
 
+function isDisplayPackage(item: PackageOption) {
+  return item.paymentRequired || item.promoPrice > 0;
+}
+
+function getPrimaryPackage(
+  form: PublicFormConfig,
+  packageOptions: PackageOption[]
+) {
+  const defaultPackage = packageOptions.find(
+    (item) => item.id === form.defaultPackageId
+  );
+
+  if (defaultPackage && isDisplayPackage(defaultPackage)) {
+    return defaultPackage;
+  }
+
+  return packageOptions.find(isDisplayPackage) || defaultPackage || packageOptions[0];
+}
+
 async function logPublicEvent(
   eventType: string,
   payload: Record<string, unknown>,
@@ -204,10 +223,14 @@ export default function EmbedFormPage() {
       if (nextTreatments.length > 0) setTreatments(nextTreatments);
       if (nextPackages.length > 0) setPackages(nextPackages);
       if (nextBranches.length > 0) setBranches(nextBranches);
+      const activePackages =
+        nextPackages.length > 0 ? nextPackages : alyssaPackages.map(normalizePackage);
+      const primaryPackage = getPrimaryPackage(nextForm, activePackages);
+
       setFormData((current) => ({
         ...current,
-        treatment_id: nextForm.defaultTreatmentId,
-        package_id: nextForm.defaultPackageId,
+        treatment_id: primaryPackage?.treatmentId || nextForm.defaultTreatmentId,
+        package_id: primaryPackage?.id || nextForm.defaultPackageId,
         branch_id: nextForm.defaultBranchId,
       }));
     }
@@ -251,10 +274,15 @@ export default function EmbedFormPage() {
     setFormData((current) => {
       if (key === "treatment_id") {
         const nextPackage =
-          packages.find((item) => item.treatmentId === value)?.id ||
-          current.package_id;
+          packages.find(
+            (item) => item.treatmentId === value && isDisplayPackage(item)
+          ) || packages.find((item) => item.treatmentId === value);
 
-        return { ...current, treatment_id: value, package_id: nextPackage };
+        return {
+          ...current,
+          treatment_id: value,
+          package_id: nextPackage?.id || current.package_id,
+        };
       }
 
       return { ...current, [key]: value };
@@ -273,11 +301,16 @@ export default function EmbedFormPage() {
     await logPublicEvent("form_submit_attempt", { form_token: params.formToken }, attribution);
 
     try {
+      const resolvedFormData = {
+        ...formData,
+        treatment_id: selectedTreatment?.id || formData.treatment_id,
+        package_id: selectedPackage?.id || formData.package_id,
+      };
       const response = await fetch("/api/public/leads", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...formData,
+          ...resolvedFormData,
           form_token: params.formToken,
           form_id: searchParams.get("form_id") || publicForm.id,
           first_touch_json: attribution.first_touch_json || {},
@@ -405,7 +438,7 @@ export default function EmbedFormPage() {
                   <Field label="套餐">
                     <select
                       className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
-                      value={formData.package_id}
+                      value={selectedPackage?.id || ""}
                       onChange={(event) =>
                         updateField("package_id", event.target.value)
                       }

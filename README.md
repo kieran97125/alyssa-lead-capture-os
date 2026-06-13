@@ -202,6 +202,12 @@ The future Alyssa CRM OS should follow this contract:
 - Write paid / show / no-show / lost outcomes through existing lead status, payment status, booking status, and event values such as `deal_paid`, `show_up`, `no_show`, and `deal_lost`.
 - Preserve the original source snapshot so source-to-booking and source-to-paid conversion can be calculated later from `dashboard_lead_source_performance`.
 
+Payment status semantics:
+
+- `booking_only` means the customer requested a booking without starting a payment flow.
+- `pending` means a payment flow has started or is awaiting payment confirmation.
+- `leads.price` stores the selected package promo/display price; it is not reduced to zero just because `payment_status = 'booking_only'`.
+
 ## Environment Checklist
 
 - `NEXT_PUBLIC_APP_URL` - required for production embed script URLs.

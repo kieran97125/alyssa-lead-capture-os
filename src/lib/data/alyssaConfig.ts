@@ -60,7 +60,7 @@ export const alyssaDefaultForm = {
   formName: "Alyssa Main Registration Form",
   status: "active",
   allowedDomains: ["localhost", "127.0.0.1"],
-  defaultTreatmentId: "skin-renewal-consult",
-  defaultPackageId: "consultation-booking",
+  defaultTreatmentId: "medical-beauty-trial",
+  defaultPackageId: "trial-package-388",
   defaultBranchId: "central",
 };

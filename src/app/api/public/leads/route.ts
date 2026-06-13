@@ -197,11 +197,13 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const paymentStatus = packageRecord.payment_required
-    ? "pending"
-    : payload.payment_option === "booking_only"
-      ? "booking_only"
-      : "unpaid";
+  // booking_only means a booking request was submitted without starting payment.
+  const paymentStatus =
+    packageRecord.payment_required && payload.payment_option === "pay_now"
+      ? "pending"
+      : "booking_only";
+  const packageDisplayPrice =
+    packageRecord.promo_price ?? packageRecord.original_price ?? 0;
 
   const { data: contact, error: contactError } = await supabase
     .from("contacts")
@@ -329,7 +331,7 @@ export async function POST(request: NextRequest) {
       normalized_phone: normalizedPhone,
       appointment_date: cleanText(payload.appointment_date, 20),
       appointment_time: cleanText(payload.appointment_time, 20),
-      price: packageRecord.promo_price,
+      price: packageDisplayPrice,
       currency: packageRecord.currency || "HKD",
       payment_status: paymentStatus,
       lead_status: isDuplicate ? "duplicate" : "submitted",
