@@ -1,8 +1,10 @@
 import { notFound } from "next/navigation";
 import Script from "next/script";
-import { alyssaBrand, alyssaPackages, alyssaTreatments } from "@/lib/data/alyssaConfig";
 import { getEmbedScriptUrl } from "@/lib/data/appUrl";
-import { getLandingPageBySlug } from "@/lib/data/landingPages";
+import {
+  getLandingPageBySlug,
+  getLandingPageContext,
+} from "@/lib/data/landingPages";
 
 export default async function PublicLandingPage({
   params,
@@ -14,74 +16,222 @@ export default async function PublicLandingPage({
 
   if (!page) notFound();
 
-  const treatment = alyssaTreatments.find((item) => item.id === page.treatmentId);
-  const selectedPackage = alyssaPackages.find((item) => item.id === page.packageId);
+  const context = getLandingPageContext(page);
   const embedScriptUrl = getEmbedScriptUrl();
+  const selectedPackage = context.package;
+  const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";
 
   return (
     <main className="min-h-screen bg-[#fff9f3] text-[#321428]">
-      <section className="mx-auto grid max-w-7xl gap-8 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-        <div className="pt-6">
-          <p className="w-fit rounded-full bg-[#fff6f0] px-4 py-2 text-sm font-bold text-[#9a5d76]">
+      <section
+        className="relative flex min-h-[86vh] items-end overflow-hidden bg-[#321428] px-5 pb-12 pt-24 text-white md:min-h-[760px] md:pb-16"
+        style={{
+          backgroundImage: `linear-gradient(90deg, rgba(50,20,40,0.88), rgba(90,35,72,0.56), rgba(50,20,40,0.2)), url(${page.heroImageUrl})`,
+          backgroundPosition: "center",
+          backgroundSize: "cover",
+        }}
+        aria-label="Alyssa medical beauty campaign hero"
+      >
+        <div className="mx-auto w-full max-w-7xl">
+          <p className="w-fit rounded-full border border-white/35 bg-white/12 px-4 py-2 text-sm font-bold backdrop-blur">
             {page.offerBadge}
           </p>
           <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight md:text-6xl">
-            {page.heroTitle}
+            Alyssa {page.heroTitle}
           </h1>
-          <p className="mt-5 max-w-2xl text-base leading-7 text-[#6d4a5c]">
+          <p className="mt-5 max-w-2xl text-base leading-7 text-white/86 md:text-lg">
             {page.heroSubtitle}
           </p>
-          <div className="mt-6 grid gap-3 sm:grid-cols-3">
-            <InfoPill label="Brand" value={alyssaBrand.name} />
-            <InfoPill label="Treatment" value={treatment?.name ?? "未設定"} />
-            <InfoPill
-              label="Offer"
-              value={
-                selectedPackage
-                  ? `${selectedPackage.name} HK$${selectedPackage.promoPrice}`
-                  : "未設定"
-              }
-            />
+          <div className="mt-8 flex flex-wrap gap-3">
+            <a
+              href="#alyssa-lp-form"
+              className="rounded-full bg-white px-6 py-3 text-sm font-bold text-[#5a2348] shadow-lg transition hover:bg-[#fff6f0]"
+            >
+              {page.ctaText}
+            </a>
+            <a
+              href="#treatment-summary"
+              className="rounded-full border border-white/55 bg-white/10 px-6 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/18"
+            >
+              {page.secondaryCtaText}
+            </a>
           </div>
-          <div className="mt-8 space-y-4">
-            {page.sections.map((section) => (
-              <section key={section.title} className="border-t border-[#ead9cf] pt-4">
-                <h2 className="text-xl font-bold">{section.title}</h2>
-                <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                  {section.body}
-                </p>
-              </section>
+          <div className="mt-10 grid max-w-4xl gap-3 sm:grid-cols-3">
+            <HeroMetric label="品牌" value={context.brand?.name ?? "Alyssa"} />
+            <HeroMetric label="療程" value={context.treatment?.name ?? "未設定"} />
+            <HeroMetric label="體驗價" value={price} />
+          </div>
+        </div>
+      </section>
+
+      <section
+        id="treatment-summary"
+        className="mx-auto grid max-w-7xl gap-5 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]"
+      >
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+            Offer summary
+          </p>
+          <h2 className="mt-2 text-3xl font-bold text-[#321428]">
+            {page.offerHeadline}
+          </h2>
+          <p className="mt-4 text-sm leading-7 text-[#6d4a5c]">{page.offerBody}</p>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+            <InfoCard label="Treatment" value={context.treatment?.name ?? "未設定"} />
+            <InfoCard label="Package" value={selectedPackage?.name ?? "未設定"} />
+            <InfoCard label="Branch" value={context.branch?.name ?? "可選分店"} />
+            <InfoCard label="Payment" value="可先預約，未啟動付款 flow" />
+          </div>
+        </div>
+        <div className="grid gap-3">
+          {page.painPoints.map((item) => (
+            <div key={item} className="rounded-[20px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+              <p className="text-sm font-semibold leading-6 text-[#5a2348]">{item}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="border-y border-[#ead9cf] bg-white/70">
+        <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
+          {page.benefits.map((item) => (
+            <div key={item}>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                Benefit
+              </p>
+              <p className="mt-2 text-lg font-bold leading-7 text-[#321428]">{item}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr]">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+            Why this campaign
+          </p>
+          <h2 className="mt-2 text-3xl font-bold text-[#321428]">
+            由廣告到預約，一頁完成
+          </h2>
+          <p className="mt-4 text-sm leading-7 text-[#6d4a5c]">
+            Landing page mode 係為快速 market testing 而設。Wix 主網站保持不變；
+            呢頁集中講 offer、收集預約，同保存 campaign attribution。
+          </p>
+        </div>
+        <div className="grid gap-3">
+          {page.sections.map((section) => (
+            <article key={section.title} className="rounded-[20px] bg-[#fff6f0] p-5">
+              <h3 className="text-lg font-bold text-[#321428]">{section.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{section.body}</p>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className="bg-[#321428] px-5 py-10 text-white">
+        <div className="mx-auto max-w-7xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/62">
+            Process
+          </p>
+          <h2 className="mt-2 text-3xl font-bold">預約流程簡單清晰</h2>
+          <div className="mt-6 grid gap-4 md:grid-cols-3">
+            {page.processSteps.map((step) => (
+              <article
+                key={step.title}
+                className="rounded-[20px] border border-white/14 bg-white/8 p-5"
+              >
+                <h3 className="text-lg font-bold">{step.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-white/72">{step.body}</p>
+              </article>
             ))}
           </div>
         </div>
+      </section>
 
-        <aside className="rounded-[28px] border border-[#ead9cf] bg-white p-4 shadow-[0_24px_70px_rgba(90,35,72,0.14)]">
-          <div className="mb-4 flex items-center justify-between gap-3 px-2">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                Campaign form
-              </p>
-              <h2 className="mt-1 text-xl font-bold">{page.ctaText}</h2>
-            </div>
+      <section className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]">
+        <div>
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+            Trust
+          </p>
+          <h2 className="mt-2 text-3xl font-bold text-[#321428]">
+            為香港 campaign 同 WhatsApp 跟進而設
+          </h2>
+        </div>
+        <div className="grid gap-3">
+          {page.trustItems.map((item) => (
+            <p
+              key={item}
+              className="rounded-[20px] border border-[#ead9cf] bg-white/86 px-5 py-4 text-sm font-semibold leading-6 text-[#5a2348] shadow-sm"
+            >
+              {item}
+            </p>
+          ))}
+        </div>
+      </section>
+
+      <section id="alyssa-lp-form" className="bg-[#fff6f0] px-5 py-10">
+        <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.82fr_1.18fr]">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+              Booking form
+            </p>
+            <h2 className="mt-2 text-3xl font-bold text-[#321428]">
+              {page.ctaText}
+            </h2>
+            <p className="mt-4 text-sm leading-7 text-[#6d4a5c]">
+              提交後，團隊會按你選擇的療程、套餐、分店同時段以 WhatsApp 跟進。
+              表格會同時保留本頁 URL 上的 UTM / click ID，方便日後分析來源成效。
+            </p>
           </div>
-          <div id="alyssa-lp-form-target" />
-          <Script
-            src={embedScriptUrl}
-            strategy="afterInteractive"
-            data-form-token={page.formToken}
-            data-brand={alyssaBrand.slug}
-            data-form-id={page.formId}
-            data-target-id="alyssa-lp-form-target"
-          />
-        </aside>
+          <div className="rounded-[28px] border border-[#ead9cf] bg-white p-4 shadow-[0_24px_70px_rgba(90,35,72,0.14)]">
+            <div id="alyssa-lp-form-target" />
+            <Script
+              src={embedScriptUrl}
+              strategy="afterInteractive"
+              data-form-token={page.formToken}
+              data-brand={context.brand?.slug ?? "alyssa"}
+              data-form-id={page.formId}
+              data-target-id="alyssa-lp-form-target"
+              data-height="900"
+            />
+          </div>
+        </div>
+      </section>
+
+      <section className="mx-auto max-w-4xl px-5 py-10">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+          FAQ
+        </p>
+        <h2 className="mt-2 text-3xl font-bold text-[#321428]">常見問題</h2>
+        <div className="mt-6 divide-y divide-[#ead9cf] rounded-[24px] border border-[#ead9cf] bg-white/86">
+          {page.faqs.map((item) => (
+            <details key={item.question} className="group p-5">
+              <summary className="cursor-pointer list-none text-base font-bold text-[#321428]">
+                {item.question}
+              </summary>
+              <p className="mt-3 text-sm leading-6 text-[#6d4a5c]">{item.answer}</p>
+            </details>
+          ))}
+        </div>
       </section>
     </main>
   );
 }
 
-function InfoPill({ label, value }: { label: string; value: string }) {
+function HeroMetric({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#ead9cf] bg-white/80 p-4">
+    <div className="border-t border-white/30 pt-3">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/62">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-bold text-white">{value}</p>
+    </div>
+  );
+}
+
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[20px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {label}
       </p>

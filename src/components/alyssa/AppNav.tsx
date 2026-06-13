@@ -12,10 +12,10 @@ const navItems = [
 
 export function AppNav() {
   return (
-    <header className="border-b border-[#ead9cf] bg-[#fff9f3]/90 backdrop-blur">
+    <header className="sticky top-0 z-40 border-b border-[#ead9cf] bg-[#fff9f3]/92 backdrop-blur">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between">
         <Link href="/" className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-full bg-[#5a2348] text-sm font-bold text-white">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#5a2348] text-sm font-bold text-white shadow-sm">
             A
           </span>
           <span>
@@ -32,7 +32,7 @@ export function AppNav() {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-full border border-[#ead9cf] bg-white/70 px-4 py-2 text-sm font-semibold text-[#5a2348] transition hover:border-[#c9828e]"
+              className="rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-semibold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white"
             >
               {item.label}
             </Link>
