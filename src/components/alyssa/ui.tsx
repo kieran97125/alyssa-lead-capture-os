@@ -12,7 +12,13 @@ export function PremiumCard({
   children: ReactNode;
   className?: string;
 }) {
-  return <section className={`alyssa-premium-card p-5 ${className}`}>{children}</section>;
+  return (
+    <section
+      className={`alyssa-premium-card p-5 transition duration-300 hover:-translate-y-1 hover:border-[#c9828e] hover:shadow-[0_20px_52px_rgba(90,35,72,0.13)] ${className}`}
+    >
+      {children}
+    </section>
+  );
 }
 
 export function SectionHeader({
@@ -89,13 +95,13 @@ export function CTAButton({
 }) {
   const classes =
     variant === "primary"
-      ? "bg-[#e46f64] text-white shadow-[0_12px_30px_rgba(228,111,100,0.24)] hover:bg-[#d95f55]"
-      : "border border-[#d9b66f] bg-white/78 text-[#5a2348] hover:bg-white";
+      ? "bg-[#e46f64] text-white shadow-[0_12px_30px_rgba(228,111,100,0.24)] hover:-translate-y-1 hover:bg-[#d95f55] hover:shadow-[0_18px_42px_rgba(228,111,100,0.34)] active:scale-[0.98]"
+      : "border border-[#d9b66f] bg-white/78 text-[#5a2348] hover:-translate-y-1 hover:bg-white hover:shadow-[0_14px_32px_rgba(90,35,72,0.12)] active:scale-[0.98]";
 
   return (
     <Link
       href={href}
-      className={`alyssa-focus rounded-full px-5 py-3 text-sm font-bold transition ${classes}`}
+      className={`alyssa-focus inline-flex rounded-full px-5 py-3 text-sm font-bold transition duration-300 ${classes}`}
     >
       {children}
     </Link>

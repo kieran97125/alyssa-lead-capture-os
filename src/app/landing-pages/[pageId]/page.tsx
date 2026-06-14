@@ -526,6 +526,7 @@ function PreviewPanel({
   const heroImageUrl = page.heroImageUrl || page.mobileHeroImageUrl;
 
   return (
+    <MotionReveal delay={0.16}>
     <aside className="h-fit rounded-[28px] border border-[#ead9cf] bg-white/90 p-5 shadow-[0_24px_70px_rgba(90,35,72,0.12)] xl:sticky xl:top-32">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         Live-style preview
@@ -569,6 +570,7 @@ function PreviewPanel({
         開啟 public preview
       </Link>
     </aside>
+    </MotionReveal>
   );
 }
 

@@ -127,23 +127,28 @@ export default async function DashboardPage({
           <KpiCard label="可追蹤來源比例" value={percent(summary.kpis.trackableRate)} />
         </section>
 
-        <LatestLeadsTable leads={summary.leads.slice(0, 5)} />
+        <MotionReveal delay={0.16}>
+          <LatestLeadsTable leads={summary.leads.slice(0, 5)} />
+        </MotionReveal>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-3">
           <QuickLinkCard
             href="/leads"
             title="查看所有 Leads"
             description="進入完整最新登記紀錄，查看客人、電話、療程、套餐、分店、來源同狀態。"
+            delay={0.06}
           />
           <QuickLinkCard
             href="/performance"
             title="查看成效分析"
             description="按品牌、來源、廣告系列、療程、套餐同分店拆解登記成效。"
+            delay={0.12}
           />
           <QuickLinkCard
             href="/system-audit"
             title="查看系統稽核"
             description="內部追蹤、事件紀錄同 CRM 回寫 contract 已移到系統頁。"
+            delay={0.18}
           />
         </section>
 
@@ -176,12 +181,15 @@ function QuickLinkCard({
   href,
   title,
   description,
+  delay = 0,
 }: {
   href: string;
   title: string;
   description: string;
+  delay?: number;
 }) {
   return (
+    <MotionReveal delay={delay}>
     <Link
       href={href}
       className="alyssa-premium-card alyssa-focus block p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:bg-white hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]"
@@ -189,6 +197,7 @@ function QuickLinkCard({
       <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
     </Link>
+    </MotionReveal>
   );
 }
 
@@ -222,7 +231,7 @@ function LatestLeadsTable({ leads }: { leads: LeadRow[] }) {
           <tbody>
             {leads.length > 0 ? (
               leads.map((lead) => (
-                <tr key={lead.id} className="align-top text-[#5a2348]">
+                <tr key={lead.id} className="align-top text-[#5a2348] transition hover:bg-[#fff6f0]/70">
                   <td className="border-b border-[#f1e3dc] px-3 py-3">
                     {formatDateTime(lead.created_at)}
                   </td>

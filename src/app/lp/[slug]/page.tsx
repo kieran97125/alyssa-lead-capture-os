@@ -39,19 +39,26 @@ export default async function PublicLandingPage({
         aria-label="Alyssa medical beauty campaign hero"
       >
         <MotionReveal className="mx-auto w-full max-w-7xl">
+          <MotionReveal delay={0.03}>
           <p className="w-fit rounded-full border border-white/35 bg-white/12 px-4 py-2 text-sm font-bold backdrop-blur">
             {page.offerBadge}
           </p>
+          </MotionReveal>
+          <MotionReveal delay={0.1}>
           <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight md:text-6xl">
             Alyssa {page.heroTitle}
           </h1>
+          </MotionReveal>
+          <MotionReveal delay={0.17}>
           <p className="mt-5 max-w-2xl text-base leading-7 text-white/86 md:text-lg">
             {page.heroSubtitle}
           </p>
+          </MotionReveal>
+          <MotionReveal delay={0.24}>
           <div className="mt-8 flex flex-wrap gap-3">
             <MotionAnchor
               href="#alyssa-lp-form"
-              className="rounded-full bg-white px-6 py-3 text-sm font-bold text-[#5a2348] shadow-lg transition hover:bg-[#fff6f0]"
+              className="rounded-full bg-white px-6 py-3 text-sm font-bold text-[#5a2348] shadow-[0_16px_40px_rgba(255,255,255,0.18)] transition hover:bg-[#fff6f0] hover:shadow-[0_22px_55px_rgba(255,255,255,0.24)]"
             >
               {page.ctaText}
             </MotionAnchor>
@@ -62,11 +69,14 @@ export default async function PublicLandingPage({
               {page.secondaryCtaText}
             </MotionAnchor>
           </div>
+          </MotionReveal>
+          <MotionReveal delay={0.31}>
           <div className="mt-10 grid max-w-4xl gap-3 sm:grid-cols-3">
             <HeroMetric label="品牌" value={context.brand?.name ?? "Alyssa"} />
             <HeroMetric label="療程" value={context.treatment?.name ?? "未設定"} />
             <HeroMetric label="體驗價" value={price} />
           </div>
+          </MotionReveal>
         </MotionReveal>
       </section>
 
@@ -306,7 +316,7 @@ function ImagePanel({
 
   return (
     <div
-      className={`flex ${ratioClass} min-h-64 items-end overflow-hidden rounded-[24px] border border-[#ead9cf] bg-[#321428] p-5 text-white shadow-sm`}
+      className={`flex ${ratioClass} min-h-64 items-end overflow-hidden rounded-[24px] border border-[#ead9cf] bg-[#321428] p-5 text-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(90,35,72,0.16)]`}
       style={
         hasImage
           ? {
@@ -333,7 +343,7 @@ function ProcessImage({ imageUrl, label }: { imageUrl: string; label: string }) 
 
   return (
     <div
-      className="mb-4 flex aspect-square items-end overflow-hidden rounded-[18px] border border-white/12 bg-white/10 p-4"
+      className="mb-4 flex aspect-square items-end overflow-hidden rounded-[18px] border border-white/12 bg-white/10 p-4 transition duration-300 hover:-translate-y-1 hover:bg-white/14"
       style={
         hasImage
           ? {

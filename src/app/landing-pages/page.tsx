@@ -79,12 +79,12 @@ export default function LandingPagesPage() {
             </span>
           </div>
           <div className="grid gap-5">
-            {alyssaLandingPages.map((page) => {
+            {alyssaLandingPages.map((page, index) => {
               const context = getLandingPageContext(page);
               const previewUrl = `/lp/${page.slug}`;
 
               return (
-                <MotionReveal key={page.id}>
+                <MotionReveal key={page.id} delay={0.05 + index * 0.07}>
                 <article className="alyssa-premium-card p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]">
                   <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
                     <div>

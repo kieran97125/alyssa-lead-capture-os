@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
 import { getConfigurationData } from "@/lib/data/configuration";
 
@@ -68,8 +69,8 @@ export default async function SettingsPage() {
 
         <section className="mt-6 grid gap-5 lg:grid-cols-2">
           {settingLinks.map((item) => (
+            <MotionReveal key={item.href}>
             <Link
-              key={item.href}
               href={item.href}
               className="alyssa-premium-card alyssa-focus p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:bg-white hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]"
             >
@@ -77,6 +78,7 @@ export default async function SettingsPage() {
               <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{item.body}</p>
               <p className="mt-4 text-sm font-bold text-[#5a2348]">設定檢視 / 編輯功能預留</p>
             </Link>
+            </MotionReveal>
           ))}
         </section>
       </div>
@@ -86,11 +88,13 @@ export default async function SettingsPage() {
 
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
+    <MotionReveal>
     <div className="rounded-2xl bg-[#fff6f0] p-4">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {label}
       </p>
       <p className="mt-2 text-2xl font-bold text-[#321428]">{value}</p>
     </div>
+    </MotionReveal>
   );
 }

@@ -1,4 +1,5 @@
 import { AppNav } from "@/components/alyssa/AppNav";
+import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
 import {
   accessModules,
@@ -49,6 +50,7 @@ export default function TeamAccessSettingsPage() {
           />
         </section>
 
+        <MotionReveal delay={0.1}>
         <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">目前 access context</h2>
           <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
@@ -83,7 +85,9 @@ export default function TeamAccessSettingsPage() {
             </div>
           </div>
         </section>
+        </MotionReveal>
 
+        <MotionReveal delay={0.14}>
         <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">角色模型</h2>
           <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
@@ -110,7 +114,9 @@ export default function TeamAccessSettingsPage() {
             ))}
           </div>
         </section>
+        </MotionReveal>
 
+        <MotionReveal delay={0.18}>
         <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">Module access matrix</h2>
           <div className="mt-4 overflow-x-auto">
@@ -148,7 +154,9 @@ export default function TeamAccessSettingsPage() {
             </table>
           </div>
         </section>
+        </MotionReveal>
 
+        <MotionReveal delay={0.22}>
         <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">Brand access preparation</h2>
           <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
@@ -169,6 +177,7 @@ export default function TeamAccessSettingsPage() {
             ))}
           </div>
         </section>
+        </MotionReveal>
       </div>
     </main>
   );
@@ -176,10 +185,12 @@ export default function TeamAccessSettingsPage() {
 
 function InfoCard({ title, body }: { title: string; body: string }) {
   return (
+    <MotionReveal>
     <div className="alyssa-premium-card p-5">
       <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
     </div>
+    </MotionReveal>
   );
 }
 

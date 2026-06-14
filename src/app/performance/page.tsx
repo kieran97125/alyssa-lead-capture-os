@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import {
   buildPerformance,
   dateRangeOptions,
@@ -29,6 +30,7 @@ export default async function PerformancePage({
     <main className="alyssa-shell">
       <AppNav showInternalWarning />
       <div className="mx-auto max-w-7xl px-5 py-8">
+        <MotionReveal>
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/82 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -44,7 +46,7 @@ export default async function PerformancePage({
             </div>
             <Link
               href="/leads"
-              className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+              className="alyssa-focus rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.24)] transition hover:-translate-y-1 hover:bg-[#d95f55] hover:shadow-[0_18px_42px_rgba(228,111,100,0.32)] active:scale-[0.98]"
             >
               查看 Leads
             </Link>
@@ -73,6 +75,7 @@ export default async function PerformancePage({
             </p>
           )}
         </section>
+        </MotionReveal>
 
         <section className="mt-6 grid gap-5 xl:grid-cols-[0.9fr_1.1fr]">
           <PerformanceTable
@@ -80,6 +83,7 @@ export default async function PerformancePage({
             columns={["品牌", "Leads", "預約", "已付款", "預計金額"]}
             rows={performance.brandPerformance}
             type="brand"
+            delay={0.06}
           />
           <PerformanceTable
             title="來源 / 廣告系列成效"
@@ -94,6 +98,7 @@ export default async function PerformancePage({
             ]}
             rows={performance.sourcePerformance}
             type="source"
+            delay={0.13}
           />
         </section>
 
@@ -103,12 +108,14 @@ export default async function PerformancePage({
             columns={["療程", "套餐", "價錢", "Leads", "預約", "已付款"]}
             rows={performance.treatmentPerformance}
             type="treatment"
+            delay={0.08}
           />
           <PerformanceTable
             title="分店成效"
             columns={["分店", "Leads", "預約", "佔比"]}
             rows={performance.branchPerformance}
             type="branch"
+            delay={0.15}
           />
         </section>
       </div>
@@ -121,13 +128,16 @@ function PerformanceTable({
   columns,
   rows,
   type,
+  delay = 0,
 }: {
   title: string;
   columns: string[];
   rows: PerformanceRow[];
   type: PerformanceTableType;
+  delay?: number;
 }) {
   return (
+    <MotionReveal delay={delay}>
     <section className="alyssa-premium-card p-5">
       <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
       <div className="mt-4 overflow-x-auto">
@@ -144,7 +154,7 @@ function PerformanceTable({
           <tbody>
             {rows.length > 0 ? (
               rows.map((row) => (
-                <tr key={row.key} className="text-[#5a2348]">
+                <tr key={row.key} className="text-[#5a2348] transition hover:bg-[#fff6f0]/70">
                   {renderPerformanceCells(row, type)}
                 </tr>
               ))
@@ -162,6 +172,7 @@ function PerformanceTable({
         </table>
       </div>
     </section>
+    </MotionReveal>
   );
 }
 

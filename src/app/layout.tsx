@@ -8,7 +8,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="zh-Hant-HK">
+    <html lang="zh-Hant-HK" data-scroll-behavior="smooth">
       <body>{children}</body>
     </html>
   );

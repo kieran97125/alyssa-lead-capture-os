@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import {
   asNumber,
   businessStatus,
@@ -30,6 +31,7 @@ export default async function LeadsPage({
     <main className="alyssa-shell">
       <AppNav showInternalWarning />
       <div className="mx-auto max-w-7xl px-5 py-8">
+        <MotionReveal>
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/82 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -45,7 +47,7 @@ export default async function LeadsPage({
             </div>
             <Link
               href="/performance"
-              className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+              className="alyssa-focus rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.24)] transition hover:-translate-y-1 hover:bg-[#d95f55] hover:shadow-[0_18px_42px_rgba(228,111,100,0.32)] active:scale-[0.98]"
             >
               查看成效分析
             </Link>
@@ -92,7 +94,9 @@ export default async function LeadsPage({
             </p>
           )}
         </section>
+        </MotionReveal>
 
+        <MotionReveal delay={0.12}>
         <section className="alyssa-premium-card mt-6 p-5">
           <div className="flex items-end justify-between gap-4">
             <h2 className="text-xl font-bold text-[#321428]">Lead feed</h2>
@@ -126,7 +130,7 @@ export default async function LeadsPage({
               <tbody>
                 {leads.length > 0 ? (
                   leads.map((lead) => (
-                    <tr key={lead.id} className="align-top text-[#5a2348]">
+                    <tr key={lead.id} className="align-top text-[#5a2348] transition hover:bg-[#fff6f0]/70">
                       <td className="border-b border-[#f1e3dc] px-3 py-3">
                         {formatDateTime(lead.created_at)}
                       </td>
@@ -178,6 +182,7 @@ export default async function LeadsPage({
             </table>
           </div>
         </section>
+        </MotionReveal>
       </div>
     </main>
   );
