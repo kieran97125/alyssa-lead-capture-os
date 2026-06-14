@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import {
   alyssaLandingPages,
   getLandingPageImageStatus,
@@ -83,10 +84,8 @@ export default function LandingPagesPage() {
               const previewUrl = `/lp/${page.slug}`;
 
               return (
-                <article
-                  key={page.id}
-                  className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm"
-                >
+                <MotionReveal key={page.id}>
+                <article className="alyssa-premium-card p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]">
                   <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
                     <div>
                       <div className="flex flex-wrap gap-2">
@@ -124,7 +123,7 @@ export default function LandingPagesPage() {
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Link
                           href={`/landing-pages/${page.id}`}
-                          className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+                          className="alyssa-focus rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]"
                         >
                           開啟設定
                         </Link>
@@ -138,6 +137,7 @@ export default function LandingPagesPage() {
                     </div>
                   </div>
                 </article>
+                </MotionReveal>
               );
             })}
           </div>
@@ -157,7 +157,7 @@ function ModeCard({
   status: string;
 }) {
   return (
-    <section className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+    <section className="alyssa-premium-card p-5">
       <div className="flex items-start justify-between gap-4">
         <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
         <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">

@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import { landingPageTemplates } from "@/lib/data/configuration";
 import {
   getLandingPageById,
@@ -307,7 +308,8 @@ function EditorSection({
   children: ReactNode;
 }) {
   return (
-    <section className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+    <MotionReveal>
+    <section className="alyssa-premium-card p-5">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {eyebrow}
       </p>
@@ -315,6 +317,7 @@ function EditorSection({
       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
       <div className="mt-5">{children}</div>
     </section>
+    </MotionReveal>
   );
 }
 

@@ -128,10 +128,10 @@ function PerformanceTable({
   type: PerformanceTableType;
 }) {
   return (
-    <section className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
+    <section className="alyssa-premium-card p-5">
       <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
       <div className="mt-4 overflow-x-auto">
-        <table className="min-w-full border-separate border-spacing-0 text-left text-sm">
+        <table className="alyssa-table min-w-full text-left text-sm">
           <thead>
             <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
               {columns.map((column) => (

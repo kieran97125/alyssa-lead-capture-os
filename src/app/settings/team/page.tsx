@@ -49,7 +49,7 @@ export default function TeamAccessSettingsPage() {
           />
         </section>
 
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+        <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">目前 access context</h2>
           <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
             這是臨時 internal preview context，不代表已有真實 team login。日後會由
@@ -84,7 +84,7 @@ export default function TeamAccessSettingsPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+        <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">角色模型</h2>
           <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
             以下係權限方向，唔代表已有真實用戶或完整 login system。
@@ -111,10 +111,10 @@ export default function TeamAccessSettingsPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+        <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">Module access matrix</h2>
           <div className="mt-4 overflow-x-auto">
-            <table className="min-w-[900px] w-full border-separate border-spacing-0 text-left text-sm">
+            <table className="alyssa-table min-w-[900px] text-left text-sm">
               <thead>
                 <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
                   <th className="border-b border-[#ead9cf] px-3 py-3">Role</th>
@@ -149,7 +149,7 @@ export default function TeamAccessSettingsPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+        <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">Brand access preparation</h2>
           <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
             當 Supabase Auth 接入後，內部資料頁應按可用品牌範圍過濾。V1 先提供 helper
@@ -176,7 +176,7 @@ export default function TeamAccessSettingsPage() {
 
 function InfoCard({ title, body }: { title: string; body: string }) {
   return (
-    <div className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+    <div className="alyssa-premium-card p-5">
       <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
     </div>

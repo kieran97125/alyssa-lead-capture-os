@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { MotionReveal } from "@/components/alyssa/MotionReveal";
+import { StatCard } from "@/components/alyssa/ui";
 import {
   asNumber,
   businessStatus,
@@ -164,12 +166,9 @@ export default async function DashboardPage({
 
 function KpiCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl border border-[#ead9cf] bg-white/82 p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold text-[#321428]">{value}</p>
-    </div>
+    <MotionReveal>
+      <StatCard label={label} value={value} />
+    </MotionReveal>
   );
 }
 
@@ -185,7 +184,7 @@ function QuickLinkCard({
   return (
     <Link
       href={href}
-      className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm transition hover:border-[#c9828e]"
+      className="alyssa-premium-card alyssa-focus block p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:bg-white hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]"
     >
       <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
@@ -195,10 +194,10 @@ function QuickLinkCard({
 
 function LatestLeadsTable({ leads }: { leads: LeadRow[] }) {
   return (
-    <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
+    <section className="alyssa-premium-card mt-6 p-5">
       <h2 className="text-xl font-bold text-[#321428]">最新登記紀錄</h2>
       <div className="mt-4 overflow-x-auto">
-        <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-left text-sm">
+        <table className="alyssa-table min-w-[1180px] text-left text-sm">
           <thead>
             <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
               {[

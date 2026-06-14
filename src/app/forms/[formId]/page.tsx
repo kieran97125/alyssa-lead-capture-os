@@ -67,7 +67,7 @@ export default async function FormConfigPage({
           </Link>
         </div>
 
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
+        <section className="alyssa-premium-card mt-6 bg-[#fff6f0] p-5">
           <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
             設定狀態
           </p>
@@ -78,7 +78,7 @@ export default async function FormConfigPage({
         </section>
 
         <div className="mt-6 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-          <section className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+          <section className="alyssa-premium-card p-5">
             <h2 className="text-xl font-bold text-[#321428]">營運設定</h2>
             <dl className="mt-5 grid gap-3">
               <InfoCell label="表格狀態" value={form.status} />
@@ -108,7 +108,7 @@ export default async function FormConfigPage({
               title="Wix 嵌入碼"
               description="將呢段 code 放入 Wix 頁面需要顯示登記表格的位置。"
             />
-            <section className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+            <section className="alyssa-premium-card p-5">
               <h2 className="text-xl font-bold text-[#321428]">Script endpoint</h2>
               <div className="mt-4 rounded-2xl bg-[#fff6f0] p-4">
                 <p className="break-all text-sm font-semibold text-[#5a2348]">

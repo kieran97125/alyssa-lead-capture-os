@@ -93,7 +93,7 @@ export default async function LeadsPage({
           )}
         </section>
 
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
+        <section className="alyssa-premium-card mt-6 p-5">
           <div className="flex items-end justify-between gap-4">
             <h2 className="text-xl font-bold text-[#321428]">Lead feed</h2>
             <p className="text-sm font-semibold text-[#7b5a6a]">
@@ -101,7 +101,7 @@ export default async function LeadsPage({
             </p>
           </div>
           <div className="mt-4 overflow-x-auto">
-            <table className="min-w-[1180px] w-full border-separate border-spacing-0 text-left text-sm">
+            <table className="alyssa-table min-w-[1180px] text-left text-sm">
               <thead>
                 <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
                   {[

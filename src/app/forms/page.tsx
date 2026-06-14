@@ -83,7 +83,7 @@ export default async function FormsPage() {
               return (
                 <article
                   key={form.id}
-                  className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm"
+                  className="alyssa-premium-card p-5"
                 >
                   <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                     <div>

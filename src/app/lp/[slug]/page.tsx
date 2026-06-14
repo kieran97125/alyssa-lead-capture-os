@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import Script from "next/script";
+import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
 import { getEmbedScriptUrl } from "@/lib/data/appUrl";
 import {
   getLandingPageBySlug,
@@ -37,7 +38,7 @@ export default async function PublicLandingPage({
         }
         aria-label="Alyssa medical beauty campaign hero"
       >
-        <div className="mx-auto w-full max-w-7xl">
+        <MotionReveal className="mx-auto w-full max-w-7xl">
           <p className="w-fit rounded-full border border-white/35 bg-white/12 px-4 py-2 text-sm font-bold backdrop-blur">
             {page.offerBadge}
           </p>
@@ -48,27 +49,28 @@ export default async function PublicLandingPage({
             {page.heroSubtitle}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <a
+            <MotionAnchor
               href="#alyssa-lp-form"
               className="rounded-full bg-white px-6 py-3 text-sm font-bold text-[#5a2348] shadow-lg transition hover:bg-[#fff6f0]"
             >
               {page.ctaText}
-            </a>
-            <a
+            </MotionAnchor>
+            <MotionAnchor
               href="#treatment-summary"
               className="rounded-full border border-white/55 bg-white/10 px-6 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/18"
             >
               {page.secondaryCtaText}
-            </a>
+            </MotionAnchor>
           </div>
           <div className="mt-10 grid max-w-4xl gap-3 sm:grid-cols-3">
             <HeroMetric label="品牌" value={context.brand?.name ?? "Alyssa"} />
             <HeroMetric label="療程" value={context.treatment?.name ?? "未設定"} />
             <HeroMetric label="體驗價" value={price} />
           </div>
-        </div>
+        </MotionReveal>
       </section>
 
+      <MotionReveal>
       <section
         id="treatment-summary"
         className="mx-auto grid max-w-7xl gap-5 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]"
@@ -112,7 +114,9 @@ export default async function PublicLandingPage({
           ))}
         </div>
       </section>
+      </MotionReveal>
 
+      <MotionReveal>
       <section className="border-y border-[#ead9cf] bg-white/70">
         <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
           {page.benefits.map((item) => (
@@ -125,8 +129,9 @@ export default async function PublicLandingPage({
           ))}
         </div>
       </section>
+      </MotionReveal>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr]">
+      <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
             Why this campaign
@@ -147,8 +152,9 @@ export default async function PublicLandingPage({
             </article>
           ))}
         </div>
-      </section>
+      </MotionReveal>
 
+      <MotionReveal>
       <section className="bg-[#321428] px-5 py-10 text-white">
         <div className="mx-auto max-w-7xl">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/62">
@@ -178,8 +184,9 @@ export default async function PublicLandingPage({
           </div>
         </div>
       </section>
+      </MotionReveal>
 
-      <section className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]">
+      <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
             Trust
@@ -207,8 +214,9 @@ export default async function PublicLandingPage({
             </p>
           ))}
         </div>
-      </section>
+      </MotionReveal>
 
+      <MotionReveal>
       <section id="alyssa-lp-form" className="bg-[#fff6f0] px-5 py-10">
         <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.82fr_1.18fr]">
           <div>
@@ -237,8 +245,9 @@ export default async function PublicLandingPage({
           </div>
         </div>
       </section>
+      </MotionReveal>
 
-      <section className="mx-auto max-w-4xl px-5 py-10">
+      <MotionReveal className="mx-auto max-w-4xl px-5 py-10">
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
           FAQ
         </p>
@@ -253,7 +262,7 @@ export default async function PublicLandingPage({
             </details>
           ))}
         </div>
-      </section>
+      </MotionReveal>
     </main>
   );
 }

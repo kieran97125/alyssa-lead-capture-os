@@ -51,7 +51,7 @@ export default async function SettingsPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
+        <section className="alyssa-premium-card mt-6 p-5">
           <h2 className="text-xl font-bold text-[#321428]">設定層級</h2>
           <div className="mt-5 grid gap-3 lg:grid-cols-6">
             {hierarchy.map(([title, body], index) => (
@@ -71,7 +71,7 @@ export default async function SettingsPage() {
             <Link
               key={item.href}
               href={item.href}
-              className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm transition hover:border-[#c9828e] hover:bg-white"
+              className="alyssa-premium-card alyssa-focus p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:bg-white hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]"
             >
               <h2 className="text-xl font-bold text-[#321428]">{item.title}</h2>
               <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{item.body}</p>

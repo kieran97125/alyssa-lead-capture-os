@@ -173,6 +173,25 @@ Current V1 supports image URLs and premium placeholders. Upload, cropping, media
 
 The application UI is localized for Hong Kong internal growth and marketing users in Traditional Chinese / Hong Kong Cantonese where appropriate. Technical identifiers remain in English, including routes, API payload keys, UTM fields, CTWA fields, `source_type`, `tracking_status`, and `audit_reason` values.
 
+## Design System Direction
+
+Alyssa Lead Capture OS uses a custom premium medical beauty / wellness visual system rather than a generic SaaS blue theme.
+
+Current V1 design tokens define:
+
+- Warm ivory and blush page backgrounds.
+- Soft rose and mauve accents.
+- Champagne borders and highlights.
+- Coral CTA treatment.
+- Deep plum text.
+- Premium card surfaces, rounded radii, focus states, and soft shadows.
+
+Shared UI primitives live in `src/components/alyssa/ui.tsx` for reusable cards, stats, badges, empty states, CTA buttons, section headers, and page shells. Motion primitives live in `src/components/alyssa/MotionReveal.tsx`.
+
+Motion is provided by `motion/react` and is used sparingly for subtle section reveal, KPI card reveal, CTA hover/tap, landing page hero reveal, and editor/list card polish. Reduced-motion preferences are respected through `useReducedMotion()` and the global `prefers-reduced-motion` CSS guard.
+
+If the internal app grows into a larger admin surface, shadcn/ui-style primitives are the preferred next component-system step. Open Props-style token thinking may inspire future refinements, but Alyssa tokens remain custom to the brand and campaign-testing product.
+
 ## Local Setup
 
 ```bash
