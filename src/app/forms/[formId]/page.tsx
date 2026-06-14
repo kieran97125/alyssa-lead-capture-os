@@ -44,7 +44,7 @@ export default async function FormConfigPage({
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-6xl px-5 py-8">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -55,30 +55,20 @@ export default async function FormConfigPage({
               {form.formName}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              呢張表格由 configuration layer 選定品牌、療程、套餐同分店。
-              同一份設定可輸出 Wix form-only embed，亦可被 landing page mode 使用。
+              呢張表格由表格設定選定品牌、療程、套餐同分店。
+              同一份表格可放入 Wix 頁面，亦可被 Landing Page 使用。
             </p>
           </div>
           <Link
             href="/settings"
             className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
           >
-            查看設定層
+            查看設定中心
           </Link>
         </div>
 
-        <section className="alyssa-premium-card mt-6 bg-[#fff6f0] p-5">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-            設定狀態
-          </p>
-          <p className="mt-2 text-sm leading-6 text-[#5a2348]">
-            目前係設定檢視 / 編輯功能預留。表格提交、來源擷取、套餐驗證同 lead
-            寫入流程保持不變。
-          </p>
-        </section>
-
         <div className="mt-6 grid gap-5 lg:grid-cols-[0.95fr_1.05fr]">
-          <section className="alyssa-premium-card p-5">
+          <section className="alyssa-premium-card min-w-0 p-5">
             <h2 className="text-xl font-bold text-[#321428]">營運設定</h2>
             <dl className="mt-5 grid gap-3">
               <InfoCell label="表格狀態" value={form.status} />
@@ -86,17 +76,17 @@ export default async function FormConfigPage({
               <InfoCell label="療程" value={treatment?.name ?? "未設定"} />
               <InfoCell label="套餐 / 價錢" value={packagePriceLabel(selectedPackage)} />
               <InfoCell label="分店" value={branch?.name ?? "未設定"} />
-              <InfoCell label="表格 Token" value={form.publicFormToken} mono />
+              <InfoCell label="表格代號" value={form.publicFormToken} mono />
               <InfoCell
                 label="允許嵌入網域"
                 value={form.allowedDomains.length > 0 ? form.allowedDomains.join(", ") : "未設定"}
               />
               <InfoCell
-                label="Linked landing page mode"
+                label="已連接 Landing Pages"
                 value={
                   linkedLandingPages.length > 0
                     ? linkedLandingPages.map((page) => page.title).join(", ")
-                    : "未有關聯 landing page"
+                    : "未有關聯 Landing Page"
                 }
               />
             </dl>
@@ -108,8 +98,8 @@ export default async function FormConfigPage({
               title="Wix 嵌入碼"
               description="將呢段 code 放入 Wix 頁面需要顯示登記表格的位置。"
             />
-            <section className="alyssa-premium-card p-5">
-              <h2 className="text-xl font-bold text-[#321428]">Script endpoint</h2>
+            <section className="alyssa-premium-card min-w-0 p-5">
+              <h2 className="text-xl font-bold text-[#321428]">Wix 嵌入程式網址</h2>
               <div className="mt-4 rounded-2xl bg-[#fff6f0] p-4">
                 <p className="break-all text-sm font-semibold text-[#5a2348]">
                   {scriptUrl}
@@ -120,13 +110,13 @@ export default async function FormConfigPage({
                   href="/embed-preview"
                   className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white"
                 >
-                  測試 Parent Embed
+                  測試 Wix 預覽
                 </Link>
                 <Link
                   href={`/embed/${form.publicFormToken}`}
                   className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
                 >
-                  直接打開 iframe
+                  預覽表格
                 </Link>
               </div>
             </section>
@@ -147,7 +137,7 @@ function InfoCell({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-2xl bg-[#fff6f0] p-4">
+    <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
       <dt className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {label}
       </dt>

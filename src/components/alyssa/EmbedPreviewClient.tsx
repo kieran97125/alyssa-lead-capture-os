@@ -84,8 +84,8 @@ export function EmbedPreviewClient({
               Alyssa 首次療程諮詢及膚質分析
             </h1>
             <p className="mt-4 max-w-2xl text-base leading-7 text-[#6d4a5c]">
-              呢個頁面模擬真實 Wix parent page：UTM 參數會先存在喺呢一頁，
-              embed script 先讀取來源資料，再將 attribution payload 傳入 iframe。
+              呢個頁面模擬真實 Wix 頁面：廣告來源參數會先存在喺呢一頁，
+              嵌入程式會讀取來源資料，再傳入表格。
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <a
@@ -108,8 +108,7 @@ export function EmbedPreviewClient({
                   免費膚質分析及療程建議
                 </h2>
                 <p className="mt-3 text-sm leading-6 text-[#7b5a6a]">
-                  適合 Meta 同 WhatsApp 廣告流量測試，確保 campaign attribution
-                  可以喺 Wix iframe 嵌入場景下保留。
+                  適合 Meta 同 WhatsApp 廣告流量測試，確保客人來源可以喺 Wix 嵌入場景下保留。
                 </p>
               </div>
 
@@ -118,10 +117,10 @@ export function EmbedPreviewClient({
                   追蹤流程
                 </p>
                 <ol className="mt-3 space-y-3 text-sm leading-6 text-[#6d4a5c]">
-                  <li>1. Parent page 先讀取 UTM 同 click IDs。</li>
-                  <li>2. 建立 first/latest/submitted touch payloads。</li>
-                  <li>3. 透過嚴格 origin targeting 將 payload 傳入 iframe。</li>
-                  <li>4. Lead submit 後建立 source snapshot 同 lead events。</li>
+                  <li>1. Wix 頁面先讀取廣告來源同點擊資料。</li>
+                  <li>2. 保存首次、最新同提交時的來源資料。</li>
+                  <li>3. 將來源資料傳入登記表格。</li>
+                  <li>4. 客人提交後建立 Lead、預約同來源記錄。</li>
                 </ol>
               </div>
             </div>
@@ -134,17 +133,17 @@ export function EmbedPreviewClient({
           <EmbedCodeCard
             code={embedCode}
             title="Wix 嵌入碼"
-            description="呢個預覽頁正正載入以下 public script。"
+            description="呢個預覽頁正正載入以下嵌入碼。"
           />
 
           <section className="rounded-[24px] border border-[#d7c5b9] bg-[#2b2027] p-5 text-[#fff9f3] shadow-sm">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.2em] text-[#d9b66f]">
-                  內部追蹤 Debug
+                  內部來源檢查
                 </p>
                 <h2 className="mt-2 text-lg font-bold">
-                  Parent Page 來源追蹤資料
+                  Wix 頁面來源資料
                 </h2>
               </div>
               <span className="rounded-full border border-[#6f5866] px-3 py-1 text-xs font-bold text-[#eac7ce]">
@@ -157,11 +156,11 @@ export function EmbedPreviewClient({
                 <DebugRow key={field} label={field} value={asText(touch[field])} />
               ))}
               <DebugRow
-                label="tracking_status"
+                label="來源狀態"
                 value={asText(debugPayload?.tracking_status ?? touch.tracking_status)}
               />
               <DebugRow
-                label="audit_reason"
+                label="記錄原因"
                 value={asText(debugPayload?.audit_reason ?? touch.audit_reason)}
               />
             </div>

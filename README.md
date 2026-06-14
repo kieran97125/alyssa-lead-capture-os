@@ -195,6 +195,20 @@ Current V1 supports image URLs and premium placeholders. Upload, cropping, media
 
 The application UI is localized for Hong Kong internal growth and marketing users in Traditional Chinese / Hong Kong Cantonese where appropriate. Technical identifiers remain in English, including routes, API payload keys, UTM fields, CTWA fields, `source_type`, `tracking_status`, and `audit_reason` values.
 
+## Guided UX Direction
+
+Alyssa Lead Capture OS is designed for non-technical marketing, management, CS, and operations users. Business screens should explain what the page is for, what the user should do first, which actions are safe internal actions, and which actions affect public campaign pages.
+
+Core guided workflows:
+
+- Form-only mode - Wix owns the page content; Lead Capture OS provides the embedded form and attribution capture.
+- Landing page mode - marketers prepare campaign content, save internal drafts, preview, then publish a public campaign page.
+- Lead monitoring - CS and operations review latest registration records and booking requests.
+- Performance reporting - management and marketing compare leads, bookings, source, campaign, treatment, package, and branch performance.
+- Future CRM feedback - the future WhatsApp CRM writes outcomes back into the shared lead base.
+
+Technical audit details such as low-level tracking fields, system health, source snapshot diagnostics, and webhook debugging should stay in `/system-audit`, not on the main business screens.
+
 ## Design System Direction
 
 Alyssa Lead Capture OS uses a custom premium medical beauty / wellness visual system rather than a generic SaaS blue theme.

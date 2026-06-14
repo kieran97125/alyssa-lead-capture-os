@@ -19,15 +19,15 @@ function formatPrice(page: LandingPageConfig) {
 }
 
 function modeLabel(mode: LandingPageConfig["mode"]) {
-  return mode === "landing_page" ? "Landing page" : "Form-only";
+  return mode === "landing_page" ? "廣告落地頁" : "Wix 表格嵌入";
 }
 
 function testingLabel(status: LandingPageConfig["testingStatus"]) {
-  return status === "ready_for_testing" ? "可開始測試" : "Foundation";
+  return status === "ready_for_testing" ? "可開始測試" : "目前可查看";
 }
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "Not published";
+  if (!value) return "未發布";
 
   return new Intl.DateTimeFormat("zh-HK", {
     dateStyle: "medium",
@@ -36,11 +36,11 @@ function formatDate(value: string | null | undefined) {
 }
 
 export default async function LandingPagesPage() {
-  const { pages, source, canPersist } = await getLandingPageList();
+  const { pages, canPersist } = await getLandingPageList();
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -49,12 +49,10 @@ export default async function LandingPagesPage() {
                 Landing Pages
               </p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                Campaign landing page 管理
+                Landing Page 管理
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                用同一份表格設定產生兩種輸出：Wix 內容頁用 form-only embed；
-                快速測試 offer、campaign 同 market angle 時，用 landing page mode。
-                Wix 仍然係主網站，Lead Capture OS 只做 campaign testing layer。
+                建立簡單廣告落地頁，快速測試新療程、新優惠同新文案角度。
               </p>
             </div>
             <Link
@@ -66,29 +64,16 @@ export default async function LandingPagesPage() {
           </div>
         </section>
 
-        <section className="mt-6 grid gap-5 lg:grid-cols-2">
-          <ModeCard
-            title="Form-only mode"
-            description="Wix 已有頁面內容時，只嵌入 Alyssa 表格。系統負責表格提交、來源擷取、套餐驗證同 lead base 寫入。"
-            status="已可用"
-          />
-          <ModeCard
-            title="Landing page mode"
-            description="在同一份表格設定上加入 hero、offer、sections、FAQ 同 CTA，產生簡單 campaign page。這是 V1 config-preview，不是完整拖拉式 builder。"
-            status="V1 foundation"
-          />
-        </section>
-
         <section className="mt-6">
           <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="text-xl font-bold text-[#321428]">Campaign pages</h2>
+              <h2 className="text-xl font-bold text-[#321428]">廣告落地頁</h2>
               <p className="mt-1 text-sm text-[#6d4a5c]">
-                目前由 configuration foundation 管理；日後可升級為後台 editable templates。
+                目前可查看和準備內容；更完整的版型管理稍後加入。
               </p>
             </div>
             <span className="w-fit rounded-full bg-[#fff6f0] px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#9a5d76]">
-              {pages.length} {source === "supabase" ? "DB-backed" : "local config"}
+              {pages.length} {canPersist ? "可儲存及發布" : "目前只可查看"}
             </span>
           </div>
           <div className="grid gap-5">
@@ -98,15 +83,15 @@ export default async function LandingPagesPage() {
 
               return (
                 <MotionReveal key={page.id} delay={0.05 + index * 0.07}>
-                <article className="alyssa-premium-card p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]">
-                  <div className="grid gap-5 xl:grid-cols-[1.05fr_0.95fr]">
-                    <div>
+                <article className="alyssa-premium-card alyssa-interactive-card min-w-0 p-5">
+                  <div className="grid min-w-0 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+                    <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
                         <StatusPill>{modeLabel(page.mode)}</StatusPill>
                         <StatusPill>{testingLabel(page.testingStatus)}</StatusPill>
                         <StatusPill>{page.status}</StatusPill>
                         <StatusPill>
-                          {canPersist ? "Save / publish ready" : "Migration required"}
+                          {canPersist ? "可儲存及發布" : "目前只可查看"}
                         </StatusPill>
                       </div>
                       <h3 className="mt-4 text-2xl font-bold text-[#321428]">
@@ -116,40 +101,40 @@ export default async function LandingPagesPage() {
                         {page.heroSubtitle}
                       </p>
                       <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-                        <InfoCell label="Slug" value={page.slug} mono />
-                        <InfoCell label="Template" value={page.templateName} />
-                        <InfoCell label="Brand" value={context.brand?.name ?? "未設定"} />
-                        <InfoCell label="Treatment" value={context.treatment?.name ?? "未設定"} />
-                        <InfoCell label="Package / price" value={formatPrice(page)} />
-                        <InfoCell label="Last updated" value={formatDate(page.updatedAt)} />
-                        <InfoCell label="Published at" value={formatDate(page.publishedAt)} />
-                        <InfoCell label="Branch" value={context.branch?.name ?? "未設定"} />
+                        <InfoCell label="網址代號" value={page.slug} mono />
+                        <InfoCell label="版型" value={page.templateName} />
+                        <InfoCell label="品牌" value={context.brand?.name ?? "未設定"} />
+                        <InfoCell label="療程" value={context.treatment?.name ?? "未設定"} />
+                        <InfoCell label="套餐 / 價錢" value={formatPrice(page)} />
+                        <InfoCell label="最後更新" value={formatDate(page.updatedAt)} />
+                        <InfoCell label="發布時間" value={formatDate(page.publishedAt)} />
+                        <InfoCell label="分店" value={context.branch?.name ?? "未設定"} />
                         <InfoCell label="圖片素材" value={getLandingPageImageStatus(page)} />
                       </dl>
                     </div>
 
-                    <div className="rounded-[20px] bg-[#fff6f0] p-5">
+                    <div className="min-w-0 rounded-[20px] bg-[#fff6f0] p-5">
                       <h4 className="text-lg font-bold text-[#321428]">
-                        Form connection
+                        登記表格連接
                       </h4>
                       <dl className="mt-4 grid gap-3">
-                        <InfoCell label="Form ID" value={page.formId} mono />
-                        <InfoCell label="Form token" value={page.formToken} mono />
-                        <InfoCell label="Preview URL" value={previewUrl} mono />
-                        <InfoCell label="Public URL" value={previewUrl} mono />
+                        <InfoCell label="表格代號" value={page.formId} mono />
+                        <InfoCell label="公開表格代號" value={page.formToken} mono />
+                        <InfoCell label="預覽連結" value={previewUrl} mono />
+                        <InfoCell label="公開連結" value={previewUrl} mono />
                       </dl>
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Link
                           href={`/landing-pages/${page.id}`}
                           className="alyssa-focus rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]"
                         >
-                          開啟設定
+                          編輯內容
                         </Link>
                         <Link
                           href={previewUrl}
                           className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
                         >
-                          Preview
+                          開啟預覽
                         </Link>
                       </div>
                     </div>
@@ -165,31 +150,9 @@ export default async function LandingPagesPage() {
   );
 }
 
-function ModeCard({
-  title,
-  description,
-  status,
-}: {
-  title: string;
-  description: string;
-  status: string;
-}) {
-  return (
-    <section className="alyssa-premium-card p-5">
-      <div className="flex items-start justify-between gap-4">
-        <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
-        <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
-          {status}
-        </span>
-      </div>
-      <p className="mt-3 text-sm leading-6 text-[#6d4a5c]">{description}</p>
-    </section>
-  );
-}
-
 function StatusPill({ children }: { children: string }) {
   return (
-    <span className="rounded-full border border-[#ead9cf] bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
+    <span className="min-w-0 rounded-full border border-[#ead9cf] bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
       {children}
     </span>
   );

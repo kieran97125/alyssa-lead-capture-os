@@ -423,7 +423,7 @@ export async function getLandingPageEditorData(
         source: "supabase",
         canPersist: true,
         statusMessage:
-          "DB-backed save / publish is available for this landing page.",
+          "這個 Landing Page 已可儲存草稿和發布公開版本。",
         latestDraftVersionNumber: latestDraft?.version_number ?? null,
         publishedVersionNumber: publishedVersion?.version_number ?? null,
       };
@@ -440,8 +440,8 @@ export async function getLandingPageEditorData(
     source: page.builderSource ?? "local_config",
     canPersist,
     statusMessage: canPersist
-      ? "DB-backed save / publish is available for this landing page."
-      : "Local config fallback is active. Apply the landing page builder migration before saving drafts or publishing.",
+      ? "這個 Landing Page 已可儲存草稿和發布公開版本。"
+      : "目前只可查看內容；儲存草稿及發布功能稍後開放。",
     latestDraftVersionNumber: null,
     publishedVersionNumber: null,
   };
@@ -500,7 +500,7 @@ export async function saveLandingPageDraft(
       ok: false,
       source: "local_config",
       message:
-        "Landing page builder tables are not available. Apply the migration before saving drafts.",
+        "目前仍未啟用儲存草稿功能，請先完成 Landing Page 儲存 / 發布設定。",
     };
   }
 
@@ -562,7 +562,7 @@ export async function publishLandingPage(
       ok: false,
       source: "local_config",
       message:
-        "Landing page builder tables are not available. Apply the migration before publishing.",
+        "目前仍未啟用發布功能，請先完成 Landing Page 儲存 / 發布設定。",
     };
   }
 

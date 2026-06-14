@@ -13,9 +13,7 @@ export function PremiumCard({
   className?: string;
 }) {
   return (
-    <section
-      className={`alyssa-premium-card p-5 transition duration-300 hover:-translate-y-1 hover:border-[#c9828e] hover:shadow-[0_20px_52px_rgba(90,35,72,0.13)] ${className}`}
-    >
+    <section className={`alyssa-premium-card min-w-0 p-5 ${className}`}>
       {children}
     </section>
   );
@@ -53,7 +51,7 @@ export function StatCard({
   helper?: string;
 }) {
   return (
-    <div className="alyssa-premium-card p-4">
+    <div className="alyssa-premium-card min-w-0 p-4">
       <p className="alyssa-kicker">{label}</p>
       <p className="mt-2 text-2xl font-bold text-[#321428]">{value}</p>
       {helper && <p className="mt-1 text-xs font-semibold text-[#7b5a6a]">{helper}</p>}

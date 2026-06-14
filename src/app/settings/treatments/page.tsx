@@ -14,14 +14,14 @@ export default async function TreatmentSettingsPage() {
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
             療程設定
           </p>
           <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-            Treatment configuration
+            Treatment settings
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
             療程連接品牌、套餐價錢、表格同 landing page。現階段為設定檢視 /
@@ -48,7 +48,7 @@ export default async function TreatmentSettingsPage() {
             return (
               <article
                 key={treatment.id}
-                className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm"
+                className="alyssa-premium-card min-w-0 p-5"
               >
                 <div className="flex flex-wrap gap-2">
                   <StatusPill>{treatment.status}</StatusPill>
@@ -107,11 +107,11 @@ function LinkedBlock({
   empty: string;
 }) {
   return (
-    <div className="rounded-2xl bg-[#fff6f0] p-4">
+    <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {title}
       </p>
-      <p className="mt-2 text-sm font-semibold text-[#5a2348]">
+      <p className="mt-2 break-words text-sm font-semibold text-[#5a2348]">
         {items.length > 0 ? items.join(", ") : empty}
       </p>
     </div>

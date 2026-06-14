@@ -12,7 +12,7 @@ export default function EmbedPreviewPage() {
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <EmbedPreviewClient
         embedCode={embedCode}
         embedScriptUrl={embedScriptUrl}

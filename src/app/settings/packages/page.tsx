@@ -23,14 +23,14 @@ export default async function PackageSettingsPage() {
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
             套餐 / 價錢
           </p>
           <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-            Package and price configuration
+            Package and price settings
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
             套餐價錢代表客人選擇的 offer value；付款狀態代表付款流程進度。
@@ -45,7 +45,7 @@ export default async function PackageSettingsPage() {
             return (
               <article
                 key={item.id}
-                className="rounded-[24px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm"
+                className="alyssa-premium-card min-w-0 p-5"
               >
                 <div className="flex flex-wrap gap-2">
                   <StatusPill>{item.status}</StatusPill>
@@ -60,10 +60,10 @@ export default async function PackageSettingsPage() {
                   {treatment?.name ?? "未設定療程"}
                 </p>
                 <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-                  <InfoCell label="Original price" value={money(item.originalPrice, item.currency)} />
-                  <InfoCell label="Promo price" value={money(item.promoPrice, item.currency)} />
-                  <InfoCell label="Currency" value={item.currency} />
-                  <InfoCell label="Display offer" value={packagePriceLabel(item)} />
+                  <InfoCell label="原價" value={money(item.originalPrice, item.currency)} />
+                  <InfoCell label="優惠價" value={money(item.promoPrice, item.currency)} />
+                  <InfoCell label="貨幣" value={item.currency} />
+                  <InfoCell label="顯示優惠" value={packagePriceLabel(item)} />
                 </dl>
               </article>
             );
@@ -84,7 +84,7 @@ function StatusPill({ children }: { children: string }) {
 
 function InfoCell({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-2xl bg-[#fff6f0] p-4">
+    <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
       <dt className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {label}
       </dt>

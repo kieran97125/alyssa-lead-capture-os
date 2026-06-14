@@ -76,7 +76,7 @@ export default async function SystemAuditPage() {
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/82 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">

@@ -69,6 +69,16 @@ textarea {
   border-radius: var(--alyssa-radius-md);
   background: var(--alyssa-card);
   box-shadow: var(--alyssa-card-shadow);
+  min-width: 0;
+  overflow: visible;
+  overflow-wrap: anywhere;
+  transition:
+    border-color 220ms ease,
+    box-shadow 220ms ease,
+    background-color 220ms ease;
+}
+
+.alyssa-interactive-card {
   transition:
     border-color 220ms ease,
     box-shadow 220ms ease,
@@ -76,7 +86,7 @@ textarea {
     background-color 220ms ease;
 }
 
-.alyssa-premium-card:hover {
+.alyssa-interactive-card:hover {
   border-color: rgba(201, 130, 142, 0.72);
   box-shadow: 0 20px 52px rgba(90, 35, 72, 0.12);
   transform: translateY(-3px);
@@ -159,7 +169,7 @@ textarea {
     transition-duration: 0.01ms !important;
   }
 
-  .alyssa-premium-card:hover,
+  .alyssa-interactive-card:hover,
   .alyssa-table tbody tr:hover {
     transform: none;
   }

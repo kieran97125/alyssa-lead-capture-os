@@ -6,22 +6,13 @@ import { getConfigurationData } from "@/lib/data/configuration";
 
 export const dynamic = "force-dynamic";
 
-const hierarchy = [
-  ["Brand", "品牌定位、顏色、WhatsApp 同 thank-you destination"],
-  ["Treatment", "療程類別、描述同品牌歸屬"],
-  ["Package / Price", "套餐、原價、優惠價同是否需要付款 flow"],
-  ["Branch", "分店、地址、營業時間同可預約地點"],
-  ["Form", "選定品牌、療程、套餐、分店後產生 embed form"],
-  ["Output mode", "Form-only embed 或 Landing page mode"],
-];
-
 const settingLinks = [
-  { href: "/settings/brands", title: "品牌設定", body: "品牌資料、顏色、WhatsApp、thank-you URL。" },
-  { href: "/settings/treatments", title: "療程設定", body: "療程名稱、描述、狀態同套餐關聯。" },
-  { href: "/settings/packages", title: "套餐 / 價錢", body: "套餐價值、優惠價同付款語意。" },
-  { href: "/settings/branches", title: "分店設定", body: "分店、地址、營業時間同可用狀態。" },
-  { href: "/settings/templates", title: "Landing Page Templates", body: "Campaign page template foundation。" },
-  { href: "/settings/team", title: "團隊權限", body: "登入系統、角色權限同品牌存取權限預留。" },
+  { href: "/settings/brands", title: "品牌資料", body: "管理品牌名稱、顏色、WhatsApp 同完成登記後的去向。" },
+  { href: "/settings/treatments", title: "療程資料", body: "查看療程名稱、介紹、狀態同可配搭套餐。" },
+  { href: "/settings/packages", title: "套餐價錢", body: "查看套餐價值、優惠價同付款安排。" },
+  { href: "/settings/branches", title: "分店資料", body: "查看分店、地址、營業時間同可用狀態。" },
+  { href: "/settings/templates", title: "Landing Page 版型", body: "查看廣告落地頁可使用的內容版型。" },
+  { href: "/settings/team", title: "團隊權限", body: "規劃角色、可使用功能同可查看品牌。" },
 ];
 
 export default async function SettingsPage() {
@@ -29,21 +20,21 @@ export default async function SettingsPage() {
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
             Settings
           </p>
           <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-            Configuration Foundation V1
+            設定中心
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-            呢一層定義 Alyssa campaign testing 的基本配置：品牌、療程、套餐價錢、
-            分店、表格連接同 Landing Page 模板。現階段係設定檢視，完整編輯功能預留。
+            這裡集中查看 Alyssa 的品牌、療程、套餐價錢、分店、表格連接同 Landing Page 版型。
+            目前可查看，編輯功能稍後加入。
           </p>
           <SettingsNav />
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
             <MiniStat label="品牌" value={config.brands.length.toString()} />
             <MiniStat label="療程" value={config.treatments.length.toString()} />
             <MiniStat label="套餐" value={config.packages.length.toString()} />
@@ -52,31 +43,15 @@ export default async function SettingsPage() {
           </div>
         </section>
 
-        <section className="alyssa-premium-card mt-6 p-5">
-          <h2 className="text-xl font-bold text-[#321428]">設定層級</h2>
-          <div className="mt-5 grid gap-3 lg:grid-cols-6">
-            {hierarchy.map(([title, body], index) => (
-              <div key={title} className="rounded-2xl bg-[#fff6f0] p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                  Step {index + 1}
-                </p>
-                <h3 className="mt-2 text-lg font-bold text-[#321428]">{title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-6 grid gap-5 lg:grid-cols-2">
+        <section className="mt-6 grid items-stretch gap-5 lg:grid-cols-2">
           {settingLinks.map((item) => (
             <MotionReveal key={item.href}>
             <Link
               href={item.href}
-              className="alyssa-premium-card alyssa-focus p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:bg-white hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]"
+              className="alyssa-premium-card alyssa-interactive-card alyssa-focus block p-5"
             >
               <h2 className="text-xl font-bold text-[#321428]">{item.title}</h2>
               <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{item.body}</p>
-              <p className="mt-4 text-sm font-bold text-[#5a2348]">設定檢視 / 編輯功能預留</p>
             </Link>
             </MotionReveal>
           ))}
@@ -89,7 +64,7 @@ export default async function SettingsPage() {
 function MiniStat({ label, value }: { label: string; value: string }) {
   return (
     <MotionReveal>
-    <div className="rounded-2xl bg-[#fff6f0] p-4">
+    <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {label}
       </p>

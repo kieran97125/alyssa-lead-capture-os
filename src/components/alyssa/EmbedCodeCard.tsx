@@ -8,13 +8,13 @@ type Props = {
 
 export function EmbedCodeCard({
   code,
-  title = "嵌入 script",
+  title = "嵌入碼",
   description,
 }: Props) {
   return (
-    <div className="rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
-      <div className="flex items-start justify-between gap-4">
-        <div>
+    <div className="min-w-0 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="min-w-0">
           <p className="text-sm font-bold text-[#9a5d76]">{title}</p>
           {description && (
             <p className="mt-1 text-sm leading-6 text-[#7b5a6a]">{description}</p>
@@ -22,7 +22,7 @@ export function EmbedCodeCard({
         </div>
         <CopyButton value={code} />
       </div>
-      <pre className="mt-4 overflow-x-auto rounded-2xl bg-[#321428] p-4 text-xs leading-6 text-[#fff9f3]">
+      <pre className="mt-4 max-w-full overflow-x-auto rounded-2xl bg-[#321428] p-4 text-xs leading-6 text-[#fff9f3]">
         {code}
       </pre>
     </div>

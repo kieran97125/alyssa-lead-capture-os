@@ -71,11 +71,11 @@ export default async function DashboardPage({
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/82 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+          <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
                 Lead performance dashboard
               </p>
@@ -83,8 +83,7 @@ export default async function DashboardPage({
                 Alyssa 登記成效總覽
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                查看最新正式登記資料、預約狀態、套餐金額同來源成效。CRM
-                付款、到店同流失結果會等待未來 WhatsApp CRM app 回寫。
+                查看最新登記、預約狀態、套餐金額同來源成效。
               </p>
             </div>
             <div className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348]">
@@ -118,7 +117,7 @@ export default async function DashboardPage({
           )}
         </section>
 
-        <section className="mt-6 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
           <KpiCard label="總 Leads" value={summary.kpis.totalLeads.toString()} />
           <KpiCard label="新預約" value={summary.kpis.newBookings.toString()} />
           <KpiCard label="只預約未付款" value={summary.kpis.bookingOnly.toString()} />
@@ -147,23 +146,11 @@ export default async function DashboardPage({
           <QuickLinkCard
             href="/system-audit"
             title="查看系統稽核"
-            description="內部追蹤、事件紀錄同 CRM 回寫 contract 已移到系統頁。"
+            description="查看內部追蹤、事件紀錄同系統狀態。"
             delay={0.18}
           />
         </section>
 
-        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-[#fff6f0] p-5">
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-            CRM 結果
-          </p>
-          <h2 className="mt-2 text-xl font-bold text-[#321428]">
-            等待未來 WhatsApp CRM app 回寫
-          </h2>
-          <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-            目前總覽只顯示 Lead Capture OS 收到的登記、預約請求同套餐金額。show /
-            no-show / lost / paid conversion 會由未來獨立 CRM app 寫回後再納入分析。
-          </p>
-        </section>
       </div>
     </main>
   );
@@ -192,7 +179,7 @@ function QuickLinkCard({
     <MotionReveal delay={delay}>
     <Link
       href={href}
-      className="alyssa-premium-card alyssa-focus block p-5 transition hover:-translate-y-0.5 hover:border-[#c9828e] hover:bg-white hover:shadow-[0_18px_45px_rgba(90,35,72,0.12)]"
+      className="alyssa-premium-card alyssa-interactive-card alyssa-focus block min-w-0 p-5"
     >
       <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
@@ -203,9 +190,9 @@ function QuickLinkCard({
 
 function LatestLeadsTable({ leads }: { leads: LeadRow[] }) {
   return (
-    <section className="alyssa-premium-card mt-6 p-5">
+    <section className="alyssa-premium-card mt-6 min-w-0 p-5">
       <h2 className="text-xl font-bold text-[#321428]">最新登記紀錄</h2>
-      <div className="mt-4 overflow-x-auto">
+      <div className="mt-4 max-w-full overflow-x-auto">
         <table className="alyssa-table min-w-[1180px] text-left text-sm">
           <thead>
             <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">

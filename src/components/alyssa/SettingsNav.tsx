@@ -12,12 +12,12 @@ const settingsItems = [
 
 export function SettingsNav() {
   return (
-    <nav className="mt-5 flex flex-wrap gap-2">
+    <nav className="mt-5 flex min-w-0 flex-wrap gap-2">
       {settingsItems.map((item) => (
         <Link
           key={item.href}
           href={item.href}
-          className="rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-bold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white"
+          className="min-w-0 rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-bold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white"
         >
           {item.label}
         </Link>

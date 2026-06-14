@@ -33,7 +33,7 @@ export default async function FormsPage() {
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
@@ -41,11 +41,11 @@ export default async function FormsPage() {
               表格管理
             </p>
             <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-              Form connection layer
+              Wix 登記表格
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              表格由品牌、療程、套餐價錢同分店設定組成。Form-only mode 產生 Wix
-              embed script；Landing page mode 則用同一份表格連接產生 campaign page。
+              這裡用來建立可以放入 Wix 的登記表格。Wix 頁面已有內容時，複製嵌入碼即可；
+              如果要建立完整廣告落地頁，請到 Landing Pages。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -53,7 +53,7 @@ export default async function FormsPage() {
               href="/settings"
               className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
             >
-              查看設定層
+              查看設定中心
             </Link>
             <Link
               href="/embed-preview"
@@ -63,13 +63,6 @@ export default async function FormsPage() {
             </Link>
           </div>
         </div>
-
-        <section className="mt-6 grid gap-3 md:grid-cols-4">
-          <StateCard label="設定來源" value={config.sourceLabel} />
-          <StateCard label="輸出模式" value="Form-only / Landing page" />
-          <StateCard label="Public script" value="可產生 Wix embed" />
-          <StateCard label="編輯狀態" value="設定檢視 / 編輯功能預留" />
-        </section>
 
         <section className="mt-7 grid gap-5 xl:grid-cols-[1fr_0.92fr]">
           <div className="grid gap-5">
@@ -83,10 +76,10 @@ export default async function FormsPage() {
               return (
                 <article
                   key={form.id}
-                  className="alyssa-premium-card p-5"
+                  className="alyssa-premium-card min-w-0 p-5"
                 >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                    <div>
+                  <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                    <div className="min-w-0">
                       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
                         {form.status}
                       </p>
@@ -94,12 +87,12 @@ export default async function FormsPage() {
                         {form.formName}
                       </h2>
                       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                        這張表格連接指定品牌、療程、套餐同分店，可作 Wix form-only
-                        embed，亦可連接 Landing Page mode。
+                        這張表格連接指定品牌、療程、套餐同分店，可放入 Wix 頁面，
+                        亦可連接 Landing Page。
                       </p>
                     </div>
                     <span className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
-                      Form-only ready
+                      可放入 Wix
                     </span>
                   </div>
 
@@ -108,16 +101,16 @@ export default async function FormsPage() {
                     <InfoCell label="療程" value={treatment?.name ?? "未設定"} />
                     <InfoCell label="套餐 / 價錢" value={packagePriceLabel(selectedPackage)} />
                     <InfoCell label="分店" value={branch?.name ?? "未設定"} />
-                    <InfoCell label="表格 Token" value={form.publicFormToken} mono />
+                    <InfoCell label="表格代號" value={form.publicFormToken} mono />
                     <InfoCell
                       label="允許嵌入網域"
                       value={form.allowedDomains.length > 0 ? form.allowedDomains.join(", ") : "未設定"}
                     />
                     <InfoCell
-                      label="Linked landing pages"
+                      label="已連接 Landing Pages"
                       value={linkedPages.length > 0 ? linkedPages.map((page) => page.title).join(", ") : "未有關聯"}
                     />
-                    <InfoCell label="Public script" value={embedScriptUrl} mono />
+                    <InfoCell label="Wix 嵌入程式" value={embedScriptUrl} mono />
                   </dl>
 
                   <div className="mt-5 flex flex-wrap gap-3">
@@ -125,13 +118,13 @@ export default async function FormsPage() {
                       href={`/forms/${form.id}`}
                       className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
                     >
-                      開啟設定
+                      開啟詳情
                     </Link>
                     <Link
                       href={`/embed/${form.publicFormToken}`}
                       className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
                     >
-                      直接打開 iframe
+                      預覽表格
                     </Link>
                   </div>
                 </article>
@@ -142,22 +135,11 @@ export default async function FormsPage() {
           <EmbedCodeCard
             code={embedCode}
             title="Wix 嵌入碼"
-            description="將呢段 script 放入 Wix parent page，表格會沿用所選品牌、療程、套餐同分店設定。"
+            description="將呢段嵌入碼放入 Wix 頁面，表格會沿用所選品牌、療程、套餐同分店設定。"
           />
         </section>
       </div>
     </main>
-  );
-}
-
-function StateCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-2xl border border-[#ead9cf] bg-white/86 p-4 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {label}
-      </p>
-      <p className="mt-2 text-sm font-bold text-[#5a2348]">{value}</p>
-    </div>
   );
 }
 
@@ -171,7 +153,7 @@ function InfoCell({
   mono?: boolean;
 }) {
   return (
-    <div className="rounded-2xl bg-[#fff6f0] p-4">
+    <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
       <dt className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {label}
       </dt>

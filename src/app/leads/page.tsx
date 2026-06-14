@@ -29,12 +29,12 @@ export default async function LeadsPage({
 
   return (
     <main className="alyssa-shell">
-      <AppNav showInternalWarning />
+      <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <MotionReveal>
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/82 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
+          <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0">
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
                 Leads
               </p>
@@ -68,22 +68,22 @@ export default async function LeadsPage({
               </Link>
             ))}
           </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-4">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             {["品牌", "狀態", "來源"].map((label) => (
-              <div key={label} className="rounded-2xl bg-[#fff6f0] p-4">
+              <div key={label} className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
                   {label}
                 </p>
-                <p className="mt-2 text-sm font-semibold text-[#5a2348]">
+                <p className="mt-2 break-words text-sm font-semibold text-[#5a2348]">
                   篩選器準備中
                 </p>
               </div>
             ))}
-            <div className="rounded-2xl bg-[#fff6f0] p-4">
+            <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
               <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
                 目前期間
               </p>
-              <p className="mt-2 text-sm font-semibold text-[#5a2348]">
+              <p className="mt-2 break-words text-sm font-semibold text-[#5a2348]">
                 {range.label}
               </p>
             </div>
@@ -97,14 +97,14 @@ export default async function LeadsPage({
         </MotionReveal>
 
         <MotionReveal delay={0.12}>
-        <section className="alyssa-premium-card mt-6 p-5">
-          <div className="flex items-end justify-between gap-4">
+        <section className="alyssa-premium-card mt-6 min-w-0 p-5">
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <h2 className="text-xl font-bold text-[#321428]">Lead feed</h2>
             <p className="text-sm font-semibold text-[#7b5a6a]">
               顯示最新 100 筆登記
             </p>
           </div>
-          <div className="mt-4 overflow-x-auto">
+          <div className="mt-4 max-w-full overflow-x-auto">
             <table className="alyssa-table min-w-[1180px] text-left text-sm">
               <thead>
                 <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
