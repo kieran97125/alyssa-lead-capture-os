@@ -31,7 +31,14 @@ export default async function LandingPageConfigPage({
 
   if (!editorData) notFound();
 
-  const { page, canPersist, statusMessage, source } = editorData;
+  const {
+    page,
+    canPersist,
+    statusMessage,
+    source,
+    latestDraftVersionNumber,
+    publishedVersionNumber,
+  } = editorData;
   const context = getLandingPageContext(page);
   const previewUrl = `/lp/${page.slug}`;
   const actionMessage =
@@ -103,16 +110,16 @@ export default async function LandingPageConfigPage({
               )}
             </div>
             <div className="flex flex-wrap gap-2">
-              <form action={saveLandingPageDraftAction}>
-                <input type="hidden" name="pageId" value={page.id} />
+              <div>
                 <button
                   type="submit"
+                  form="landing-page-editor-form"
                   disabled={!canPersist}
                   className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:bg-[#d8c5bc] disabled:shadow-none"
                 >
                   Save Draft
                 </button>
-              </form>
+              </div>
               <form action={publishLandingPageAction}>
                 <input type="hidden" name="pageId" value={page.id} />
                 <button
@@ -130,18 +137,49 @@ export default async function LandingPageConfigPage({
             field editing, version history UI, upload, and auth-based publishing
             permissions remain future builder work.
           </p>
+          <div className="mt-4 grid gap-3 md:grid-cols-5">
+            <PreviewInfo label="Current status" value={page.status} />
+            <PreviewInfo
+              label="Latest draft"
+              value={
+                latestDraftVersionNumber
+                  ? `Version ${latestDraftVersionNumber}`
+                  : "No draft saved yet"
+              }
+            />
+            <PreviewInfo
+              label="Published version"
+              value={
+                publishedVersionNumber
+                  ? `Version ${publishedVersionNumber}`
+                  : "Not published yet"
+              }
+            />
+            <PreviewInfo label="Published at" value={formatDate(page.publishedAt)} />
+            <PreviewInfo label="Public URL" value={previewUrl} />
+          </div>
+          <p className="mt-4 text-xs font-semibold leading-5 text-[#7b5a6a]">
+            Marketers can prepare drafts here. Manager / admin / owner publish
+            permissions will be enforced after Supabase Auth replaces the temporary
+            Basic Auth outer gate.
+          </p>
         </section>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_390px]">
-          <div className="grid gap-6">
+          <form
+            id="landing-page-editor-form"
+            action={saveLandingPageDraftAction}
+            className="grid gap-6"
+          >
+            <input type="hidden" name="pageId" value={page.id} />
             <EditorSection
               eyebrow="Basic"
               title="基本設定"
               description="頁面識別、slug、狀態同測試 readiness。"
             >
               <div className="grid gap-4 md:grid-cols-2">
-                <TextField label="Page title" value={page.title} />
-                <TextField label="Slug" value={page.slug} />
+                <TextField label="Page title" value={page.title} name="title" />
+                <TextField label="Slug" value={page.slug} readOnly />
                 <SelectField
                   label="Status"
                   value={page.status}
@@ -153,6 +191,7 @@ export default async function LandingPageConfigPage({
                   options={["form_only", "landing_page"]}
                 />
                 <TextField label="Testing readiness" value={readinessLabel(page.testingStatus)} />
+                <input type="hidden" name="testingStatus" value={page.testingStatus} />
                 <TextField label="Public URL" value={previewUrl} />
               </div>
             </EditorSection>
@@ -163,6 +202,7 @@ export default async function LandingPageConfigPage({
               description="選擇 campaign page 結構。完整 template switching 會在 builder 階段加入。"
             >
               <div className="grid gap-3 lg:grid-cols-2">
+                <input type="hidden" name="templateName" value={page.templateName} />
                 {landingPageTemplates.map((template) => (
                   <TemplateCard
                     key={template.id}
@@ -186,9 +226,9 @@ export default async function LandingPageConfigPage({
               description="Public landing page 第一屏的主標題、subcopy 同 visual。"
             >
               <div className="grid gap-4">
-                <TextField label="Hero title" value={page.heroTitle} />
-                <TextAreaField label="Hero subtitle" value={page.heroSubtitle} />
-                <TextField label="Hero image URL" value={page.heroImageUrl} />
+                <TextField label="Hero title" value={page.heroTitle} name="heroTitle" />
+                <TextAreaField label="Hero subtitle" value={page.heroSubtitle} name="heroSubtitle" />
+                <TextField label="Hero image URL" value={page.heroImageUrl} readOnly />
               </div>
             </EditorSection>
 
@@ -201,6 +241,7 @@ export default async function LandingPageConfigPage({
                 {landingPageImageSlots.map((slot) => (
                   <ImageSlotCard
                     key={slot.key}
+                    name={slot.key}
                     label={slot.label}
                     recommendedType={slot.recommendedType}
                     ratio={slot.ratio}
@@ -216,11 +257,11 @@ export default async function LandingPageConfigPage({
               description="Offer block、badge、主 CTA 同次要 CTA。"
             >
               <div className="grid gap-4 md:grid-cols-2">
-                <TextField label="Offer badge" value={page.offerBadge} />
-                <TextField label="Offer headline" value={page.offerHeadline} />
-                <TextAreaField label="Offer body" value={page.offerBody} wide />
-                <TextField label="Primary CTA" value={page.ctaText} />
-                <TextField label="Secondary CTA" value={page.secondaryCtaText} />
+                <TextField label="Offer badge" value={page.offerBadge} name="offerBadge" />
+                <TextField label="Offer headline" value={page.offerHeadline} name="offerHeadline" />
+                <TextAreaField label="Offer body" value={page.offerBody} name="offerBody" wide />
+                <TextField label="Primary CTA" value={page.ctaText} name="ctaText" />
+                <TextField label="Secondary CTA" value={page.secondaryCtaText} name="secondaryCtaText" />
               </div>
             </EditorSection>
 
@@ -230,9 +271,22 @@ export default async function LandingPageConfigPage({
               description="用於快速測試市場角度同 offer resonance。"
             >
               <div className="grid gap-5 lg:grid-cols-2">
-                <Repeater title="Pain points" items={page.painPoints} />
-                <Repeater title="Benefits" items={page.benefits} />
+                <Repeater title="Pain points" items={page.painPoints} name="painPoints" />
+                <Repeater title="Benefits" items={page.benefits} name="benefits" />
               </div>
+            </EditorSection>
+
+            <EditorSection
+              eyebrow="Sections"
+              title="Campaign sections"
+              description="Structured campaign story blocks shown on the public landing page."
+            >
+              <StructuredRepeater
+                title="Landing page sections"
+                titleName="sectionTitles"
+                bodyName="sectionBodies"
+                items={page.sections}
+              />
             </EditorSection>
 
             <EditorSection
@@ -264,13 +318,15 @@ export default async function LandingPageConfigPage({
             >
               <div className="grid gap-5 lg:grid-cols-2">
                 <StructuredRepeater
+                  titleName="processStepTitles"
+                  bodyName="processStepBodies"
                   title="Process"
                   items={page.processSteps.map((step) => ({
                     title: step.title,
                     body: step.body,
                   }))}
                 />
-                <Repeater title="Trust cues" items={page.trustItems} />
+                <Repeater title="Trust cues" items={page.trustItems} name="trustItems" />
               </div>
             </EditorSection>
 
@@ -280,6 +336,8 @@ export default async function LandingPageConfigPage({
               description="常見問題會顯示在 public landing page 底部。"
             >
               <StructuredRepeater
+                titleName="faqQuestions"
+                bodyName="faqAnswers"
                 title="FAQ questions / answers"
                 items={page.faqs.map((faq) => ({
                   title: faq.question,
@@ -340,7 +398,7 @@ export default async function LandingPageConfigPage({
                 />
               </div>
             </EditorSection>
-          </div>
+          </form>
 
           <PreviewPanel
             page={page}
@@ -396,9 +454,13 @@ function EditorSection({
 function TextField({
   label,
   value,
+  name,
+  readOnly = false,
 }: {
   label: string;
   value: string;
+  name?: string;
+  readOnly?: boolean;
 }) {
   return (
     <label className="block">
@@ -406,9 +468,10 @@ function TextField({
         {label}
       </span>
       <input
-        readOnly
-        value={value}
-        className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none"
+        name={name}
+        readOnly={readOnly || !name}
+        defaultValue={value}
+        className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
       />
     </label>
   );
@@ -418,10 +481,14 @@ function TextAreaField({
   label,
   value,
   wide = false,
+  name,
+  readOnly = false,
 }: {
   label: string;
   value: string;
   wide?: boolean;
+  name?: string;
+  readOnly?: boolean;
 }) {
   return (
     <label className={`block ${wide ? "md:col-span-2" : ""}`}>
@@ -429,10 +496,11 @@ function TextAreaField({
         {label}
       </span>
       <textarea
-        readOnly
-        value={value}
+        name={name}
+        readOnly={readOnly || !name}
+        defaultValue={value}
         rows={4}
-        className="mt-2 w-full resize-none rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold leading-6 text-[#5a2348] outline-none"
+        className="mt-2 w-full resize-none rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold leading-6 text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
       />
     </label>
   );
@@ -499,11 +567,13 @@ function WorkflowCard({ title, body }: { title: string; body: string }) {
 }
 
 function ImageSlotCard({
+  name,
   label,
   recommendedType,
   ratio,
   value,
 }: {
+  name: string;
   label: string;
   recommendedType: string;
   ratio: string;
@@ -536,6 +606,7 @@ function ImageSlotCard({
         <TextField label="Image slot" value={label} />
         <TextField label="Recommended image type" value={recommendedType} />
         <TextField label="Recommended ratio" value={ratio} />
+        <TextField label="Editable image URL" value={value} name={name} />
         <TextField label="Current image URL" value={value || "尚未設定，會使用 premium placeholder"} />
       </div>
       <p className="mt-3 text-xs font-semibold leading-5 text-[#7b5a6a]">
@@ -545,13 +616,26 @@ function ImageSlotCard({
   );
 }
 
-function Repeater({ title, items }: { title: string; items: string[] }) {
+function Repeater({
+  title,
+  items,
+  name,
+}: {
+  title: string;
+  items: string[];
+  name: string;
+}) {
   return (
     <div>
       <h3 className="font-bold text-[#321428]">{title}</h3>
       <div className="mt-3 grid gap-3">
         {items.map((item, index) => (
-          <TextField key={`${title}-${index}`} label={`Item ${index + 1}`} value={item} />
+          <TextField
+            key={`${title}-${index}`}
+            label={`Item ${index + 1}`}
+            value={item}
+            name={name}
+          />
         ))}
       </div>
     </div>
@@ -561,9 +645,13 @@ function Repeater({ title, items }: { title: string; items: string[] }) {
 function StructuredRepeater({
   title,
   items,
+  titleName,
+  bodyName,
 }: {
   title: string;
   items: Array<{ title: string; body: string }>;
+  titleName: string;
+  bodyName: string;
 }) {
   return (
     <div>
@@ -571,9 +659,17 @@ function StructuredRepeater({
       <div className="mt-3 grid gap-4">
         {items.map((item, index) => (
           <div key={`${title}-${index}`} className="rounded-2xl bg-[#fff6f0] p-4">
-            <TextField label={`Title ${index + 1}`} value={item.title} />
+            <TextField
+              label={`Title ${index + 1}`}
+              value={item.title}
+              name={titleName}
+            />
             <div className="mt-3">
-              <TextAreaField label={`Body ${index + 1}`} value={item.body} />
+              <TextAreaField
+                label={`Body ${index + 1}`}
+                value={item.body}
+                name={bodyName}
+              />
             </div>
           </div>
         ))}

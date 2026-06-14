@@ -49,6 +49,8 @@ export type LandingPageEditorData = {
   source: "supabase" | "local_config";
   canPersist: boolean;
   statusMessage: string;
+  latestDraftVersionNumber: number | null;
+  publishedVersionNumber: number | null;
 };
 
 export type LandingPageMutationResult = {
@@ -57,6 +59,10 @@ export type LandingPageMutationResult = {
   message: string;
   page?: LandingPageConfig;
   versionNumber?: number;
+};
+
+export type LandingPageDraftMeta = {
+  title?: string;
 };
 
 const uuidPattern =
@@ -402,6 +408,28 @@ export async function getPublishedLandingPageBySlug(slug: string) {
 export async function getLandingPageEditorData(
   pageId: string
 ): Promise<LandingPageEditorData | null> {
+  if (hasSupabaseAdminEnv()) {
+    const row = await findLandingPageRow(pageId);
+    if (row) {
+      const latestDraft = await getLatestVersion(row.id, "draft");
+      const publishedVersion = row.published_version_id
+        ? await getVersionById(row.published_version_id)
+        : await getLatestVersion(row.id, "published");
+      const latestVersion = latestDraft ?? (await getLatestVersion(row.id));
+      const page = rowToConfig(row, latestVersion);
+
+      return {
+        page,
+        source: "supabase",
+        canPersist: true,
+        statusMessage:
+          "DB-backed save / publish is available for this landing page.",
+        latestDraftVersionNumber: latestDraft?.version_number ?? null,
+        publishedVersionNumber: publishedVersion?.version_number ?? null,
+      };
+    }
+  }
+
   const page = await getLandingPageById(pageId);
   if (!page) return null;
 
@@ -414,6 +442,8 @@ export async function getLandingPageEditorData(
     statusMessage: canPersist
       ? "DB-backed save / publish is available for this landing page."
       : "Local config fallback is active. Apply the landing page builder migration before saving drafts or publishing.",
+    latestDraftVersionNumber: null,
+    publishedVersionNumber: null,
   };
 }
 
@@ -461,7 +491,8 @@ export async function getLandingPageList() {
 export async function saveLandingPageDraft(
   pageId: string,
   content: LandingPageContent,
-  imageAssets: LandingPageImageAssets
+  imageAssets: LandingPageImageAssets,
+  meta: LandingPageDraftMeta = {}
 ): Promise<LandingPageMutationResult> {
   const row = await findLandingPageRow(pageId);
   if (!row || !hasSupabaseAdminEnv()) {
@@ -498,7 +529,8 @@ export async function saveLandingPageDraft(
   const { error: pageError } = await supabase
     .from("landing_pages")
     .update({
-      status: "draft",
+      title: meta.title ?? row.title,
+      status: row.published_version_id ? row.status : "draft",
       content_json: content,
       image_assets_json: imageAssets,
       updated_at: new Date().toISOString(),
