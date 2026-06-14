@@ -7,6 +7,45 @@ import {
 } from "@/lib/data/alyssaConfig";
 
 export type LandingPageMode = "form_only" | "landing_page";
+export type LandingPageStatus = "draft" | "active" | "paused" | "published" | "archived";
+
+export type LandingPageContent = {
+  templateName: string;
+  testingStatus: "foundation" | "ready_for_testing";
+  heroTitle: string;
+  heroSubtitle: string;
+  offerBadge: string;
+  offerHeadline: string;
+  offerBody: string;
+  ctaText: string;
+  secondaryCtaText: string;
+  painPoints: string[];
+  benefits: string[];
+  trustItems: string[];
+  sections: Array<{
+    title: string;
+    body: string;
+  }>;
+  processSteps: Array<{
+    title: string;
+    body: string;
+  }>;
+  faqs: Array<{
+    question: string;
+    answer: string;
+  }>;
+};
+
+export type LandingPageImageAssets = {
+  heroImageUrl: string;
+  mobileHeroImageUrl: string;
+  offerImageUrl: string;
+  treatmentImageUrl: string;
+  processImage1Url: string;
+  processImage2Url: string;
+  processImage3Url: string;
+  trustImageUrl: string;
+};
 
 export type LandingPageConfig = {
   id: string;
@@ -19,7 +58,7 @@ export type LandingPageConfig = {
   formId: string;
   formToken: string;
   mode: LandingPageMode;
-  status: "draft" | "active" | "paused";
+  status: LandingPageStatus;
   testingStatus: "foundation" | "ready_for_testing";
   templateName: string;
   heroTitle: string;
@@ -54,6 +93,9 @@ export type LandingPageConfig = {
   }>;
   createdAt: string;
   updatedAt: string;
+  publishedAt?: string | null;
+  latestVersionNumber?: number | null;
+  builderSource?: "local_config" | "supabase";
 };
 
 export const alyssaLandingPages: LandingPageConfig[] = [

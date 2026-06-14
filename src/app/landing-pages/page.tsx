@@ -2,11 +2,13 @@ import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import {
-  alyssaLandingPages,
   getLandingPageImageStatus,
   getLandingPageContext,
   type LandingPageConfig,
 } from "@/lib/data/landingPages";
+import { getLandingPageList } from "@/lib/data/landingPageStore";
+
+export const dynamic = "force-dynamic";
 
 function formatPrice(page: LandingPageConfig) {
   const context = getLandingPageContext(page);
@@ -24,7 +26,18 @@ function testingLabel(status: LandingPageConfig["testingStatus"]) {
   return status === "ready_for_testing" ? "可開始測試" : "Foundation";
 }
 
-export default function LandingPagesPage() {
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Not published";
+
+  return new Intl.DateTimeFormat("zh-HK", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
+
+export default async function LandingPagesPage() {
+  const { pages, source, canPersist } = await getLandingPageList();
+
   return (
     <main className="alyssa-shell">
       <AppNav showInternalWarning />
@@ -75,11 +88,11 @@ export default function LandingPagesPage() {
               </p>
             </div>
             <span className="w-fit rounded-full bg-[#fff6f0] px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#9a5d76]">
-              {alyssaLandingPages.length} config
+              {pages.length} {source === "supabase" ? "DB-backed" : "local config"}
             </span>
           </div>
           <div className="grid gap-5">
-            {alyssaLandingPages.map((page, index) => {
+            {pages.map((page, index) => {
               const context = getLandingPageContext(page);
               const previewUrl = `/lp/${page.slug}`;
 
@@ -92,6 +105,9 @@ export default function LandingPagesPage() {
                         <StatusPill>{modeLabel(page.mode)}</StatusPill>
                         <StatusPill>{testingLabel(page.testingStatus)}</StatusPill>
                         <StatusPill>{page.status}</StatusPill>
+                        <StatusPill>
+                          {canPersist ? "Save / publish ready" : "Migration required"}
+                        </StatusPill>
                       </div>
                       <h3 className="mt-4 text-2xl font-bold text-[#321428]">
                         {page.title}
@@ -105,6 +121,8 @@ export default function LandingPagesPage() {
                         <InfoCell label="Brand" value={context.brand?.name ?? "未設定"} />
                         <InfoCell label="Treatment" value={context.treatment?.name ?? "未設定"} />
                         <InfoCell label="Package / price" value={formatPrice(page)} />
+                        <InfoCell label="Last updated" value={formatDate(page.updatedAt)} />
+                        <InfoCell label="Published at" value={formatDate(page.publishedAt)} />
                         <InfoCell label="Branch" value={context.branch?.name ?? "未設定"} />
                         <InfoCell label="圖片素材" value={getLandingPageImageStatus(page)} />
                       </dl>

@@ -3,27 +3,39 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { MotionReveal } from "@/components/alyssa/MotionReveal";
+import {
+  publishLandingPageAction,
+  saveLandingPageDraftAction,
+} from "@/app/landing-pages/[pageId]/actions";
 import { landingPageTemplates } from "@/lib/data/configuration";
 import {
-  getLandingPageById,
   getLandingPageContext,
   getLandingPageImageUrl,
   landingPageImageSlots,
   type LandingPageConfig,
 } from "@/lib/data/landingPages";
+import { getLandingPageEditorData } from "@/lib/data/landingPageStore";
+
+export const dynamic = "force-dynamic";
 
 export default async function LandingPageConfigPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ pageId: string }>;
+  searchParams?: Promise<{ builder_status?: string | string[] }>;
 }) {
   const { pageId } = await params;
-  const page = getLandingPageById(pageId);
+  const query = await searchParams;
+  const editorData = await getLandingPageEditorData(pageId);
 
-  if (!page) notFound();
+  if (!editorData) notFound();
 
+  const { page, canPersist, statusMessage, source } = editorData;
   const context = getLandingPageContext(page);
   const previewUrl = `/lp/${page.slug}`;
+  const actionMessage =
+    typeof query?.builder_status === "string" ? query.builder_status : null;
   const price = context.package ? `HK$${context.package.promoPrice}` : "未設定";
 
   return (
@@ -72,6 +84,54 @@ export default async function LandingPageConfigPage({
           landing page 仍使用現有 config，表格提交同 UTM 擷取流程保持不變。
         </section>
 
+        <section className="alyssa-premium-card mt-6 p-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                Save / Publish V1
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-[#321428]">
+                DB-backed draft and publish workflow
+              </h2>
+              <p className="mt-2 text-sm font-semibold leading-6 text-[#6d4a5c]">
+                Source: {source}. {statusMessage}
+              </p>
+              {actionMessage && (
+                <p className="mt-3 rounded-2xl border border-[#d9b66f] bg-[#fff6f0] px-4 py-3 text-sm font-bold text-[#5a2348]">
+                  {actionMessage}
+                </p>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <form action={saveLandingPageDraftAction}>
+                <input type="hidden" name="pageId" value={page.id} />
+                <button
+                  type="submit"
+                  disabled={!canPersist}
+                  className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:bg-[#d8c5bc] disabled:shadow-none"
+                >
+                  Save Draft
+                </button>
+              </form>
+              <form action={publishLandingPageAction}>
+                <input type="hidden" name="pageId" value={page.id} />
+                <button
+                  type="submit"
+                  disabled={!canPersist}
+                  className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:text-[#9b8c86]"
+                >
+                  Publish
+                </button>
+              </form>
+            </div>
+          </div>
+          <p className="mt-4 text-xs font-semibold leading-5 text-[#7b5a6a]">
+            V1 saves the current page-level content JSON and image asset JSON. Full
+            field editing, version history UI, upload, and auth-based publishing
+            permissions remain future builder work.
+          </p>
+        </section>
+
         <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_390px]">
           <div className="grid gap-6">
             <EditorSection
@@ -85,7 +145,7 @@ export default async function LandingPageConfigPage({
                 <SelectField
                   label="Status"
                   value={page.status}
-                  options={["draft", "active", "paused"]}
+                  options={["draft", "published", "archived"]}
                 />
                 <SelectField
                   label="Mode"
@@ -250,6 +310,9 @@ export default async function LandingPageConfigPage({
                 <TextField label="Preview URL" value={previewUrl} />
                 <TextField label="Public URL" value={previewUrl} />
                 <TextField label="Publish status" value={page.status} />
+                <TextField label="Last updated" value={formatDate(page.updatedAt)} />
+                <TextField label="Published at" value={formatDate(page.publishedAt)} />
+                <TextField label="Builder source" value={source} />
               </div>
             </EditorSection>
 
@@ -290,6 +353,15 @@ export default async function LandingPageConfigPage({
       </div>
     </main>
   );
+}
+
+function formatDate(value: string | null | undefined) {
+  if (!value) return "Not published";
+
+  return new Intl.DateTimeFormat("zh-HK", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
 }
 
 function readinessLabel(status: LandingPageConfig["testingStatus"]) {

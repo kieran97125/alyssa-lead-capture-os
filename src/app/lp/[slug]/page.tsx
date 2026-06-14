@@ -2,10 +2,10 @@ import { notFound } from "next/navigation";
 import Script from "next/script";
 import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
 import { getEmbedScriptUrl } from "@/lib/data/appUrl";
-import {
-  getLandingPageBySlug,
-  getLandingPageContext,
-} from "@/lib/data/landingPages";
+import { getLandingPageContext } from "@/lib/data/landingPages";
+import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
+
+export const dynamic = "force-dynamic";
 
 export default async function PublicLandingPage({
   params,
@@ -13,7 +13,7 @@ export default async function PublicLandingPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const page = getLandingPageBySlug(slug);
+  const page = await getPublishedLandingPageBySlug(slug);
 
   if (!page) notFound();
 

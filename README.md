@@ -152,6 +152,28 @@ Draft SQL direction is documented in:
 supabase/drafts/20260614000200_landing_page_builder_foundation.sql
 ```
 
+## Landing Page Save / Publish V1
+
+Landing Page Save / Publish V1 promotes the builder plan into a real Supabase migration:
+
+```text
+supabase/migrations/20260614000200_create_landing_page_builder.sql
+```
+
+The migration creates:
+
+- `landing_pages` - one record per campaign page, including slug, title, brand, treatment, package, branch, form, template, mode, status, current content JSON, image asset JSON, published version reference, publish timestamp, and audit timestamps.
+- `landing_page_versions` - draft / published version records for page-level content JSON and image asset JSON.
+
+The V1 workflow is intentionally structured rather than drag-and-drop:
+
+- Save draft: writes the current page-level content and image asset JSON into `landing_page_versions` with `status = 'draft'`, then updates the parent `landing_pages` row as draft.
+- Publish: publishes the latest draft when available, updates `landing_pages.status = 'published'`, sets `published_version_id`, and updates `published_at`.
+- Public render: `/lp/[slug]` prefers Supabase published content and falls back to local config if Supabase env vars or builder tables are unavailable.
+- Internal editor: `/landing-pages/[pageId]` shows Save Draft / Publish controls only as DB-backed actions when the migration is applied; otherwise it clearly stays in local config fallback mode.
+
+Apply the migration in Supabase SQL editor or through your migration workflow before expecting Save Draft / Publish to persist. The current editor still uses read-only prefilled fields; full field editing, media upload, version history UI, draft preview URLs, and auth-based publish permissions remain future builder work.
+
 ## Landing Page Image Asset Strategy
 
 Landing page mode uses structured image slots so marketers can prepare premium medical beauty / wellness assets for campaign testing. Images should support trust, desire, treatment value, and booking confidence without replacing the full Wix website.
