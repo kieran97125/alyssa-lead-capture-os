@@ -7,143 +7,131 @@ import {
   type LandingPageConfig,
 } from "@/lib/data/landingPages";
 import { getLandingPageList } from "@/lib/data/landingPageStore";
+import {
+  getConfigurationData,
+  getPackage,
+  packagePriceLabel,
+  type FormSetting,
+} from "@/lib/data/configuration";
 
 export const dynamic = "force-dynamic";
 
-function formatPrice(page: LandingPageConfig) {
-  const context = getLandingPageContext(page);
-  const selectedPackage = context.package;
-
-  if (!selectedPackage) return "未設定";
-  return `${selectedPackage.name} · HK$${selectedPackage.promoPrice}`;
-}
-
 function modeLabel(mode: LandingPageConfig["mode"]) {
-  return mode === "landing_page" ? "廣告落地頁" : "Wix 表格嵌入";
+  return mode === "landing_page" ? "Landing Page" : "Wix 表格";
 }
 
-function testingLabel(status: LandingPageConfig["testingStatus"]) {
-  return status === "ready_for_testing" ? "可開始測試" : "目前可查看";
+function statusLabel(status: LandingPageConfig["status"]) {
+  if (status === "published") return "已發布";
+  if (status === "draft") return "草稿";
+  if (status === "active") return "啟用中";
+  if (status === "paused") return "已暫停";
+  if (status === "archived") return "已封存";
+  return status;
 }
 
-function formatDate(value: string | null | undefined) {
-  if (!value) return "未發布";
-
-  return new Intl.DateTimeFormat("zh-HK", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+function findConnectedForm(page: LandingPageConfig, forms: FormSetting[]) {
+  return (
+    forms.find((form) => form.id === page.formId) ??
+    forms.find((form) => form.publicFormToken === page.formToken) ??
+    null
+  );
 }
 
 export default async function LandingPagesPage() {
-  const { pages, canPersist } = await getLandingPageList();
+  const [{ pages }, config] = await Promise.all([
+    getLandingPageList(),
+    getConfigurationData(),
+  ]);
 
   return (
     <main className="alyssa-shell">
       <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
-        <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-                Landing Pages
-              </p>
-              <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                Landing Page 管理
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                建立簡單廣告落地頁，快速測試新療程、新優惠同新文案角度。
-              </p>
-            </div>
-            <Link
-              href="/settings/templates"
-              className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
-            >
-              查看模板設定
-            </Link>
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="alyssa-kicker">Landing Pages</p>
+            <h1 className="mt-2 text-3xl font-bold text-[#321428]">
+              Landing Page 管理
+            </h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
+              管理廣告落地頁，快速測試療程、優惠、圖片及文案角度。
+            </p>
           </div>
-        </section>
+          <Link
+            href="/settings/templates"
+            className="w-fit rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
+          >
+            查看版型
+          </Link>
+        </header>
 
-        <section className="mt-6">
-          <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-            <div>
-              <h2 className="text-xl font-bold text-[#321428]">廣告落地頁</h2>
-              <p className="mt-1 text-sm text-[#6d4a5c]">
-                目前可查看和準備內容；更完整的版型管理稍後加入。
-              </p>
-            </div>
-            <span className="w-fit rounded-full bg-[#fff6f0] px-4 py-2 text-xs font-bold uppercase tracking-[0.14em] text-[#9a5d76]">
-              {pages.length} {canPersist ? "可儲存及發布" : "目前只可查看"}
-            </span>
-          </div>
-          <div className="grid gap-5">
-            {pages.map((page, index) => {
-              const context = getLandingPageContext(page);
-              const previewUrl = `/lp/${page.slug}`;
+        <section className="mt-6 grid gap-5">
+          {pages.map((page, index) => {
+            const context = getLandingPageContext(page);
+            const selectedPackage =
+              getPackage(config, page.packageId) ?? config.packages.find((item) => item.id === context.package?.id);
+            const connectedForm = findConnectedForm(page, config.forms);
+            const previewUrl = `/lp/${page.slug}`;
 
-              return (
-                <MotionReveal key={page.id} delay={0.05 + index * 0.07}>
+            return (
+              <MotionReveal key={page.id} delay={0.04 + index * 0.06}>
                 <article className="alyssa-premium-card alyssa-interactive-card min-w-0 p-5">
-                  <div className="grid min-w-0 gap-5 xl:grid-cols-[1.05fr_0.95fr]">
+                  <div className="grid min-w-0 gap-5 xl:grid-cols-[1fr_0.78fr]">
                     <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
                         <StatusPill>{modeLabel(page.mode)}</StatusPill>
-                        <StatusPill>{testingLabel(page.testingStatus)}</StatusPill>
-                        <StatusPill>{page.status}</StatusPill>
-                        <StatusPill>
-                          {canPersist ? "可儲存及發布" : "目前只可查看"}
-                        </StatusPill>
+                        <StatusPill>{statusLabel(page.status)}</StatusPill>
+                        <StatusPill>{getLandingPageImageStatus(page)}</StatusPill>
                       </div>
-                      <h3 className="mt-4 text-2xl font-bold text-[#321428]">
+                      <h2 className="mt-4 text-2xl font-bold text-[#321428]">
                         {page.title}
-                      </h3>
+                      </h2>
                       <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
                         {page.heroSubtitle}
                       </p>
-                      <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-                        <InfoCell label="網址代號" value={page.slug} mono />
-                        <InfoCell label="版型" value={page.templateName} />
+                      <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        <InfoCell label="公開路徑" value={page.slug} mono />
                         <InfoCell label="品牌" value={context.brand?.name ?? "未設定"} />
                         <InfoCell label="療程" value={context.treatment?.name ?? "未設定"} />
-                        <InfoCell label="套餐 / 價錢" value={formatPrice(page)} />
-                        <InfoCell label="最後更新" value={formatDate(page.updatedAt)} />
-                        <InfoCell label="發布時間" value={formatDate(page.publishedAt)} />
+                        <InfoCell label="套餐 / 價錢" value={packagePriceLabel(selectedPackage)} />
                         <InfoCell label="分店" value={context.branch?.name ?? "未設定"} />
-                        <InfoCell label="圖片素材" value={getLandingPageImageStatus(page)} />
+                        <InfoCell
+                          label="連接表格"
+                          value={connectedForm?.formName ?? page.formToken}
+                        />
                       </dl>
                     </div>
 
-                    <div className="min-w-0 rounded-[20px] bg-[#fff6f0] p-5">
-                      <h4 className="text-lg font-bold text-[#321428]">
-                        登記表格連接
-                      </h4>
+                    <div className="min-w-0 rounded-[22px] bg-[#fff6f0] p-4">
+                      <p className="text-sm font-bold text-[#321428]">快速操作</p>
                       <dl className="mt-4 grid gap-3">
-                        <InfoCell label="表格代號" value={page.formId} mono />
-                        <InfoCell label="公開表格代號" value={page.formToken} mono />
-                        <InfoCell label="預覽連結" value={previewUrl} mono />
-                        <InfoCell label="公開連結" value={previewUrl} mono />
+                        <InfoCell
+                          label="表格代號"
+                          value={connectedForm?.publicFormToken ?? page.formToken}
+                          mono
+                        />
+                        <InfoCell label="公開頁" value={previewUrl} mono />
                       </dl>
                       <div className="mt-5 flex flex-wrap gap-2">
                         <Link
                           href={`/landing-pages/${page.id}`}
-                          className="alyssa-focus rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]"
+                          className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]"
                         >
-                          編輯內容
+                          編輯 Landing Page
                         </Link>
                         <Link
                           href={previewUrl}
                           className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
                         >
-                          開啟預覽
+                          開啟公開頁
                         </Link>
                       </div>
                     </div>
                   </div>
                 </article>
-                </MotionReveal>
-              );
-            })}
-          </div>
+              </MotionReveal>
+            );
+          })}
         </section>
       </div>
     </main>
@@ -152,7 +140,7 @@ export default async function LandingPagesPage() {
 
 function StatusPill({ children }: { children: string }) {
   return (
-    <span className="min-w-0 rounded-full border border-[#ead9cf] bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
+    <span className="rounded-full border border-[#ead9cf] bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
       {children}
     </span>
   );

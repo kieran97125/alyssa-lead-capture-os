@@ -174,6 +174,22 @@ The V1 workflow is intentionally structured rather than drag-and-drop:
 
 Apply the migration in Supabase SQL editor or through your migration workflow before expecting Save Draft / Publish to persist. The current editor still uses read-only prefilled fields; full field editing, media upload, version history UI, draft preview URLs, and auth-based publish permissions remain future builder work.
 
+## Multi-form Management
+
+Alyssa Lead Capture OS supports multiple reusable registration forms per brand.
+
+- Forms share one unified visual style in `/embed/[formToken]`.
+- Each form has its own `public_form_token` and Wix embed code.
+- A form can be embedded directly in Wix or connected to a Landing Page campaign.
+- Forms differ by business configuration: brand, treatment, package, branch, allowed domains, and status.
+- Creating or duplicating a form generates a new safe token in the format `alyssa-[slug]-form-[shortid]`.
+- Duplicate form copies configuration only, creates a new form token, and does not copy leads or submissions.
+- Unused forms can simply be left unused for now.
+- Archive, delete, and re-enable workflows are not part of V1.
+- Existing leads remain unchanged when form settings are edited.
+
+This keeps form management flexible without creating per-form style systems or a visual form builder.
+
 ## Landing Page Image Asset Strategy
 
 Landing page mode uses structured image slots so marketers can prepare premium medical beauty / wellness assets for campaign testing. Images should support trust, desire, treatment value, and booking confidence without replacing the full Wix website.

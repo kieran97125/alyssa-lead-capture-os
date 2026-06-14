@@ -61,6 +61,8 @@ export type FormSetting = {
   defaultTreatmentId: string | null;
   defaultPackageId: string | null;
   defaultBranchId: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
 };
 
 export type LandingPageTemplate = {
@@ -170,6 +172,8 @@ function localConfiguration(): ConfigurationData {
         defaultTreatmentId: alyssaDefaultForm.defaultTreatmentId,
         defaultPackageId: alyssaDefaultForm.defaultPackageId,
         defaultBranchId: alyssaDefaultForm.defaultBranchId,
+        createdAt: null,
+        updatedAt: null,
       },
     ],
     templates: landingPageTemplates,
@@ -248,7 +252,7 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
         .order("name", { ascending: true }),
       supabase
         .from("forms")
-        .select("id,public_form_token,brand_id,form_name,status,allowed_domains,default_treatment_id,default_package_id,default_branch_id")
+        .select("id,public_form_token,brand_id,form_name,status,allowed_domains,default_treatment_id,default_package_id,default_branch_id,created_at,updated_at")
         .order("form_name", { ascending: true }),
     ]);
 
@@ -329,6 +333,8 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
             typeof row.default_package_id === "string" ? row.default_package_id : null,
           defaultBranchId:
             typeof row.default_branch_id === "string" ? row.default_branch_id : null,
+          createdAt: typeof row.created_at === "string" ? row.created_at : null,
+          updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
         };
       }),
       templates: landingPageTemplates,

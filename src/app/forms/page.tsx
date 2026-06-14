@@ -1,8 +1,10 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AppNav } from "@/components/alyssa/AppNav";
-import { EmbedCodeCard } from "@/components/alyssa/EmbedCodeCard";
-import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
-import { getDefaultEmbedCode, getEmbedScriptUrl } from "@/lib/data/appUrl";
+import { CopyButton } from "@/components/alyssa/CopyButton";
+import { MotionReveal } from "@/components/alyssa/MotionReveal";
+import { duplicateFormAction } from "@/app/forms/actions";
+import { getDefaultEmbedCode } from "@/lib/data/appUrl";
 import {
   getBranch,
   getBrand,
@@ -15,131 +17,143 @@ import {
 
 export const dynamic = "force-dynamic";
 
-function getLinkedLandingPages(form: FormSetting, config: Awaited<ReturnType<typeof getConfigurationData>>) {
+function linkedLandingPages(
+  form: FormSetting,
+  config: Awaited<ReturnType<typeof getConfigurationData>>
+) {
   return config.landingPages.filter(
     (page) => page.formId === form.id || page.formToken === form.publicFormToken
   );
 }
 
-export default async function FormsPage() {
+export default async function FormsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ form_status?: string | string[] }>;
+}) {
   const config = await getConfigurationData();
-  const primaryForm =
-    config.forms.find((form) => form.publicFormToken === alyssaDefaultForm.publicFormToken) ??
-    config.forms[0];
-  const embedCode = primaryForm
-    ? getDefaultEmbedCode(primaryForm.publicFormToken, primaryForm.id)
-    : getDefaultEmbedCode(alyssaDefaultForm.publicFormToken, alyssaDefaultForm.id);
-  const embedScriptUrl = getEmbedScriptUrl();
+  const query = await searchParams;
+  const message =
+    typeof query?.form_status === "string" ? query.form_status : null;
 
   return (
     <main className="alyssa-shell">
       <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-              表格管理
-            </p>
+            <p className="alyssa-kicker">Forms</p>
             <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-              Wix 登記表格
+              登記表格管理
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              這裡用來建立可以放入 Wix 的登記表格。Wix 頁面已有內容時，複製嵌入碼即可；
-              如果要建立完整廣告落地頁，請到 Landing Pages。
+              建立可放入 Wix 或 Landing Page 的登記表格。
             </p>
           </div>
-          <div className="flex flex-wrap gap-2">
-            <Link
-              href="/settings"
-              className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
-            >
-              查看設定中心
-            </Link>
-            <Link
-              href="/embed-preview"
-              className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-sm transition hover:bg-[#d95f55]"
-            >
-              測試 Wix 預覽
-            </Link>
+          <Link
+            href="/forms/new"
+            className="alyssa-focus w-fit rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 hover:bg-[#d95f55]"
+          >
+            建立登記表格
+          </Link>
+        </header>
+
+        {message && (
+          <div className="mt-5 rounded-2xl border border-[#d9b66f] bg-[#fff6f0] px-4 py-3 text-sm font-bold text-[#5a2348]">
+            {message}
           </div>
-        </div>
+        )}
 
-        <section className="mt-7 grid gap-5 xl:grid-cols-[1fr_0.92fr]">
-          <div className="grid gap-5">
-            {config.forms.map((form) => {
-              const brand = getBrand(config, form.brandId);
-              const treatment = getTreatment(config, form.defaultTreatmentId);
-              const selectedPackage = getPackage(config, form.defaultPackageId);
-              const branch = getBranch(config, form.defaultBranchId);
-              const linkedPages = getLinkedLandingPages(form, config);
+        <section className="mt-6 grid gap-5">
+          {config.forms.map((form, index) => {
+            const brand = getBrand(config, form.brandId);
+            const treatment = getTreatment(config, form.defaultTreatmentId);
+            const selectedPackage = getPackage(config, form.defaultPackageId);
+            const branch = getBranch(config, form.defaultBranchId);
+            const pages = linkedLandingPages(form, config);
+            const embedCode = getDefaultEmbedCode(form.publicFormToken, form.id);
 
-              return (
-                <article
-                  key={form.id}
-                  className="alyssa-premium-card min-w-0 p-5"
-                >
-                  <div className="flex min-w-0 flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            return (
+              <MotionReveal key={form.id} delay={0.04 + index * 0.05}>
+                <article className="alyssa-premium-card alyssa-interactive-card min-w-0 p-5">
+                  <div className="grid min-w-0 gap-5 xl:grid-cols-[1fr_0.72fr]">
                     <div className="min-w-0">
-                      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                        {form.status}
-                      </p>
-                      <h2 className="mt-3 text-2xl font-bold text-[#321428]">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <StatusPill>可使用</StatusPill>
+                        <StatusPill>{pages.length} 個 Landing Page</StatusPill>
+                        <StatusPill>{form.allowedDomains.length} 個可用網域</StatusPill>
+                      </div>
+                      <h2 className="mt-4 text-2xl font-bold text-[#321428]">
                         {form.formName}
                       </h2>
-                      <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                        這張表格連接指定品牌、療程、套餐同分店，可放入 Wix 頁面，
-                        亦可連接 Landing Page。
-                      </p>
+                      <div className="mt-4 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
+                        <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                          表格代號
+                        </p>
+                        <p className="mt-2 break-all font-mono text-sm font-bold text-[#5a2348]">
+                          {form.publicFormToken}
+                        </p>
+                      </div>
+                      <dl className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        <InfoCell label="品牌" value={brand?.name ?? "未設定"} />
+                        <InfoCell label="療程" value={treatment?.name ?? "未設定"} />
+                        <InfoCell label="套餐 / 價錢" value={packagePriceLabel(selectedPackage)} />
+                        <InfoCell label="分店" value={branch?.name ?? "未設定"} />
+                        <InfoCell
+                          label="連接 Landing Page"
+                          value={
+                            pages.length > 0
+                              ? pages.map((page) => page.title).join(", ")
+                              : "未連接"
+                          }
+                        />
+                      </dl>
                     </div>
-                    <span className="w-fit rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-800">
-                      可放入 Wix
-                    </span>
-                  </div>
 
-                  <dl className="mt-5 grid gap-3 sm:grid-cols-2">
-                    <InfoCell label="品牌" value={brand?.name ?? "未設定"} />
-                    <InfoCell label="療程" value={treatment?.name ?? "未設定"} />
-                    <InfoCell label="套餐 / 價錢" value={packagePriceLabel(selectedPackage)} />
-                    <InfoCell label="分店" value={branch?.name ?? "未設定"} />
-                    <InfoCell label="表格代號" value={form.publicFormToken} mono />
-                    <InfoCell
-                      label="允許嵌入網域"
-                      value={form.allowedDomains.length > 0 ? form.allowedDomains.join(", ") : "未設定"}
-                    />
-                    <InfoCell
-                      label="已連接 Landing Pages"
-                      value={linkedPages.length > 0 ? linkedPages.map((page) => page.title).join(", ") : "未有關聯"}
-                    />
-                    <InfoCell label="Wix 嵌入程式" value={embedScriptUrl} mono />
-                  </dl>
-
-                  <div className="mt-5 flex flex-wrap gap-3">
-                    <Link
-                      href={`/forms/${form.id}`}
-                      className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
-                    >
-                      開啟詳情
-                    </Link>
-                    <Link
-                      href={`/embed/${form.publicFormToken}`}
-                      className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
-                    >
-                      預覽表格
-                    </Link>
+                    <div className="min-w-0 rounded-[22px] bg-[#fff6f0] p-4">
+                      <p className="text-sm font-bold text-[#321428]">快速操作</p>
+                      <div className="mt-4 grid gap-2">
+                        <Link
+                          href={`/forms/${form.id}`}
+                          className="rounded-full bg-[#5a2348] px-4 py-2.5 text-center text-sm font-bold text-white"
+                        >
+                          查看 / 編輯
+                        </Link>
+                        <Link
+                          href={`/embed/${form.publicFormToken}`}
+                          className="rounded-full border border-[#d9b66f] bg-white px-4 py-2.5 text-center text-sm font-bold text-[#5a2348]"
+                        >
+                          預覽表格
+                        </Link>
+                        <CopyButton value={form.publicFormToken} label="複製表格代號" />
+                        <CopyButton value={embedCode} label="複製嵌入碼" />
+                        <form action={duplicateFormAction}>
+                          <input type="hidden" name="formId" value={form.id} />
+                          <button
+                            type="submit"
+                            className="w-full rounded-full border border-[#d9b66f] bg-white px-4 py-2.5 text-sm font-bold text-[#5a2348]"
+                          >
+                            複製成新表格
+                          </button>
+                        </form>
+                      </div>
+                    </div>
                   </div>
                 </article>
-              );
-            })}
-          </div>
-
-          <EmbedCodeCard
-            code={embedCode}
-            title="Wix 嵌入碼"
-            description="將呢段嵌入碼放入 Wix 頁面，表格會沿用所選品牌、療程、套餐同分店設定。"
-          />
+              </MotionReveal>
+            );
+          })}
         </section>
       </div>
     </main>
+  );
+}
+
+function StatusPill({ children }: { children: ReactNode }) {
+  return (
+    <span className="rounded-full border border-[#ead9cf] bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
+      {children}
+    </span>
   );
 }
 
@@ -153,7 +167,7 @@ function InfoCell({
   mono?: boolean;
 }) {
   return (
-    <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
+    <div className="min-w-0 rounded-2xl bg-white/78 p-4">
       <dt className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
         {label}
       </dt>

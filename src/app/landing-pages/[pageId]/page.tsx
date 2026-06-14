@@ -11,7 +11,7 @@ import {
   publishLandingPageAction,
   saveLandingPageDraftAction,
 } from "@/app/landing-pages/[pageId]/actions";
-import { landingPageTemplates } from "@/lib/data/configuration";
+import { getConfigurationData, landingPageTemplates } from "@/lib/data/configuration";
 import {
   getLandingPageContext,
   getLandingPageImageUrl,
@@ -31,7 +31,10 @@ export default async function LandingPageConfigPage({
 }) {
   const { pageId } = await params;
   const query = await searchParams;
-  const editorData = await getLandingPageEditorData(pageId);
+  const [editorData, config] = await Promise.all([
+    getLandingPageEditorData(pageId),
+    getConfigurationData(),
+  ]);
 
   if (!editorData) notFound();
 
@@ -43,6 +46,10 @@ export default async function LandingPageConfigPage({
     publishedVersionNumber,
   } = editorData;
   const context = getLandingPageContext(page);
+  const connectedForm =
+    config.forms.find((form) => form.id === page.formId) ??
+    config.forms.find((form) => form.publicFormToken === page.formToken) ??
+    null;
   const previewUrl = `/lp/${page.slug}`;
   const actionMessage =
     typeof query?.builder_status === "string" ? query.builder_status : null;
@@ -367,8 +374,8 @@ export default async function LandingPageConfigPage({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField label="按鈕連到" value="#alyssa-lp-form" />
-                <TextField label="表格代號" value={page.formId} />
-                <TextField label="公開表格代號" value={page.formToken} />
+                <TextField label="連接表格" value={connectedForm?.formName ?? page.formId} />
+                <TextField label="表格代號" value={connectedForm?.publicFormToken ?? page.formToken} />
                 <TextField label="表格顯示位置" value="alyssa-lp-form-target" />
               </div>
             </EditorSection>

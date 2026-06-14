@@ -176,7 +176,6 @@ export async function POST(request: NextRequest) {
     .from("forms")
     .select("*")
     .eq("public_form_token", formToken)
-    .eq("status", "active")
     .single();
 
   if (formError || !form) {

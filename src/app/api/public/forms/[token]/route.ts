@@ -38,7 +38,6 @@ export async function GET(
     .from("forms")
     .select("*")
     .eq("public_form_token", token)
-    .eq("status", "active")
     .single();
 
   if (formError || !form) {

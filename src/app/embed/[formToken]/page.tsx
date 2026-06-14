@@ -156,6 +156,7 @@ export default function EmbedFormPage() {
   const [attribution, setAttribution] = useState<AttributionEnvelope>({});
   const [state, setState] = useState<SubmitState>("idle");
   const [message, setMessage] = useState("");
+  const [configMessage, setConfigMessage] = useState("");
   const [formStarted, setFormStarted] = useState(false);
   const [publicForm, setPublicForm] = useState<PublicFormConfig>(() =>
     normalizeForm(alyssaDefaultForm)
@@ -206,7 +207,12 @@ export default function EmbedFormPage() {
       const response = await fetch(`/api/public/forms/${params.formToken}`);
       const result = await response.json();
 
-      if (!response.ok || !result.ok) return;
+      if (!response.ok || !result.ok) {
+        setConfigMessage("這張表格暫時未能載入，請確認表格代號是否正確。");
+        return;
+      }
+
+      setConfigMessage("");
 
       const nextForm = normalizeForm(result.form ?? {});
       const nextTreatments = (result.treatments ?? [])
@@ -363,7 +369,22 @@ export default function EmbedFormPage() {
         </div>
 
         <div className="p-6">
-          {state === "success" ? (
+          {configMessage ? (
+            <section className="rounded-[26px] border border-amber-200 bg-amber-50 p-6 text-center">
+              <p className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-amber-600 text-lg font-bold text-white">
+                !
+              </p>
+              <h2 className="mt-4 text-2xl font-bold text-amber-950">
+                表格暫時不可使用
+              </h2>
+              <p className="mt-3 text-sm font-semibold leading-6 text-amber-800">
+                {configMessage}
+              </p>
+              <p className="mt-4 break-all rounded-2xl bg-white/80 px-4 py-3 font-mono text-xs font-semibold text-amber-900">
+                {params.formToken}
+              </p>
+            </section>
+          ) : state === "success" ? (
             <section className="rounded-[26px] border border-emerald-200 bg-emerald-50 p-6 text-center">
               <p className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-600 text-lg font-bold text-white">
                 完成
