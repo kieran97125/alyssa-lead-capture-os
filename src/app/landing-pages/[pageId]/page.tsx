@@ -18,6 +18,7 @@ import {
   landingPageImageSlots,
   type LandingPageConfig,
 } from "@/lib/data/landingPages";
+import { getPublicLandingPageUrl } from "@/lib/data/appUrl";
 import { getLandingPageEditorData } from "@/lib/data/landingPageStore";
 
 export const dynamic = "force-dynamic";
@@ -50,7 +51,10 @@ export default async function LandingPageConfigPage({
     config.forms.find((form) => form.id === page.formId) ??
     config.forms.find((form) => form.publicFormToken === page.formToken) ??
     null;
-  const previewUrl = `/lp/${page.slug}`;
+  const publicUrl = getPublicLandingPageUrl(page.slug);
+  const previewUrl = publicUrl;
+  const publicDisplay =
+    page.status === "published" ? publicUrl : "草稿，發布後才會公開";
   const actionMessage =
     typeof query?.builder_status === "string" ? query.builder_status : null;
   const price = context.package ? `HK$${context.package.promoPrice}` : "未設定";
@@ -179,7 +183,7 @@ export default async function LandingPageConfigPage({
                 },
                 {
                   label: "公開 URL",
-                  value: previewUrl,
+                  value: publicDisplay,
                 },
               ]}
             />
@@ -213,12 +217,12 @@ export default async function LandingPageConfigPage({
                 />
                 <TextField label="測試狀態" value={readinessLabel(page.testingStatus)} />
                 <input type="hidden" name="testingStatus" value={page.testingStatus} />
-                <TextField label="公開連結" value={previewUrl} />
+                <TextField label="公開連結" value={publicDisplay} />
               </div>
             </EditorSection>
 
             <EditorSection
-              eyebrow="Template"
+              eyebrow="版型"
               title="版型"
               description="選擇廣告落地頁的內容結構。更多版型管理稍後加入。"
             >
@@ -242,8 +246,8 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="Hero"
-              title="Hero"
+              eyebrow="首屏"
+              title="首屏內容"
               description="公開頁第一屏的主標題、副標題同圖片。"
             >
               <div className="grid gap-4">
@@ -254,7 +258,7 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="Assets"
+              eyebrow="圖片"
               title="圖片素材"
               description="目前可填圖片網址；上傳及素材庫會稍後加入。"
             >
@@ -273,8 +277,8 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="Offer"
-              title="Offer"
+              eyebrow="優惠"
+              title="優惠內容"
               description="設定優惠標籤、優惠文字、主按鈕同次要按鈕。"
             >
               <div className="grid gap-4 md:grid-cols-2">
@@ -311,7 +315,7 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="Treatment"
+              eyebrow="療程"
               title="療程摘要"
               description="顯示這個頁面連接的品牌、療程、套餐和分店。"
             >
@@ -322,7 +326,7 @@ export default async function LandingPageConfigPage({
                 <TextField label="價錢" value={price} />
                 <TextField label="分店" value={context.branch?.name ?? "未設定"} />
                 <TextField
-                  label="Payment note"
+                  label="付款備註"
                   value={
                     context.package?.paymentRequired
                       ? "套餐可要求先付款；只預約時仍會保留套餐價值"
@@ -333,7 +337,7 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="Trust"
+              eyebrow="信任"
               title="流程 / 信任元素"
               description="説明客人理解預約和療程流程，提升信任感。"
             >
@@ -352,14 +356,14 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="FAQ"
-              title="FAQ"
+              eyebrow="常見問題"
+              title="常見問題"
               description="常見問題會顯示在公開頁底部。"
             >
               <StructuredRepeater
                 titleName="faqQuestions"
                 bodyName="faqAnswers"
-                title="FAQ questions / answers"
+                title="常見問題內容"
                 items={page.faqs.map((faq) => ({
                   title: faq.question,
                   body: faq.answer,
@@ -368,7 +372,7 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="Form"
+              eyebrow="表格"
               title="按鈕 / 登記表格連接"
               description="這個 Landing Page 會連接到同一張登記表格，方便客人留下資料。"
             >
@@ -381,13 +385,13 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="Preview"
+              eyebrow="預覽"
               title="預覽 / 發布狀態"
               description="發布會把已保存草稿變成客人可看到的公開內容。"
             >
               <div className="grid gap-4 md:grid-cols-3">
                 <TextField label="預覽連結" value={previewUrl} />
-                <TextField label="公開連結" value={previewUrl} />
+                <TextField label="公開連結" value={publicDisplay} />
                 <TextField label="發布狀態" value={page.status} />
                 <TextField label="最後更新" value={formatDate(page.updatedAt)} />
                 <TextField label="發布時間" value={formatDate(page.publishedAt)} />
@@ -624,7 +628,7 @@ function Repeater({
         {items.map((item, index) => (
           <TextField
             key={`${title}-${index}`}
-            label={`Item ${index + 1}`}
+            label={`項目 ${index + 1}`}
             value={item}
             name={name}
           />
@@ -652,13 +656,13 @@ function StructuredRepeater({
         {items.map((item, index) => (
           <div key={`${title}-${index}`} className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
             <TextField
-              label={`Title ${index + 1}`}
+              label={`標題 ${index + 1}`}
               value={item.title}
               name={titleName}
             />
             <div className="mt-3">
               <TextAreaField
-                label={`Body ${index + 1}`}
+                label={`內容 ${index + 1}`}
                 value={item.body}
                 name={bodyName}
               />

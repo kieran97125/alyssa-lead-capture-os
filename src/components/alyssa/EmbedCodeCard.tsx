@@ -8,7 +8,7 @@ type Props = {
 
 export function EmbedCodeCard({
   code,
-  title = "嵌入碼",
+  title = "Wix 嵌入碼",
   description,
 }: Props) {
   return (

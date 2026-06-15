@@ -36,13 +36,12 @@ export default async function NewCampaignPage({
       <div className="mx-auto max-w-6xl px-5 py-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="alyssa-kicker">Create campaign</p>
+            <p className="alyssa-kicker">建立 Campaign</p>
             <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-              建立 Campaign
+              建立新 Campaign
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              選擇建立 Wix 登記表格，或建立一頁可測試文案與優惠的 Landing
-              Page。
+              選擇建立 Wix 登記表格，或建立一頁簡單廣告 Landing Page 連接同一張表格。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -69,21 +68,21 @@ export default async function NewCampaignPage({
 
         <form action={createCampaignAction} className="mt-6 grid gap-6">
           <section className="alyssa-premium-card p-5">
-            <p className="alyssa-kicker">1. 輸出方式</p>
+            <p className="alyssa-kicker">1. Campaign 類型</p>
             <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              你想建立哪一種 Campaign？
+              今次需要建立什麼？
             </h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <ChoiceCard
                 value="wix_form"
                 title="Wix 登記表格"
-                body="適合 Wix 頁面已經有內容，只需要嵌入一張登記表格。"
+                body="適合 Wix 頁面已經有內容，只需要嵌入登記表格收集 Leads。"
                 defaultChecked
               />
               <ChoiceCard
                 value="landing_page"
                 title="廣告 Landing Page"
-                body="適合快速測試新優惠、新療程或新文案，系統會同時建立連接表格。"
+                body="適合快速測試新優惠、新療程或新文案角度，並連接一張新登記表格。"
               />
             </div>
           </section>
@@ -97,7 +96,7 @@ export default async function NewCampaignPage({
               <TextField
                 label="Campaign 名稱"
                 name="campaignName"
-                placeholder="例如：Alyssa 388 First Visit Trial"
+                placeholder="例如：Alyssa HK$388 首次體驗"
               />
               <TextField
                 label="表格名稱"
@@ -160,7 +159,7 @@ export default async function NewCampaignPage({
                 className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold leading-6 text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
               />
               <span className="mt-2 block text-xs font-semibold leading-5 text-[#7b5a6a]">
-                Wix 表格請填入 Wix 網站網址；Landing Page 可以留空，之後再補。
+                如只用系統產生的 Landing Page，可暫時留空；如嵌入 Wix，請加入 Wix 頁面網址。
               </span>
             </label>
           </section>
@@ -168,13 +167,13 @@ export default async function NewCampaignPage({
           <section className="alyssa-premium-card p-5">
             <p className="alyssa-kicker">3. Landing Page 內容</p>
             <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              如果選擇 Landing Page，可先填入主要文案
+              如果選擇 Landing Page，可先填寫基本文案
             </h2>
             <div className="mt-5 grid gap-4 md:grid-cols-2">
               <TextField
                 label="頁面標題"
                 name="pageTitle"
-                placeholder="例如：Alyssa First Visit Trial"
+                placeholder="例如：Alyssa 首次體驗優惠"
                 required={false}
               />
               <TextField
@@ -192,7 +191,7 @@ export default async function NewCampaignPage({
               <TextField
                 label="CTA 文字"
                 name="ctaText"
-                placeholder="例如：立即登記"
+                placeholder="例如：立即預約體驗"
                 required={false}
               />
               <TextAreaField
@@ -208,10 +207,10 @@ export default async function NewCampaignPage({
               <div>
                 <p className="alyssa-kicker">4. 建立</p>
                 <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                  建立 Campaign 後即可預覽和使用
+                  建立 Campaign 後即可預覽及使用
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                  Wix 表格會帶你到表格設定；Landing Page 會帶你到新頁面編輯器。
+                  Wix 表格會前往表格設定；Landing Page 會前往內容編輯頁，並連接新表格。
                 </p>
               </div>
               <button

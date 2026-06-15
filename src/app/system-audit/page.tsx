@@ -1,9 +1,17 @@
 import { AppNav } from "@/components/alyssa/AppNav";
 import {
+  getAdminBaseUrl,
+  getPublicBaseUrl,
+  getPublicLandingPageUrl,
+} from "@/lib/data/appUrl";
+import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
+import { countBy, formatDateTime } from "@/lib/data/businessMetrics";
+import { getFormByIdOrSlug } from "@/lib/data/formManagement";
+import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
+import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
-import { countBy, formatDateTime } from "@/lib/data/businessMetrics";
 
 export const dynamic = "force-dynamic";
 
@@ -19,10 +27,22 @@ const crmFeedback = [
   "deal_lost",
 ];
 
+type CheckTone = "ready" | "missing" | "attention";
+
+function envPresent(name: string) {
+  return Boolean(process.env[name]?.trim());
+}
+
+function statusLabel(tone: CheckTone) {
+  if (tone === "ready") return "已設定";
+  if (tone === "missing") return "未設定";
+  return "需要檢查";
+}
+
 async function getAuditSummary() {
   if (!hasSupabaseAdminEnv()) {
     return {
-      status: "系統狀態：等待資料庫連接",
+      status: "Supabase 未完整設定",
       latestLeadAt: null,
       sourceSnapshots: 0,
       leadEvents: 0,
@@ -52,7 +72,7 @@ async function getAuditSummary() {
     if (latestLead.error) throw latestLead.error;
 
     return {
-      status: "系統狀態：資料庫已連接",
+      status: "Supabase 查詢正常",
       latestLeadAt: latestLead.data?.[0]?.created_at ?? null,
       sourceSnapshots: snapshots.count ?? 0,
       leadEvents: events.count ?? 0,
@@ -61,7 +81,7 @@ async function getAuditSummary() {
     };
   } catch (error) {
     return {
-      status: "系統狀態：資料庫已設定，但讀取失敗",
+      status: "Supabase 已設定，但查詢失敗",
       latestLeadAt: null,
       sourceSnapshots: 0,
       leadEvents: 0,
@@ -71,8 +91,72 @@ async function getAuditSummary() {
   }
 }
 
+async function getReadinessChecks() {
+  const mainForm = await getFormByIdOrSlug(alyssaDefaultForm.publicFormToken);
+  const publicLp = await getPublishedLandingPageBySlug("alyssa-main-trial-offer");
+  const hasBasicAuth =
+    envPresent("INTERNAL_BASIC_AUTH_USER") &&
+    envPresent("INTERNAL_BASIC_AUTH_PASSWORD");
+
+  return [
+    {
+      label: "Supabase URL",
+      detail: "NEXT_PUBLIC_SUPABASE_URL",
+      tone: envPresent("NEXT_PUBLIC_SUPABASE_URL") ? "ready" : "missing",
+    },
+    {
+      label: "Supabase anon key",
+      detail: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+      tone: envPresent("NEXT_PUBLIC_SUPABASE_ANON_KEY") ? "ready" : "missing",
+    },
+    {
+      label: "Supabase service role key",
+      detail: "server-side only",
+      tone: envPresent("SUPABASE_SERVICE_ROLE_KEY") ? "ready" : "missing",
+    },
+    {
+      label: "App URL",
+      detail: "NEXT_PUBLIC_APP_URL",
+      tone: envPresent("NEXT_PUBLIC_APP_URL") ? "ready" : "attention",
+    },
+    {
+      label: "Public base URL",
+      detail: getPublicBaseUrl(),
+      tone: "ready",
+    },
+    {
+      label: "Admin base URL",
+      detail: getAdminBaseUrl(),
+      tone: "ready",
+    },
+    {
+      label: "Internal Basic Auth",
+      detail: "INTERNAL_BASIC_AUTH_USER / INTERNAL_BASIC_AUTH_PASSWORD",
+      tone: hasBasicAuth ? "ready" : "attention",
+    },
+    {
+      label: "Main form token",
+      detail: alyssaDefaultForm.publicFormToken,
+      tone: mainForm.form ? "ready" : "missing",
+    },
+    {
+      label: "Public form lookup",
+      detail: mainForm.form ? "lookup ok" : "lookup failed",
+      tone: mainForm.form ? "ready" : "missing",
+    },
+    {
+      label: "Landing page route",
+      detail: getPublicLandingPageUrl("alyssa-main-trial-offer"),
+      tone: publicLp ? "ready" : "missing",
+    },
+  ] satisfies Array<{ label: string; detail: string; tone: CheckTone }>;
+}
+
 export default async function SystemAuditPage() {
-  const summary = await getAuditSummary();
+  const [summary, readinessChecks] = await Promise.all([
+    getAuditSummary(),
+    getReadinessChecks(),
+  ]);
 
   return (
     <main className="alyssa-shell">
@@ -83,20 +167,30 @@ export default async function SystemAuditPage() {
             System audit
           </p>
           <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-            來源追蹤稽核
+            系統稽核
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-            呢頁保留技術 source / event / tracking 稽核資料，避免主 dashboard
-            被 developer terminology 佔據。
+            技術檢查、來源追蹤分佈和 production trial readiness。
           </p>
           <p className="mt-4 rounded-2xl bg-[#fff6f0] px-4 py-3 text-sm font-bold text-[#5a2348]">
             {summary.status}
           </p>
           {summary.error && (
             <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-              資料讀取失敗：{summary.error}
+              查詢錯誤：{summary.error}
             </p>
           )}
+        </section>
+
+        <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
+          <h2 className="text-xl font-bold text-[#321428]">
+            Production readiness
+          </h2>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {readinessChecks.map((item) => (
+              <ReadinessCard key={item.label} {...item} />
+            ))}
+          </div>
         </section>
 
         <section className="mt-6 grid gap-3 md:grid-cols-3">
@@ -126,7 +220,7 @@ export default async function SystemAuditPage() {
               ))
             ) : (
               <p className="text-sm font-semibold text-[#7b5a6a]">
-                未有 tracking_status 資料。
+                暫時未有 tracking_status 資料。
               </p>
             )}
           </div>
@@ -136,10 +230,6 @@ export default async function SystemAuditPage() {
           <h2 className="text-xl font-bold text-[#321428]">
             CRM outcome events pending
           </h2>
-          <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-            以下 event names 會由未來獨立 WhatsApp CRM app 回寫；目前只作 contract
-            visibility，不代表已有 CRM outcome metrics。
-          </p>
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {crmFeedback.map((eventName) => (
               <div
@@ -153,6 +243,30 @@ export default async function SystemAuditPage() {
         </section>
       </div>
     </main>
+  );
+}
+
+function ReadinessCard({
+  label,
+  detail,
+  tone,
+}: {
+  label: string;
+  detail: string;
+  tone: CheckTone;
+}) {
+  return (
+    <div className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-sm font-bold text-[#321428]">{label}</p>
+        <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[#5a2348]">
+          {statusLabel(tone)}
+        </span>
+      </div>
+      <p className="mt-2 break-words font-mono text-xs font-semibold text-[#7b5a6a]">
+        {detail}
+      </p>
+    </div>
   );
 }
 

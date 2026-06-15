@@ -98,11 +98,85 @@ export type LandingPageConfig = {
   builderSource?: "local_config" | "supabase";
 };
 
+export const defaultLandingPageContent: LandingPageContent = {
+  templateName: "高質感優惠 Landing Page",
+  testingStatus: "ready_for_testing",
+  heroTitle: "HK$388 首次醫學美容體驗",
+  heroSubtitle:
+    "適合用作廣告測試及預約收集，系統會同時記錄來源資料，方便之後跟進成效。",
+  offerBadge: "HK$388 首次體驗優惠",
+  offerHeadline: "首次體驗優惠 HK$388",
+  offerBody:
+    "客人可先了解療程、價錢及分店安排，再提交資料由團隊 WhatsApp 跟進預約。",
+  ctaText: "立即預約體驗",
+  secondaryCtaText: "查看療程詳情",
+  painPoints: [
+    "客人預約前需要清楚知道療程、價錢及分店安排。",
+    "市場部可以快速測試不同優惠角度，毋須每次重新製作網站頁面。",
+    "每個登記都會保留來源及預約資料，方便之後交由團隊跟進。",
+  ],
+  benefits: [
+    "HK$388 首次體驗優惠，降低首次預約門檻。",
+    "同一張表格可用於 Wix 或 Landing Page。",
+    "保留來源資料，方便之後接駁 CRM。",
+  ],
+  trustItems: [
+    "療程、套餐及分店資料清楚顯示。",
+    "提交後可由團隊 WhatsApp 跟進預約。",
+    "Wix 仍然是主網站；此頁用作 Campaign 測試。",
+  ],
+  sections: [
+    {
+      title: "適合快速測試 Campaign",
+      body: "Landing Page 可用於新優惠、新療程或新文案角度測試，毋須每次重新製作完整網站頁面。",
+    },
+    {
+      title: "同一張表格可用於 Wix 或 Landing Page",
+      body: "如果 Wix 已有完整內容頁，可只嵌入登記表格；如要快速測試廣告角度，則可使用 Landing Page。",
+    },
+    {
+      title: "保留來源資料，方便之後接駁 CRM",
+      body: "登記會保留廣告來源、Campaign、素材及預約資料，方便日後跟進成交、到店及流失結果。",
+    },
+  ],
+  processSteps: [
+    {
+      title: "1. 了解優惠內容",
+      body: "客人先查看療程、套餐價錢及分店安排。",
+    },
+    {
+      title: "2. 提交預約資料",
+      body: "表格會收集聯絡方式、預約偏好及來源資料。",
+    },
+    {
+      title: "3. 團隊跟進確認",
+      body: "團隊可按登記內容以 WhatsApp 跟進預約及付款安排。",
+    },
+  ],
+  faqs: [
+    {
+      question: "HK$388 是否需要即時付款？",
+      answer:
+        "此頁可支援只預約模式。提交後團隊會按情況跟進付款及預約確認安排。",
+    },
+    {
+      question: "這頁會取代 Wix 網站嗎？",
+      answer:
+        "不會。Wix 仍然是主網站；Landing Page 只用作廣告優惠及文案角度測試。",
+    },
+    {
+      question: "廣告來源會保留嗎？",
+      answer:
+        "會。由廣告連結帶入的 UTM、click ID 及頁面來源會跟隨登記資料保存，方便之後分析成效。",
+    },
+  ],
+};
+
 export const alyssaLandingPages: LandingPageConfig[] = [
   {
     id: "alyssa-main-trial-offer",
     slug: "alyssa-main-trial-offer",
-    title: "Alyssa 首次體驗療程 Campaign",
+    title: "Alyssa 首次體驗 Campaign",
     brandId: alyssaBrand.id,
     treatmentId: alyssaDefaultForm.defaultTreatmentId,
     packageId: alyssaDefaultForm.defaultPackageId,
@@ -110,12 +184,7 @@ export const alyssaLandingPages: LandingPageConfig[] = [
     formId: alyssaDefaultForm.id,
     formToken: alyssaDefaultForm.publicFormToken,
     mode: "landing_page",
-    status: "draft",
-    testingStatus: "ready_for_testing",
-    templateName: "Premium offer landing page",
-    heroTitle: "首次到訪醫學美容體驗",
-    heroSubtitle:
-      "為首次了解 Alyssa 的客人而設，一頁完成療程了解、優惠確認同預約登記，同時保留廣告來源追蹤。",
+    status: "published",
     heroImageUrl:
       "https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?auto=format&fit=crop&w=1200&q=80",
     mobileHeroImageUrl: "",
@@ -125,74 +194,10 @@ export const alyssaLandingPages: LandingPageConfig[] = [
     processImage2Url: "",
     processImage3Url: "",
     trustImageUrl: "",
-    offerBadge: "HKD 388 First-Visit Trial",
-    offerHeadline: "首次體驗優惠 HK$388",
-    offerBody:
-      "適合想先了解膚況、療程方向同預算配搭的客人。提交後由團隊以 WhatsApp 跟進預約。",
-    ctaText: "立即預約體驗",
-    secondaryCtaText: "先了解療程內容",
-    painPoints: [
-      "想試醫美療程，但唔想一開始就被 hard sell",
-      "想知道自己膚況適合咩療程同預算方向",
-      "想比較不同廣告 offer 的預約反應同來源質素",
-    ],
-    benefits: [
-      "以 HK$388 體驗首次療程 offer",
-      "登記時保留 UTM、click ID 同來源資料",
-      "預約資料可日後銜接 WhatsApp CRM 跟進",
-    ],
-    trustItems: [
-      "香港客人常用 WhatsApp 跟進流程",
-      "同一 shared lead base，日後可回寫 paid / show / lost outcome",
-      "Wix 主網站不變，campaign page 用於快速測試",
-    ],
-    sections: [
-      {
-        title: "適合首次了解 Alyssa 的客人",
-        body: "Landing page mode 將 offer、療程重點同登記表格放在同一頁，減少跳轉，適合廣告 campaign 快速測試。",
-      },
-      {
-        title: "保持 Form-only mode",
-        body: "如 Wix 已有完整內容頁，仍可只嵌入表格；Landing page mode 只是額外 campaign testing layer。",
-      },
-      {
-        title: "CRM-ready attribution",
-        body: "Lead Capture OS 負責保留來源資料同 lead base；WhatsApp CRM app 日後負責 CS follow-up 同 outcome write-back。",
-      },
-    ],
-    processSteps: [
-      {
-        title: "1. 留低基本資料",
-        body: "客人選擇療程、套餐、分店同預約時段，系統同步保存來源資料。",
-      },
-      {
-        title: "2. WhatsApp 跟進",
-        body: "團隊按登記資料確認時間、分店同療程安排。",
-      },
-      {
-        title: "3. 到店體驗",
-        body: "日後 CRM app 可把 paid / show / no-show / lost outcome 回寫到 shared lead base。",
-      },
-    ],
-    faqs: [
-      {
-        question: "HK$388 是否代表已付款？",
-        answer:
-          "不是。booking_only 代表客人只提交預約，未啟動付款流程；套餐價錢仍會保留作 offer 金額。",
-      },
-      {
-        question: "這頁會取代 Wix 主網站嗎？",
-        answer:
-          "不會。Wix 仍然是主網站；這頁只用於快速測試 campaign、offer 同廣告角度。",
-      },
-      {
-        question: "UTM 同 fbclid 會保留嗎？",
-        answer:
-          "會。public landing page 使用同一 embed script，會把 parent page URL 上的 UTM / click ID 傳入表格 submit flow。",
-      },
-    ],
     createdAt: "2026-06-14T00:00:00.000Z",
     updatedAt: "2026-06-14T00:00:00.000Z",
+    publishedAt: "2026-06-14T00:00:00.000Z",
+    ...defaultLandingPageContent,
   },
 ];
 
@@ -207,50 +212,50 @@ export function getLandingPageById(id: string) {
 export const landingPageImageSlots = [
   {
     key: "heroImageUrl",
-    label: "Hero image",
-    recommendedType: "Premium clinic / consultation / glowing skin visual",
+    label: "Hero 圖片",
+    recommendedType: "高質感診所、諮詢或自然亮澤肌膚視覺",
     ratio: "16:9 或 4:3",
   },
   {
     key: "mobileHeroImageUrl",
-    label: "Mobile hero image",
-    recommendedType: "手機首屏用人物、膚感或 clinic close-up",
+    label: "手機 Hero 圖片",
+    recommendedType: "手機首屏使用的人像、診所或療程近鏡",
     ratio: "4:5",
   },
   {
     key: "offerImageUrl",
-    label: "Offer image",
-    recommendedType: "Treatment room、device close-up、體驗價值 visual",
+    label: "優惠圖片",
+    recommendedType: "療程房、儀器細節或體驗價值視覺",
     ratio: "1:1 或 4:5",
   },
   {
     key: "treatmentImageUrl",
-    label: "Treatment image",
-    recommendedType: "療程、產品或服務重點 visual",
+    label: "療程圖片",
+    recommendedType: "療程、產品服務或效果期待相關視覺",
     ratio: "1:1 或 4:5",
   },
   {
     key: "processImage1Url",
-    label: "Process image 1",
-    recommendedType: "Consultation / skin analysis",
+    label: "流程圖片 1",
+    recommendedType: "諮詢或皮膚分析",
     ratio: "1:1",
   },
   {
     key: "processImage2Url",
-    label: "Process image 2",
-    recommendedType: "Treatment experience",
+    label: "流程圖片 2",
+    recommendedType: "療程體驗",
     ratio: "1:1",
   },
   {
     key: "processImage3Url",
-    label: "Process image 3",
-    recommendedType: "WhatsApp booking confirmation",
+    label: "流程圖片 3",
+    recommendedType: "WhatsApp 預約確認",
     ratio: "1:1",
   },
   {
     key: "trustImageUrl",
-    label: "Clinic / trust image",
-    recommendedType: "Clean clinic、professional environment、reception visual",
+    label: "診所 / 信任圖片",
+    recommendedType: "乾淨診所、專業環境或接待區視覺",
     ratio: "16:9",
   },
 ] as const;
@@ -269,9 +274,9 @@ export function getLandingPageImageStatus(page: LandingPageConfig) {
     Boolean(getLandingPageImageUrl(page, slot.key))
   ).length;
 
-  if (filledCount === 0) return "尚未設定";
-  if (filledCount === landingPageImageSlots.length) return "已設定";
-  return "部分設定";
+  if (filledCount === 0) return "尚未設定圖片";
+  if (filledCount === landingPageImageSlots.length) return "已設定圖片";
+  return "部分設定圖片";
 }
 
 export function getLandingPageContext(page: LandingPageConfig) {

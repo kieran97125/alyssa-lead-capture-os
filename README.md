@@ -491,9 +491,11 @@ In production, set:
 
 ```bash
 NEXT_PUBLIC_APP_URL=https://your-production-domain.com
+NEXT_PUBLIC_PUBLIC_BASE_URL=
+NEXT_PUBLIC_ADMIN_BASE_URL=
 ```
 
-The app derives the displayed embed script URL from `NEXT_PUBLIC_APP_URL` when available.
+If only `NEXT_PUBLIC_APP_URL` is set, the app uses it for both admin and public URLs. If `NEXT_PUBLIC_PUBLIC_BASE_URL` or `NEXT_PUBLIC_ADMIN_BASE_URL` is set, public Landing Page / embed links and internal admin links can be separated later without hard-coding a final domain. This prepares a future split such as admin on one domain and public campaign pages on another.
 
 ## Supabase Connection
 
@@ -564,6 +566,8 @@ Payment status semantics:
 ## Environment Checklist
 
 - `NEXT_PUBLIC_APP_URL` - required for production embed script URLs.
+- `NEXT_PUBLIC_PUBLIC_BASE_URL` - optional; use later if public Landing Pages move to a separate domain.
+- `NEXT_PUBLIC_ADMIN_BASE_URL` - optional; use later if internal admin pages move to a separate domain.
 - `NEXT_PUBLIC_SUPABASE_URL` - pending; required before browser-side Supabase-aware flows are introduced.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
@@ -577,11 +581,23 @@ Payment status semantics:
 Do not deploy yet. Before deployment:
 
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
+- Set `NEXT_PUBLIC_PUBLIC_BASE_URL` and `NEXT_PUBLIC_ADMIN_BASE_URL` only if public campaign pages and admin pages use separate domains.
 - Configure Supabase environment variables in Vercel.
 - Configure `INTERNAL_BASIC_AUTH_USER` and `INTERNAL_BASIC_AUTH_PASSWORD` in Vercel before sharing internal dashboard/config URLs.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.
 - Run `npm run lint` and `npm run build`.
+
+## Production Trial Checklist
+
+- Configure environment variables in Vercel.
+- Keep `SUPABASE_SERVICE_ROLE_KEY` server-side only.
+- Set custom domains later; do not hard-code the final public/admin domains until confirmed.
+- Add the public Wix or campaign domain to each form's allowed domains.
+- Use Create Campaign to generate either a Wix form or a Landing Page.
+- Test a UTM lead submission before running real ads.
+- Confirm `/system-audit` shows public form lookup, main form token, and landing page route checks as ready.
+- Test records with stamp `50969` currently remain in dev data and should not be deleted until a separate cleanup pass.
 
 ## Verification
 

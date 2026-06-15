@@ -4,7 +4,7 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { CopyButton } from "@/components/alyssa/CopyButton";
 import { EmbedCodeCard } from "@/components/alyssa/EmbedCodeCard";
 import { duplicateFormAction, updateFormAction } from "@/app/forms/actions";
-import { getDefaultEmbedCode, getPublicAppUrl } from "@/lib/data/appUrl";
+import { getDefaultEmbedCode, getPublicEmbedPreviewUrl } from "@/lib/data/appUrl";
 import {
   getBrand,
   getPackage,
@@ -16,7 +16,7 @@ import { getFormByIdOrSlug } from "@/lib/data/formManagement";
 export const dynamic = "force-dynamic";
 
 function formatDate(value: string | null | undefined) {
-  if (!value) return "未有紀錄";
+  if (!value) return "未設定";
 
   return new Intl.DateTimeFormat("zh-HK", {
     dateStyle: "medium",
@@ -41,7 +41,7 @@ export default async function FormConfigPage({
 
   const brand = getBrand(config, form.brandId);
   const selectedPackage = getPackage(config, form.defaultPackageId);
-  const previewUrl = `${getPublicAppUrl()}/embed/${form.publicFormToken}`;
+  const previewUrl = getPublicEmbedPreviewUrl(form.publicFormToken);
   const embedCode = getDefaultEmbedCode(form.publicFormToken, form.id);
   const linkedLandingPages = config.landingPages.filter(
     (page) => page.formId === form.id || page.formToken === form.publicFormToken
@@ -58,7 +58,7 @@ export default async function FormConfigPage({
               {form.formName}
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              編輯這張登記表格的品牌、療程、套餐、分店及可使用網域。
+              管理這張 Wix 登記表格的品牌、療程、套餐、分店和可使用網址。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -72,7 +72,7 @@ export default async function FormConfigPage({
               href={`/embed/${form.publicFormToken}`}
               className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
             >
-              預覽表格
+              開啟表格預覽
             </Link>
           </div>
         </header>
@@ -86,11 +86,10 @@ export default async function FormConfigPage({
         <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.78fr]">
           <form action={updateFormAction} className="alyssa-premium-card grid min-w-0 gap-5 p-5">
             <input type="hidden" name="formId" value={form.id} />
+
             <div>
               <p className="alyssa-kicker">表格設定</p>
-              <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                基本資料
-              </h2>
+              <h2 className="mt-2 text-xl font-bold text-[#321428]">基本資料</h2>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
@@ -114,7 +113,7 @@ export default async function FormConfigPage({
                 }))}
               />
               <SelectField
-                label="套餐 / 價錢"
+                label="套餐價錢"
                 name="defaultPackageId"
                 value={form.defaultPackageId ?? ""}
                 options={config.packages.map((item) => ({
@@ -135,7 +134,7 @@ export default async function FormConfigPage({
 
             <label className="block min-w-0">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                可使用網域
+                可使用網址
               </span>
               <textarea
                 name="allowedDomains"
@@ -143,9 +142,6 @@ export default async function FormConfigPage({
                 defaultValue={form.allowedDomains.join("\n")}
                 className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold leading-6 text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
               />
-              <span className="mt-2 block text-xs font-semibold leading-5 text-[#7b5a6a]">
-                請填寫網站 origin，例如 https://example.com；一行一個。
-              </span>
             </label>
 
             <div className="rounded-2xl bg-[#fff6f0] p-4">
@@ -163,9 +159,9 @@ export default async function FormConfigPage({
                 type="submit"
                 className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 hover:bg-[#d95f55]"
               >
-                儲存表格設定
+                儲存表格
               </button>
-              <CopyButton value={embedCode} label="複製嵌入碼" />
+              <CopyButton value={embedCode} label="複製 Wix 嵌入碼" />
               <CopyButton value={form.publicFormToken} label="複製表格代號" />
               <CopyButton value={previewUrl} label="複製預覽網址" />
             </div>
@@ -175,13 +171,13 @@ export default async function FormConfigPage({
             <EmbedCodeCard
               code={embedCode}
               title="Wix 嵌入碼"
-              description="將這段代碼放入 Wix 頁面，即可載入此表格。"
+              description="複製這段代碼到 Wix 頁面，即可顯示這張登記表格。"
             />
 
             <section className="alyssa-premium-card min-w-0 p-5">
               <p className="alyssa-kicker">Preview</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                預覽及連接
+                表格預覽
               </h2>
               <dl className="mt-4 grid gap-3">
                 <InfoCell label="表格預覽網址" value={previewUrl} mono />
@@ -199,7 +195,7 @@ export default async function FormConfigPage({
                   href={`/embed/${form.publicFormToken}`}
                   className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
                 >
-                  預覽表格
+                  開啟表格預覽
                 </Link>
               </div>
             </section>
@@ -207,18 +203,15 @@ export default async function FormConfigPage({
             <section className="alyssa-premium-card min-w-0 p-5">
               <p className="alyssa-kicker">Duplicate</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                建立相似表格
+                複製成新表格
               </h2>
-              <p className="mt-2 text-sm font-semibold leading-6 text-[#6d4a5c]">
-                複製表格只會複製設定，並產生新的表格代號；不會複製 Leads 或提交紀錄。
-              </p>
               <form action={duplicateFormAction} className="mt-4">
                 <input type="hidden" name="formId" value={form.id} />
                 <button
                   type="submit"
                   className="w-full rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
                 >
-                  複製成新表格
+                  複製
                 </button>
               </form>
             </section>

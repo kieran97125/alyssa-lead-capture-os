@@ -6,9 +6,10 @@ import {
   publishLandingPage,
   saveLandingPageDraft,
 } from "@/lib/data/landingPageStore";
-import type {
-  LandingPageContent,
-  LandingPageImageAssets,
+import {
+  defaultLandingPageContent,
+  type LandingPageContent,
+  type LandingPageImageAssets,
 } from "@/lib/data/landingPages";
 
 function resultRedirect(pageId: string, message: string): never {
@@ -72,7 +73,7 @@ function parseEditorForm(formData: FormData): {
       title,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
-      error: "Page title is required.",
+      error: "請輸入頁面標題。",
     };
   }
 
@@ -81,7 +82,7 @@ function parseEditorForm(formData: FormData): {
       title,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
-      error: "Hero title is required.",
+      error: "請輸入 Hero 標題。",
     };
   }
 
@@ -90,12 +91,12 @@ function parseEditorForm(formData: FormData): {
       title,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
-      error: "CTA text is required.",
+      error: "請輸入 CTA 按鈕文字。",
     };
   }
 
   const content: LandingPageContent = {
-    templateName: readString(formData, "templateName") || "Premium offer landing page",
+    templateName: readString(formData, "templateName") || defaultLandingPageContent.templateName,
     testingStatus:
       readString(formData, "testingStatus") === "foundation"
         ? "foundation"

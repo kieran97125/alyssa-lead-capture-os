@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
 import {
   alyssaLandingPages,
+  defaultLandingPageContent,
   getLandingPageById as getLocalLandingPageById,
   getLandingPageBySlug as getLocalLandingPageBySlug,
   type LandingPageConfig,
@@ -104,8 +105,73 @@ const supabaseToLocalIds = {
   },
 } as const;
 
+const knownDefaultTextReplacements = new Map<string, string>([
+  ["Premium offer landing page", "高質感優惠 Landing Page"],
+  ["HKD 388 First-Visit Trial", "HK$388 首次體驗優惠"],
+  ["HK$388 First-Visit Trial", "HK$388 首次體驗優惠"],
+  ["First-visit medical beauty trial", "首次醫學美容體驗"],
+  [
+    "A premium Alyssa campaign page for testing the HK$388 first-visit trial offer while keeping the same lead attribution and booking flow.",
+    defaultLandingPageContent.heroSubtitle,
+  ],
+  ["First-visit trial offer from HK$388", "首次體驗優惠 HK$388"],
+  [
+    "A focused campaign offer for clients who want a consultation, treatment recommendation, and WhatsApp booking follow-up without replacing the main Wix website.",
+    defaultLandingPageContent.offerBody,
+  ],
+  ["Book the trial offer", defaultLandingPageContent.ctaText],
+  ["View treatment details", defaultLandingPageContent.secondaryCtaText],
+  [
+    "Customers want a clear trust-first offer before committing.",
+    defaultLandingPageContent.painPoints[0],
+  ],
+  [
+    "Marketing needs a faster way to test offer angles outside the main Wix site.",
+    defaultLandingPageContent.painPoints[1],
+  ],
+  [
+    "Operations need every campaign lead to keep source and booking context.",
+    defaultLandingPageContent.painPoints[2],
+  ],
+  ["HK$388 first-visit trial offer.", "HK$388 首次體驗優惠。"],
+  [
+    "UTM and click ID attribution are captured with the lead.",
+    "登記會同時記錄 UTM 及 click ID，方便分析廣告成效。",
+  ],
+  [
+    "Booking request can later be followed up from the future WhatsApp CRM.",
+    "團隊可按登記資料以 WhatsApp 跟進預約。",
+  ],
+  [
+    "Designed for Alyssa medical beauty campaign testing.",
+    "適合醫學美容 Campaign 測試。",
+  ],
+  [
+    "Uses the shared lead base for future paid / show / lost outcome write-back.",
+    "保留來源資料，方便日後回寫成交及到店結果。",
+  ],
+  [
+    "Wix remains the main website; this page is a campaign testing layer.",
+    "Wix 仍然是主網站；此頁用作 Campaign 測試。",
+  ],
+  ["Built for fast campaign testing", "適合快速測試 Campaign"],
+  [
+    "Still connected to form-only mode",
+    "同一張表格可用於 Wix 或 Landing Page",
+  ],
+  ["CRM-ready attribution", "保留來源資料，方便之後接駁 CRM"],
+]);
+
 function asString(value: unknown, fallback: string) {
   return typeof value === "string" ? value : fallback;
+}
+
+function localizeKnownDefaultText(value: string) {
+  return knownDefaultTextReplacements.get(value) ?? value;
+}
+
+function localizedString(value: unknown, fallback: string) {
+  return localizeKnownDefaultText(asString(value, fallback));
 }
 
 function slugify(value: string) {
@@ -145,8 +211,10 @@ async function createUniqueLandingPageSlug(title: string) {
 
 function asStringArray(value: unknown, fallback: string[]) {
   return Array.isArray(value)
-    ? value.filter((item): item is string => typeof item === "string")
-    : fallback;
+    ? value
+        .filter((item): item is string => typeof item === "string")
+        .map(localizeKnownDefaultText)
+    : fallback.map(localizeKnownDefaultText);
 }
 
 function asObjectArray<T extends Record<string, string>>(
@@ -161,7 +229,7 @@ function asObjectArray<T extends Record<string, string>>(
       if (!item || typeof item !== "object") return null;
       const record = item as Record<string, unknown>;
       const mapped = Object.fromEntries(
-        keys.map((key) => [key, asString(record[key as string], "")])
+        keys.map((key) => [key, localizedString(record[key as string], "")])
       ) as T;
 
       return keys.every((key) => mapped[key]) ? mapped : null;
@@ -211,19 +279,19 @@ function mergeContent(
   content: Record<string, unknown> | null
 ) {
   return {
-    templateName: asString(content?.templateName, fallback.templateName),
+    templateName: localizedString(content?.templateName, fallback.templateName),
     testingStatus:
       content?.testingStatus === "foundation" ||
       content?.testingStatus === "ready_for_testing"
         ? content.testingStatus
         : fallback.testingStatus,
-    heroTitle: asString(content?.heroTitle, fallback.heroTitle),
-    heroSubtitle: asString(content?.heroSubtitle, fallback.heroSubtitle),
-    offerBadge: asString(content?.offerBadge, fallback.offerBadge),
-    offerHeadline: asString(content?.offerHeadline, fallback.offerHeadline),
-    offerBody: asString(content?.offerBody, fallback.offerBody),
-    ctaText: asString(content?.ctaText, fallback.ctaText),
-    secondaryCtaText: asString(
+    heroTitle: localizedString(content?.heroTitle, fallback.heroTitle),
+    heroSubtitle: localizedString(content?.heroSubtitle, fallback.heroSubtitle),
+    offerBadge: localizedString(content?.offerBadge, fallback.offerBadge),
+    offerHeadline: localizedString(content?.offerHeadline, fallback.offerHeadline),
+    offerBody: localizedString(content?.offerBody, fallback.offerBody),
+    ctaText: localizedString(content?.ctaText, fallback.ctaText),
+    secondaryCtaText: localizedString(
       content?.secondaryCtaText,
       fallback.secondaryCtaText
     ),
@@ -302,7 +370,7 @@ function rowToConfig(
     ...images,
     id: row.slug,
     slug: row.slug,
-    title: row.title,
+    title: localizeKnownDefaultText(row.title),
     brandId: mapKnownId(row.brand_id, supabaseToLocalIds.brand, fallback.brandId),
     treatmentId: mapKnownId(
       row.treatment_id,
@@ -469,8 +537,7 @@ export async function getLandingPageEditorData(
         page,
         source: "supabase",
         canPersist: true,
-        statusMessage:
-          "這個 Landing Page 已可儲存草稿和發布公開版本。",
+        statusMessage: "這個 Landing Page 可以儲存草稿及發布公開版本。",
         latestDraftVersionNumber: latestDraft?.version_number ?? null,
         publishedVersionNumber: publishedVersion?.version_number ?? null,
       };
@@ -487,7 +554,7 @@ export async function getLandingPageEditorData(
     source: page.builderSource ?? "local_config",
     canPersist,
     statusMessage: canPersist
-      ? "這個 Landing Page 已可儲存草稿和發布公開版本。"
+      ? "這個 Landing Page 可以儲存草稿及發布公開版本。"
       : "目前只可查看內容；儲存草稿及發布功能稍後開放。",
     latestDraftVersionNumber: null,
     publishedVersionNumber: null,
@@ -539,7 +606,7 @@ export async function createLandingPageDraft(input: CreateLandingPageDraftInput)
   if (!hasSupabaseAdminEnv()) {
     return {
       ok: false,
-      message: "暫時未能建立 Landing Page 草稿。",
+      message: "暫時未能建立 Landing Page 草稿，請確認正式資料庫設定。",
       pageId: null as string | null,
       slug: null as string | null,
     };
@@ -548,56 +615,13 @@ export async function createLandingPageDraft(input: CreateLandingPageDraftInput)
   const supabase = createSupabaseAdminClient();
   const slug = await createUniqueLandingPageSlug(input.title);
   const content: LandingPageContent = {
-    templateName: "Premium offer landing page",
-    testingStatus: "ready_for_testing",
-    heroTitle: input.heroTitle,
-    heroSubtitle: input.heroSubtitle,
-    offerBadge: input.offerBadge,
+    ...defaultLandingPageContent,
+    heroTitle: input.heroTitle || defaultLandingPageContent.heroTitle,
+    heroSubtitle: input.heroSubtitle || defaultLandingPageContent.heroSubtitle,
+    offerBadge: input.offerBadge || defaultLandingPageContent.offerBadge,
     offerHeadline: input.title,
-    offerBody: input.heroSubtitle,
-    ctaText: input.ctaText,
-    secondaryCtaText: "查看療程詳情",
-    painPoints: [
-      "客人需要清楚知道今次優惠適合甚麼需要。",
-      "團隊需要快速測試新療程或新文案角度。",
-      "每個登記都會連接同一套來源追蹤基礎。",
-    ],
-    benefits: [
-      "清楚展示療程及套餐價錢。",
-      "可用於廣告流量測試。",
-      "表格會收集客人資料及預約意向。",
-    ],
-    trustItems: [
-      "適合 Alyssa campaign 測試。",
-      "Wix 仍然是主要網站。",
-      "Landing Page 只用於快速測試優惠及角度。",
-    ],
-    sections: [
-      {
-        title: "為 Campaign 測試而設",
-        body: "這個 Landing Page 草稿已連接登記表格，可在編輯頁調整文案後再發布。",
-      },
-    ],
-    processSteps: [
-      {
-        title: "1. 客人提交登記",
-        body: "客人透過 Landing Page 內的表格留下資料。",
-      },
-      {
-        title: "2. 團隊跟進",
-        body: "團隊可按登記資料安排 WhatsApp 或電話跟進。",
-      },
-      {
-        title: "3. 查看成效",
-        body: "之後可在 dashboard 及 performance 頁查看來源及預約成效。",
-      },
-    ],
-    faqs: [
-      {
-        question: "這會取代 Wix 網站嗎？",
-        answer: "不會。Wix 仍然是主要網站；Landing Page 用於快速測試廣告優惠及文案。",
-      },
-    ],
+    offerBody: input.heroSubtitle || defaultLandingPageContent.offerBody,
+    ctaText: input.ctaText || defaultLandingPageContent.ctaText,
   };
   const imageAssets: LandingPageImageAssets = {
     heroImageUrl: "",
@@ -654,7 +678,7 @@ export async function createLandingPageDraft(input: CreateLandingPageDraftInput)
     return {
       ok: false,
       message:
-        "Landing Page 已建立，但草稿版本未能建立。請稍後再試或到 Landing Pages 檢查。",
+        "Landing Page 已建立，但初始草稿未能建立。請到 Landing Pages 檢查。",
       pageId: null,
       slug: null,
     };
@@ -679,8 +703,7 @@ export async function saveLandingPageDraft(
     return {
       ok: false,
       source: "local_config",
-      message:
-        "目前仍未啟用儲存草稿功能，請先完成 Landing Page 儲存 / 發布設定。",
+      message: "目前未能儲存草稿，請確認這個 Landing Page 已連接正式資料。",
     };
   }
 
@@ -702,7 +725,7 @@ export async function saveLandingPageDraft(
     return {
       ok: false,
       source: "supabase",
-      message: `Draft save failed: ${versionError.message}`,
+      message: `草稿未能儲存：${versionError.message}`,
     };
   }
 
@@ -721,14 +744,14 @@ export async function saveLandingPageDraft(
     return {
       ok: false,
       source: "supabase",
-      message: `Draft page update failed: ${pageError.message}`,
+      message: `Landing Page 未能更新：${pageError.message}`,
     };
   }
 
   return {
     ok: true,
     source: "supabase",
-    message: `Draft version ${versionNumber} saved.`,
+    message: `草稿版本 ${versionNumber} 已儲存。`,
     versionNumber,
   };
 }
@@ -741,8 +764,7 @@ export async function publishLandingPage(
     return {
       ok: false,
       source: "local_config",
-      message:
-        "目前仍未啟用發布功能，請先完成 Landing Page 儲存 / 發布設定。",
+      message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
     };
   }
 
@@ -768,7 +790,7 @@ export async function publishLandingPage(
       return {
         ok: false,
         source: "supabase",
-        message: `Publish version creation failed: ${error.message}`,
+        message: `發布版本未能建立：${error.message}`,
       };
     }
 
@@ -783,7 +805,7 @@ export async function publishLandingPage(
       return {
         ok: false,
         source: "supabase",
-        message: `Publish version update failed: ${error.message}`,
+        message: `發布版本未能更新：${error.message}`,
       };
     }
   }
@@ -805,14 +827,14 @@ export async function publishLandingPage(
     return {
       ok: false,
       source: "supabase",
-      message: `Publish page update failed: ${pageError.message}`,
+      message: `Landing Page 未能發布：${pageError.message}`,
     };
   }
 
   return {
     ok: true,
     source: "supabase",
-    message: `Published version ${version.version_number}.`,
+    message: `版本 ${version.version_number} 已發布。`,
     versionNumber: version.version_number,
   };
 }

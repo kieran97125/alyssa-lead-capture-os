@@ -19,7 +19,7 @@ function redirectWithMessage(path: string, key: string, message: string): never 
 
 function parseBaseFormInput(formData: FormData): ManagedFormInput | string {
   const campaignName = readString(formData, "campaignName");
-  const formName = readString(formData, "formName") || `${campaignName} Form`;
+  const formName = readString(formData, "formName") || `${campaignName} 表格`;
   const parsedDomains = parseAllowedDomains(
     readString(formData, "allowedDomains")
   );
@@ -59,9 +59,9 @@ export async function createCampaignAction(formData: FormData) {
     const heroTitle = readString(formData, "heroTitle") || pageTitle;
     const heroSubtitle =
       readString(formData, "heroSubtitle") ||
-      "為今次 Campaign 準備的登記頁，可於編輯頁補充療程賣點、圖片及 FAQ。";
+      "適合用作廣告測試及預約收集，系統會同時記錄來源資料，方便之後跟進成效。";
     const offerBadge = readString(formData, "offerBadge") || "限時體驗優惠";
-    const ctaText = readString(formData, "ctaText") || "立即登記";
+    const ctaText = readString(formData, "ctaText") || "立即預約體驗";
 
     const pageResult = await createLandingPageDraft({
       title: pageTitle,
