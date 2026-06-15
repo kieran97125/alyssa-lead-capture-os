@@ -81,7 +81,7 @@ Form
 Form-only embed or Landing page mode
 ```
 
-The current app exposes read-only settings pages for:
+The current app exposes settings pages for:
 
 - Brand settings.
 - Treatment settings.
@@ -93,11 +93,21 @@ Form-only mode uses this configuration layer to select a brand, treatment, packa
 
 Landing page mode uses the same form/source/lead base and adds template, hero copy, offer copy, sections, FAQ, CTA, and visual content for simple campaign testing pages.
 
+## Settings Editor V1
+
+Settings control the options available when creating Campaigns, Wix registration forms, and Landing Pages.
+
+- Brands, treatments, packages, and branches can be added and edited from `/settings`.
+- Unused brands, treatments, packages, and branches can be deleted.
+- Delete is blocked when a record is already used by forms, landing pages, leads, bookings, or dependent settings.
+- There is no archive / inactive / re-enable workflow in V1.
+- Lead price still comes from the server-side package configuration selected by `package_id`; public form submissions must not trust client-submitted prices.
+
 Current implementation notes:
 
 - `brands`, `treatments`, `packages`, `branches`, and `forms` are read from existing Supabase tables when configured, with local config as a fallback for development.
 - Landing page templates and landing page config remain local config for now.
-- Full admin editing for brands, treatments, packages, branches, forms, templates, and landing pages is future work.
+- Full admin editing for forms, templates, and landing page content remains future work.
 - A future DB-backed `landing_pages` table can store template, hero, offer, section, FAQ, CTA, and status fields when the builder graduates from config preview.
 - The future WhatsApp CRM remains a separate app that writes outcomes back to the shared lead base.
 
@@ -286,11 +296,11 @@ Open:
 - `/landing-pages` - Landing page management foundation covering form-only and campaign landing-page modes.
 - `/landing-pages/[pageId]` - Structured Landing Page Content Editor V1 with read-only/save-ready fields and preview panel.
 - `/lp/[slug]` - Public campaign landing page preview using the existing lead capture form path.
-- `/settings` - Configuration foundation overview and hierarchy.
-- `/settings/brands` - Brand settings view.
-- `/settings/treatments` - Treatment settings view.
-- `/settings/packages` - Package / price settings view.
-- `/settings/branches` - Branch settings view.
+- `/settings` - Settings overview for campaign configuration.
+- `/settings/brands` - Brand settings editor.
+- `/settings/treatments` - Treatment settings editor.
+- `/settings/packages` - Package / price settings editor.
+- `/settings/branches` - Branch settings editor.
 - `/settings/templates` - Landing Page Templates foundation.
 - `/settings/team` - Team access, roles, and future login foundation.
 - `/embed-preview` - Internal Wix parent-page simulation that loads the real public embed script and shows attribution debug state.

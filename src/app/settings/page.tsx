@@ -7,13 +7,43 @@ import { getConfigurationData } from "@/lib/data/configuration";
 export const dynamic = "force-dynamic";
 
 const settingLinks = [
-  { href: "/settings/brands", title: "品牌資料", body: "管理品牌名稱、顏色、WhatsApp 同完成登記後的去向。" },
-  { href: "/settings/treatments", title: "療程資料", body: "查看療程名稱、介紹、狀態同可配搭套餐。" },
-  { href: "/settings/packages", title: "套餐價錢", body: "查看套餐價值、優惠價同付款安排。" },
-  { href: "/settings/branches", title: "分店資料", body: "查看分店、地址、營業時間同可用狀態。" },
-  { href: "/settings/templates", title: "Landing Page 版型", body: "查看廣告落地頁可使用的內容版型。" },
-  { href: "/settings/team", title: "團隊權限", body: "規劃角色、可使用功能同可查看品牌。" },
-];
+  {
+    href: "/settings/brands",
+    title: "品牌資料",
+    body: "品牌名稱、顏色、WhatsApp 和 Thank You Page。",
+    countKey: "brands",
+  },
+  {
+    href: "/settings/treatments",
+    title: "療程資料",
+    body: "Campaign 和表格可以選用的療程。",
+    countKey: "treatments",
+  },
+  {
+    href: "/settings/packages",
+    title: "套餐價錢",
+    body: "套餐名稱、原價、優惠價和付款要求。",
+    countKey: "packages",
+  },
+  {
+    href: "/settings/branches",
+    title: "分店資料",
+    body: "表格和 Campaign 可以選用的分店。",
+    countKey: "branches",
+  },
+  {
+    href: "/settings/templates",
+    title: "Landing Page 版型",
+    body: "查看可用的 Campaign Landing Page 版型。",
+    countKey: "templates",
+  },
+  {
+    href: "/settings/team",
+    title: "團隊權限",
+    body: "查看日後登入和角色權限安排。",
+    countKey: null,
+  },
+] as const;
 
 export default async function SettingsPage() {
   const config = await getConfigurationData();
@@ -26,50 +56,47 @@ export default async function SettingsPage() {
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
             Settings
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-            設定中心
-          </h1>
+          <h1 className="mt-2 text-3xl font-bold text-[#321428]">設定中心</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-            這裡集中查看 Alyssa 的品牌、療程、套餐價錢、分店、表格連接同 Landing Page 版型。
-            目前可查看，編輯功能稍後加入。
+            管理建立 Campaign、表格和 Landing Page 需要用到的基本資料。
           </p>
           <SettingsNav />
-          <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-            <MiniStat label="品牌" value={config.brands.length.toString()} />
-            <MiniStat label="療程" value={config.treatments.length.toString()} />
-            <MiniStat label="套餐" value={config.packages.length.toString()} />
-            <MiniStat label="分店" value={config.branches.length.toString()} />
-            <MiniStat label="表格" value={config.forms.length.toString()} />
-          </div>
         </section>
 
         <section className="mt-6 grid items-stretch gap-5 lg:grid-cols-2">
-          {settingLinks.map((item) => (
-            <MotionReveal key={item.href}>
-            <Link
-              href={item.href}
-              className="alyssa-premium-card alyssa-interactive-card alyssa-focus block p-5"
-            >
-              <h2 className="text-xl font-bold text-[#321428]">{item.title}</h2>
-              <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{item.body}</p>
-            </Link>
-            </MotionReveal>
-          ))}
+          {settingLinks.map((item) => {
+            const count =
+              item.countKey && item.countKey in config
+                ? config[item.countKey].length
+                : null;
+
+            return (
+              <MotionReveal key={item.href}>
+                <Link
+                  href={item.href}
+                  className="alyssa-premium-card alyssa-interactive-card alyssa-focus block p-5"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div>
+                      <h2 className="text-xl font-bold text-[#321428]">
+                        {item.title}
+                      </h2>
+                      <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
+                        {item.body}
+                      </p>
+                    </div>
+                    {count !== null && (
+                      <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-sm font-bold text-[#5a2348]">
+                        {count}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              </MotionReveal>
+            );
+          })}
         </section>
       </div>
     </main>
-  );
-}
-
-function MiniStat({ label, value }: { label: string; value: string }) {
-  return (
-    <MotionReveal>
-    <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {label}
-      </p>
-      <p className="mt-2 text-2xl font-bold text-[#321428]">{value}</p>
-    </div>
-    </MotionReveal>
   );
 }
