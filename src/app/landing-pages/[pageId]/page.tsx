@@ -190,6 +190,59 @@ export default async function LandingPageConfigPage({
           </div>
         </section>
 
+        <section className="alyssa-premium-card mt-6 min-w-0 p-5">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                投放前檢查
+              </p>
+              <h2 className="mt-2 text-xl font-bold text-[#321428]">
+                Campaign 上線前快速確認
+              </h2>
+            </div>
+            <Link
+              href={previewUrl}
+              className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
+            >
+              開啟公開頁
+            </Link>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            <ChecklistItem
+              label="公開頁"
+              value={page.status === "published" ? "已發布，可開啟" : "發布後才公開"}
+              ready={page.status === "published"}
+            />
+            <ChecklistItem
+              label="表格預覽"
+              value={connectedForm ? "已連接表格" : "未找到連接表格"}
+              ready={Boolean(connectedForm)}
+            />
+            <ChecklistItem
+              label="表格代號"
+              value={connectedForm?.publicFormToken ?? page.formToken}
+              ready={Boolean(connectedForm?.publicFormToken ?? page.formToken)}
+            />
+            <ChecklistItem
+              label="Allowed domain"
+              value={
+                connectedForm && connectedForm.allowedDomains.length > 0
+                  ? `${connectedForm.allowedDomains.length} 個已設定`
+                  : "如嵌入 Wix，請先加入"
+              }
+              ready={Boolean(connectedForm && connectedForm.allowedDomains.length > 0)}
+            />
+            <ChecklistItem label="測試 Lead" value="投放前提交一次測試" ready={false} />
+            <ChecklistItem label="UTM" value="用廣告測試連結確認來源" ready={false} />
+            <ChecklistItem label="價格" value={price} ready={price !== "未設定"} />
+            <ChecklistItem
+              label="公開內容"
+              value="確認文案及圖片"
+              ready={page.status === "published"}
+            />
+          </div>
+        </section>
+
         <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_390px]">
           <form
             id="landing-page-editor-form"
@@ -669,6 +722,36 @@ function StructuredRepeater({
             </div>
           </div>
         ))}
+      </div>
+    </div>
+  );
+}
+
+function ChecklistItem({
+  label,
+  value,
+  ready,
+}: {
+  label: string;
+  value: string;
+  ready: boolean;
+}) {
+  return (
+    <div className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
+      <div className="flex items-start gap-3">
+        <span
+          className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${
+            ready ? "bg-emerald-100 text-emerald-700" : "bg-white text-[#9a5d76]"
+          }`}
+        >
+          {ready ? "✓" : "•"}
+        </span>
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-[#321428]">{label}</p>
+          <p className="mt-1 break-words text-xs font-semibold leading-5 text-[#6d4a5c]">
+            {value}
+          </p>
+        </div>
       </div>
     </div>
   );

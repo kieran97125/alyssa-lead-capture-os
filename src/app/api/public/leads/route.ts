@@ -31,6 +31,18 @@ type LeadSubmitPayload = {
   honeypot?: string;
 };
 
+const DUPLICATE_WINDOW_MS = 3 * 60 * 1000;
+const IP_RATE_WINDOW_MS = 3 * 60 * 1000;
+const IP_RATE_LIMIT = 8;
+const publicSubmitAttempts = new Map<string, number[]>();
+
+const publicMessages = {
+  validation: "未能提交表格，請檢查資料後再試。",
+  duplicate: "登記已收到，請稍後再試或等候團隊聯絡。",
+  unavailable: "表格暫時未能使用，請稍後再試。",
+  spam: "未能提交表格，請稍後再試。",
+};
+
 function getStorageRecoverySource(touch: TouchPayload) {
   if (touch.source_capture_method === "parent_embed_script_local_storage_recovered") {
     return "local";
@@ -112,6 +124,99 @@ function getOriginValidation(
   return { allowed, allowedOrigins, receivedOrigins };
 }
 
+function getClientIp(request: NextRequest) {
+  const forwardedFor = request.headers.get("x-forwarded-for");
+  const forwardedIp = forwardedFor?.split(",")[0]?.trim();
+
+  return (
+    forwardedIp ||
+    request.headers.get("x-real-ip") ||
+    request.headers.get("x-vercel-forwarded-for") ||
+    request.headers.get("cf-connecting-ip") ||
+    null
+  );
+}
+
+function isIpRateLimited(ip: string | null) {
+  if (!ip) return false;
+
+  const now = Date.now();
+  const recentAttempts = (publicSubmitAttempts.get(ip) ?? []).filter(
+    (timestamp) => now - timestamp < IP_RATE_WINDOW_MS
+  );
+
+  if (recentAttempts.length >= IP_RATE_LIMIT) {
+    publicSubmitAttempts.set(ip, recentAttempts);
+    return true;
+  }
+
+  recentAttempts.push(now);
+  publicSubmitAttempts.set(ip, recentAttempts);
+  return false;
+}
+
+function shortUserAgent(request: NextRequest) {
+  return (request.headers.get("user-agent") ?? "").slice(0, 160);
+}
+
+function logPublicSubmitFailure(
+  request: NextRequest,
+  input: {
+    reason: string;
+    formToken?: string | null;
+    normalizedPhone?: string | null;
+  }
+) {
+  console.warn("[Alyssa Lead Capture OS] public_lead_submit_rejected", {
+    reason: input.reason,
+    form_token: input.formToken || null,
+    normalized_phone: input.normalizedPhone || null,
+    request_origin: normalizeOrigin(request.headers.get("origin")),
+    referer_origin: normalizeOrigin(request.headers.get("referer")),
+    user_agent: shortUserAgent(request),
+    timestamp: new Date().toISOString(),
+  });
+}
+
+function rejectPublicSubmit(
+  request: NextRequest,
+  status: number,
+  error: string,
+  message: string,
+  input: {
+    formToken?: string | null;
+    normalizedPhone?: string | null;
+  } = {}
+) {
+  logPublicSubmitFailure(request, {
+    reason: error,
+    formToken: input.formToken,
+    normalizedPhone: input.normalizedPhone,
+  });
+
+  return NextResponse.json({ ok: false, error, message }, { status });
+}
+
+function isValidNormalizedPhone(value: string) {
+  const digits = value.replace(/\D/g, "");
+  return digits.length >= 8 && digits.length <= 15;
+}
+
+function isValidEmail(value: string | null) {
+  if (!value) return true;
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
+}
+
+function isReasonableDate(value: string | null) {
+  if (!value) return true;
+  return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function isReasonableTime(value: string | null) {
+  if (!value) return true;
+  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+}
+
 async function createLocalResponse(payload: LeadSubmitPayload) {
   const submittedTouch = payload.submitted_touch_json ?? {};
   const classification = classifySubmittedTouch(submittedTouch);
@@ -137,17 +242,72 @@ export async function POST(request: NextRequest) {
     | null;
 
   if (!payload) {
-    return NextResponse.json({ ok: false, error: "invalid_json" }, { status: 400 });
+    return rejectPublicSubmit(
+      request,
+      400,
+      "invalid_json",
+      publicMessages.validation
+    );
   }
 
   if (cleanText(payload.honeypot)) {
-    return NextResponse.json({ ok: false, error: "spam_rejected" }, { status: 400 });
+    return rejectPublicSubmit(
+      request,
+      400,
+      "spam_rejected",
+      publicMessages.spam,
+      { formToken: cleanText(payload.form_token, 300) }
+    );
   }
 
   const formToken = cleanText(payload.form_token, 300);
   const customerName = cleanText(payload.customer_name, 120);
   const phone = cleanText(payload.phone, 80);
   const normalizedPhone = phone ? normalizePhone(phone) : "";
+  const email = cleanText(payload.email, 200);
+  const appointmentDate = cleanText(payload.appointment_date, 20);
+  const appointmentTime = cleanText(payload.appointment_time, 20);
+  const clientIp = getClientIp(request);
+
+  if (!formToken || !customerName || !phone || !isValidNormalizedPhone(normalizedPhone)) {
+    return rejectPublicSubmit(
+      request,
+      400,
+      "required_fields_missing",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
+  }
+
+  if (!isValidEmail(email)) {
+    return rejectPublicSubmit(
+      request,
+      400,
+      "invalid_email",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
+  }
+
+  if (!isReasonableDate(appointmentDate) || !isReasonableTime(appointmentTime)) {
+    return rejectPublicSubmit(
+      request,
+      400,
+      "invalid_booking_time",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
+  }
+
+  if (isIpRateLimited(clientIp)) {
+    return rejectPublicSubmit(
+      request,
+      429,
+      "rate_limited",
+      publicMessages.duplicate,
+      { formToken, normalizedPhone }
+    );
+  }
 
   if (!formToken || !phone || normalizedPhone.length < 8) {
     return NextResponse.json(
@@ -165,7 +325,13 @@ export async function POST(request: NextRequest) {
 
   if (!hasSupabaseAdminEnv()) {
     if (formToken !== alyssaDefaultForm.publicFormToken) {
-      return NextResponse.json({ ok: false, error: "invalid_form" }, { status: 403 });
+      return rejectPublicSubmit(
+        request,
+        403,
+        "invalid_form",
+        publicMessages.unavailable,
+        { formToken, normalizedPhone }
+      );
     }
 
     return createLocalResponse(payload);
@@ -179,7 +345,13 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (formError || !form) {
-    return NextResponse.json({ ok: false, error: "invalid_form" }, { status: 403 });
+    return rejectPublicSubmit(
+      request,
+      403,
+      "invalid_form",
+      publicMessages.unavailable,
+      { formToken, normalizedPhone }
+    );
   }
 
   const currentPageUrl = cleanText(submittedTouch.current_page_url, 2000);
@@ -207,11 +379,17 @@ export async function POST(request: NextRequest) {
       received_origins: originValidation.receivedOrigins,
       allowed_origins: originValidation.allowedOrigins,
     });
+    logPublicSubmitFailure(request, {
+      reason: "domain_not_allowed",
+      formToken,
+      normalizedPhone,
+    });
 
     return NextResponse.json(
       {
         ok: false,
         error: "domain_not_allowed",
+        message: publicMessages.unavailable,
         received_origins: originValidation.receivedOrigins,
         allowed_origins: originValidation.allowedOrigins,
       },
@@ -248,21 +426,74 @@ export async function POST(request: NextRequest) {
     ]);
 
   if (!packageRecord) {
-    return NextResponse.json({ ok: false, error: "invalid_package" }, { status: 400 });
+    return rejectPublicSubmit(
+      request,
+      400,
+      "invalid_package",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
   }
 
   if (!treatmentRecord) {
-    return NextResponse.json({ ok: false, error: "invalid_treatment" }, { status: 400 });
+    return rejectPublicSubmit(
+      request,
+      400,
+      "invalid_treatment",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
   }
 
   if (!branchRecord) {
-    return NextResponse.json({ ok: false, error: "invalid_branch" }, { status: 400 });
+    return rejectPublicSubmit(
+      request,
+      400,
+      "invalid_branch",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
   }
 
   if (packageRecord.treatment_id !== treatmentId) {
-    return NextResponse.json(
-      { ok: false, error: "package_treatment_mismatch" },
-      { status: 400 }
+    return rejectPublicSubmit(
+      request,
+      400,
+      "package_treatment_mismatch",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
+  }
+
+  const duplicateWindowStart = new Date(
+    Date.now() - DUPLICATE_WINDOW_MS
+  ).toISOString();
+  const { data: shortWindowDuplicate, error: duplicateCheckError } = await supabase
+    .from("leads")
+    .select("id")
+    .eq("normalized_phone", normalizedPhone)
+    .eq("form_id", form.id)
+    .gte("created_at", duplicateWindowStart)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (duplicateCheckError) {
+    console.warn("[Alyssa Lead Capture OS] duplicate_check_failed", {
+      code: duplicateCheckError.code,
+      message: duplicateCheckError.message,
+      form_token: formToken,
+      normalized_phone: normalizedPhone,
+    });
+  }
+
+  if (shortWindowDuplicate) {
+    return rejectPublicSubmit(
+      request,
+      429,
+      "duplicate_recent_submission",
+      publicMessages.duplicate,
+      { formToken, normalizedPhone }
     );
   }
 
@@ -281,7 +512,7 @@ export async function POST(request: NextRequest) {
         customer_name: customerName,
         phone,
         normalized_phone: normalizedPhone,
-        email: cleanText(payload.email, 200),
+        email,
       },
       { onConflict: "normalized_phone" }
     )
@@ -289,9 +520,12 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (contactError || !contact) {
-    return NextResponse.json(
-      { ok: false, error: "contact_upsert_failed" },
-      { status: 500 }
+    return rejectPublicSubmit(
+      request,
+      500,
+      "contact_upsert_failed",
+      publicMessages.unavailable,
+      { formToken, normalizedPhone }
     );
   }
 
@@ -377,9 +611,12 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (snapshotError || !snapshot) {
-    return NextResponse.json(
-      { ok: false, error: "snapshot_create_failed" },
-      { status: 500 }
+    return rejectPublicSubmit(
+      request,
+      500,
+      "snapshot_create_failed",
+      publicMessages.unavailable,
+      { formToken, normalizedPhone }
     );
   }
 
@@ -398,8 +635,8 @@ export async function POST(request: NextRequest) {
       customer_name: customerName,
       phone,
       normalized_phone: normalizedPhone,
-      appointment_date: cleanText(payload.appointment_date, 20),
-      appointment_time: cleanText(payload.appointment_time, 20),
+      appointment_date: appointmentDate,
+      appointment_time: appointmentTime,
       price: packageDisplayPrice,
       currency: packageRecord.currency || "HKD",
       payment_status: paymentStatus,
@@ -411,7 +648,13 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (leadError || !lead) {
-    return NextResponse.json({ ok: false, error: "lead_create_failed" }, { status: 500 });
+    return rejectPublicSubmit(
+      request,
+      500,
+      "lead_create_failed",
+      publicMessages.unavailable,
+      { formToken, normalizedPhone }
+    );
   }
 
   await supabase
@@ -425,8 +668,8 @@ export async function POST(request: NextRequest) {
     brand_id: form.brand_id,
     treatment_id: treatmentId,
     branch_id: branchId,
-    appointment_date: cleanText(payload.appointment_date, 20),
-    appointment_time: cleanText(payload.appointment_time, 20),
+    appointment_date: appointmentDate,
+    appointment_time: appointmentTime,
     booking_status: "requested",
     created_by_source: classification.sourceType,
   });

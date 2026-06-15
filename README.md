@@ -599,6 +599,22 @@ Do not deploy yet. Before deployment:
 - Confirm `/system-audit` shows public form lookup, main form token, and landing page route checks as ready.
 - Test records with stamp `50969` currently remain in dev data and should not be deleted until a separate cleanup pass.
 
+## Public Reliability & Security V1
+
+This pass adds a lightweight public safety layer for small-scale campaign testing.
+
+- Public forms include a hidden honeypot field; if it is filled, the submission is rejected with a friendly user message.
+- `/api/public/leads` checks for same form + same normalized phone duplicate submissions within a short window before creating another lead.
+- A small IP burst limiter is used when forwarded IP headers are available; phone/form duplicate checking remains the primary DB-backed protection.
+- Public submission errors return user-friendly messages while server logs keep concise diagnostics such as reason code, form token, normalized phone, origin, short user agent, and timestamp.
+- Public Landing Pages render published content only for normal visitors. Unpublished or missing pages show a clean unavailable state.
+- Public embed forms show a clean unavailable state when the token or config cannot be loaded.
+- Campaign pages include a compact preflight checklist for public page, form token, allowed domain, test lead, UTM, and price checks before ads.
+- Basic response headers include `X-Content-Type-Options: nosniff` and `Referrer-Policy: strict-origin-when-cross-origin`.
+- Frame-blocking headers and CSP are intentionally skipped for now so Wix iframe embeds keep working.
+
+This is suitable for early real campaign trials. It is not yet a high-volume enterprise anti-abuse layer, full bot management system, or CRM authentication layer.
+
 ## Verification
 
 ```bash

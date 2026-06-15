@@ -204,11 +204,14 @@ export default function EmbedFormPage() {
 
   useEffect(() => {
     async function loadConfig() {
+      try {
       const response = await fetch(`/api/public/forms/${params.formToken}`);
       const result = await response.json();
 
       if (!response.ok || !result.ok) {
+        setConfigMessage("這張表格暫時未能使用，請確認表格連結是否正確。");
         setConfigMessage("這張表格暫時未能載入，請確認表格代號是否正確。");
+        setConfigMessage("這張表格暫時未能使用，請確認表格連結是否正確。");
         return;
       }
 
@@ -239,6 +242,9 @@ export default function EmbedFormPage() {
         package_id: primaryPackage?.id || nextForm.defaultPackageId,
         branch_id: nextForm.defaultBranchId,
       }));
+      } catch {
+        setConfigMessage("這張表格暫時未能使用，請稍後再試。");
+      }
     }
 
     void loadConfig();
@@ -433,6 +439,9 @@ export default function EmbedFormPage() {
 
               <form onSubmit={submitForm} className="mt-5 space-y-5">
                 <input
+                  name="website"
+                  aria-hidden="true"
+                  autoComplete="off"
                   className="hidden"
                   tabIndex={-1}
                   value={formData.honeypot}
