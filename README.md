@@ -204,11 +204,11 @@ This keeps form management flexible without creating per-form style systems or a
 
 `/campaigns/new` gives marketers one guided entry point for starting a campaign.
 
-- Choose Wix registration form when Wix already has the page content and the team only needs a reusable embedded form.
-- Choose Landing Page when testing a new offer, copy angle, image direction, treatment, or package.
-- Both options create a form with a unique token and use the same lead capture and source tracking base.
-- Wix form campaigns redirect to the form detail page so the team can copy the embed code and preview the form.
-- Landing Page campaigns create a form first, then create a draft campaign page connected to that form when the landing page tables are available.
+- New ad Landing Page - creates a new form, then creates a draft Landing Page connected to that new form.
+- Wix registration form only - creates a new reusable form for Wix embed and redirects to the form detail page.
+- Existing form Landing Page - reuses a selected existing form, then creates a new draft Landing Page connected to that form.
+- All options use the same lead capture, source tracking, package price, and booking base.
+- Landing Page editor can change the connected form later; existing leads are not changed.
 - Publishing remains a separate step in the Landing Page editor.
 
 ## Landing Page Image Asset Strategy

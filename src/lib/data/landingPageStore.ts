@@ -65,6 +65,7 @@ export type LandingPageMutationResult = {
 
 export type LandingPageDraftMeta = {
   title?: string;
+  formId?: string;
 };
 
 export type CreateLandingPageDraftInput = {
@@ -733,6 +734,7 @@ export async function saveLandingPageDraft(
     .from("landing_pages")
     .update({
       title: meta.title ?? row.title,
+      form_id: meta.formId ?? row.form_id,
       status: row.published_version_id ? row.status : "draft",
       content_json: content,
       image_assets_json: imageAssets,

@@ -51,6 +51,11 @@ export default async function PublicLandingPage({
     config.forms.find((form) => form.id === page.formId) ??
     config.forms.find((form) => form.publicFormToken === page.formToken) ??
     null;
+
+  if (page.formId && !connectedForm) {
+    notFound();
+  }
+
   const embedScriptUrl = getEmbedScriptUrl();
   const selectedPackage = context.package;
   const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";

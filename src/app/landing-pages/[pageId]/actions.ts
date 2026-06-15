@@ -60,17 +60,20 @@ function readPairedList(
 
 function parseEditorForm(formData: FormData): {
   title: string;
+  formId: string;
   content: LandingPageContent;
   imageAssets: LandingPageImageAssets;
   error: string | null;
 } {
   const title = readString(formData, "title");
+  const formId = readString(formData, "connectedFormId");
   const heroTitle = readString(formData, "heroTitle");
   const ctaText = readString(formData, "ctaText");
 
   if (!title) {
     return {
       title,
+      formId,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
       error: "請輸入頁面標題。",
@@ -80,6 +83,7 @@ function parseEditorForm(formData: FormData): {
   if (!heroTitle) {
     return {
       title,
+      formId,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
       error: "請輸入 Hero 標題。",
@@ -89,6 +93,7 @@ function parseEditorForm(formData: FormData): {
   if (!ctaText) {
     return {
       title,
+      formId,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
       error: "請輸入 CTA 按鈕文字。",
@@ -140,7 +145,7 @@ function parseEditorForm(formData: FormData): {
     trustImageUrl: readOptionalUrl(formData, "trustImageUrl"),
   };
 
-  return { title, content, imageAssets, error: null };
+  return { title, formId, content, imageAssets, error: null };
 }
 
 export async function saveLandingPageDraftAction(formData: FormData) {
@@ -151,10 +156,12 @@ export async function saveLandingPageDraftAction(formData: FormData) {
 
   const result = await saveLandingPageDraft(pageId, parsed.content, parsed.imageAssets, {
     title: parsed.title,
+    formId: parsed.formId || undefined,
   });
 
   revalidatePath("/landing-pages");
   revalidatePath(`/landing-pages/${pageId}`);
+  revalidatePath(`/lp/${pageId}`);
 
   resultRedirect(pageId, result.message);
 }

@@ -2,10 +2,13 @@ import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { createCampaignAction } from "@/app/campaigns/new/actions";
 import {
+  getBranch,
   getBrand,
   getConfigurationData,
+  getPackage,
   getTreatment,
   packagePriceLabel,
+  type FormSetting,
 } from "@/lib/data/configuration";
 
 export const dynamic = "force-dynamic";
@@ -41,7 +44,7 @@ export default async function NewCampaignPage({
               建立新 Campaign
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              選擇建立 Wix 登記表格，或建立一頁簡單廣告 Landing Page 連接同一張表格。
+              選擇今次要建立廣告頁、Wix 登記表格，或用現有表格開一頁新的廣告 Landing Page。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -68,38 +71,37 @@ export default async function NewCampaignPage({
 
         <form action={createCampaignAction} className="mt-6 grid gap-6">
           <section className="alyssa-premium-card p-5">
-            <p className="alyssa-kicker">1. Campaign 類型</p>
-            <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              今次需要建立什麼？
-            </h2>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <p className="alyssa-kicker">1. 選擇建立方式</p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <ChoiceCard
-                value="wix_form"
-                title="Wix 登記表格"
-                body="適合 Wix 頁面已經有內容，只需要嵌入登記表格收集 Leads。"
+                value="new_landing_page"
+                title="新廣告 Landing Page"
+                body="適合測試新優惠、新療程或新文案角度。系統會建立新表格，並連接到新的 Landing Page。"
                 defaultChecked
               />
               <ChoiceCard
-                value="landing_page"
-                title="廣告 Landing Page"
-                body="適合快速測試新優惠、新療程或新文案角度，並連接一張新登記表格。"
+                value="wix_form"
+                title="只建立 Wix 登記表格"
+                body="適合 Wix 頁面已有內容，只需要一張可嵌入的登記表格收集 Leads。"
+              />
+              <ChoiceCard
+                value="existing_form_landing_page"
+                title="用現有表格開 Landing Page"
+                body="適合重用已準備好的登記表格，再開一頁新的廣告 Landing Page。"
               />
             </div>
           </section>
 
           <section className="alyssa-premium-card p-5">
-            <p className="alyssa-kicker">2. 基本設定</p>
-            <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              選擇品牌、療程、套餐價錢及分店
-            </h2>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            <p className="alyssa-kicker">2. Campaign 資料</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
               <TextField
                 label="Campaign 名稱"
                 name="campaignName"
                 placeholder="例如：Alyssa HK$388 首次體驗"
               />
               <TextField
-                label="表格名稱"
+                label="新表格名稱"
                 name="formName"
                 placeholder="留空會沿用 Campaign 名稱"
                 required={false}
@@ -150,26 +152,73 @@ export default async function NewCampaignPage({
 
             <label className="mt-4 block min-w-0">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                可使用此表格的網站
+                可使用新表格的網站
               </span>
               <textarea
                 name="allowedDomains"
-                rows={4}
+                rows={3}
                 placeholder="https://www.example.com&#10;https://campaign.example.com"
                 className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold leading-6 text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
               />
-              <span className="mt-2 block text-xs font-semibold leading-5 text-[#7b5a6a]">
-                如只用系統產生的 Landing Page，可暫時留空；如嵌入 Wix，請加入 Wix 頁面網址。
-              </span>
             </label>
           </section>
 
           <section className="alyssa-premium-card p-5">
-            <p className="alyssa-kicker">3. Landing Page 內容</p>
+            <p className="alyssa-kicker">3. 現有表格</p>
             <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              如果選擇 Landing Page，可先填寫基本文案
+              如選擇用現有表格開 Landing Page，請選擇表格
             </h2>
-            <div className="mt-5 grid gap-4 md:grid-cols-2">
+            {config.forms.length > 0 ? (
+              <>
+                <SelectField
+                  label="選擇現有表格"
+                  name="existingFormId"
+                  defaultValue={config.forms[0]?.id}
+                  required={false}
+                  options={config.forms.map((form) => ({
+                    value: form.id,
+                    label: `${form.formName} · ${form.publicFormToken}`,
+                  }))}
+                />
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  {config.forms.slice(0, 4).map((form) => (
+                    <ExistingFormSummary
+                      key={form.id}
+                      form={form}
+                      brand={getBrand(config, form.brandId)?.name ?? "未設定品牌"}
+                      treatment={
+                        getTreatment(config, form.defaultTreatmentId)?.name ??
+                        "未設定療程"
+                      }
+                      packageLabel={packagePriceLabel(
+                        getPackage(config, form.defaultPackageId)
+                      )}
+                      branch={
+                        getBranch(config, form.defaultBranchId)?.name ??
+                        "未設定分店"
+                      }
+                    />
+                  ))}
+                </div>
+              </>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
+                <p className="text-sm font-semibold text-[#5a2348]">
+                  暫時未有可重用的表格。
+                </p>
+                <Link
+                  href="/forms/new"
+                  className="mt-3 inline-flex rounded-full bg-[#5a2348] px-4 py-2 text-sm font-bold text-white"
+                >
+                  先建立表格
+                </Link>
+              </div>
+            )}
+          </section>
+
+          <section className="alyssa-premium-card p-5">
+            <p className="alyssa-kicker">4. Landing Page 內容</p>
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
               <TextField
                 label="頁面標題"
                 name="pageTitle"
@@ -205,12 +254,12 @@ export default async function NewCampaignPage({
           <section className="alyssa-premium-card p-5">
             <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
-                <p className="alyssa-kicker">4. 建立</p>
+                <p className="alyssa-kicker">5. 建立</p>
                 <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                  建立 Campaign 後即可預覽及使用
+                  建立後即可預覽及使用
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                  Wix 表格會前往表格設定；Landing Page 會前往內容編輯頁，並連接新表格。
+                  系統會按你選擇的方式，前往表格設定或 Landing Page 編輯頁。
                 </p>
               </div>
               <button
@@ -243,7 +292,7 @@ function ChoiceCard({
       <div className="flex items-start gap-3">
         <input
           type="radio"
-          name="outputType"
+          name="campaignMode"
           value={value}
           defaultChecked={defaultChecked}
           className="mt-1"
@@ -256,6 +305,35 @@ function ChoiceCard({
         </span>
       </div>
     </label>
+  );
+}
+
+function ExistingFormSummary({
+  form,
+  brand,
+  treatment,
+  packageLabel,
+  branch,
+}: {
+  form: FormSetting;
+  brand: string;
+  treatment: string;
+  packageLabel: string;
+  branch: string;
+}) {
+  return (
+    <article className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
+      <h3 className="font-bold text-[#321428]">{form.formName}</h3>
+      <p className="mt-2 break-words rounded-xl bg-white/80 px-3 py-2 font-mono text-xs font-semibold text-[#5a2348]">
+        {form.publicFormToken}
+      </p>
+      <div className="mt-3 grid gap-2 text-xs font-semibold leading-5 text-[#6d4a5c]">
+        <p>{brand}</p>
+        <p>{treatment}</p>
+        <p>{packageLabel}</p>
+        <p>{branch}</p>
+      </div>
+    </article>
   );
 }
 
@@ -314,11 +392,13 @@ function SelectField({
   name,
   options,
   defaultValue,
+  required = true,
 }: {
   label: string;
   name: string;
   options: Array<{ value: string; label: string }>;
   defaultValue?: string;
+  required?: boolean;
 }) {
   return (
     <label className="block min-w-0">
@@ -327,7 +407,7 @@ function SelectField({
       </span>
       <select
         name={name}
-        required
+        required={required}
         defaultValue={defaultValue}
         className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
       >
