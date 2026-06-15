@@ -1,10 +1,11 @@
 import Link from "next/link";
 
 const navItems = [
-  { href: "/dashboard", label: "總覽" },
+  { href: "/campaigns/new", label: "建立 Campaign" },
+  { href: "/dashboard", label: "Dashboard" },
   { href: "/leads", label: "Leads" },
-  { href: "/performance", label: "成效分析" },
-  { href: "/forms", label: "表格管理" },
+  { href: "/performance", label: "成效" },
+  { href: "/forms", label: "表格" },
   { href: "/landing-pages", label: "Landing Pages" },
   { href: "/settings", label: "設定" },
   { href: "/embed-preview", label: "嵌入預覽" },

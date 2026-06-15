@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
 import {
   alyssaLandingPages,
@@ -65,6 +66,19 @@ export type LandingPageDraftMeta = {
   title?: string;
 };
 
+export type CreateLandingPageDraftInput = {
+  title: string;
+  brandId: string;
+  treatmentId: string;
+  packageId: string;
+  branchId: string;
+  formId: string;
+  heroTitle: string;
+  heroSubtitle: string;
+  offerBadge: string;
+  ctaText: string;
+};
+
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
@@ -92,6 +106,41 @@ const supabaseToLocalIds = {
 
 function asString(value: unknown, fallback: string) {
   return typeof value === "string" ? value : fallback;
+}
+
+function slugify(value: string) {
+  const slug = value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 42);
+
+  return slug || "campaign";
+}
+
+function shortId() {
+  return randomBytes(3).toString("hex");
+}
+
+async function createUniqueLandingPageSlug(title: string) {
+  const base = `alyssa-${slugify(title)}`;
+
+  if (!hasSupabaseAdminEnv()) return `${base}-${shortId()}`;
+
+  const supabase = createSupabaseAdminClient();
+
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const slug = `${base}-${shortId()}`;
+    const { data, error } = await supabase
+      .from("landing_pages")
+      .select("id")
+      .eq("slug", slug)
+      .maybeSingle();
+
+    if (!error && !data) return slug;
+  }
+
+  return `${base}-${Date.now().toString(36)}-${shortId()}`;
 }
 
 function asStringArray(value: unknown, fallback: string[]) {
@@ -237,11 +286,9 @@ function rowToConfig(
   version?: LandingPageVersionRow | null
 ): LandingPageConfig {
   const fallback =
-    getLocalLandingPageBySlug(row.slug) ?? getLocalLandingPageById(row.slug);
-
-  if (!fallback) {
-    throw new Error(`No local landing page fallback found for ${row.slug}.`);
-  }
+    getLocalLandingPageBySlug(row.slug) ??
+    getLocalLandingPageById(row.slug) ??
+    alyssaLandingPages[0];
 
   const content = mergeContent(fallback, version?.content_json ?? row.content_json);
   const images = mergeImageAssets(
@@ -485,6 +532,139 @@ export async function getLandingPageList() {
     })),
     source: "local_config" as const,
     canPersist: false,
+  };
+}
+
+export async function createLandingPageDraft(input: CreateLandingPageDraftInput) {
+  if (!hasSupabaseAdminEnv()) {
+    return {
+      ok: false,
+      message: "暫時未能建立 Landing Page 草稿。",
+      pageId: null as string | null,
+      slug: null as string | null,
+    };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const slug = await createUniqueLandingPageSlug(input.title);
+  const content: LandingPageContent = {
+    templateName: "Premium offer landing page",
+    testingStatus: "ready_for_testing",
+    heroTitle: input.heroTitle,
+    heroSubtitle: input.heroSubtitle,
+    offerBadge: input.offerBadge,
+    offerHeadline: input.title,
+    offerBody: input.heroSubtitle,
+    ctaText: input.ctaText,
+    secondaryCtaText: "查看療程詳情",
+    painPoints: [
+      "客人需要清楚知道今次優惠適合甚麼需要。",
+      "團隊需要快速測試新療程或新文案角度。",
+      "每個登記都會連接同一套來源追蹤基礎。",
+    ],
+    benefits: [
+      "清楚展示療程及套餐價錢。",
+      "可用於廣告流量測試。",
+      "表格會收集客人資料及預約意向。",
+    ],
+    trustItems: [
+      "適合 Alyssa campaign 測試。",
+      "Wix 仍然是主要網站。",
+      "Landing Page 只用於快速測試優惠及角度。",
+    ],
+    sections: [
+      {
+        title: "為 Campaign 測試而設",
+        body: "這個 Landing Page 草稿已連接登記表格，可在編輯頁調整文案後再發布。",
+      },
+    ],
+    processSteps: [
+      {
+        title: "1. 客人提交登記",
+        body: "客人透過 Landing Page 內的表格留下資料。",
+      },
+      {
+        title: "2. 團隊跟進",
+        body: "團隊可按登記資料安排 WhatsApp 或電話跟進。",
+      },
+      {
+        title: "3. 查看成效",
+        body: "之後可在 dashboard 及 performance 頁查看來源及預約成效。",
+      },
+    ],
+    faqs: [
+      {
+        question: "這會取代 Wix 網站嗎？",
+        answer: "不會。Wix 仍然是主要網站；Landing Page 用於快速測試廣告優惠及文案。",
+      },
+    ],
+  };
+  const imageAssets: LandingPageImageAssets = {
+    heroImageUrl: "",
+    mobileHeroImageUrl: "",
+    offerImageUrl: "",
+    treatmentImageUrl: "",
+    processImage1Url: "",
+    processImage2Url: "",
+    processImage3Url: "",
+    trustImageUrl: "",
+  };
+
+  const { data: page, error: pageError } = await supabase
+    .from("landing_pages")
+    .insert({
+      slug,
+      title: input.title,
+      brand_id: input.brandId,
+      treatment_id: input.treatmentId,
+      package_id: input.packageId,
+      branch_id: input.branchId,
+      form_id: input.formId,
+      template_key: "premium_offer_landing_page",
+      mode: "landing_page",
+      status: "draft",
+      content_json: content,
+      image_assets_json: imageAssets,
+    })
+    .select("id,slug")
+    .single<{ id: string; slug: string }>();
+
+  if (pageError || !page) {
+    console.warn("landing_page_create_failed", pageError);
+    return {
+      ok: false,
+      message: "Landing Page 草稿未能建立，請稍後再試。",
+      pageId: null,
+      slug: null,
+    };
+  }
+
+  const { error: versionError } = await supabase
+    .from("landing_page_versions")
+    .insert({
+      page_id: page.id,
+      version_number: 1,
+      status: "draft",
+      content_json: content,
+      image_assets_json: imageAssets,
+    });
+
+  if (versionError) {
+    console.warn("landing_page_initial_version_failed", versionError);
+    return {
+      ok: false,
+      message:
+        "Landing Page 已建立，但草稿版本未能建立。請稍後再試或到 Landing Pages 檢查。",
+      pageId: null,
+      slug: null,
+    };
+  }
+
+  return {
+    ok: true,
+    message: "Landing Page 草稿已建立。",
+    pageId: page.slug,
+    slug: page.slug,
   };
 }
 

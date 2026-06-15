@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import Script from "next/script";
 import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
 import { getEmbedScriptUrl } from "@/lib/data/appUrl";
+import { getConfigurationData } from "@/lib/data/configuration";
 import { getLandingPageContext } from "@/lib/data/landingPages";
 import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
 
@@ -13,11 +14,18 @@ export default async function PublicLandingPage({
   params: Promise<{ slug: string }>;
 }) {
   const { slug } = await params;
-  const page = await getPublishedLandingPageBySlug(slug);
+  const [page, config] = await Promise.all([
+    getPublishedLandingPageBySlug(slug),
+    getConfigurationData(),
+  ]);
 
   if (!page) notFound();
 
   const context = getLandingPageContext(page);
+  const connectedForm =
+    config.forms.find((form) => form.id === page.formId) ??
+    config.forms.find((form) => form.publicFormToken === page.formToken) ??
+    null;
   const embedScriptUrl = getEmbedScriptUrl();
   const selectedPackage = context.package;
   const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";
@@ -246,9 +254,9 @@ export default async function PublicLandingPage({
             <Script
               src={embedScriptUrl}
               strategy="afterInteractive"
-              data-form-token={page.formToken}
+              data-form-token={connectedForm?.publicFormToken ?? page.formToken}
               data-brand={context.brand?.slug ?? "alyssa"}
-              data-form-id={page.formId}
+              data-form-id={connectedForm?.id ?? page.formId}
               data-target-id="alyssa-lp-form-target"
               data-height="900"
             />

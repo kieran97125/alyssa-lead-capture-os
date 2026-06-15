@@ -190,6 +190,17 @@ Alyssa Lead Capture OS supports multiple reusable registration forms per brand.
 
 This keeps form management flexible without creating per-form style systems or a visual form builder.
 
+## Create Campaign Flow
+
+`/campaigns/new` gives marketers one guided entry point for starting a campaign.
+
+- Choose Wix registration form when Wix already has the page content and the team only needs a reusable embedded form.
+- Choose Landing Page when testing a new offer, copy angle, image direction, treatment, or package.
+- Both options create a form with a unique token and use the same lead capture and source tracking base.
+- Wix form campaigns redirect to the form detail page so the team can copy the embed code and preview the form.
+- Landing Page campaigns create a form first, then create a draft campaign page connected to that form when the landing page tables are available.
+- Publishing remains a separate step in the Landing Page editor.
+
 ## Landing Page Image Asset Strategy
 
 Landing page mode uses structured image slots so marketers can prepare premium medical beauty / wellness assets for campaign testing. Images should support trust, desire, treatment value, and booking confidence without replacing the full Wix website.

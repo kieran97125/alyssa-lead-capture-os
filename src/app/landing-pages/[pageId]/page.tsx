@@ -406,6 +406,7 @@ export default async function LandingPageConfigPage({
             treatment={context.treatment?.name ?? "未設定療程"}
             branch={context.branch?.name ?? "未設定分店"}
             previewUrl={previewUrl}
+            formToken={connectedForm?.publicFormToken ?? page.formToken}
           />
         </div>
       </div>
@@ -675,12 +676,14 @@ function PreviewPanel({
   treatment,
   branch,
   previewUrl,
+  formToken,
 }: {
   page: LandingPageConfig;
   price: string;
   treatment: string;
   branch: string;
   previewUrl: string;
+  formToken: string;
 }) {
   const heroImageUrl = page.heroImageUrl || page.mobileHeroImageUrl;
 
@@ -718,7 +721,7 @@ function PreviewPanel({
         <PreviewInfo label="優惠" value={`${page.offerHeadline} · ${price}`} />
         <PreviewInfo label="療程" value={treatment} />
         <PreviewInfo label="分店" value={branch} />
-        <PreviewInfo label="登記表格" value={page.formToken} />
+        <PreviewInfo label="登記表格" value={formToken} />
         <PreviewInfo label="預覽連結" value={previewUrl} />
       </div>
 
