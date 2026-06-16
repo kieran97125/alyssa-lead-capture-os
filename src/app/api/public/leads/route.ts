@@ -8,6 +8,11 @@ import {
 import { TouchPayload } from "@/lib/attribution/types";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
 import {
+  getLegalLinks,
+  LEGAL_CONSENT_REQUIRED_MESSAGE,
+  LEGAL_CONSENT_TEXT,
+} from "@/lib/legal/consent";
+import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
@@ -29,6 +34,7 @@ type LeadSubmitPayload = {
   latest_touch_json?: TouchPayload;
   submitted_touch_json?: TouchPayload;
   honeypot?: string;
+  legalConsentAccepted?: boolean | string;
 };
 
 const DUPLICATE_WINDOW_MS = 3 * 60 * 1000;
@@ -42,6 +48,10 @@ const publicMessages = {
   unavailable: "表格暫時未能使用，請稍後再試。",
   spam: "未能提交表格，請稍後再試。",
 };
+
+function hasAcceptedLegalConsent(value: LeadSubmitPayload["legalConsentAccepted"]) {
+  return value === true || value === "true" || value === "1" || value === "on";
+}
 
 function getStorageRecoverySource(touch: TouchPayload) {
   if (touch.source_capture_method === "parent_embed_script_local_storage_recovered") {
@@ -167,7 +177,7 @@ function logPublicSubmitFailure(
     normalizedPhone?: string | null;
   }
 ) {
-  console.warn("[Alyssa Lead Capture OS] public_lead_submit_rejected", {
+  console.warn("[LaunchHub] public_lead_submit_rejected", {
     reason: input.reason,
     form_token: input.formToken || null,
     normalized_phone: input.normalizedPhone || null,
@@ -256,6 +266,16 @@ export async function POST(request: NextRequest) {
       400,
       "spam_rejected",
       publicMessages.spam,
+      { formToken: cleanText(payload.form_token, 300) }
+    );
+  }
+
+  if (!hasAcceptedLegalConsent(payload.legalConsentAccepted)) {
+    return rejectPublicSubmit(
+      request,
+      400,
+      "legal_consent_required",
+      LEGAL_CONSENT_REQUIRED_MESSAGE,
       { formToken: cleanText(payload.form_token, 300) }
     );
   }
@@ -374,7 +394,7 @@ export async function POST(request: NextRequest) {
   ]);
 
   if (!originValidation.allowed) {
-    console.warn("[Alyssa Lead Capture OS] domain_not_allowed", {
+    console.warn("[LaunchHub] domain_not_allowed", {
       form_token: formToken,
       received_origins: originValidation.receivedOrigins,
       allowed_origins: originValidation.allowedOrigins,
@@ -479,7 +499,7 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   if (duplicateCheckError) {
-    console.warn("[Alyssa Lead Capture OS] duplicate_check_failed", {
+    console.warn("[LaunchHub] duplicate_check_failed", {
       code: duplicateCheckError.code,
       message: duplicateCheckError.message,
       form_token: formToken,
@@ -674,6 +694,19 @@ export async function POST(request: NextRequest) {
     created_by_source: classification.sourceType,
   });
 
+  const legalLinks = getLegalLinks("alyssa");
+  const legalConsentPayload = {
+    consent_event: "legal_consent_accepted",
+    accepted_at: new Date().toISOString(),
+    consent_text: LEGAL_CONSENT_TEXT,
+    privacy_policy_url: legalLinks.privacyPolicyUrl,
+    terms_url: legalLinks.termsUrl,
+    disclaimer_url: legalLinks.disclaimerUrl,
+    form_token: formToken,
+    landing_page_url: cleanText(submittedTouch.landing_page_url, 2000),
+    current_page_url: currentPageUrl,
+  };
+
   await supabase.from("lead_events").insert([
     {
       lead_id: lead.id,
@@ -686,6 +719,17 @@ export async function POST(request: NextRequest) {
         source_type: classification.sourceType,
         is_duplicate: isDuplicate,
       },
+      page_url: currentPageUrl,
+      referrer: cleanText(submittedTouch.referrer, 2000),
+    },
+    {
+      lead_id: lead.id,
+      contact_id: contact.id,
+      source_snapshot_id: snapshot.id,
+      visitor_id: cleanText(submittedTouch.visitor_id, 120),
+      session_id: cleanText(submittedTouch.session_id, 120),
+      event_type: "form_submit_success",
+      event_payload_json: legalConsentPayload,
       page_url: currentPageUrl,
       referrer: cleanText(submittedTouch.referrer, 2000),
     },

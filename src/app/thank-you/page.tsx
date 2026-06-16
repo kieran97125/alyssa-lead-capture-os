@@ -37,7 +37,7 @@ function ThankYouContent() {
         <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">Thank you</p>
         <h1 className="mt-3 text-3xl font-bold">預約資料已收到</h1>
         <p className="mt-4 text-sm leading-6 text-[#6d4a5c]">
-          Alyssa 團隊會盡快透過 WhatsApp 跟進。付款狀態會以伺服器確認為準。
+          品牌團隊會盡快透過 WhatsApp 跟進。
         </p>
       </section>
     </main>

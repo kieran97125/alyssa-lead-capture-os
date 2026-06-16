@@ -209,7 +209,7 @@
     iframe.style.maxWidth = "100%";
     iframe.style.display = "block";
     iframe.setAttribute("loading", "lazy");
-    iframe.setAttribute("title", "Alyssa registration form");
+    iframe.setAttribute("title", "Campaign registration form");
 
     function sendAttribution() {
       if (!iframe.contentWindow) return;
@@ -242,6 +242,6 @@
       script.parentNode.insertBefore(iframe, script.nextSibling);
     }
   } catch (error) {
-    console.error("[Alyssa Lead Capture OS] Embed failed:", error);
+    console.error("[LaunchHub] Embed failed:", error);
   }
 })();

@@ -1,4 +1,4 @@
--- Landing Page Builder Save / Publish V1 for Alyssa Lead Capture OS.
+-- Landing Page Builder Save / Publish V1 for LaunchHub.
 -- Public /lp/[slug] should render published landing page content only.
 
 do $$
@@ -141,7 +141,7 @@ values (
       ),
       jsonb_build_object(
         'title', 'CRM-ready attribution',
-        'body', 'Lead Capture OS keeps the original campaign source ready for the future WhatsApp CRM to write back outcomes.'
+        'body', 'Campaign Launch OS keeps the original campaign source ready for the future WhatsApp CRM to write back outcomes.'
       )
     ),
     'processSteps', jsonb_build_array(
@@ -161,7 +161,7 @@ values (
     'faqs', jsonb_build_array(
       jsonb_build_object(
         'question', 'Is this a full Wix replacement?',
-        'answer', 'No. Wix remains the main website. Lead Capture OS landing pages are for campaign offer and angle testing.'
+        'answer', 'No. Wix remains the main website. Campaign Launch OS landing pages are for campaign offer and angle testing.'
       ),
       jsonb_build_object(
         'question', 'Does booking_only mean the package is free?',

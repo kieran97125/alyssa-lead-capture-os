@@ -1,5 +1,5 @@
 -- Draft only. Do not apply automatically until the DB-backed builder rollout is planned.
--- Landing Page Builder Foundation V1 for Alyssa Lead Capture OS.
+-- Landing Page Builder Foundation V1 for LaunchHub.
 
 -- Suggested enums:
 -- create type public.landing_page_mode as enum ('form_only', 'landing_page');

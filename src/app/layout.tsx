@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Alyssa Lead Capture OS",
-  description: "Alyssa attribution-ready lead capture and source snapshot layer.",
+  title: "LaunchHub",
+  description: "Campaign Launch OS for lead capture, campaign pages, and source attribution.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

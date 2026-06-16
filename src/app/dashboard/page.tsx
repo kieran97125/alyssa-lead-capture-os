@@ -80,7 +80,7 @@ export default async function DashboardPage({
                 Lead performance dashboard
               </p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                Alyssa 登記成效總覽
+                品牌 Leads 成效總覽
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
                 查看最新登記、預約狀態、套餐金額同來源成效。

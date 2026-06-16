@@ -8,6 +8,14 @@ import {
   alyssaPackages,
   alyssaTreatments,
 } from "@/lib/data/alyssaConfig";
+import {
+  getBrandLegalProfile,
+  getLegalLinks,
+  getLegalFooterText,
+  LEGAL_CONSENT_HELPER_TEXT,
+  LEGAL_CONSENT_REQUIRED_MESSAGE,
+  LEGAL_CONSENT_TEXT,
+} from "@/lib/legal/consent";
 
 type AttributionEnvelope = {
   first_touch_json?: Record<string, unknown>;
@@ -33,6 +41,10 @@ type PackageOption = FormOption & {
 };
 
 type BranchOption = FormOption;
+
+type BrandOption = FormOption & {
+  slug: string;
+};
 
 type PublicFormConfig = {
   id: string;
@@ -107,6 +119,14 @@ function normalizeBranch(raw: Record<string, unknown>): BranchOption {
   };
 }
 
+function normalizeBrand(raw: Record<string, unknown>): BrandOption {
+  return {
+    id: getString(raw.id),
+    name: getString(raw.name) || "Alyssa",
+    slug: getString(raw.slug) || "alyssa",
+  };
+}
+
 function isDisplayPackage(item: PackageOption) {
   return item.paymentRequired || item.promoPrice > 0;
 }
@@ -170,6 +190,9 @@ export default function EmbedFormPage() {
   const [branches, setBranches] = useState<BranchOption[]>(() =>
     alyssaBranches.map(normalizeBranch)
   );
+  const [brand, setBrand] = useState<BrandOption>(() =>
+    normalizeBrand({ id: "alyssa-brand-seed", name: "Alyssa", slug: "alyssa" })
+  );
   const [formData, setFormData] = useState({
     honeypot: "",
     customer_name: "",
@@ -181,6 +204,7 @@ export default function EmbedFormPage() {
     appointment_date: "",
     appointment_time: "12:00",
     payment_option: "booking_only",
+    legalConsentAccepted: false,
   });
 
   const selectedTreatment = useMemo(
@@ -201,6 +225,18 @@ export default function EmbedFormPage() {
       availablePackages[0],
     [availablePackages, formData.package_id]
   );
+  const legalProfile = useMemo(() => {
+    const brandSlug = brand.slug || searchParams.get("brand") || "alyssa";
+
+    return getBrandLegalProfile({
+      brandSlug,
+      brandName: brand.name || brandSlug,
+    });
+  }, [brand.name, brand.slug, searchParams]);
+  const legalLinks = useMemo(
+    () => getLegalLinks(legalProfile.brandSlug),
+    [legalProfile.brandSlug]
+  );
 
   useEffect(() => {
     async function loadConfig() {
@@ -218,6 +254,7 @@ export default function EmbedFormPage() {
       setConfigMessage("");
 
       const nextForm = normalizeForm(result.form ?? {});
+      const nextBrand = normalizeBrand(result.brand ?? {});
       const nextTreatments = (result.treatments ?? [])
         .map(normalizeTreatment)
         .filter((item: TreatmentOption) => item.id && item.name);
@@ -229,6 +266,7 @@ export default function EmbedFormPage() {
         .filter((item: BranchOption) => item.id && item.name);
 
       setPublicForm(nextForm);
+      setBrand(nextBrand);
       if (nextTreatments.length > 0) setTreatments(nextTreatments);
       if (nextPackages.length > 0) setPackages(nextPackages);
       if (nextBranches.length > 0) setBranches(nextBranches);
@@ -308,6 +346,18 @@ export default function EmbedFormPage() {
 
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!formData.legalConsentAccepted) {
+      setState("error");
+      setMessage(LEGAL_CONSENT_REQUIRED_MESSAGE);
+      await logPublicEvent(
+        "form_submit_failed",
+        { error: "legal_consent_required" },
+        attribution
+      );
+      return;
+    }
+
     setState("loading");
     setMessage("正在處理你的預約...");
     await logPublicEvent("form_submit_attempt", { form_token: params.formToken }, attribution);
@@ -362,7 +412,7 @@ export default function EmbedFormPage() {
         <div className="bg-[#5a2348] px-6 py-6 text-white">
           <div className="flex items-center justify-between gap-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#eac7ce]">
-              Alyssa 醫學美容
+              {brand.name}
             </p>
             <span className="rounded-full border border-white/20 px-3 py-1 text-xs font-bold text-[#fff6f0]">
               專人跟進
@@ -370,7 +420,7 @@ export default function EmbedFormPage() {
           </div>
           <h1 className="mt-4 text-2xl font-bold">預約個人療程諮詢</h1>
           <p className="mt-2 text-sm leading-6 text-[#f8e8e2]">
-            填寫你有興趣嘅療程同預約時段，Alyssa 會透過 WhatsApp 跟進確認。
+            &#x8ACB;&#x586B;&#x5BEB;&#x9810;&#x7D04;&#x8CC7;&#x6599;&#xFF0C;{brand.name} &#x5718;&#x968A;&#x6703;&#x900F;&#x904E; WhatsApp &#x8DDF;&#x9032;&#x78BA;&#x8A8D;&#x3002;
           </p>
         </div>
 
@@ -400,7 +450,7 @@ export default function EmbedFormPage() {
               </h2>
               <p className="mt-3 text-sm leading-6 text-emerald-800">{message}</p>
               <p className="mt-4 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-emerald-900">
-                Alyssa 團隊會透過 WhatsApp 聯絡你，確認療程同預約細節。
+                {brand.name} &#x5718;&#x968A;&#x6703;&#x900F;&#x904E; WhatsApp &#x806F;&#x7D61;&#x4F60;&#xFF0C;&#x78BA;&#x8A8D;&#x7642;&#x7A0B;&#x540C;&#x9810;&#x7D04;&#x7D30;&#x7BC0;&#x3002;
               </p>
             </section>
           ) : (
@@ -578,6 +628,72 @@ export default function EmbedFormPage() {
                   </div>
                 </FormSection>
 
+                <section className="rounded-3xl border border-[#ead9cf] bg-[#fff6f0] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                    條款確認
+                  </p>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-[#7b5a6a]">
+                    {LEGAL_CONSENT_HELPER_TEXT}
+                  </p>
+                  <label className="mt-3 flex items-start gap-3 text-sm font-semibold leading-6 text-[#5a2348]">
+                    <input
+                      required
+                      type="checkbox"
+                      aria-label={LEGAL_CONSENT_TEXT}
+                      checked={formData.legalConsentAccepted}
+                      onChange={(event) => {
+                        event.currentTarget.setCustomValidity("");
+                        setFormData((current) => ({
+                          ...current,
+                          legalConsentAccepted: event.target.checked,
+                        }));
+                        if (event.target.checked && state === "error") {
+                          setMessage("");
+                          setState("idle");
+                        }
+                      }}
+                      onInvalid={(event) => {
+                        event.currentTarget.setCustomValidity(
+                          LEGAL_CONSENT_REQUIRED_MESSAGE
+                        );
+                        setState("error");
+                        setMessage(LEGAL_CONSENT_REQUIRED_MESSAGE);
+                      }}
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-[#d9b66f] text-[#e46f64]"
+                    />
+                    <span>
+                      我已閱讀並同意
+                      <a
+                        href={legalLinks.privacyPolicyUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-[#9a3d56] underline underline-offset-4"
+                      >
+                        《私隱政策》
+                      </a>
+                      、
+                      <a
+                        href={legalLinks.termsUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-[#9a3d56] underline underline-offset-4"
+                      >
+                        《條款及細則》
+                      </a>
+                      及
+                      <a
+                        href={legalLinks.disclaimerUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="font-bold text-[#9a3d56] underline underline-offset-4"
+                      >
+                        《免責聲明》
+                      </a>
+                      ，並同意你們使用我提交的資料作預約、客戶服務及相關跟進用途。
+                    </span>
+                  </label>
+                </section>
+
                 <button
                   disabled={state === "loading"}
                   className="w-full rounded-full bg-[#e46f64] px-5 py-3.5 text-sm font-bold text-white shadow-[0_14px_30px_rgba(228,111,100,0.28)] transition hover:bg-[#d95f55] disabled:opacity-60"
@@ -595,6 +711,12 @@ export default function EmbedFormPage() {
               <p className="mt-4 text-center text-xs leading-5 text-[#8a6b78]">
                 你的資料只會用作預約跟進及療程諮詢安排。
               </p>
+              <PublicLegalFooter
+                footerText={getLegalFooterText(legalProfile)}
+                privacyPolicyUrl={legalProfile.privacyPolicyUrl}
+                termsUrl={legalProfile.termsUrl}
+                disclaimerUrl={legalProfile.disclaimerUrl}
+              />
             </>
           )}
         </div>
@@ -626,5 +748,52 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
       {label}
       {children}
     </label>
+  );
+}
+
+function PublicLegalFooter({
+  footerText,
+  privacyPolicyUrl,
+  termsUrl,
+  disclaimerUrl,
+}: {
+  footerText: string;
+  privacyPolicyUrl: string;
+  termsUrl: string;
+  disclaimerUrl: string;
+}) {
+  return (
+    <footer className="mt-5 border-t border-[#ead9cf] pt-4 text-center text-xs font-semibold leading-5 text-[#8a6b78]">
+      <p>{footerText}</p>
+      <nav className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
+        <a
+          className="underline underline-offset-4"
+          href={privacyPolicyUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          私隱政策
+        </a>
+        <a
+          className="underline underline-offset-4"
+          href={termsUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          條款及細則
+        </a>
+        <a
+          className="underline underline-offset-4"
+          href={disclaimerUrl}
+          target="_blank"
+          rel="noreferrer"
+        >
+          免責聲明
+        </a>
+        <a className="underline underline-offset-4" href="#top">
+          聯絡 / 預約
+        </a>
+      </nav>
+    </footer>
   );
 }

@@ -6,6 +6,10 @@ import { getEmbedScriptUrl } from "@/lib/data/appUrl";
 import { getConfigurationData } from "@/lib/data/configuration";
 import { getLandingPageContext } from "@/lib/data/landingPages";
 import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
+import {
+  getBrandLegalProfile,
+  getLegalFooterText,
+} from "@/lib/legal/consent";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +64,10 @@ export default async function PublicLandingPage({
   const selectedPackage = context.package;
   const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";
   const heroImageUrl = page.heroImageUrl || page.mobileHeroImageUrl;
+  const legalProfile = getBrandLegalProfile({
+    brandSlug: context.brand?.slug,
+    brandName: context.brand?.name,
+  });
 
   return (
     <main className="min-h-screen bg-[#fff9f3] text-[#321428]">
@@ -324,7 +332,48 @@ export default async function PublicLandingPage({
           ))}
         </div>
       </MotionReveal>
+
+      <PublicLegalFooter
+        footerText={getLegalFooterText(legalProfile)}
+        privacyPolicyUrl={legalProfile.privacyPolicyUrl}
+        termsUrl={legalProfile.termsUrl}
+        disclaimerUrl={legalProfile.disclaimerUrl}
+      />
     </main>
+  );
+}
+
+function PublicLegalFooter({
+  footerText,
+  privacyPolicyUrl,
+  termsUrl,
+  disclaimerUrl,
+}: {
+  footerText: string;
+  privacyPolicyUrl: string;
+  termsUrl: string;
+  disclaimerUrl: string;
+}) {
+  return (
+    <footer className="border-t border-[#ead9cf] bg-white/74 px-5 py-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 text-xs font-semibold leading-5 text-[#7b5a6a] md:flex-row md:items-center md:justify-between">
+        <p>{footerText}</p>
+        <nav className="flex flex-wrap gap-x-4 gap-y-2">
+          <a className="underline underline-offset-4" href={privacyPolicyUrl}>
+            私隱政策
+          </a>
+          <a className="underline underline-offset-4" href={termsUrl}>
+            條款及細則
+          </a>
+          <a className="underline underline-offset-4" href={disclaimerUrl}>
+            免責聲明
+          </a>
+          <a className="underline underline-offset-4" href="#alyssa-lp-form">
+            聯絡 / 預約
+          </a>
+        </nav>
+      </div>
+    </footer>
   );
 }
 

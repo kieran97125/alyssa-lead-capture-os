@@ -1,20 +1,28 @@
-# Alyssa Lead Capture OS
+# LaunchHub
 
-Alyssa Lead Capture OS is an attribution-ready registration form and lead source layer adapted from the `leadhub-source-os` foundation.
+LaunchHub is an attribution-ready registration form and lead source layer adapted from the `leadhub-source-os` foundation.
 
-It is designed for Alyssa as:
+It is designed for multi-brand campaign operations as:
 
 - A Wix-embeddable registration form system.
 - A parent-page UTM and click ID capture layer.
 - A source snapshot system that stays separate from mutable lead/outcome data.
-- A CTWA / WhatsApp attribution boundary for a future separate Alyssa CRM.
+- A CTWA / WhatsApp attribution boundary for a future separate CRM.
 - A booking, payment, show/no-show, lost, and follow-up feedback loop for future revenue attribution.
+
+## Naming Direction
+
+- Internal product/system name: LaunchHub.
+- Descriptive name: Campaign Launch OS.
+- Public campaign pages and public forms should show the selected brand and operating company, not the system name.
+- Alyssa, Ineffable, Skin Light, and future names remain brand records or campaign clients inside the system.
+- Do not use public customer-facing pages to define developer/company IP ownership. System IP, ownership, and company licence terms should be handled by a separate written agreement between the developer and the company.
 
 ## Architecture Boundary
 
-Alyssa Lead Capture OS owns the lead capture and source attribution layer. It is responsible for Wix-embeddable registration forms, parent-page UTM and click ID capture, public lead submission, immutable `lead_source_snapshots`, lead event logging, thank-you tracking, and attribution-ready dashboard views.
+LaunchHub owns the lead capture and source attribution layer. It is responsible for Wix-embeddable registration forms, parent-page UTM and click ID capture, public lead submission, immutable `lead_source_snapshots`, lead event logging, thank-you tracking, and attribution-ready dashboard views.
 
-Alyssa Lead Capture OS is not the future CRM app. The future Alyssa CRM OS should be a separate WhatsApp-first CRM for Meta WhatsApp API integration, WhatsApp inbox handling, CS follow-up, AI reply assistance, booking confirmation, paid / show / no-show / lost outcome tracking, and outcome write-back.
+LaunchHub is not the future CRM app. The future CRM app should be a separate WhatsApp-first CRM for Meta WhatsApp API integration, WhatsApp inbox handling, CS follow-up, AI reply assistance, booking confirmation, paid / show / no-show / lost outcome tracking, and outcome write-back.
 
 Both apps must share the same base data model. The shared base concepts are:
 
@@ -28,7 +36,7 @@ Both apps must share the same base data model. The shared base concepts are:
 - `packages`
 - `branches`
 
-The contract is that Lead Capture OS creates the first attribution-backed lead record and source snapshot when a customer arrives from Wix, a form, CTWA, or another captured source. The future CRM reads the same `contacts`, `leads`, `lead_source_snapshots`, and `bookings` records, then writes operational outcomes back through `bookings`, `leads`, and `lead_events`. This lets the dashboard later calculate source-to-booking, source-to-show, and source-to-paid conversion without treating the CRM as a separate data island.
+The contract is that Campaign Launch OS creates the first attribution-backed lead record and source snapshot when a customer arrives from Wix, a form, CTWA, or another captured source. The future CRM reads the same `contacts`, `leads`, `lead_source_snapshots`, and `bookings` records, then writes operational outcomes back through `bookings`, `leads`, and `lead_events`. This lets the dashboard later calculate source-to-booking, source-to-show, and source-to-paid conversion without treating the CRM as a separate data island.
 
 ## Project Status
 
@@ -43,7 +51,7 @@ The contract is that Lead Capture OS creates the first attribution-backed lead r
 
 ## Product Modes
 
-Alyssa Lead Capture OS supports two output modes that share the same lead capture, UTM, source snapshot, booking, and event model.
+LaunchHub supports two output modes that share the same lead capture, UTM, source snapshot, booking, and event model.
 
 ### Form-only mode
 
@@ -51,7 +59,7 @@ Alyssa Lead Capture OS supports two output modes that share the same lead captur
 - The system generates an embed script.
 - The embed script is inserted into Wix pages.
 - Wix remains the main website and brand website.
-- Lead Capture OS handles form capture, UTM capture, source snapshots, lead attribution, bookings, and lead events.
+- Campaign Launch OS handles form capture, UTM capture, source snapshots, lead attribution, bookings, and lead events.
 
 ### Landing page mode
 
@@ -61,7 +69,7 @@ Alyssa Lead Capture OS supports two output modes that share the same lead captur
 - It remains a campaign testing layer backed by the same lead attribution model.
 - The current implementation uses local seed config for `landing_pages`; a future builder can persist fields such as `hero_title`, `hero_subtitle`, `hero_image_url`, `offer_badge`, `cta_text`, and `sections_json`.
 
-Future CRM connection remains separate. The future Alyssa CRM OS should read and write outcomes against the shared lead base instead of becoming part of the Lead Capture OS UI.
+Future CRM connection remains separate. The future CRM app should read and write outcomes against the shared lead base instead of becoming part of the Campaign Launch OS UI.
 
 ## Configuration Layer Direction
 
@@ -129,7 +137,7 @@ Current V1 supports an editor-like internal screen for:
 
 The current editor UI is read-only / save-ready by design. Save and publish workflows should be added later with a DB-backed `landing_pages` table for fields such as template, status, slug, hero content, offer content, sections, FAQ, CTA, and publish metadata.
 
-Wix remains the main website. Lead Capture OS landing pages are for fast offer, angle, treatment, and audience testing while preserving the same lead capture and attribution flow.
+Wix remains the main website. Campaign Launch OS landing pages are for fast offer, angle, treatment, and audience testing while preserving the same lead capture and attribution flow.
 
 ## DB-backed Landing Page Builder Direction
 
@@ -186,7 +194,7 @@ Apply the migration in Supabase SQL editor or through your migration workflow be
 
 ## Multi-form Management
 
-Alyssa Lead Capture OS supports multiple reusable registration forms per brand.
+LaunchHub supports multiple reusable registration forms per brand.
 
 - Forms share one unified visual style in `/embed/[formToken]`.
 - Each form has its own `public_form_token` and Wix embed code.
@@ -234,11 +242,11 @@ The application UI is localized for Hong Kong internal growth and marketing user
 
 ## Guided UX Direction
 
-Alyssa Lead Capture OS is designed for non-technical marketing, management, CS, and operations users. Business screens should explain what the page is for, what the user should do first, which actions are safe internal actions, and which actions affect public campaign pages.
+LaunchHub is designed for non-technical marketing, management, CS, and operations users. Business screens should explain what the page is for, what the user should do first, which actions are safe internal actions, and which actions affect public campaign pages.
 
 Core guided workflows:
 
-- Form-only mode - Wix owns the page content; Lead Capture OS provides the embedded form and attribution capture.
+- Form-only mode - Wix owns the page content; Campaign Launch OS provides the embedded form and attribution capture.
 - Landing page mode - marketers prepare campaign content, save internal drafts, preview, then publish a public campaign page.
 - Lead monitoring - CS and operations review latest registration records and booking requests.
 - Performance reporting - management and marketing compare leads, bookings, source, campaign, treatment, package, and branch performance.
@@ -248,7 +256,7 @@ Technical audit details such as low-level tracking fields, system health, source
 
 ## Design System Direction
 
-Alyssa Lead Capture OS uses a custom premium medical beauty / wellness visual system rather than a generic SaaS blue theme.
+LaunchHub uses a custom premium medical beauty / wellness visual system rather than a generic SaaS blue theme.
 
 Current V1 design tokens define:
 
@@ -263,7 +271,7 @@ Shared UI primitives live in `src/components/alyssa/ui.tsx` for reusable cards, 
 
 Motion is provided by `motion/react` and is used sparingly for subtle section reveal, KPI card reveal, CTA hover/tap, landing page hero reveal, and editor/list card polish. Reduced-motion preferences are respected through `useReducedMotion()` and the global `prefers-reduced-motion` CSS guard.
 
-If the internal app grows into a larger admin surface, shadcn/ui-style primitives are the preferred next component-system step. Open Props-style token thinking may inspire future refinements, but Alyssa tokens remain custom to the brand and campaign-testing product.
+If the internal app grows into a larger admin surface, shadcn/ui-style primitives are the preferred next component-system step. Open Props-style token thinking may inspire future refinements, but LaunchHub tokens remain custom to the campaign-testing product.
 
 ## Local Setup
 
@@ -316,7 +324,7 @@ Open:
 
 ## Internal Access Boundary
 
-Alyssa Lead Capture OS separates public campaign/form routes from internal business and configuration routes.
+LaunchHub separates public campaign/form routes from internal business and configuration routes.
 
 Public routes remain accessible for campaigns, Wix embeds, and lead capture:
 
@@ -406,7 +414,7 @@ Suggested shared access tables:
 - `user_brand_access` - optional brand-level access for multi-brand growth.
 - `user_module_permissions` - optional per-user overrides only if role defaults are not enough.
 
-The future Alyssa CRM app should reuse this access model where possible, especially `profiles`, roles, status, and brand access. This keeps Lead Capture OS and CRM from creating separate user islands.
+The future CRM app should reuse this access model where possible, especially `profiles`, roles, status, and brand access. This keeps Campaign Launch OS and CRM from creating separate user islands.
 
 Implemented helper foundation in `src/lib/security/teamAccess.ts`:
 
@@ -530,7 +538,7 @@ The migration creates:
 
 ## Schema Readiness Audit
 
-The current Supabase migration contains the shared base tables needed by Lead Capture OS and the future CRM app:
+The current Supabase migration contains the shared base tables needed by Campaign Launch OS and the future CRM app:
 
 - `contacts` - present; includes `normalized_phone` as the shared customer matching key.
 - `leads` - present; stores `normalized_phone`, `source_snapshot_id`, `source_type`, `payment_status`, `booking_status`, `lead_status`, and `crm_status`.
@@ -546,7 +554,7 @@ Schema conclusion: the base schema is ready for Supabase migration as a shared l
 
 ## Future CRM Contract Notes
 
-The future Alyssa CRM OS should follow this contract:
+The future CRM app should follow this contract:
 
 - Match customers by `contacts.normalized_phone`.
 - When a form lead already exists, read `leads.source_snapshot_id` and the linked `lead_source_snapshots` row instead of creating a disconnected source record.
@@ -598,6 +606,29 @@ Do not deploy yet. Before deployment:
 - Test a UTM lead submission before running real ads.
 - Confirm `/system-audit` shows public form lookup, main form token, and landing page route checks as ready.
 - Test records with stamp `50969` currently remain in dev data and should not be deleted until a separate cleanup pass.
+
+## Public Form Legal Consent
+
+All public lead forms require visitors to tick a legal consent checkbox before submitting. The checkbox confirms the visitor has read and agreed to the Privacy Policy, Terms & Conditions, and Disclaimer, and agrees that submitted data may be used for appointment, customer service, and related follow-up.
+
+- Current placeholder legal routes are `/legal/alyssa/privacy`, `/legal/alyssa/terms`, and `/legal/alyssa/disclaimer`.
+- Replace placeholder legal content with brand-approved legal documents before running larger paid campaigns.
+- `/api/public/leads` also validates `legalConsentAccepted` server-side, so consent is not only a browser UI check.
+- Consent proof is recorded in `lead_events` using the existing allowed `form_submit_success` event type with `consent_event = "legal_consent_accepted"` in `event_payload_json`.
+- Marketing or promotional consent should be added later as a separate optional checkbox. It is intentionally not included in this pass.
+- Public Privacy Policy, Terms & Conditions, and Disclaimer should identify the brand/operator and explain customer data use, offer rules, booking rules, and treatment-effect limitations.
+- Public customer-facing terms must not say customer data belongs to the developer, the system belongs to the developer, or source code ownership belongs to the developer.
+
+Future brand legal profile fields to add when settings become editable:
+
+- `operating_company_name`
+- `company_registered_name`
+- `contact_phone`
+- `contact_email`
+- `privacy_policy_url`
+- `terms_url`
+- `disclaimer_url`
+- `footer_disclosure`
 
 ## Public Reliability & Security V1
 

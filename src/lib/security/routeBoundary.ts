@@ -3,6 +3,7 @@ export const publicExactRoutes = ["/"] as const;
 export const publicRoutePrefixes = [
   "/lp/",
   "/embed/",
+  "/legal/",
   "/api/public/",
 ] as const;
 

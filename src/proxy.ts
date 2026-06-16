@@ -5,7 +5,7 @@ function unauthorized() {
   return new NextResponse("Authentication required", {
     status: 401,
     headers: {
-      "WWW-Authenticate": 'Basic realm="Alyssa internal pages", charset="UTF-8"',
+      "WWW-Authenticate": 'Basic realm="LaunchHub internal pages", charset="UTF-8"',
     },
   });
 }

@@ -18,14 +18,14 @@ export function AppNav() {
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 md:flex-row md:items-center md:justify-between">
         <Link href="/" className="flex min-w-0 items-center gap-3">
           <span className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-[#5a2348] text-sm font-bold text-white shadow-[0_12px_30px_rgba(90,35,72,0.2)]">
-            A
+            L
           </span>
           <span className="min-w-0">
             <span className="block text-sm font-semibold uppercase tracking-[0.18em] text-[#9a5d76]">
-              Alyssa
+              LaunchHub
             </span>
             <span className="block text-xl font-bold text-[#321428]">
-              Alyssa Lead Capture OS
+              Campaign Launch OS
             </span>
           </span>
         </Link>

@@ -1,5 +1,5 @@
 -- Draft only. Do not apply automatically until Supabase Auth rollout is planned.
--- Team Access Foundation V1 for Alyssa Lead Capture OS and future Alyssa CRM.
+-- Team Access Foundation V1 for LaunchHub and the future CRM app.
 
 -- Suggested enum direction:
 -- create type public.team_role as enum (
