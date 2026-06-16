@@ -611,6 +611,8 @@ Do not deploy yet. Before deployment:
 
 All public lead forms require visitors to tick a legal consent checkbox before submitting. The checkbox confirms the visitor has read and agreed to the Privacy Policy, Terms & Conditions, and Disclaimer, and agrees that submitted data may be used for appointment, customer service, and related follow-up.
 
+- Public legal pages now contain first-pass Traditional Chinese placeholder content for Privacy Policy, Terms & Conditions, and Disclaimer.
+- Company and legal review is required before official launch or larger paid campaign use.
 - Current placeholder legal routes are `/legal/alyssa/privacy`, `/legal/alyssa/terms`, and `/legal/alyssa/disclaimer`.
 - Replace placeholder legal content with brand-approved legal documents before running larger paid campaigns.
 - `/api/public/leads` also validates `legalConsentAccepted` server-side, so consent is not only a browser UI check.

@@ -10,9 +10,44 @@ export type BrandLegalProfile = {
   brandSlug: string;
   brandName: string;
   operatingCompanyName: string | null;
+  contactLabel: string;
+  lastUpdated: string;
   privacyPolicyUrl: string;
   termsUrl: string;
   disclaimerUrl: string;
+};
+
+const brandLegalProfiles: Record<
+  string,
+  Pick<
+    BrandLegalProfile,
+    "brandName" | "operatingCompanyName" | "contactLabel" | "lastUpdated"
+  >
+> = {
+  alyssa: {
+    brandName: "Alyssa",
+    operatingCompanyName: "Alyssa Group Limited",
+    contactLabel: "請透過預約表格或品牌官方 WhatsApp 聯絡我們。",
+    lastUpdated: "2026年6月16日",
+  },
+  ineffable: {
+    brandName: "Ineffable Beauty",
+    operatingCompanyName: "Alyssa Group Limited",
+    contactLabel: "請透過預約表格或品牌官方 WhatsApp 聯絡我們。",
+    lastUpdated: "2026年6月16日",
+  },
+  "ineffable-beauty": {
+    brandName: "Ineffable Beauty",
+    operatingCompanyName: "Alyssa Group Limited",
+    contactLabel: "請透過預約表格或品牌官方 WhatsApp 聯絡我們。",
+    lastUpdated: "2026年6月16日",
+  },
+  "skin-light": {
+    brandName: "Skin Light",
+    operatingCompanyName: "Alyssa Group Limited",
+    contactLabel: "請透過預約表格或品牌官方 WhatsApp 聯絡我們。",
+    lastUpdated: "2026年6月16日",
+  },
 };
 
 export function getLegalLinks(brandSlug = "alyssa") {
@@ -31,14 +66,16 @@ export function getBrandLegalProfile({
   brandName?: string | null;
 } = {}): BrandLegalProfile {
   const normalizedSlug = brandSlug || "alyssa";
-  const displayName = brandName || normalizedSlug;
+  const profile = brandLegalProfiles[normalizedSlug];
+  const displayName = profile?.brandName || brandName || "品牌";
   const legalLinks = getLegalLinks(normalizedSlug);
 
   return {
     brandSlug: normalizedSlug,
     brandName: displayName,
-    operatingCompanyName:
-      normalizedSlug === "alyssa" ? "Alyssa Group Limited" : null,
+    operatingCompanyName: profile?.operatingCompanyName || null,
+    contactLabel: profile?.contactLabel || "請透過預約表格或品牌官方渠道聯絡我們。",
+    lastUpdated: profile?.lastUpdated || "2026年6月16日",
     ...legalLinks,
   };
 }
@@ -49,4 +86,11 @@ export function getLegalFooterText(profile: BrandLegalProfile) {
   }
 
   return `© 2026 ${profile.brandName}。品牌營運資料待更新。`;
+}
+
+export function resolveLegalBrandDisplay(brandSlug: string) {
+  return getBrandLegalProfile({
+    brandSlug,
+    brandName: brandLegalProfiles[brandSlug]?.brandName || "品牌",
+  });
 }
