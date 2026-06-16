@@ -50,7 +50,7 @@ const publicMessages = {
 };
 
 function hasAcceptedLegalConsent(value: LeadSubmitPayload["legalConsentAccepted"]) {
-  return value === true || value === "true" || value === "1" || value === "on";
+  return value === true;
 }
 
 function getStorageRecoverySource(touch: TouchPayload) {
@@ -274,7 +274,7 @@ export async function POST(request: NextRequest) {
     return rejectPublicSubmit(
       request,
       400,
-      "legal_consent_required",
+      "legal_consent_missing",
       LEGAL_CONSENT_REQUIRED_MESSAGE,
       { formToken: cleanText(payload.form_token, 300) }
     );
@@ -421,8 +421,12 @@ export async function POST(request: NextRequest) {
   const branchId = cleanText(payload.branch_id, 80) || form.default_branch_id;
   const packageId = cleanText(payload.package_id, 80) || form.default_package_id;
 
-  const [{ data: packageRecord }, { data: treatmentRecord }, { data: branchRecord }] =
-    await Promise.all([
+  const [
+    { data: packageRecord },
+    { data: treatmentRecord },
+    { data: branchRecord },
+    { data: brandRecord },
+  ] = await Promise.all([
       supabase
         .from("packages")
         .select("*")
@@ -443,6 +447,11 @@ export async function POST(request: NextRequest) {
         .eq("brand_id", form.brand_id)
         .eq("status", "active")
         .single(),
+      supabase
+        .from("brands")
+        .select("slug, name")
+        .eq("id", form.brand_id)
+        .maybeSingle(),
     ]);
 
   if (!packageRecord) {
@@ -694,7 +703,7 @@ export async function POST(request: NextRequest) {
     created_by_source: classification.sourceType,
   });
 
-  const legalLinks = getLegalLinks("alyssa");
+  const legalLinks = getLegalLinks(cleanText(brandRecord?.slug, 120) || "brand");
   const legalConsentPayload = {
     consent_event: "legal_consent_accepted",
     accepted_at: new Date().toISOString(),
@@ -705,6 +714,8 @@ export async function POST(request: NextRequest) {
     form_token: formToken,
     landing_page_url: cleanText(submittedTouch.landing_page_url, 2000),
     current_page_url: currentPageUrl,
+    request_origin: normalizeOrigin(request.headers.get("origin")),
+    user_agent: shortUserAgent(request),
   };
 
   await supabase.from("lead_events").insert([

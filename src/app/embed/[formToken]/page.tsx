@@ -352,7 +352,7 @@ export default function EmbedFormPage() {
       setMessage(LEGAL_CONSENT_REQUIRED_MESSAGE);
       await logPublicEvent(
         "form_submit_failed",
-        { error: "legal_consent_required" },
+        { error: "legal_consent_missing" },
         attribution
       );
       return;
