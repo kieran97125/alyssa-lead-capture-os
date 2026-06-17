@@ -632,6 +632,48 @@ Future brand legal profile fields to add when settings become editable:
 - `disclaimer_url`
 - `footer_disclosure`
 
+## Google Sheets Lead Sync V1
+
+LaunchHub can send each successfully created public lead to a Google Apps Script webhook, which can append one Ineffable CS follow-up row into Google Sheets before the full CRM is ready.
+
+Setup:
+
+- Create or choose the Google Sheet for CS follow-up.
+- Create a Google Apps Script web app that receives JSON and appends one row to the sheet.
+- Validate the submitted `secret` inside Apps Script before writing to the sheet.
+- Configure these server-side environment variables:
+  - `GOOGLE_SHEETS_SYNC_ENABLED=true`
+  - `GOOGLE_SHEETS_SYNC_MODE=apps_script`
+  - `GOOGLE_SHEETS_WEBHOOK_URL`
+  - `GOOGLE_SHEETS_WEBHOOK_SECRET`
+
+If sync is disabled, required config is missing, or the webhook fails, lead creation still succeeds and the server logs a safe sync skipped warning. The webhook URL and secret must never be exposed to client-side code.
+
+Webhook payload keys:
+
+The webhook body includes `secret` for Apps Script validation plus these row fields:
+
+`createdAt`, `followUpStatus`, `csOwner`, `brand`, `branch`, `customerName`, `phone`, `email`, `treatmentOffer`, `appointmentDateTime`, `source`, `campaignAd`, `pageUrl`, `note`, `lastFollowUpAt`.
+
+Latest Ineffable CS follow-up sheet columns:
+
+`Created At`, `跟進狀態`, `CS 負責人`, `品牌`, `分店`, `客人姓名`, `電話`, `Email`, `療程 / 優惠`, `預約日期時間`, `來源`, `Campaign / 廣告`, `Page URL`, `備註`, `最後跟進時間`.
+
+Default CS fields:
+
+- `跟進狀態` = `待跟進`
+- `CS 負責人` = blank
+- `備註` = blank
+- `最後跟進時間` = blank
+
+The sync runs only after the Supabase lead, source snapshot, booking, and lead event records are created. Invalid submissions, honeypot submissions, missing consent, rate-limited duplicates, and duplicate lead rows do not trigger the webhook. If Google Sheets append fails, public lead submission still returns success and CS can continue using LaunchHub/Supabase as the source of truth.
+
+The CS sheet is intentionally reduced for follow-up work. Raw attribution fields such as click IDs, Meta IDs, CTWA IDs, consent proof, source type, and technical event details remain in LaunchHub/Supabase for marketing attribution and audit use.
+
+For CS readability, the sheet source label is simplified to values such as `Meta`, `Google`, `Organic`, or `直接 / 無追蹤`. This display label does not change stored attribution fields.
+
+CS teammates can manually update `跟進狀態`, `CS 負責人`, `備註`, and `最後跟進時間` in the sheet. The Google Sheet can also support manual WhatsApp ad leads through an Apps Script button or custom menu before the future WhatsApp API webhook integration is ready.
+
 ## Public Reliability & Security V1
 
 This pass adds a lightweight public safety layer for small-scale campaign testing.

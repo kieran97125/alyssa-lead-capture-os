@@ -77,12 +77,14 @@ export type TouchPayload = {
   wbraid?: string | null;
   gbraid?: string | null;
   ctwa_id?: string | null;
+  ctwa_clid?: string | null;
   whatsapp_message_id?: string | null;
   whatsapp_conversation_id?: string | null;
   whatsapp_phone_number_id?: string | null;
   meta_ad_id?: string | null;
   meta_adset_id?: string | null;
   meta_campaign_id?: string | null;
+  placement?: string | null;
   meta_source_url?: string | null;
   whatsapp_referral_headline?: string | null;
   whatsapp_referral_body?: string | null;

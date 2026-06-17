@@ -8,6 +8,7 @@ import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
 import { countBy, formatDateTime } from "@/lib/data/businessMetrics";
 import { getFormByIdOrSlug } from "@/lib/data/formManagement";
 import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
+import { getGoogleSheetsLeadSyncStatus } from "@/lib/integrations/googleSheetsLeadSync";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -97,6 +98,7 @@ async function getReadinessChecks() {
   const hasBasicAuth =
     envPresent("INTERNAL_BASIC_AUTH_USER") &&
     envPresent("INTERNAL_BASIC_AUTH_PASSWORD");
+  const sheetsStatus = getGoogleSheetsLeadSyncStatus();
 
   return [
     {
@@ -133,6 +135,16 @@ async function getReadinessChecks() {
       label: "Internal Basic Auth",
       detail: "INTERNAL_BASIC_AUTH_USER / INTERNAL_BASIC_AUTH_PASSWORD",
       tone: hasBasicAuth ? "ready" : "attention",
+    },
+    {
+      label: "Google Sheets lead sync",
+      detail: sheetsStatus.label,
+      tone:
+        sheetsStatus.status === "enabled"
+          ? "ready"
+          : sheetsStatus.status === "disabled"
+            ? "attention"
+            : "missing",
     },
     {
       label: "Main form token",

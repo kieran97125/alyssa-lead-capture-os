@@ -12,6 +12,7 @@ import {
   LEGAL_CONSENT_REQUIRED_MESSAGE,
   LEGAL_CONSENT_TEXT,
 } from "@/lib/legal/consent";
+import { appendLeadToGoogleSheet } from "@/lib/integrations/googleSheetsLeadSync";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -435,14 +436,14 @@ export async function POST(request: NextRequest) {
         .single(),
       supabase
         .from("treatments")
-        .select("id, brand_id")
+        .select("id, brand_id, name")
         .eq("id", treatmentId)
         .eq("brand_id", form.brand_id)
         .eq("status", "active")
         .single(),
       supabase
         .from("branches")
-        .select("id, brand_id")
+        .select("id, brand_id, name")
         .eq("id", branchId)
         .eq("brand_id", form.brand_id)
         .eq("status", "active")
@@ -649,6 +650,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const submittedAt = new Date().toISOString();
+
   const { data: lead, error: leadError } = await supabase
     .from("leads")
     .insert({
@@ -671,7 +674,7 @@ export async function POST(request: NextRequest) {
       payment_status: paymentStatus,
       lead_status: isDuplicate ? "duplicate" : "submitted",
       booking_status: "requested",
-      submitted_at: new Date().toISOString(),
+      submitted_at: submittedAt,
     })
     .select("id")
     .single();
@@ -718,7 +721,7 @@ export async function POST(request: NextRequest) {
     user_agent: shortUserAgent(request),
   };
 
-  await supabase.from("lead_events").insert([
+  const { error: leadEventsError } = await supabase.from("lead_events").insert([
     {
       lead_id: lead.id,
       contact_id: contact.id,
@@ -785,6 +788,49 @@ export async function POST(request: NextRequest) {
         ]
       : []),
   ]);
+
+  if (leadEventsError) {
+    console.warn("[LaunchHub] lead_events_insert_failed", {
+      lead_id: lead.id,
+      code: leadEventsError.code,
+      message: leadEventsError.message,
+    });
+  } else if (isDuplicate) {
+    console.warn("[LaunchHub] google_sheets_sync_skipped", {
+      reason: "duplicate_lead",
+      lead_id: lead.id,
+    });
+  } else {
+    try {
+      const sheetResult = await appendLeadToGoogleSheet({
+        createdAt: submittedAt,
+        customerName,
+        phone: normalizedPhone,
+        email,
+        brandName: brandRecord?.name || "",
+        treatmentName: treatmentRecord.name || "",
+        packageName: packageRecord.name || "",
+        price: packageDisplayPrice,
+        branchName: branchRecord.name || "",
+        appointmentDate,
+        appointmentTime,
+        pageUrl: currentPageUrl,
+        touch: submittedTouch,
+      });
+
+      if (sheetResult.skipped) {
+        console.warn("[LaunchHub] google_sheets_sync_skipped", {
+          reason: sheetResult.reason,
+          missing: sheetResult.missing,
+        });
+      }
+    } catch (error) {
+      console.warn("[LaunchHub] google_sheets_sync_failed", {
+        lead_id: lead.id,
+        message: error instanceof Error ? error.message : "unknown_error",
+      });
+    }
+  }
 
   return NextResponse.json(
     {
