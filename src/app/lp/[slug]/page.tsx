@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import Script from "next/script";
+import type { CSSProperties } from "react";
 import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
+import {
+  publicThemeStyle,
+  resolvePublicBrandTheme,
+} from "@/lib/brandThemes";
 import { getEmbedScriptUrl } from "@/lib/data/appUrl";
 import { getConfigurationData } from "@/lib/data/configuration";
 import { getLandingPageContext } from "@/lib/data/landingPages";
@@ -55,28 +60,45 @@ export default async function PublicLandingPage({
     config.forms.find((form) => form.id === page.formId) ??
     config.forms.find((form) => form.publicFormToken === page.formToken) ??
     null;
+  const publicBrand =
+    (connectedForm
+      ? config.brands.find((brand) => brand.id === connectedForm.brandId)
+      : null) ??
+    config.brands.find((brand) => brand.id === page.brandId) ??
+    context.brand ??
+    null;
 
   if (page.formId && !connectedForm) {
     notFound();
   }
 
+  const theme = resolvePublicBrandTheme({
+    brandSlug: publicBrand?.slug,
+    brandName: publicBrand?.name,
+  });
+  const themeStyle = publicThemeStyle(theme) as CSSProperties;
+  const brandDisplayName = publicBrand?.name || theme.brandName;
+  const brandSlug = publicBrand?.slug || theme.key;
   const embedScriptUrl = getEmbedScriptUrl();
   const selectedPackage = context.package;
   const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";
   const heroImageUrl = page.heroImageUrl || page.mobileHeroImageUrl;
   const legalProfile = getBrandLegalProfile({
-    brandSlug: context.brand?.slug,
-    brandName: context.brand?.name,
+    brandSlug,
+    brandName: brandDisplayName,
   });
 
   return (
-    <main className="min-h-screen bg-[#fff9f3] text-[#321428]">
+    <main
+      className="min-h-screen bg-[var(--public-bg)] text-[var(--public-text)]"
+      style={themeStyle}
+    >
       <section
-        className="relative flex min-h-[86vh] items-end overflow-hidden bg-[#321428] px-5 pb-12 pt-24 text-white md:min-h-[760px] md:pb-16"
+        className="relative flex min-h-[86vh] items-end overflow-hidden bg-[var(--public-dark)] px-5 pb-12 pt-24 text-white md:min-h-[760px] md:pb-16"
         style={
           heroImageUrl
             ? {
-                backgroundImage: `linear-gradient(90deg, rgba(50,20,40,0.88), rgba(90,35,72,0.56), rgba(50,20,40,0.2)), url(${heroImageUrl})`,
+                backgroundImage: `linear-gradient(90deg, color-mix(in srgb, var(--public-dark) 88%, transparent), color-mix(in srgb, var(--public-cta) 54%, transparent), color-mix(in srgb, var(--public-dark) 18%, transparent)), url(${heroImageUrl})`,
                 backgroundPosition: "center",
                 backgroundSize: "cover",
               }
@@ -104,7 +126,7 @@ export default async function PublicLandingPage({
             <div className="mt-8 flex flex-wrap gap-3">
               <MotionAnchor
                 href="#alyssa-lp-form"
-                className="rounded-full bg-white px-6 py-3 text-sm font-bold text-[#5a2348] shadow-[0_16px_40px_rgba(255,255,255,0.18)] transition hover:bg-[#fff6f0] hover:shadow-[0_22px_55px_rgba(255,255,255,0.24)]"
+                className="rounded-full bg-[var(--public-cta)] px-6 py-3 text-sm font-bold text-[var(--public-cta-text)] shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition hover:bg-[var(--public-cta-hover)] hover:shadow-[0_22px_55px_rgba(0,0,0,0.22)]"
               >
                 {page.ctaText}
               </MotionAnchor>
@@ -118,7 +140,7 @@ export default async function PublicLandingPage({
           </MotionReveal>
           <MotionReveal delay={0.31}>
             <div className="mt-10 grid max-w-4xl gap-3 sm:grid-cols-3">
-              <HeroMetric label="品牌" value={context.brand?.name ?? "Alyssa"} />
+              <HeroMetric label="品牌" value={brandDisplayName} />
               <HeroMetric label="療程" value={context.treatment?.name ?? "未設定"} />
               <HeroMetric label="體驗價" value={price} />
             </div>
@@ -132,13 +154,13 @@ export default async function PublicLandingPage({
           className="mx-auto grid max-w-7xl gap-5 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]"
         >
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
               優惠摘要
             </p>
-            <h2 className="mt-2 text-3xl font-bold text-[#321428]">
+            <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
               {page.offerHeadline}
             </h2>
-            <p className="mt-4 text-sm leading-7 text-[#6d4a5c]">
+            <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
               {page.offerBody}
             </p>
             <div className="mt-6">
@@ -168,9 +190,9 @@ export default async function PublicLandingPage({
             {page.painPoints.map((item) => (
               <div
                 key={item}
-                className="rounded-[20px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm"
+                className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] p-5 shadow-sm"
               >
-                <p className="text-sm font-semibold leading-6 text-[#5a2348]">
+                <p className="text-sm font-semibold leading-6 text-[var(--public-cta)]">
                   {item}
                 </p>
               </div>
@@ -180,14 +202,14 @@ export default async function PublicLandingPage({
       </MotionReveal>
 
       <MotionReveal>
-        <section className="border-y border-[#ead9cf] bg-white/70">
+        <section className="border-y border-[var(--public-border)] bg-[var(--public-card)]">
           <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
             {page.benefits.map((item) => (
               <div key={item}>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
                   賣點
                 </p>
-                <p className="mt-2 text-lg font-bold leading-7 text-[#321428]">
+                <p className="mt-2 text-lg font-bold leading-7 text-[var(--public-heading)]">
                   {item}
                 </p>
               </div>
@@ -198,10 +220,10 @@ export default async function PublicLandingPage({
 
       <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr]">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
             為何選擇這個體驗
           </p>
-          <h2 className="mt-2 text-3xl font-bold text-[#321428]">
+          <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
             清楚介紹療程、優惠和預約安排
           </h2>
           <p className="mt-4 text-sm leading-7 text-[#6d4a5c]">
@@ -210,9 +232,9 @@ export default async function PublicLandingPage({
         </div>
         <div className="grid gap-3">
           {page.sections.map((section) => (
-            <article key={section.title} className="rounded-[20px] bg-[#fff6f0] p-5">
-              <h3 className="text-lg font-bold text-[#321428]">{section.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
+            <article key={section.title} className="rounded-[20px] bg-[var(--public-soft-bg)] p-5">
+              <h3 className="text-lg font-bold text-[var(--public-heading)]">{section.title}</h3>
+              <p className="mt-2 text-sm leading-6 text-[var(--public-muted)]">
                 {section.body}
               </p>
             </article>
@@ -221,7 +243,7 @@ export default async function PublicLandingPage({
       </MotionReveal>
 
       <MotionReveal>
-        <section className="bg-[#321428] px-5 py-10 text-white">
+        <section className="bg-[var(--public-dark)] px-5 py-10 text-white">
           <div className="mx-auto max-w-7xl">
             <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/62">
               預約流程
@@ -256,10 +278,10 @@ export default async function PublicLandingPage({
 
       <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
             信心保證
           </p>
-          <h2 className="mt-2 text-3xl font-bold text-[#321428]">
+          <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
             讓客人預約前有清楚資訊
           </h2>
           <div className="mt-6">
@@ -276,7 +298,7 @@ export default async function PublicLandingPage({
           {page.trustItems.map((item) => (
             <p
               key={item}
-              className="rounded-[20px] border border-[#ead9cf] bg-white/86 px-5 py-4 text-sm font-semibold leading-6 text-[#5a2348] shadow-sm"
+              className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] px-5 py-4 text-sm font-semibold leading-6 text-[var(--public-cta)] shadow-sm"
             >
               {item}
             </p>
@@ -285,26 +307,26 @@ export default async function PublicLandingPage({
       </MotionReveal>
 
       <MotionReveal>
-        <section id="alyssa-lp-form" className="bg-[#fff6f0] px-5 py-10">
+        <section id="alyssa-lp-form" className="bg-[var(--public-soft-bg)] px-5 py-10">
           <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.82fr_1.18fr]">
             <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
                 預約表格
               </p>
-              <h2 className="mt-2 text-3xl font-bold text-[#321428]">
+              <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
                 {page.ctaText}
               </h2>
-              <p className="mt-4 text-sm leading-7 text-[#6d4a5c]">
+              <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
                 填寫資料後，團隊可按你選擇的療程、套餐及分店安排跟進。若你由廣告或社交平台進入，系統會保留來源資料，方便之後分析 Campaign 成效。
               </p>
             </div>
-            <div className="rounded-[28px] border border-[#ead9cf] bg-white p-4 shadow-[0_24px_70px_rgba(90,35,72,0.14)]">
+            <div className="rounded-[28px] border border-[var(--public-border)] bg-[var(--public-card)] p-4 shadow-[0_24px_70px_rgba(58,36,28,0.14)]">
               <div id="alyssa-lp-form-target" />
               <Script
                 src={embedScriptUrl}
                 strategy="afterInteractive"
                 data-form-token={connectedForm?.publicFormToken ?? page.formToken}
-                data-brand={context.brand?.slug ?? "alyssa"}
+                data-brand={brandSlug}
                 data-form-id={connectedForm?.id ?? page.formId}
                 data-target-id="alyssa-lp-form-target"
                 data-height="900"
@@ -315,17 +337,17 @@ export default async function PublicLandingPage({
       </MotionReveal>
 
       <MotionReveal className="mx-auto max-w-4xl px-5 py-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
+        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
           常見問題
         </p>
-        <h2 className="mt-2 text-3xl font-bold text-[#321428]">預約前想知道</h2>
-        <div className="mt-6 divide-y divide-[#ead9cf] rounded-[24px] border border-[#ead9cf] bg-white/86">
+        <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">預約前想知道</h2>
+        <div className="mt-6 divide-y divide-[var(--public-border)] rounded-[24px] border border-[var(--public-border)] bg-[var(--public-card)]">
           {page.faqs.map((item) => (
             <details key={item.question} className="group p-5">
-              <summary className="cursor-pointer list-none text-base font-bold text-[#321428]">
+              <summary className="cursor-pointer list-none text-base font-bold text-[var(--public-heading)]">
                 {item.question}
               </summary>
-              <p className="mt-3 text-sm leading-6 text-[#6d4a5c]">
+              <p className="mt-3 text-sm leading-6 text-[var(--public-muted)]">
                 {item.answer}
               </p>
             </details>
@@ -355,8 +377,8 @@ function PublicLegalFooter({
   disclaimerUrl: string;
 }) {
   return (
-    <footer className="border-t border-[#ead9cf] bg-white/74 px-5 py-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-3 text-xs font-semibold leading-5 text-[#7b5a6a] md:flex-row md:items-center md:justify-between">
+    <footer className="border-t border-[var(--public-border)] bg-[var(--public-card)] px-5 py-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-3 text-xs font-semibold leading-5 text-[var(--public-muted)] md:flex-row md:items-center md:justify-between">
         <p>{footerText}</p>
         <nav className="flex flex-wrap gap-x-4 gap-y-2">
           <a className="underline underline-offset-4" href={privacyPolicyUrl}>
@@ -390,11 +412,11 @@ function HeroMetric({ label, value }: { label: string; value: string }) {
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[20px] border border-[#ead9cf] bg-white/86 p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+    <div className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] p-5 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
         {label}
       </p>
-      <p className="mt-2 text-sm font-bold text-[#5a2348]">{value}</p>
+      <p className="mt-2 text-sm font-bold text-[var(--public-cta)]">{value}</p>
     </div>
   );
 }
@@ -416,11 +438,11 @@ function ImagePanel({
 
   return (
     <div
-      className={`flex ${ratioClass} min-h-64 items-end overflow-hidden rounded-[24px] border border-[#ead9cf] bg-[#321428] p-5 text-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(90,35,72,0.16)]`}
+      className={`flex ${ratioClass} min-h-64 items-end overflow-hidden rounded-[24px] border border-[var(--public-border)] bg-[var(--public-dark)] p-5 text-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(58,36,28,0.16)]`}
       style={
         hasImage
           ? {
-              backgroundImage: `linear-gradient(180deg, rgba(50,20,40,0.08), rgba(50,20,40,0.78)), url(${imageUrl})`,
+              backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--public-dark) 8%, transparent), color-mix(in srgb, var(--public-dark) 78%, transparent)), url(${imageUrl})`,
               backgroundPosition: "center",
               backgroundSize: "cover",
             }

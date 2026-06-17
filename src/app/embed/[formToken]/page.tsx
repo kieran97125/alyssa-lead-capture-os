@@ -1,7 +1,11 @@
-"use client";
+﻿"use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useParams, useSearchParams } from "next/navigation";
+import {
+  publicThemeStyle,
+  resolvePublicBrandTheme,
+} from "@/lib/brandThemes";
 import {
   alyssaBranches,
   alyssaDefaultForm,
@@ -237,6 +241,18 @@ export default function EmbedFormPage() {
     () => getLegalLinks(legalProfile.brandSlug),
     [legalProfile.brandSlug]
   );
+  const publicTheme = useMemo(
+    () =>
+      resolvePublicBrandTheme({
+        brandSlug: brand.slug,
+        brandName: brand.name,
+      }),
+    [brand.name, brand.slug]
+  );
+  const themeStyle = useMemo(
+    () => publicThemeStyle(publicTheme) as CSSProperties,
+    [publicTheme]
+  );
 
   useEffect(() => {
     async function loadConfig() {
@@ -245,9 +261,7 @@ export default function EmbedFormPage() {
       const result = await response.json();
 
       if (!response.ok || !result.ok) {
-        setConfigMessage("這張表格暫時未能使用，請確認表格連結是否正確。");
-        setConfigMessage("這張表格暫時未能載入，請確認表格代號是否正確。");
-        setConfigMessage("這張表格暫時未能使用，請確認表格連結是否正確。");
+        setConfigMessage("這張表格暫時未能使用，請稍後再試。");
         return;
       }
 
@@ -281,7 +295,7 @@ export default function EmbedFormPage() {
         branch_id: nextForm.defaultBranchId,
       }));
       } catch {
-        setConfigMessage("這張表格暫時未能使用，請稍後再試。");
+        setConfigMessage("這張表格暫時未能讀取，請稍後再試。");
       }
     }
 
@@ -359,7 +373,7 @@ export default function EmbedFormPage() {
     }
 
     setState("loading");
-    setMessage("正在處理你的預約...");
+    setMessage("甇???雿???...");
     await logPublicEvent("form_submit_attempt", { form_token: params.formToken }, attribution);
 
     try {
@@ -384,7 +398,7 @@ export default function EmbedFormPage() {
 
       if (!response.ok || !result.ok) {
         setState("error");
-        setMessage(result.message || "暫時未能提交，請稍後再試。");
+        setMessage(result.message || "未能提交表格，請稍後再試。");
         await logPublicEvent(
           "form_submit_failed",
           { error: result.error || "submission_failed" },
@@ -394,10 +408,10 @@ export default function EmbedFormPage() {
       }
 
       setState("success");
-      setMessage("已收到你的預約資料。");
+      setMessage("已收到你的登記，我們會盡快透過 WhatsApp 跟進。");
     } catch (error) {
       setState("error");
-      setMessage("網絡連線不穩定，請稍後再試。");
+      setMessage("網絡暫時未能連線，請稍後再試。");
       await logPublicEvent(
         "form_submit_failed",
         { error: error instanceof Error ? error.message : "network_error" },
@@ -407,19 +421,22 @@ export default function EmbedFormPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[#fff9f3] px-4 py-5 text-[#321428]">
-      <section className="mx-auto max-w-xl overflow-hidden rounded-[30px] border border-[#ead9cf] bg-white shadow-[0_24px_70px_rgba(90,35,72,0.14)]">
-        <div className="bg-[#5a2348] px-6 py-6 text-white">
+    <main
+      className="min-h-screen bg-[var(--public-bg)] px-4 py-5 text-[var(--public-text)]"
+      style={themeStyle}
+    >
+      <section className="mx-auto max-w-xl overflow-hidden rounded-[30px] border border-[var(--public-border)] bg-[var(--public-card)] shadow-[0_24px_70px_rgba(58,36,28,0.14)]">
+        <div className="bg-[var(--public-dark)] px-6 py-6 text-white">
           <div className="flex items-center justify-between gap-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[#eac7ce]">
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--public-accent-soft)]">
               {brand.name}
             </p>
-            <span className="rounded-full border border-white/20 px-3 py-1 text-xs font-bold text-[#fff6f0]">
-              專人跟進
+            <span className="rounded-full border border-white/20 px-3 py-1 text-xs font-bold text-[var(--public-accent-soft)]">
+              WhatsApp 跟進
             </span>
           </div>
-          <h1 className="mt-4 text-2xl font-bold">預約個人療程諮詢</h1>
-          <p className="mt-2 text-sm leading-6 text-[#f8e8e2]">
+          <h1 className="mt-4 text-2xl font-bold">預約療程體驗</h1>
+          <p className="mt-2 text-sm leading-6 text-[var(--public-dark-muted)]">
             &#x8ACB;&#x586B;&#x5BEB;&#x9810;&#x7D04;&#x8CC7;&#x6599;&#xFF0C;{brand.name} &#x5718;&#x968A;&#x6703;&#x900F;&#x904E; WhatsApp &#x8DDF;&#x9032;&#x78BA;&#x8A8D;&#x3002;
           </p>
         </div>
@@ -431,7 +448,7 @@ export default function EmbedFormPage() {
                 !
               </p>
               <h2 className="mt-4 text-2xl font-bold text-amber-950">
-                表格暫時不可使用
+                銵冽?急?銝雿輻
               </h2>
               <p className="mt-3 text-sm font-semibold leading-6 text-amber-800">
                 {configMessage}
@@ -443,10 +460,10 @@ export default function EmbedFormPage() {
           ) : state === "success" ? (
             <section className="rounded-[26px] border border-emerald-200 bg-emerald-50 p-6 text-center">
               <p className="mx-auto grid h-12 w-12 place-items-center rounded-full bg-emerald-600 text-lg font-bold text-white">
-                完成
+                摰?
               </p>
               <h2 className="mt-4 text-2xl font-bold text-emerald-950">
-                已收到預約資料
+                撌脫?圈?蝝???
               </h2>
               <p className="mt-3 text-sm leading-6 text-emerald-800">{message}</p>
               <p className="mt-4 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-emerald-900">
@@ -455,31 +472,31 @@ export default function EmbedFormPage() {
             </section>
           ) : (
             <>
-              <section className="rounded-3xl border border-[#ead9cf] bg-[#fff6f0] p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                  已選療程
+              <section className="rounded-3xl border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-4">
+                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
+                  撌脤??
                 </p>
                 <div className="mt-3 flex items-start justify-between gap-4">
                   <div>
                     <p className="font-bold">{selectedTreatment?.name}</p>
-                    <p className="mt-1 text-sm leading-6 text-[#7b5a6a]">
+                    <p className="mt-1 text-sm leading-6 text-[var(--public-muted)]">
                       {selectedTreatment?.description}
                     </p>
                   </div>
-                  <p className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-bold text-[#5a2348]">
+                  <p className="shrink-0 rounded-full bg-[var(--public-card)] px-4 py-2 text-sm font-bold text-[var(--public-cta)]">
                     {selectedPackage?.promoPrice > 0
                       ? `$${selectedPackage.promoPrice}`
-                      : "免費"}
+                      : "?祥"}
                   </p>
                 </div>
               </section>
 
               <div className="mt-4 grid gap-2 sm:grid-cols-3">
-                {["WhatsApp 專人跟進", "已記錄來源追蹤", "無需信用卡"].map(
+                {["WhatsApp 專人跟進", "清楚預約安排", "資料只作跟進"].map(
                   (item) => (
                     <p
                       key={item}
-                      className="rounded-2xl border border-[#ead9cf] bg-white px-3 py-2 text-center text-xs font-bold text-[#9a5d76]"
+                      className="rounded-2xl border border-[var(--public-border)] bg-[var(--public-card)] px-3 py-2 text-center text-xs font-bold text-[var(--public-accent)]"
                     >
                       {item}
                     </p>
@@ -498,10 +515,10 @@ export default function EmbedFormPage() {
                   onChange={(event) => updateField("honeypot", event.target.value)}
                 />
 
-                <FormSection title="療程選項">
-                  <Field label="療程">
+                <FormSection title="???賊?">
+                  <Field label="??">
                     <select
-                      className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                      className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-[var(--public-card)] px-4 py-3 text-sm"
                       value={formData.treatment_id}
                       onChange={(event) =>
                         updateField("treatment_id", event.target.value)
@@ -515,9 +532,9 @@ export default function EmbedFormPage() {
                     </select>
                   </Field>
 
-                  <Field label="套餐">
+                  <Field label="憟?">
                     <select
-                      className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                      className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-[var(--public-card)] px-4 py-3 text-sm"
                       value={selectedPackage?.id || ""}
                       onChange={(event) =>
                         updateField("package_id", event.target.value)
@@ -525,46 +542,46 @@ export default function EmbedFormPage() {
                     >
                       {availablePackages.map((item) => (
                         <option key={item.id} value={item.id}>
-                          {item.name} - {item.promoPrice > 0 ? `$${item.promoPrice}` : "免費"}
+                          {item.name} - {item.promoPrice > 0 ? `$${item.promoPrice}` : "?祥"}
                         </option>
                       ))}
                     </select>
                   </Field>
 
                   {selectedPackage?.paymentRequired && (
-                    <Field label="預約選項">
+                    <Field label="付款方式">
                       <select
-                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-[var(--public-card)] px-4 py-3 text-sm"
                         value={formData.payment_option}
                         onChange={(event) =>
                           updateField("payment_option", event.target.value)
                         }
                       >
-                        <option value="pay_now">即時支付訂金</option>
-                        <option value="booking_only">先提交預約</option>
+                        <option value="pay_now">即時付款</option>
+                        <option value="booking_only">只預約，稍後確認</option>
                       </select>
                     </Field>
                   )}
                 </FormSection>
 
-                <FormSection title="你的資料">
+                <FormSection title="雿?鞈?">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <Field label="姓名">
+                    <Field label="憪?">
                       <input
                         required
-                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm"
                         value={formData.customer_name}
                         onChange={(event) =>
                           updateField("customer_name", event.target.value)
                         }
-                        placeholder="你的稱呼"
+                        placeholder="雿?蝔勗"
                       />
                     </Field>
-                    <Field label="WhatsApp 電話">
+                    <Field label="WhatsApp ?餉店">
                       <input
                         required
                         inputMode="tel"
-                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm"
                         value={formData.phone}
                         onChange={(event) => updateField("phone", event.target.value)}
                         placeholder="9123 4567"
@@ -572,10 +589,10 @@ export default function EmbedFormPage() {
                     </Field>
                   </div>
 
-                  <Field label="電郵（選填）">
+                  <Field label="?駁嚗憛恬?">
                     <input
                       type="email"
-                      className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
+                      className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm"
                       value={formData.email}
                       onChange={(event) => updateField("email", event.target.value)}
                       placeholder="name@example.com"
@@ -583,11 +600,11 @@ export default function EmbedFormPage() {
                   </Field>
                 </FormSection>
 
-                <FormSection title="預約偏好">
+                <FormSection title="???末">
                   <div className="grid gap-4 sm:grid-cols-3">
-                    <Field label="分店">
+                    <Field label="??">
                       <select
-                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-[var(--public-card)] px-4 py-3 text-sm"
                         value={formData.branch_id}
                         onChange={(event) =>
                           updateField("branch_id", event.target.value)
@@ -600,19 +617,19 @@ export default function EmbedFormPage() {
                         ))}
                       </select>
                     </Field>
-                    <Field label="日期">
+                    <Field label="?交?">
                       <input
                         type="date"
-                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] px-4 py-3 text-sm"
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm"
                         value={formData.appointment_date}
                         onChange={(event) =>
                           updateField("appointment_date", event.target.value)
                         }
                       />
                     </Field>
-                    <Field label="時間">
+                    <Field label="??">
                       <select
-                        className="focus-ring mt-2 w-full rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm"
+                        className="focus-ring mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-[var(--public-card)] px-4 py-3 text-sm"
                         value={formData.appointment_time}
                         onChange={(event) =>
                           updateField("appointment_time", event.target.value)
@@ -628,14 +645,14 @@ export default function EmbedFormPage() {
                   </div>
                 </FormSection>
 
-                <section className="rounded-3xl border border-[#ead9cf] bg-[#fff6f0] p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                    條款確認
+                <section className="rounded-3xl border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-4">
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
+                    璇狡蝣箄?
                   </p>
-                  <p className="mt-2 text-xs font-semibold leading-5 text-[#7b5a6a]">
+                  <p className="mt-2 text-xs font-semibold leading-5 text-[var(--public-muted)]">
                     {LEGAL_CONSENT_HELPER_TEXT}
                   </p>
-                  <label className="mt-3 flex items-start gap-3 text-sm font-semibold leading-6 text-[#5a2348]">
+                  <label className="mt-3 flex items-start gap-3 text-sm font-semibold leading-6 text-[var(--public-cta)]">
                     <input
                       required
                       type="checkbox"
@@ -659,46 +676,46 @@ export default function EmbedFormPage() {
                         setState("error");
                         setMessage(LEGAL_CONSENT_REQUIRED_MESSAGE);
                       }}
-                      className="mt-1 h-4 w-4 shrink-0 rounded border-[#d9b66f] text-[#e46f64]"
+                      className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--public-border)] text-[var(--public-cta)]"
                     />
                     <span>
-                      我已閱讀並同意
+                      ?歇?梯?銝血???
                       <a
                         href={legalLinks.privacyPolicyUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-bold text-[#9a3d56] underline underline-offset-4"
+                        className="font-bold text-[var(--public-accent)] underline underline-offset-4"
                       >
-                        《私隱政策》
+                        ???望蝑?
                       </a>
-                      、
+                      ??
                       <a
                         href={legalLinks.termsUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-bold text-[#9a3d56] underline underline-offset-4"
+                        className="font-bold text-[var(--public-accent)] underline underline-offset-4"
                       >
-                        《條款及細則》
+                        ??甈曉?蝝啣???
                       </a>
-                      及
+                      ??
                       <a
                         href={legalLinks.disclaimerUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="font-bold text-[#9a3d56] underline underline-offset-4"
+                        className="font-bold text-[var(--public-accent)] underline underline-offset-4"
                       >
-                        《免責聲明》
+                        ??鞎祈??
                       </a>
-                      ，並同意你們使用我提交的資料作預約、客戶服務及相關跟進用途。
+                      嚗蒂??雿蝙?冽??漱???????恥?嗆????賊?頝脩??
                     </span>
                   </label>
                 </section>
 
                 <button
                   disabled={state === "loading"}
-                  className="w-full rounded-full bg-[#e46f64] px-5 py-3.5 text-sm font-bold text-white shadow-[0_14px_30px_rgba(228,111,100,0.28)] transition hover:bg-[#d95f55] disabled:opacity-60"
+                  className="w-full rounded-full bg-[var(--public-cta)] px-5 py-3.5 text-sm font-bold text-[var(--public-cta-text)] shadow-[0_14px_30px_rgba(200,104,60,0.28)] transition hover:bg-[var(--public-cta-hover)] disabled:opacity-60"
                 >
-                  {state === "loading" ? "提交中..." : "確認預約"}
+                  {state === "loading" ? "?漱銝?.." : "蝣箄???"}
                 </button>
               </form>
 
@@ -708,8 +725,8 @@ export default function EmbedFormPage() {
                 </div>
               )}
 
-              <p className="mt-4 text-center text-xs leading-5 text-[#8a6b78]">
-                你的資料只會用作預約跟進及療程諮詢安排。
+              <p className="mt-4 text-center text-xs leading-5 text-[var(--public-muted)]">
+                雿?鞈??芣??其???頝脣???隢株岷摰???
               </p>
               <PublicLegalFooter
                 footerText={getLegalFooterText(legalProfile)}
@@ -733,8 +750,8 @@ function FormSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-3xl border border-[#ead9cf] bg-white p-4">
-      <p className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+    <section className="rounded-3xl border border-[var(--public-border)] bg-[var(--public-card)] p-4">
+      <p className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
         {title}
       </p>
       <div className="space-y-4">{children}</div>
@@ -744,7 +761,7 @@ function FormSection({
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <label className="block text-sm font-bold text-[#5a2348]">
+    <label className="block text-sm font-bold text-[var(--public-cta)]">
       {label}
       {children}
     </label>
@@ -763,7 +780,7 @@ function PublicLegalFooter({
   disclaimerUrl: string;
 }) {
   return (
-    <footer className="mt-5 border-t border-[#ead9cf] pt-4 text-center text-xs font-semibold leading-5 text-[#8a6b78]">
+    <footer className="mt-5 border-t border-[var(--public-border)] pt-4 text-center text-xs font-semibold leading-5 text-[var(--public-muted)]">
       <p>{footerText}</p>
       <nav className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
         <a
@@ -772,7 +789,7 @@ function PublicLegalFooter({
           target="_blank"
           rel="noreferrer"
         >
-          私隱政策
+          蝘?輻?
         </a>
         <a
           className="underline underline-offset-4"
@@ -780,7 +797,7 @@ function PublicLegalFooter({
           target="_blank"
           rel="noreferrer"
         >
-          條款及細則
+          璇狡?敦??
         </a>
         <a
           className="underline underline-offset-4"
@@ -788,10 +805,10 @@ function PublicLegalFooter({
           target="_blank"
           rel="noreferrer"
         >
-          免責聲明
+          ?痊?脫?
         </a>
         <a className="underline underline-offset-4" href="#top">
-          聯絡 / 預約
+          ?舐窗 / ??
         </a>
       </nav>
     </footer>

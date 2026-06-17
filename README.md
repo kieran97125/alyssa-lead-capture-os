@@ -186,8 +186,8 @@ The migration creates:
 The V1 workflow is intentionally structured rather than drag-and-drop:
 
 - Save draft: writes the current page-level content and image asset JSON into `landing_page_versions` with `status = 'draft'`, then updates the parent `landing_pages` row as draft.
-- Publish: publishes the latest draft when available, updates `landing_pages.status = 'published'`, sets `published_version_id`, and updates `published_at`.
-- Public render: `/lp/[slug]` prefers Supabase published content and falls back to local config if Supabase env vars or builder tables are unavailable.
+- Publish: requires a saved draft, checks required brand / treatment / package / branch / form / public copy fields, then publishes that latest draft, updates `landing_pages.status = 'published'`, sets `published_version_id`, and updates `published_at`.
+- Public render: `/lp/[slug]` renders the `published_version_id` version only for Supabase landing pages. It does not render unsaved editor changes, draft versions, or row-level fallback copy as public campaign content.
 - Internal editor: `/landing-pages/[pageId]` shows Save Draft / Publish controls only as DB-backed actions when the migration is applied; otherwise it clearly stays in local config fallback mode.
 
 Apply the migration in Supabase SQL editor or through your migration workflow before expecting Save Draft / Publish to persist. The current editor still uses read-only prefilled fields; full field editing, media upload, version history UI, draft preview URLs, and auth-based publish permissions remain future builder work.
@@ -272,6 +272,14 @@ Shared UI primitives live in `src/components/alyssa/ui.tsx` for reusable cards, 
 Motion is provided by `motion/react` and is used sparingly for subtle section reveal, KPI card reveal, CTA hover/tap, landing page hero reveal, and editor/list card polish. Reduced-motion preferences are respected through `useReducedMotion()` and the global `prefers-reduced-motion` CSS guard.
 
 If the internal app grows into a larger admin surface, shadcn/ui-style primitives are the preferred next component-system step. Open Props-style token thinking may inspire future refinements, but LaunchHub tokens remain custom to the campaign-testing product.
+
+## Ineffable Beauty Public Theme
+
+LaunchHub admin and internal business pages remain neutral system screens. Public campaign surfaces can use a selected brand theme without recoloring the backend.
+
+Ineffable Beauty public Landing Pages and public embedded forms use a warm cream / terracotta / coffee palette: cream background, soft beige borders, deep coffee text, and terracotta CTA buttons. Customer-facing copy should use the selected brand name, while the legal/operator footer can still show Alyssa Group Limited where configured.
+
+Current implementation uses a safe code fallback theme resolver for `ineffable`, `ineffable-beauty`, and `Ineffable Beauty`. Future brand settings can add database-backed theme fields for palette, CTA tone, background, and public typography.
 
 ## Local Setup
 
@@ -653,11 +661,11 @@ Webhook payload keys:
 
 The webhook body includes `secret` for Apps Script validation plus these row fields:
 
-`createdAt`, `followUpStatus`, `csOwner`, `brand`, `branch`, `customerName`, `phone`, `email`, `treatmentOffer`, `appointmentDateTime`, `source`, `campaignAd`, `pageUrl`, `note`, `lastFollowUpAt`.
+`createdAt`, `followUpStatus`, `csOwner`, `brand`, `branch`, `customerName`, `phone`, `email`, `treatmentOffer`, `appointmentDate`, `appointmentTime`, `source`, `campaignAd`, `pageUrl`, `note`, `lastFollowUpAt`.
 
 Latest Ineffable CS follow-up sheet columns:
 
-`Created At`, `跟進狀態`, `CS 負責人`, `品牌`, `分店`, `客人姓名`, `電話`, `Email`, `療程 / 優惠`, `預約日期時間`, `來源`, `Campaign / 廣告`, `Page URL`, `備註`, `最後跟進時間`.
+`Created At`, `跟進狀態`, `CS 負責人`, `品牌`, `分店`, `客人姓名`, `電話`, `Email`, `療程 / 優惠`, `預約日期`, `預約時間`, `來源`, `Campaign / 廣告`, `Page URL`, `備註`, `最後跟進時間`.
 
 Default CS fields:
 

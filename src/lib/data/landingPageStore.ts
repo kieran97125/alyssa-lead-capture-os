@@ -46,6 +46,10 @@ type LandingPageVersionRow = {
   created_at: string;
 };
 
+type RowToConfigOptions = {
+  publicContentOnly?: boolean;
+};
+
 export type LandingPageEditorData = {
   page: LandingPageConfig;
   source: "supabase" | "local_config";
@@ -342,6 +346,26 @@ function mergeImageAssets(
   };
 }
 
+function publicContentFallback(fallback: LandingPageConfig): LandingPageConfig {
+  return {
+    ...fallback,
+    templateName: "",
+    heroTitle: "",
+    heroSubtitle: "",
+    offerBadge: "",
+    offerHeadline: "",
+    offerBody: "",
+    ctaText: "",
+    secondaryCtaText: "",
+    painPoints: [],
+    benefits: [],
+    trustItems: [],
+    sections: [],
+    processSteps: [],
+    faqs: [],
+  };
+}
+
 function mapKnownId(
   value: string | null,
   mapping: Record<string, string>,
@@ -352,14 +376,21 @@ function mapKnownId(
 
 function rowToConfig(
   row: LandingPageRow,
-  version?: LandingPageVersionRow | null
+  version?: LandingPageVersionRow | null,
+  options: RowToConfigOptions = {}
 ): LandingPageConfig {
   const fallback =
     getLocalLandingPageBySlug(row.slug) ??
     getLocalLandingPageById(row.slug) ??
     alyssaLandingPages[0];
 
-  const content = mergeContent(fallback, version?.content_json ?? row.content_json);
+  const contentFallback = options.publicContentOnly
+    ? publicContentFallback(fallback)
+    : fallback;
+  const content = mergeContent(
+    contentFallback,
+    version?.content_json ?? row.content_json
+  );
   const images = mergeImageAssets(
     fallback,
     version?.image_assets_json ?? row.image_assets_json
@@ -465,6 +496,168 @@ async function getLatestVersion(pageId: string, status?: "draft" | "published") 
   return (data?.[0] as LandingPageVersionRow | undefined) ?? null;
 }
 
+function hasText(value: unknown) {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function collectContentText(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(collectContentText);
+  if (!value || typeof value !== "object") return [];
+
+  return Object.values(value as Record<string, unknown>).flatMap(collectContentText);
+}
+
+const internalPublicCopyFragments = [
+  "A premium Alyssa campaign page",
+  "Built for fast campaign testing",
+  "Still connected to form-only mode",
+  "CRM-ready attribution",
+  "Wix remains the main website",
+  "campaign testing layer",
+  "future WhatsApp CRM",
+  "shared lead base",
+  "source snapshot",
+  "DB-backed",
+  "Supabase",
+  "schema",
+  "適合快速測試 Campaign",
+  "同一張表格可用於 Wix 或 Landing Page",
+  "保留來源資料，方便之後接駁 CRM",
+];
+
+function hasInternalPublicCopy(content: Record<string, unknown> | null) {
+  const text = collectContentText(content).join("\n").toLowerCase();
+
+  return internalPublicCopyFragments.some((fragment) =>
+    text.includes(fragment.toLowerCase())
+  );
+}
+
+async function validatePublishReadiness(
+  row: LandingPageRow,
+  version: LandingPageVersionRow
+) {
+  const missing: string[] = [];
+  const content = version.content_json ?? {};
+
+  if (!row.brand_id) missing.push("品牌未設定");
+  if (!row.treatment_id) missing.push("療程未設定");
+  if (!row.package_id) missing.push("套餐未設定");
+  if (!row.branch_id) missing.push("分店未設定");
+  if (!row.form_id) missing.push("未連接登記表格");
+  if (!hasText(row.title)) missing.push("頁面標題未填");
+  if (!hasText(content.heroTitle)) missing.push("Hero 標題未填");
+  if (!hasText(content.ctaText)) missing.push("CTA 文字未填");
+  if (hasInternalPublicCopy(content)) {
+    missing.push("公開文案仍包含內部說明，請先改成客人會看到的內容");
+  }
+
+  if (!hasSupabaseAdminEnv()) return missing;
+
+  const supabase = createSupabaseAdminClient();
+  const [
+    brandResult,
+    treatmentResult,
+    packageResult,
+    branchResult,
+    formResult,
+  ] = await Promise.all([
+    row.brand_id
+      ? supabase.from("brands").select("id,name,slug").eq("id", row.brand_id).maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    row.treatment_id
+      ? supabase
+          .from("treatments")
+          .select("id,brand_id")
+          .eq("id", row.treatment_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    row.package_id
+      ? supabase
+          .from("packages")
+          .select("id,treatment_id")
+          .eq("id", row.package_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    row.branch_id
+      ? supabase
+          .from("branches")
+          .select("id,brand_id")
+          .eq("id", row.branch_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+    row.form_id
+      ? supabase
+          .from("forms")
+          .select("id,brand_id,form_name,public_form_token")
+          .eq("id", row.form_id)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null }),
+  ]);
+
+  if (brandResult.error) {
+    console.warn("landing_page_publish_brand_check_failed", {
+      code: brandResult.error.code,
+      message: brandResult.error.message,
+    });
+  }
+
+  if (formResult.error) {
+    console.warn("landing_page_publish_form_check_failed", {
+      code: formResult.error.code,
+      message: formResult.error.message,
+    });
+  }
+
+  const brand = brandResult.data as Record<string, unknown> | null;
+  const treatment = treatmentResult.data as Record<string, unknown> | null;
+  const packageRow = packageResult.data as Record<string, unknown> | null;
+  const branch = branchResult.data as Record<string, unknown> | null;
+  const form = formResult.data as Record<string, unknown> | null;
+
+  if (row.brand_id && !brand) missing.push("品牌資料未找到");
+  if (row.treatment_id && !treatment) missing.push("療程資料未找到");
+  if (row.package_id && !packageRow) missing.push("套餐資料未找到");
+  if (row.branch_id && !branch) missing.push("分店資料未找到");
+  if (row.form_id && !form) missing.push("表格資料未找到");
+
+  if (row.brand_id && treatment?.brand_id && treatment.brand_id !== row.brand_id) {
+    missing.push("療程品牌與頁面品牌不一致");
+  }
+
+  if (
+    row.treatment_id &&
+    packageRow?.treatment_id &&
+    packageRow.treatment_id !== row.treatment_id
+  ) {
+    missing.push("套餐與療程不一致");
+  }
+
+  if (row.brand_id && branch?.brand_id && branch.brand_id !== row.brand_id) {
+    missing.push("分店品牌與頁面品牌不一致");
+  }
+
+  if (row.brand_id && form?.brand_id && form.brand_id !== row.brand_id) {
+    missing.push("表格品牌與頁面品牌不一致");
+  }
+
+  const brandName = String(brand?.name ?? "");
+  const brandSlug = String(brand?.slug ?? "");
+  const formName = String(form?.form_name ?? "");
+  const formToken = String(form?.public_form_token ?? "");
+  const isIneffablePage =
+    /ineffable/i.test(brandName) || /ineffable/i.test(brandSlug);
+  const isAlyssaMainForm =
+    /alyssa/i.test(formName) || formToken === alyssaDefaultForm.publicFormToken;
+
+  if (isIneffablePage && isAlyssaMainForm) {
+    missing.push("Ineffable 公開頁仍然連接 Alyssa 表格，請先改用 Ineffable 表格");
+  }
+
+  return Array.from(new Set(missing));
+}
+
 export async function getLandingPageBySlug(slug: string) {
   const row = await findLandingPageRow(slug);
   if (!row) {
@@ -510,10 +703,27 @@ export async function getPublishedLandingPageBySlug(slug: string) {
         message: error.message,
       });
     } else if (data) {
-      const version = data.published_version_id
-        ? await getVersionById(data.published_version_id)
-        : await getLatestVersion(data.id, "published");
-      return rowToConfig(data, version);
+      if (!data.published_version_id) {
+        console.warn("published_landing_page_missing_version", {
+          pageId: data.id,
+          slug: data.slug,
+        });
+        return null;
+      }
+
+      const version = await getVersionById(data.published_version_id);
+
+      if (!version || version.status !== "published") {
+        console.warn("published_landing_page_version_unavailable", {
+          pageId: data.id,
+          slug: data.slug,
+          versionId: data.published_version_id,
+          versionStatus: version?.status ?? "missing",
+        });
+        return null;
+      }
+
+      return rowToConfig(data, version, { publicContentOnly: true });
     }
   }
 
@@ -772,6 +982,24 @@ export async function publishLandingPage(
 
   const supabase = createSupabaseAdminClient();
   let version = await getLatestVersion(row.id, "draft");
+
+  if (!version) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "請先保存草稿，然後再發布公開頁。",
+    };
+  }
+
+  const missing = await validatePublishReadiness(row, version);
+
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `發布前請先完成：${missing.join("、")}`,
+    };
+  }
 
   if (!version) {
     const latest = await getLatestVersion(row.id);

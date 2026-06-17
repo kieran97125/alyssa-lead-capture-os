@@ -1,8 +1,13 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { LandingPageEditorDirtyState } from "@/components/alyssa/LandingPageEditorDirtyState";
 import { MotionReveal } from "@/components/alyssa/MotionReveal";
+import {
+  publicThemeStyle,
+  resolvePublicBrandTheme,
+} from "@/lib/brandThemes";
 import {
   publishLandingPageAction,
   saveLandingPageDraftAction,
@@ -60,11 +65,51 @@ export default async function LandingPageConfigPage({
   const selectedFormPreviewUrl = selectedFormToken
     ? getPublicEmbedPreviewUrl(selectedFormToken)
     : "";
+  const publicBrand =
+    (connectedForm ? getBrand(config, connectedForm.brandId) : null) ??
+    getBrand(config, page.brandId) ??
+    context.brand ??
+    null;
+  const previewThemeStyle = publicThemeStyle(
+    resolvePublicBrandTheme({
+      brandSlug: publicBrand?.slug,
+      brandName: publicBrand?.name,
+    })
+  ) as CSSProperties;
   const publicUrl = getPublicLandingPageUrl(page.slug);
   const publicDisplay = page.status === "published" ? publicUrl : "發布後才會公開";
   const actionMessage =
     typeof query?.builder_status === "string" ? query.builder_status : null;
   const price = context.package ? `HK$${context.package.promoPrice}` : "未設定";
+  const selectedBrand = getBrand(config, page.brandId) ?? context.brand ?? null;
+  const selectedTreatment =
+    getTreatment(config, page.treatmentId) ?? context.treatment ?? null;
+  const selectedPackage = getPackage(config, page.packageId) ?? context.package ?? null;
+  const selectedBranch = getBranch(config, page.branchId) ?? context.branch ?? null;
+  const isIneffablePage =
+    /ineffable/i.test(selectedBrand?.name ?? "") ||
+    /ineffable/i.test(selectedBrand?.slug ?? "");
+  const isAlyssaMainForm =
+    /alyssa/i.test(connectedForm?.formName ?? "") ||
+    selectedFormToken === "alyssa-main-form-dev-token";
+  const publishMissingItems = [
+    !selectedBrand ? "品牌未設定" : null,
+    !selectedTreatment ? "療程未設定" : null,
+    !selectedPackage ? "套餐未設定" : null,
+    !selectedBranch ? "分店未設定" : null,
+    !connectedForm ? "未連接登記表格" : null,
+    connectedForm && selectedBrand && connectedForm.brandId !== selectedBrand.id
+      ? "表格品牌與頁面品牌不一致"
+      : null,
+    isIneffablePage && isAlyssaMainForm
+      ? "Ineffable 公開頁仍然連接 Alyssa 表格"
+      : null,
+    !page.title.trim() ? "頁面標題未填" : null,
+    !page.heroTitle.trim() ? "Hero 標題未填" : null,
+    !page.ctaText.trim() ? "CTA 文字未填" : null,
+    !latestDraftVersionNumber ? "請先保存草稿" : null,
+  ].filter((item): item is string => Boolean(item));
+  const canPublish = canPersist && publishMissingItems.length === 0;
 
   return (
     <main className="alyssa-shell">
@@ -113,6 +158,15 @@ export default async function LandingPageConfigPage({
                   {actionMessage}
                 </p>
               )}
+              <LandingPageEditorDirtyState
+                editorFormId="landing-page-editor-form"
+                publishButtonId="landing-page-publish-button"
+              />
+              {publishMissingItems.length > 0 && (
+                <p className="mt-3 rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm font-semibold leading-6 text-[#6d4a5c]">
+                  發布前請完成：{publishMissingItems.join("、")}
+                </p>
+              )}
             </div>
             <div className="flex min-w-0 flex-wrap gap-2">
               <button
@@ -126,8 +180,9 @@ export default async function LandingPageConfigPage({
               <form action={publishLandingPageAction}>
                 <input type="hidden" name="pageId" value={page.id} />
                 <button
+                  id="landing-page-publish-button"
                   type="submit"
-                  disabled={!canPersist}
+                  disabled={!canPublish}
                   className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:text-[#9b8c86]"
                 >
                   發布公開頁
@@ -421,6 +476,7 @@ export default async function LandingPageConfigPage({
             branch={context.branch?.name ?? "未設定分店"}
             previewUrl={publicUrl}
             formToken={selectedFormToken}
+            themeStyle={previewThemeStyle}
           />
         </div>
       </div>
@@ -752,6 +808,7 @@ function PreviewPanel({
   branch,
   previewUrl,
   formToken,
+  themeStyle,
 }: {
   page: LandingPageConfig;
   price: string;
@@ -759,6 +816,7 @@ function PreviewPanel({
   branch: string;
   previewUrl: string;
   formToken: string;
+  themeStyle: CSSProperties;
 }) {
   const heroImageUrl = page.heroImageUrl || page.mobileHeroImageUrl;
 
@@ -767,11 +825,15 @@ function PreviewPanel({
       <aside className="h-fit min-w-0 rounded-[28px] border border-[#ead9cf] bg-white/90 p-5 shadow-[0_24px_70px_rgba(90,35,72,0.12)] xl:sticky xl:top-32">
         <p className="alyssa-kicker">預覽</p>
         <div
-          className="mt-4 overflow-hidden rounded-[24px] bg-[#321428] text-white"
+          className="mt-4 overflow-hidden rounded-[24px] bg-[var(--public-dark)] text-white"
+          style={themeStyle}
+        >
+          <div
+            className="min-h-full"
           style={
             heroImageUrl
               ? {
-                  backgroundImage: `linear-gradient(90deg, rgba(50,20,40,0.86), rgba(90,35,72,0.5)), url(${heroImageUrl})`,
+                  backgroundImage: `linear-gradient(90deg, color-mix(in srgb, var(--public-dark) 86%, transparent), color-mix(in srgb, var(--public-cta) 50%, transparent)), url(${heroImageUrl})`,
                   backgroundPosition: "center",
                   backgroundSize: "cover",
                 }
@@ -784,9 +846,10 @@ function PreviewPanel({
             </p>
             <h2 className="mt-4 text-3xl font-bold leading-tight">{page.heroTitle}</h2>
             <p className="mt-3 text-sm leading-6 text-white/82">{page.heroSubtitle}</p>
-            <div className="mt-5 inline-flex rounded-full bg-white px-4 py-2 text-sm font-bold text-[#5a2348]">
+            <div className="mt-5 inline-flex rounded-full bg-[var(--public-cta)] px-4 py-2 text-sm font-bold text-[var(--public-cta-text)]">
               {page.ctaText}
             </div>
+          </div>
           </div>
         </div>
 

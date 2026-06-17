@@ -29,7 +29,8 @@ export type GoogleSheetsLeadWebhookPayload = {
   phone: string;
   email: string;
   treatmentOffer: string;
-  appointmentDateTime: string;
+  appointmentDate: string;
+  appointmentTime: string;
   source: string;
   campaignAd: string;
   pageUrl: string;
@@ -101,13 +102,6 @@ function formatTreatmentOffer(
   return mainOffer;
 }
 
-function formatAppointmentDateTime(
-  appointmentDate: string | null,
-  appointmentTime: string | null
-) {
-  return [appointmentDate, appointmentTime].filter(Boolean).join(" ");
-}
-
 function formatSource(touch: TouchPayload) {
   const source = touch.utm_source?.trim().toLowerCase() || "";
   const medium = touch.utm_medium?.trim().toLowerCase() || "";
@@ -166,10 +160,8 @@ export function buildGoogleSheetsLeadPayload(
       input.packageName,
       input.price
     ),
-    appointmentDateTime: formatAppointmentDateTime(
-      input.appointmentDate,
-      input.appointmentTime
-    ),
+    appointmentDate: input.appointmentDate || "",
+    appointmentTime: input.appointmentTime || "",
     source: formatSource(touch),
     campaignAd: formatCampaignAd(touch),
     pageUrl,
