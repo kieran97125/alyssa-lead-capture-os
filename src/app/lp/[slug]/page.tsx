@@ -36,9 +36,7 @@ export async function generateMetadata({
   return {
     title: page.title,
     description:
-      page.heroSubtitle ||
-      page.offerBody ||
-      "適合用作廣告測試及預約收集，系統會同時記錄來源資料，方便之後跟進成效。",
+      page.heroSubtitle || page.offerBody || `${page.title} - 預約療程體驗。`,
   };
 }
 
@@ -60,29 +58,54 @@ export default async function PublicLandingPage({
     config.forms.find((form) => form.id === page.formId) ??
     config.forms.find((form) => form.publicFormToken === page.formToken) ??
     null;
+
+  if (!connectedForm) notFound();
+
   const publicBrand =
-    (connectedForm
-      ? config.brands.find((brand) => brand.id === connectedForm.brandId)
-      : null) ??
+    config.brands.find((brand) => brand.id === connectedForm.brandId) ??
     config.brands.find((brand) => brand.id === page.brandId) ??
     context.brand ??
     null;
+  const selectedTreatment =
+    config.treatments.find((item) => item.id === page.treatmentId) ??
+    config.treatments.find(
+      (item) => item.id === connectedForm.defaultTreatmentId
+    ) ??
+    context.treatment ??
+    null;
+  const selectedPackage =
+    config.packages.find((item) => item.id === page.packageId) ??
+    config.packages.find((item) => item.id === connectedForm.defaultPackageId) ??
+    context.package ??
+    null;
+  const selectedBranch =
+    config.branches.find((item) => item.id === page.branchId) ??
+    config.branches.find((item) => item.id === connectedForm.defaultBranchId) ??
+    context.branch ??
+    null;
 
-  if (page.formId && !connectedForm) {
+  if (!publicBrand || !selectedTreatment || !selectedPackage || !selectedBranch) {
     notFound();
   }
 
   const theme = resolvePublicBrandTheme({
-    brandSlug: publicBrand?.slug,
-    brandName: publicBrand?.name,
+    brandSlug: publicBrand.slug,
+    brandName: publicBrand.name,
   });
   const themeStyle = publicThemeStyle(theme) as CSSProperties;
-  const brandDisplayName = publicBrand?.name || theme.brandName;
-  const brandSlug = publicBrand?.slug || theme.key;
+  const brandDisplayName = publicBrand.name || theme.brandName;
+  const brandSlug = publicBrand.slug || theme.key;
   const embedScriptUrl = getEmbedScriptUrl();
-  const selectedPackage = context.package;
-  const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";
+  const price = `HK$${selectedPackage.promoPrice}`;
   const heroImageUrl = page.heroImageUrl || page.mobileHeroImageUrl;
+  const hasOfferContent =
+    Boolean(page.offerHeadline || page.offerBody || page.offerImageUrl) ||
+    page.painPoints.length > 0;
+  const hasSections = page.sections.length > 0;
+  const hasBenefits = page.benefits.length > 0;
+  const hasProcess = page.processSteps.length > 0;
+  const hasTrust = page.trustItems.length > 0 || Boolean(page.trustImageUrl);
+  const hasFaqs = page.faqs.length > 0;
   const legalProfile = getBrandLegalProfile({
     brandSlug,
     brandName: brandDisplayName,
@@ -107,21 +130,25 @@ export default async function PublicLandingPage({
         aria-label="醫學美容 Campaign Landing Page"
       >
         <MotionReveal className="mx-auto w-full max-w-7xl">
-          <MotionReveal delay={0.03}>
-            <p className="w-fit rounded-full border border-white/35 bg-white/12 px-4 py-2 text-sm font-bold backdrop-blur">
-              {page.offerBadge}
-            </p>
-          </MotionReveal>
+          {page.offerBadge && (
+            <MotionReveal delay={0.03}>
+              <p className="w-fit rounded-full border border-white/35 bg-white/12 px-4 py-2 text-sm font-bold backdrop-blur">
+                {page.offerBadge}
+              </p>
+            </MotionReveal>
+          )}
           <MotionReveal delay={0.1}>
             <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight md:text-6xl">
               {page.heroTitle}
             </h1>
           </MotionReveal>
-          <MotionReveal delay={0.17}>
-            <p className="mt-5 max-w-2xl text-base leading-7 text-white/86 md:text-lg">
-              {page.heroSubtitle}
-            </p>
-          </MotionReveal>
+          {page.heroSubtitle && (
+            <MotionReveal delay={0.17}>
+              <p className="mt-5 max-w-2xl text-base leading-7 text-white/86 md:text-lg">
+                {page.heroSubtitle}
+              </p>
+            </MotionReveal>
+          )}
           <MotionReveal delay={0.24}>
             <div className="mt-8 flex flex-wrap gap-3">
               <MotionAnchor
@@ -130,181 +157,201 @@ export default async function PublicLandingPage({
               >
                 {page.ctaText}
               </MotionAnchor>
-              <MotionAnchor
-                href="#treatment-summary"
-                className="rounded-full border border-white/55 bg-white/10 px-6 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/18"
-              >
-                {page.secondaryCtaText}
-              </MotionAnchor>
+              {page.secondaryCtaText && (
+                <MotionAnchor
+                  href="#treatment-summary"
+                  className="rounded-full border border-white/55 bg-white/10 px-6 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/18"
+                >
+                  {page.secondaryCtaText}
+                </MotionAnchor>
+              )}
             </div>
           </MotionReveal>
           <MotionReveal delay={0.31}>
             <div className="mt-10 grid max-w-4xl gap-3 sm:grid-cols-3">
               <HeroMetric label="品牌" value={brandDisplayName} />
-              <HeroMetric label="療程" value={context.treatment?.name ?? "未設定"} />
+              <HeroMetric label="療程" value={selectedTreatment.name} />
               <HeroMetric label="體驗價" value={price} />
             </div>
           </MotionReveal>
         </MotionReveal>
       </section>
 
-      <MotionReveal>
-        <section
-          id="treatment-summary"
-          className="mx-auto grid max-w-7xl gap-5 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]"
-        >
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-              優惠摘要
-            </p>
-            <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
-              {page.offerHeadline}
-            </h2>
-            <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
-              {page.offerBody}
-            </p>
-            <div className="mt-6">
+      {hasOfferContent && (
+        <MotionReveal>
+          <section
+            id="treatment-summary"
+            className="mx-auto grid max-w-7xl gap-5 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]"
+          >
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
+                優惠摘要
+              </p>
+              {page.offerHeadline && (
+                <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
+                  {page.offerHeadline}
+                </h2>
+              )}
+              {page.offerBody && (
+                <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
+                  {page.offerBody}
+                </p>
+              )}
+              <div className="mt-6">
+                <ImagePanel
+                  imageUrl={page.offerImageUrl}
+                  label="優惠圖片"
+                  title="療程體驗重點"
+                  body="可放置療程室、儀器細節、服務體驗或優惠主視覺，幫助客人理解體驗價值。"
+                  ratioClass="aspect-[4/3]"
+                />
+              </div>
+              <div className="mt-6 grid gap-3 sm:grid-cols-2">
+                <InfoCard label="療程" value={selectedTreatment.name} />
+                <InfoCard label="套餐" value={selectedPackage.name} />
+                <InfoCard label="分店" value={selectedBranch.name} />
+                <InfoCard label="付款方式" value="先預約，再由團隊確認安排" />
+              </div>
+            </div>
+            <div className="grid gap-3">
               <ImagePanel
-                imageUrl={page.offerImageUrl}
-                label="優惠圖片"
-                title="體驗優惠重點"
-                body="建議使用療程房、儀器細節或高質感醫美視覺，突出今次體驗價值。"
+                imageUrl={page.treatmentImageUrl}
+                label="療程圖片"
+                title={selectedTreatment.name}
+                body="可展示療程、產品、儀器或體驗環境，保持高級、乾淨、可信賴的視覺感。"
                 ratioClass="aspect-[4/3]"
               />
+              {page.painPoints.map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] p-5 shadow-sm"
+                >
+                  <p className="text-sm font-semibold leading-6 text-[var(--public-cta)]">
+                    {item}
+                  </p>
+                </div>
+              ))}
             </div>
-            <div className="mt-6 grid gap-3 sm:grid-cols-2">
-              <InfoCard label="療程" value={context.treatment?.name ?? "未設定"} />
-              <InfoCard label="套餐" value={selectedPackage?.name ?? "未設定"} />
-              <InfoCard label="分店" value={context.branch?.name ?? "可選分店"} />
-              <InfoCard label="付款方式" value="可先預約，稍後由團隊跟進付款安排" />
+          </section>
+        </MotionReveal>
+      )}
+
+      {hasBenefits && (
+        <MotionReveal>
+          <section className="border-y border-[var(--public-border)] bg-[var(--public-card)]">
+            <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
+              {page.benefits.map((item) => (
+                <div key={item}>
+                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
+                    賣點
+                  </p>
+                  <p className="mt-2 text-lg font-bold leading-7 text-[var(--public-heading)]">
+                    {item}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </section>
+        </MotionReveal>
+      )}
+
+      {hasSections && (
+        <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr]">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
+              為何選擇這個體驗
+            </p>
+            <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
+              清楚了解療程、優惠及預約安排
+            </h2>
+          </div>
+          <div className="grid gap-3">
+            {page.sections.map((section) => (
+              <article
+                key={section.title}
+                className="rounded-[20px] bg-[var(--public-soft-bg)] p-5"
+              >
+                <h3 className="text-lg font-bold text-[var(--public-heading)]">
+                  {section.title}
+                </h3>
+                <p className="mt-2 text-sm leading-6 text-[var(--public-muted)]">
+                  {section.body}
+                </p>
+              </article>
+            ))}
+          </div>
+        </MotionReveal>
+      )}
+
+      {hasProcess && (
+        <MotionReveal>
+          <section className="bg-[var(--public-dark)] px-5 py-10 text-white">
+            <div className="mx-auto max-w-7xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/62">
+                預約流程
+              </p>
+              <h2 className="mt-2 text-3xl font-bold">
+                由登記到確認安排，流程清晰簡單
+              </h2>
+              <div className="mt-6 grid gap-4 md:grid-cols-3">
+                {page.processSteps.map((step, index) => (
+                  <article
+                    key={step.title}
+                    className="rounded-[20px] border border-white/14 bg-white/8 p-5"
+                  >
+                    <ProcessImage
+                      imageUrl={
+                        [
+                          page.processImage1Url,
+                          page.processImage2Url,
+                          page.processImage3Url,
+                        ][index] ?? ""
+                      }
+                      label={`步驟 ${index + 1}`}
+                    />
+                    <h3 className="text-lg font-bold">{step.title}</h3>
+                    <p className="mt-2 text-sm leading-6 text-white/72">
+                      {step.body}
+                    </p>
+                  </article>
+                ))}
+              </div>
+            </div>
+          </section>
+        </MotionReveal>
+      )}
+
+      {hasTrust && (
+        <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
+              信任與環境
+            </p>
+            <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
+              專業、乾淨、安心的體驗環境
+            </h2>
+            <div className="mt-6">
+              <ImagePanel
+                imageUrl={page.trustImageUrl}
+                label="診所 / 環境圖片"
+                title="專業環境與服務信任"
+                body="可展示診所環境、接待區、療程房或專業團隊視覺，提升預約信心。"
+                ratioClass="aspect-video"
+              />
             </div>
           </div>
           <div className="grid gap-3">
-            <ImagePanel
-              imageUrl={page.treatmentImageUrl}
-              label="療程圖片"
-              title={context.treatment?.name ?? "療程體驗"}
-              body="可放療程、膚質分析、儀器或診所環境圖片，建立信任感和療程期待。"
-              ratioClass="aspect-[4/3]"
-            />
-            {page.painPoints.map((item) => (
-              <div
+            {page.trustItems.map((item) => (
+              <p
                 key={item}
-                className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] p-5 shadow-sm"
+                className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] px-5 py-4 text-sm font-semibold leading-6 text-[var(--public-cta)] shadow-sm"
               >
-                <p className="text-sm font-semibold leading-6 text-[var(--public-cta)]">
-                  {item}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </MotionReveal>
-
-      <MotionReveal>
-        <section className="border-y border-[var(--public-border)] bg-[var(--public-card)]">
-          <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
-            {page.benefits.map((item) => (
-              <div key={item}>
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
-                  賣點
-                </p>
-                <p className="mt-2 text-lg font-bold leading-7 text-[var(--public-heading)]">
-                  {item}
-                </p>
-              </div>
-            ))}
-          </div>
-        </section>
-      </MotionReveal>
-
-      <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr]">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-            為何選擇這個體驗
-          </p>
-          <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
-            清楚介紹療程、優惠和預約安排
-          </h2>
-          <p className="mt-4 text-sm leading-7 text-[#6d4a5c]">
-            適合用作廣告測試及預約收集，系統會同時記錄來源資料，方便之後跟進成效。
-          </p>
-        </div>
-        <div className="grid gap-3">
-          {page.sections.map((section) => (
-            <article key={section.title} className="rounded-[20px] bg-[var(--public-soft-bg)] p-5">
-              <h3 className="text-lg font-bold text-[var(--public-heading)]">{section.title}</h3>
-              <p className="mt-2 text-sm leading-6 text-[var(--public-muted)]">
-                {section.body}
+                {item}
               </p>
-            </article>
-          ))}
-        </div>
-      </MotionReveal>
-
-      <MotionReveal>
-        <section className="bg-[var(--public-dark)] px-5 py-10 text-white">
-          <div className="mx-auto max-w-7xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/62">
-              預約流程
-            </p>
-            <h2 className="mt-2 text-3xl font-bold">由了解療程到預約跟進</h2>
-            <div className="mt-6 grid gap-4 md:grid-cols-3">
-              {page.processSteps.map((step, index) => (
-                <article
-                  key={step.title}
-                  className="rounded-[20px] border border-white/14 bg-white/8 p-5"
-                >
-                  <ProcessImage
-                    imageUrl={
-                      [
-                        page.processImage1Url,
-                        page.processImage2Url,
-                        page.processImage3Url,
-                      ][index] ?? ""
-                    }
-                    label={`步驟 ${index + 1}`}
-                  />
-                  <h3 className="text-lg font-bold">{step.title}</h3>
-                  <p className="mt-2 text-sm leading-6 text-white/72">
-                    {step.body}
-                  </p>
-                </article>
-              ))}
-            </div>
+            ))}
           </div>
-        </section>
-      </MotionReveal>
-
-      <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]">
-        <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-            信心保證
-          </p>
-          <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
-            讓客人預約前有清楚資訊
-          </h2>
-          <div className="mt-6">
-            <ImagePanel
-              imageUrl={page.trustImageUrl}
-              label="診所環境"
-              title="乾淨、專業、可信任的環境"
-              body="建議使用診所、接待區或專業諮詢圖片，提升預約信心。"
-              ratioClass="aspect-video"
-            />
-          </div>
-        </div>
-        <div className="grid gap-3">
-          {page.trustItems.map((item) => (
-            <p
-              key={item}
-              className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] px-5 py-4 text-sm font-semibold leading-6 text-[var(--public-cta)] shadow-sm"
-            >
-              {item}
-            </p>
-          ))}
-        </div>
-      </MotionReveal>
+        </MotionReveal>
+      )}
 
       <MotionReveal>
         <section id="alyssa-lp-form" className="bg-[var(--public-soft-bg)] px-5 py-10">
@@ -317,7 +364,7 @@ export default async function PublicLandingPage({
                 {page.ctaText}
               </h2>
               <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
-                填寫資料後，團隊可按你選擇的療程、套餐及分店安排跟進。若你由廣告或社交平台進入，系統會保留來源資料，方便之後分析 Campaign 成效。
+                填寫資料後，團隊會按你選擇的療程、套餐及分店安排跟進。
               </p>
             </div>
             <div className="rounded-[28px] border border-[var(--public-border)] bg-[var(--public-card)] p-4 shadow-[0_24px_70px_rgba(58,36,28,0.14)]">
@@ -325,9 +372,9 @@ export default async function PublicLandingPage({
               <Script
                 src={embedScriptUrl}
                 strategy="afterInteractive"
-                data-form-token={connectedForm?.publicFormToken ?? page.formToken}
+                data-form-token={connectedForm.publicFormToken}
                 data-brand={brandSlug}
-                data-form-id={connectedForm?.id ?? page.formId}
+                data-form-id={connectedForm.id}
                 data-target-id="alyssa-lp-form-target"
                 data-height="900"
               />
@@ -336,24 +383,28 @@ export default async function PublicLandingPage({
         </section>
       </MotionReveal>
 
-      <MotionReveal className="mx-auto max-w-4xl px-5 py-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-          常見問題
-        </p>
-        <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">預約前想知道</h2>
-        <div className="mt-6 divide-y divide-[var(--public-border)] rounded-[24px] border border-[var(--public-border)] bg-[var(--public-card)]">
-          {page.faqs.map((item) => (
-            <details key={item.question} className="group p-5">
-              <summary className="cursor-pointer list-none text-base font-bold text-[var(--public-heading)]">
-                {item.question}
-              </summary>
-              <p className="mt-3 text-sm leading-6 text-[var(--public-muted)]">
-                {item.answer}
-              </p>
-            </details>
-          ))}
-        </div>
-      </MotionReveal>
+      {hasFaqs && (
+        <MotionReveal className="mx-auto max-w-4xl px-5 py-10">
+          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
+            常見問題
+          </p>
+          <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
+            預約前可以先了解
+          </h2>
+          <div className="mt-6 divide-y divide-[var(--public-border)] rounded-[24px] border border-[var(--public-border)] bg-[var(--public-card)]">
+            {page.faqs.map((item) => (
+              <details key={item.question} className="group p-5">
+                <summary className="cursor-pointer list-none text-base font-bold text-[var(--public-heading)]">
+                  {item.question}
+                </summary>
+                <p className="mt-3 text-sm leading-6 text-[var(--public-muted)]">
+                  {item.answer}
+                </p>
+              </details>
+            ))}
+          </div>
+        </MotionReveal>
+      )}
 
       <PublicLegalFooter
         footerText={getLegalFooterText(legalProfile)}
@@ -391,7 +442,7 @@ function PublicLegalFooter({
             免責聲明
           </a>
           <a className="underline underline-offset-4" href="#alyssa-lp-form">
-            聯絡 / 預約
+            預約 / 查詢
           </a>
         </nav>
       </div>

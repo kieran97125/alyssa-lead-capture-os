@@ -80,12 +80,29 @@ export default async function LandingPageConfigPage({
   const publicDisplay = page.status === "published" ? publicUrl : "發布後才會公開";
   const actionMessage =
     typeof query?.builder_status === "string" ? query.builder_status : null;
-  const price = context.package ? `HK$${context.package.promoPrice}` : "未設定";
-  const selectedBrand = getBrand(config, page.brandId) ?? context.brand ?? null;
+  const selectedBrand =
+    (connectedForm ? getBrand(config, connectedForm.brandId) : null) ??
+    getBrand(config, page.brandId) ??
+    context.brand ??
+    null;
   const selectedTreatment =
-    getTreatment(config, page.treatmentId) ?? context.treatment ?? null;
-  const selectedPackage = getPackage(config, page.packageId) ?? context.package ?? null;
-  const selectedBranch = getBranch(config, page.branchId) ?? context.branch ?? null;
+    getTreatment(config, page.treatmentId) ??
+    (connectedForm
+      ? getTreatment(config, connectedForm.defaultTreatmentId)
+      : null) ??
+    context.treatment ??
+    null;
+  const selectedPackage =
+    getPackage(config, page.packageId) ??
+    (connectedForm ? getPackage(config, connectedForm.defaultPackageId) : null) ??
+    context.package ??
+    null;
+  const selectedBranch =
+    getBranch(config, page.branchId) ??
+    (connectedForm ? getBranch(config, connectedForm.defaultBranchId) : null) ??
+    context.branch ??
+    null;
+  const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";
   const isIneffablePage =
     /ineffable/i.test(selectedBrand?.name ?? "") ||
     /ineffable/i.test(selectedBrand?.slug ?? "");
@@ -416,21 +433,21 @@ export default async function LandingPageConfigPage({
               description="顯示這個頁面連接的品牌、療程、套餐和分店。"
             >
               <div className="grid gap-4 md:grid-cols-2">
-                <TextField label="品牌" value={context.brand?.name ?? "未設定"} readOnly />
+                <TextField label="品牌" value={selectedBrand?.name ?? "未設定"} readOnly />
                 <TextField
                   label="療程"
-                  value={context.treatment?.name ?? "未設定"}
+                  value={selectedTreatment?.name ?? "未設定"}
                   readOnly
                 />
                 <TextField
                   label="套餐"
-                  value={context.package?.name ?? "未設定"}
+                  value={selectedPackage?.name ?? "未設定"}
                   readOnly
                 />
                 <TextField label="價錢" value={price} readOnly />
                 <TextField
                   label="分店"
-                  value={context.branch?.name ?? "未設定"}
+                  value={selectedBranch?.name ?? "未設定"}
                   readOnly
                 />
               </div>
@@ -472,8 +489,8 @@ export default async function LandingPageConfigPage({
           <PreviewPanel
             page={page}
             price={price}
-            treatment={context.treatment?.name ?? "未設定療程"}
-            branch={context.branch?.name ?? "未設定分店"}
+            treatment={selectedTreatment?.name ?? "未設定療程"}
+            branch={selectedBranch?.name ?? "未設定分店"}
             previewUrl={publicUrl}
             formToken={selectedFormToken}
             themeStyle={previewThemeStyle}
@@ -718,11 +735,13 @@ function Repeater({
   items: string[];
   name: string;
 }) {
+  const visibleItems = items.length > 0 ? items : ["", "", ""];
+
   return (
     <div className="min-w-0">
       <h3 className="font-bold text-[#321428]">{title}</h3>
       <div className="mt-3 grid gap-3">
-        {items.map((item, index) => (
+        {visibleItems.map((item, index) => (
           <TextField
             key={`${title}-${index}`}
             label={`項目 ${index + 1}`}
@@ -746,11 +765,20 @@ function StructuredRepeater({
   titleName: string;
   bodyName: string;
 }) {
+  const visibleItems =
+    items.length > 0
+      ? items
+      : [
+          { title: "", body: "" },
+          { title: "", body: "" },
+          { title: "", body: "" },
+        ];
+
   return (
     <div>
       <h3 className="font-bold text-[#321428]">{title}</h3>
       <div className="mt-3 grid gap-4">
-        {items.map((item, index) => (
+        {visibleItems.map((item, index) => (
           <div key={`${title}-${index}`} className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
             <TextField
               label={`標題 ${index + 1}`}

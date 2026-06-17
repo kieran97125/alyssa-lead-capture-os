@@ -41,7 +41,7 @@ export function LandingPageEditorDirtyState({
 
   return (
     <p className="mt-3 rounded-2xl border border-[#d9b66f] bg-[#fff6f0] px-4 py-3 text-sm font-bold text-[#5a2348]">
-      有未保存內容。請先保存草稿，然後再發布公開頁。
+      有未保存內容。請先儲存草稿，然後再發布公開頁。
     </p>
   );
 }

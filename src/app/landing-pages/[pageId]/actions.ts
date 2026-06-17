@@ -6,10 +6,9 @@ import {
   publishLandingPage,
   saveLandingPageDraft,
 } from "@/lib/data/landingPageStore";
-import {
-  defaultLandingPageContent,
-  type LandingPageContent,
-  type LandingPageImageAssets,
+import type {
+  LandingPageContent,
+  LandingPageImageAssets,
 } from "@/lib/data/landingPages";
 
 function resultRedirect(pageId: string, message: string): never {
@@ -21,7 +20,12 @@ function readString(formData: FormData, key: string) {
 }
 
 function readOptionalUrl(formData: FormData, key: string) {
-  const value = readString(formData, key);
+  const value =
+    formData
+      .getAll(key)
+      .map((item) => String(item ?? "").trim())
+      .filter(Boolean)
+      .at(-1) ?? "";
   if (!value) return "";
 
   try {
@@ -101,7 +105,7 @@ function parseEditorForm(formData: FormData): {
   }
 
   const content: LandingPageContent = {
-    templateName: readString(formData, "templateName") || defaultLandingPageContent.templateName,
+    templateName: readString(formData, "templateName") || "offer-landing-page",
     testingStatus:
       readString(formData, "testingStatus") === "foundation"
         ? "foundation"
