@@ -133,7 +133,7 @@ export default async function PublicLandingPage({
       className="min-h-screen overflow-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
       style={themeStyle}
     >
-      <section className="relative bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
+      <section id="hero" className="relative scroll-mt-6 bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <MotionReveal>
             <div className="flex items-center gap-4">
@@ -197,7 +197,7 @@ export default async function PublicLandingPage({
       </section>
 
       <MotionReveal>
-        <section className="bg-white px-5 py-8">
+        <section id="quick-cta" className="scroll-mt-6 bg-white px-5 py-8">
           <div className="mx-auto max-w-7xl rounded-[34px] border border-[var(--public-border)] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF1F7_52%,#F6F2FF_100%)] p-6 shadow-[0_24px_70px_rgba(216,91,163,0.12)] md:p-8">
             <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
@@ -382,12 +382,13 @@ function ContentSectionBlock({
   section: LandingPageContentSection;
 }) {
   const items = visibleItemsForSection(section);
+  const sectionId = `section-${section.id.replace(/[^a-zA-Z0-9_-]/g, "-")}`;
 
   if (!section.title && !section.subtitle && items.length === 0) return null;
 
   if (section.layout === "text") {
     return (
-      <section className="rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+      <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
         <SectionHeading
           eyebrow={section.label || "內容"}
           title={section.title}
@@ -400,7 +401,7 @@ function ContentSectionBlock({
   if (section.layout === "image_text") {
     const firstItem = items[0];
     return (
-      <section className="rounded-[34px] border border-[var(--public-border)] bg-white p-5 shadow-[0_24px_70px_rgba(216,91,163,0.1)] md:p-7">
+      <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-5 shadow-[0_24px_70px_rgba(216,91,163,0.1)] md:p-7">
         <div className="grid gap-7 lg:grid-cols-2 lg:items-center">
           {firstItem?.imageUrl && (
             <img
@@ -437,7 +438,7 @@ function ContentSectionBlock({
 
   if (section.layout === "faq") {
     return (
-      <section className="rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+      <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
         <SectionHeading
           eyebrow={section.label || "FAQ"}
           title={section.title}
@@ -472,7 +473,7 @@ function ContentSectionBlock({
         : "md:grid-cols-2 xl:grid-cols-3";
 
   return (
-    <section className="rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+    <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
       <SectionHeading
         eyebrow={section.label || "內容"}
         title={section.title}
@@ -591,7 +592,7 @@ function PublicLegalFooter({
   disclaimerUrl: string;
 }) {
   return (
-    <footer className="border-t border-[var(--public-border)] bg-white px-5 py-6">
+    <footer id="legal-footer" className="scroll-mt-6 border-t border-[var(--public-border)] bg-white px-5 py-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 text-xs font-semibold leading-5 text-[var(--public-muted)] md:flex-row md:items-center md:justify-between">
         <p>{footerText}</p>
         <nav className="flex flex-wrap gap-x-4 gap-y-2">

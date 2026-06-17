@@ -360,16 +360,7 @@ export function getResolvedLandingPageContentSections(
       ctaText: "",
       ctaUrl: "",
     }))
-    .filter((item) => item.title || item.body || item.imageUrl);
-  const faqItems = page.faqs
-    .map((faq) => ({
-      title: faq.question,
-      body: faq.answer,
-      imageUrl: "",
-      ctaText: "",
-      ctaUrl: "",
-    }))
-    .filter((item) => item.title || item.body);
+    .filter((item) => item.imageUrl);
   const sections: LandingPageContentSection[] = [];
 
   if (processItems.length > 0) {
@@ -381,18 +372,6 @@ export function getResolvedLandingPageContentSections(
       title: "由清潔到舒緩修護",
       subtitle: "了解每一步療程安排，預約前更清楚。",
       items: processItems,
-    });
-  }
-
-  if (faqItems.length > 0) {
-    sections.push({
-      id: "legacy-faq",
-      type: "content",
-      layout: "faq",
-      label: "FAQ",
-      title: "預約前常見問題",
-      subtitle: "預約前可以先了解療程及跟進安排。",
-      items: faqItems,
     });
   }
 

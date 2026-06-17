@@ -102,10 +102,12 @@ function readIndexed(formData: FormData, key: string, index: number) {
 
 function readContentSections(formData: FormData): LandingPageContentSection[] {
   const ids = formData.getAll("contentSectionIds");
+  const enabledValues = formData.getAll("contentSectionEnabled");
   const sections = ids
     .map((_, index) => {
       const isEnabled =
-        String(formData.get(`contentSectionEnabled${index}`) ?? "") === "true";
+        String(formData.get(`contentSectionEnabled${index}`) ?? "") === "true" ||
+        String(enabledValues[index] ?? "") === "true";
       if (!isEnabled) return null;
 
       const layoutValue = readIndexed(formData, "contentSectionLayouts", index);

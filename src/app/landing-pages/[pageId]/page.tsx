@@ -3,6 +3,8 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { LandingPageEditorDirtyState } from "@/components/alyssa/LandingPageEditorDirtyState";
+import { LandingPageEditorFollowPreview } from "@/components/alyssa/LandingPageEditorFollowPreview";
+import { LandingPageSectionBuilder } from "@/components/alyssa/LandingPageSectionBuilder";
 import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import {
   publicThemeStyle,
@@ -375,7 +377,7 @@ export default async function LandingPageConfigPage({
               title="自由內容區塊"
               description="新增圖片、文字、卡片或 FAQ 區塊；公開頁會按排序顯示。"
             >
-              <SectionBuilder sections={contentSections} />
+              <LandingPageSectionBuilder initialSections={contentSections} />
             </EditorSection>
 
             <EditorSection
@@ -445,7 +447,11 @@ function EditorSection({
 }) {
   return (
     <MotionReveal>
-      <section className="alyssa-premium-card min-w-0 p-5">
+      <section
+        data-editor-section
+        data-editor-section-label={title}
+        className="alyssa-premium-card min-w-0 scroll-mt-24 p-5"
+      >
         <p className="alyssa-kicker">{location}</p>
         <h2 className="mt-2 text-xl font-bold text-[#321428]">{title}</h2>
         <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
@@ -606,6 +612,8 @@ const layoutOptions: Array<{
   { value: "image_grid", label: "圖片格仔" },
 ];
 
+// Kept only for legacy draft form compatibility while the client builder owns the visible editor UI.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function SectionBuilder({
   sections,
 }: {
@@ -804,10 +812,18 @@ function PreviewPanel({
 
   return (
     <MotionReveal delay={0.16}>
-      <aside className="h-fit min-w-0 rounded-[28px] border border-[#ead9cf] bg-white/90 p-5 shadow-[0_24px_70px_rgba(90,35,72,0.12)] xl:sticky xl:top-32">
+      <div className="grid gap-3">
+        <Link
+          href={previewUrl}
+          className="inline-flex justify-center rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white xl:hidden"
+        >
+          開啟公開頁預覽
+        </Link>
+      <aside className="hidden h-fit min-w-0 rounded-[28px] border border-[#ead9cf] bg-white/90 p-5 shadow-[0_24px_70px_rgba(90,35,72,0.12)] xl:sticky xl:top-32 xl:block">
         <p className="alyssa-kicker">預覽</p>
+        <LandingPageEditorFollowPreview previewUrl={previewUrl} />
         <div
-          className="mt-4 overflow-hidden rounded-[24px] bg-[var(--public-dark)] text-white"
+          className="mt-5 overflow-hidden rounded-[24px] bg-[var(--public-dark)] text-white"
           style={themeStyle}
         >
           <div
@@ -852,6 +868,7 @@ function PreviewPanel({
           開啟公開頁
         </Link>
       </aside>
+      </div>
     </MotionReveal>
   );
 }
