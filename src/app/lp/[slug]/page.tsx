@@ -211,6 +211,32 @@ export default async function PublicLandingPage({
         </div>
       </section>
 
+      <MotionReveal>
+        <section className="bg-white px-5 py-8">
+          <div className="mx-auto max-w-7xl rounded-[34px] border border-[var(--public-border)] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF1F7_52%,#F6F2FF_100%)] p-6 shadow-[0_24px_70px_rgba(216,91,163,0.12)] md:p-8">
+            <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--public-accent)]">
+                  快速登記
+                </p>
+                <h2 className="mt-3 text-3xl font-bold leading-tight text-[var(--public-heading)] md:text-4xl">
+                  立即登記 $388 首次體驗
+                </h2>
+                <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--public-muted)]">
+                  填寫簡單資料，Ineffable Beauty 團隊會透過 WhatsApp 跟進確認。
+                </p>
+              </div>
+              <MotionAnchor
+                href="#lead-form"
+                className="inline-flex justify-center rounded-full bg-[var(--public-cta)] px-8 py-4 text-sm font-bold text-white shadow-[0_20px_46px_rgba(216,91,163,0.28)] transition hover:bg-[var(--public-cta-hover)]"
+              >
+                立即登記
+              </MotionAnchor>
+            </div>
+          </div>
+        </section>
+      </MotionReveal>
+
       {isIneffable && treatmentStepCards.length > 0 && (
         <MotionReveal>
           <section className="mx-auto max-w-7xl px-5 py-12">
@@ -219,7 +245,7 @@ export default async function PublicLandingPage({
               title="由清潔到舒緩修護"
               body="了解每一步療程安排，預約前更清楚。"
             />
-            <div className="mt-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+            <div className="mt-8 grid gap-7 lg:grid-cols-2">
               {treatmentStepCards.map((step) => (
                 <TreatmentStepCard
                   key={`${step.stepNumber}-${step.imageUrl}`}
@@ -388,7 +414,7 @@ export default async function PublicLandingPage({
       </MotionReveal>
 
       <MotionReveal>
-        <section id="lead-form" className="bg-[#FFF1F7] px-5 py-12">
+        <section id="lead-form" className="scroll-mt-6 bg-[#FFF1F7] px-5 py-12">
           <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.82fr_1.18fr]">
             <div>
               <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
@@ -457,12 +483,25 @@ function TreatmentStepCard({
 }) {
   return (
     <article className="overflow-hidden rounded-[34px] border border-[var(--public-border)] bg-white shadow-[0_24px_70px_rgba(216,91,163,0.12)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_85px_rgba(216,91,163,0.18)]">
-      <img
-        src={imageUrl}
-        alt={title}
-        className="aspect-[4/3] w-full object-cover"
-      />
-      <div className="p-6">
+      <a
+        href={imageUrl}
+        target="_blank"
+        rel="noreferrer"
+        className="group block bg-[#FFF8FC] p-3"
+        aria-label={`${title} 圖片放大`}
+      >
+        <span className="relative block overflow-hidden rounded-[26px] border border-[var(--public-border)] bg-white">
+          <img
+            src={imageUrl}
+            alt={title}
+            className="h-[280px] w-full object-contain transition duration-300 group-hover:scale-[1.02] sm:h-[360px] lg:h-[420px]"
+          />
+          <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-[var(--public-accent)] shadow-sm">
+            點擊放大
+          </span>
+        </span>
+      </a>
+      <div className="px-6 pb-7 pt-5">
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--public-accent)]">
           STEP {stepNumber}
         </p>
