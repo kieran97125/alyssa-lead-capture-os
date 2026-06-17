@@ -8,6 +8,8 @@ import {
 } from "@/lib/data/landingPageStore";
 import type {
   LandingPageContent,
+  LandingPageContentSection,
+  LandingPageContentSectionLayout,
   LandingPageImageAssets,
 } from "@/lib/data/landingPages";
 
@@ -85,6 +87,100 @@ function readFixedPairedList(
   }));
 }
 
+const sectionLayouts: LandingPageContentSectionLayout[] = [
+  "text",
+  "image_text",
+  "two_cards",
+  "three_cards",
+  "faq",
+  "image_grid",
+];
+
+function readIndexed(formData: FormData, key: string, index: number) {
+  return String(formData.getAll(key)[index] ?? "").trim();
+}
+
+function readContentSections(formData: FormData): LandingPageContentSection[] {
+  const ids = formData.getAll("contentSectionIds");
+  const sections = ids
+    .map((_, index) => {
+      const isEnabled =
+        String(formData.get(`contentSectionEnabled${index}`) ?? "") === "true";
+      if (!isEnabled) return null;
+
+      const layoutValue = readIndexed(formData, "contentSectionLayouts", index);
+      const layout = sectionLayouts.includes(
+        layoutValue as LandingPageContentSectionLayout
+      )
+        ? (layoutValue as LandingPageContentSectionLayout)
+        : "text";
+      const items = Array.from({ length: 6 })
+        .map((__, itemIndex) => ({
+          title: readIndexed(
+            formData,
+            `contentSection${index}ItemTitles`,
+            itemIndex
+          ),
+          body: readIndexed(
+            formData,
+            `contentSection${index}ItemBodies`,
+            itemIndex
+          ),
+          imageUrl: readIndexed(
+            formData,
+            `contentSection${index}ItemImageUrls`,
+            itemIndex
+          ),
+          ctaText: readIndexed(
+            formData,
+            `contentSection${index}ItemCtaTexts`,
+            itemIndex
+          ),
+          ctaUrl: readIndexed(
+            formData,
+            `contentSection${index}ItemCtaUrls`,
+            itemIndex
+          ),
+        }))
+        .filter(
+          (item) =>
+            item.title ||
+            item.body ||
+            item.imageUrl ||
+            item.ctaText ||
+            item.ctaUrl
+        );
+
+      return {
+        id:
+          readIndexed(formData, "contentSectionIds", index) ||
+          `section-${Date.now()}-${index + 1}`,
+        type: "content" as const,
+        layout,
+        label: readIndexed(formData, "contentSectionLabels", index),
+        title: readIndexed(formData, "contentSectionTitles", index),
+        subtitle: readIndexed(formData, "contentSectionSubtitles", index),
+        order: Number(readIndexed(formData, "contentSectionOrders", index)) || index + 1,
+        items,
+      };
+    })
+    .filter((section): section is LandingPageContentSection & { order: number } =>
+      Boolean(section)
+    )
+    .sort((a, b) => a.order - b.order)
+    .slice(0, 8);
+
+  return sections.map((section) => ({
+    id: section.id,
+    type: section.type,
+    layout: section.layout,
+    label: section.label,
+    title: section.title,
+    subtitle: section.subtitle,
+    items: section.items,
+  }));
+}
+
 function parseEditorForm(formData: FormData): {
   title: string;
   formId: string;
@@ -153,6 +249,7 @@ function parseEditorForm(formData: FormData): {
       "processStepBodies",
       6
     ) as Array<{ title: string; body: string }>,
+    contentSections: readContentSections(formData),
     faqs: readPairedList(
       formData,
       "faqQuestions",

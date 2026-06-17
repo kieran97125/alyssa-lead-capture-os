@@ -8,7 +8,12 @@ import {
   resolvePublicBrandTheme,
 } from "@/lib/brandThemes";
 import { getConfigurationData } from "@/lib/data/configuration";
-import { getLandingPageContext } from "@/lib/data/landingPages";
+import {
+  getLandingPageContext,
+  getResolvedLandingPageContentSections,
+  type LandingPageContentSection,
+  type LandingPageContentSectionItem,
+} from "@/lib/data/landingPages";
 import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
 import {
   getBrandLegalProfile,
@@ -119,23 +124,9 @@ export default async function PublicLandingPage({
     brandSlug: publicBrand.slug,
     brandName: brandDisplayName,
   });
-  const treatmentStepCards = [
-    page.processImage1Url,
-    page.processImage2Url,
-    page.processImage3Url,
-    page.processImage4Url,
-    page.processImage5Url,
-    page.processImage6Url,
-  ]
-    .map((imageUrl, index) => ({
-      imageUrl,
-      stepNumber: index + 1,
-      title: page.processSteps[index]?.title || `步驟 ${index + 1}`,
-      body: page.processSteps[index]?.body ?? "",
-    }))
-    .filter((step) => Boolean(step.imageUrl))
-    .slice(0, 6);
-  const visibleFaqs = page.faqs.filter((faq) => faq.question || faq.answer);
+  const contentSections = getResolvedLandingPageContentSections(page).filter(
+    hasVisibleSectionContent
+  );
 
   return (
     <main
@@ -261,23 +252,12 @@ export default async function PublicLandingPage({
         </section>
       </MotionReveal>
 
-      {treatmentStepCards.length > 0 && (
+      {contentSections.length > 0 && (
         <MotionReveal>
-          <section className="mx-auto max-w-7xl px-5 py-12">
-            <SectionHeading
-              eyebrow="療程流程"
-              title="由清潔到舒緩修護"
-              body="了解每一步療程安排，預約前更清楚。"
-            />
-            <div className="mt-8 grid gap-7 lg:grid-cols-2">
-              {treatmentStepCards.map((step) => (
-                <TreatmentStepCard
-                  key={`${step.stepNumber}-${step.imageUrl}`}
-                  imageUrl={step.imageUrl}
-                  stepNumber={step.stepNumber}
-                  title={step.title}
-                  body={step.body}
-                />
+          <section className="px-5 py-12">
+            <div className="mx-auto grid max-w-7xl gap-8">
+              {contentSections.map((section) => (
+                <ContentSectionBlock key={section.id} section={section} />
               ))}
             </div>
           </section>
@@ -333,37 +313,6 @@ export default async function PublicLandingPage({
         </section>
       </MotionReveal>
 
-      {visibleFaqs.length > 0 && (
-        <MotionReveal>
-          <section className="bg-white px-5 py-12">
-            <div className="mx-auto max-w-4xl">
-              <SectionHeading
-                eyebrow="FAQ"
-                title="預約前常見問題"
-                body="預約前可以先了解療程及跟進安排。"
-              />
-              <div className="mt-7 grid gap-4">
-                {visibleFaqs.map((faq, index) => (
-                  <article
-                    key={`${faq.question}-${index}`}
-                    className="rounded-[26px] border border-[var(--public-border)] bg-[#FFF8FC] p-6"
-                  >
-                    <h3 className="text-lg font-bold text-[var(--public-heading)]">
-                      {faq.question || `問題 ${index + 1}`}
-                    </h3>
-                    {faq.answer && (
-                      <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
-                        {faq.answer}
-                      </p>
-                    )}
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-        </MotionReveal>
-      )}
-
       <PublicLegalFooter
         footerText={getLegalFooterText(legalProfile)}
         privacyPolicyUrl={legalProfile.privacyPolicyUrl}
@@ -400,50 +349,219 @@ function SectionHeading({
   );
 }
 
-function TreatmentStepCard({
-  imageUrl,
-  stepNumber,
-  title,
-  body,
+function hasVisibleItemContent(item: LandingPageContentSectionItem) {
+  return Boolean(
+    item.title || item.body || item.imageUrl || item.ctaText || item.ctaUrl
+  );
+}
+
+function hasVisibleSectionContent(section: LandingPageContentSection) {
+  return Boolean(
+    section.title ||
+      section.subtitle ||
+      section.items.some(hasVisibleItemContent)
+  );
+}
+
+function visibleItemsForSection(section: LandingPageContentSection) {
+  const limit =
+    section.layout === "two_cards"
+      ? 2
+      : section.layout === "three_cards"
+        ? 3
+        : section.layout === "faq"
+          ? 6
+          : 6;
+
+  return section.items.filter(hasVisibleItemContent).slice(0, limit);
+}
+
+function ContentSectionBlock({
+  section,
 }: {
-  imageUrl: string;
-  stepNumber: number;
-  title: string;
-  body: string;
+  section: LandingPageContentSection;
+}) {
+  const items = visibleItemsForSection(section);
+
+  if (!section.title && !section.subtitle && items.length === 0) return null;
+
+  if (section.layout === "text") {
+    return (
+      <section className="rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+        <SectionHeading
+          eyebrow={section.label || "內容"}
+          title={section.title}
+          body={section.subtitle}
+        />
+      </section>
+    );
+  }
+
+  if (section.layout === "image_text") {
+    const firstItem = items[0];
+    return (
+      <section className="rounded-[34px] border border-[var(--public-border)] bg-white p-5 shadow-[0_24px_70px_rgba(216,91,163,0.1)] md:p-7">
+        <div className="grid gap-7 lg:grid-cols-2 lg:items-center">
+          {firstItem?.imageUrl && (
+            <img
+              src={firstItem.imageUrl}
+              alt={firstItem.title || section.title}
+              className="min-h-[320px] w-full rounded-[28px] border border-[var(--public-border)] bg-[#FFF8FC] object-contain p-3"
+            />
+          )}
+          <div className={firstItem?.imageUrl ? "" : "lg:col-span-2"}>
+            <SectionHeading
+              eyebrow={section.label || "內容"}
+              title={section.title || firstItem?.title || ""}
+              body={section.subtitle || firstItem?.body || ""}
+            />
+            {firstItem && (firstItem.title || firstItem.body) && section.title && (
+              <div className="mt-5 rounded-[24px] bg-[#FFF8FC] p-5">
+                {firstItem.title && (
+                  <h3 className="text-xl font-bold text-[var(--public-heading)]">
+                    {firstItem.title}
+                  </h3>
+                )}
+                {firstItem.body && (
+                  <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+                    {firstItem.body}
+                  </p>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (section.layout === "faq") {
+    return (
+      <section className="rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+        <SectionHeading
+          eyebrow={section.label || "FAQ"}
+          title={section.title}
+          body={section.subtitle}
+        />
+        <div className="mt-7 grid gap-4">
+          {items.map((item, index) => (
+            <article
+              key={`${section.id}-${index}`}
+              className="rounded-[26px] border border-[var(--public-border)] bg-[#FFF8FC] p-6"
+            >
+              <h3 className="text-lg font-bold text-[var(--public-heading)]">
+                {item.title || `問題 ${index + 1}`}
+              </h3>
+              {item.body && (
+                <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+                  {item.body}
+                </p>
+              )}
+            </article>
+          ))}
+        </div>
+      </section>
+    );
+  }
+
+  const gridClass =
+    section.layout === "two_cards"
+      ? "lg:grid-cols-2"
+      : section.layout === "three_cards"
+        ? "lg:grid-cols-3"
+        : "md:grid-cols-2 xl:grid-cols-3";
+
+  return (
+    <section className="rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+      <SectionHeading
+        eyebrow={section.label || "內容"}
+        title={section.title}
+        body={section.subtitle}
+      />
+      <div className={`mt-7 grid gap-5 ${gridClass}`}>
+        {items.map((item, index) => (
+          <ContentCard
+            key={`${section.id}-${index}`}
+            item={item}
+            index={index}
+            imageOnly={section.layout === "image_grid"}
+          />
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function ContentCard({
+  item,
+  index,
+  imageOnly = false,
+}: {
+  item: LandingPageContentSectionItem;
+  index: number;
+  imageOnly?: boolean;
 }) {
   return (
     <article className="overflow-hidden rounded-[34px] border border-[var(--public-border)] bg-white shadow-[0_24px_70px_rgba(216,91,163,0.12)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_85px_rgba(216,91,163,0.18)]">
-      <a
-        href={imageUrl}
-        target="_blank"
-        rel="noreferrer"
-        className="group block bg-[#FFF8FC] p-3"
-        aria-label={`${title} 圖片放大`}
-      >
-        <span className="relative block overflow-hidden rounded-[26px] border border-[var(--public-border)] bg-white">
-          <img
-            src={imageUrl}
-            alt={title}
-            className="h-[280px] w-full object-contain transition duration-300 group-hover:scale-[1.02] sm:h-[360px] lg:h-[420px]"
-          />
-          <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-[var(--public-accent)] shadow-sm">
-            點擊放大
+      {item.imageUrl && (
+        <a
+          href={item.imageUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="group block bg-[#FFF8FC] p-3"
+          aria-label={`${item.title || `項目 ${index + 1}`} 圖片放大`}
+        >
+          <span className="relative block overflow-hidden rounded-[26px] border border-[var(--public-border)] bg-white">
+            <img
+              src={item.imageUrl}
+              alt={item.title || `項目 ${index + 1}`}
+              className="h-[260px] w-full object-contain transition duration-300 group-hover:scale-[1.02] sm:h-[320px]"
+            />
+            <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-[var(--public-accent)] shadow-sm">
+              點擊放大
+            </span>
           </span>
-        </span>
-      </a>
-      <div className="px-6 pb-7 pt-5">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-          STEP {stepNumber}
-        </p>
-        <h3 className="mt-3 text-xl font-bold leading-tight text-[var(--public-heading)]">
-          {title}
-        </h3>
-        {body && (
-          <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
-            {body}
+        </a>
+      )}
+      {!imageOnly && (
+        <div className="px-6 pb-7 pt-5">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--public-accent)]">
+            {`ITEM ${index + 1}`}
           </p>
-        )}
-      </div>
+          {item.title && (
+            <h3 className="mt-3 text-xl font-bold leading-tight text-[var(--public-heading)]">
+              {item.title}
+            </h3>
+          )}
+          {item.body && (
+            <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+              {item.body}
+            </p>
+          )}
+          {item.ctaText && item.ctaUrl && (
+            <a
+              href={item.ctaUrl}
+              className="mt-5 inline-flex rounded-full bg-[var(--public-cta)] px-5 py-3 text-sm font-bold text-white"
+            >
+              {item.ctaText}
+            </a>
+          )}
+        </div>
+      )}
+      {imageOnly && (item.title || item.body) && (
+        <div className="px-6 pb-7 pt-5">
+          {item.title && (
+            <h3 className="text-xl font-bold leading-tight text-[var(--public-heading)]">
+              {item.title}
+            </h3>
+          )}
+          {item.body && (
+          <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+            {item.body}
+          </p>
+          )}
+        </div>
+      )}
     </article>
   );
 }

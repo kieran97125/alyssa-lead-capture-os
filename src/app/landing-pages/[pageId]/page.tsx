@@ -23,6 +23,9 @@ import {
 } from "@/lib/data/configuration";
 import {
   getLandingPageContext,
+  getResolvedLandingPageContentSections,
+  type LandingPageContentSection,
+  type LandingPageContentSectionLayout,
   type LandingPageConfig,
 } from "@/lib/data/landingPages";
 import {
@@ -115,6 +118,7 @@ export default async function LandingPageConfigPage({
     !latestDraftVersionNumber ? "請先保存草稿" : null,
   ].filter((item): item is string => Boolean(item));
   const canPublish = canPersist && publishMissingItems.length === 0;
+  const contentSections = getResolvedLandingPageContentSections(page);
 
   return (
     <main className="alyssa-shell">
@@ -367,21 +371,11 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              location="公開頁位置：療程流程"
-              title="療程步驟"
-              description="最多 6 個步驟；公開頁只會顯示已填圖片 URL 的步驟。"
+              location="公開頁位置：中段內容"
+              title="自由內容區塊"
+              description="新增圖片、文字、卡片或 FAQ 區塊；公開頁會按排序顯示。"
             >
-              <StepEditor
-                steps={page.processSteps}
-                imageValues={[
-                  page.processImage1Url,
-                  page.processImage2Url,
-                  page.processImage3Url,
-                  page.processImage4Url,
-                  page.processImage5Url,
-                  page.processImage6Url,
-                ]}
-              />
+              <SectionBuilder sections={contentSections} />
             </EditorSection>
 
             <EditorSection
@@ -404,13 +398,6 @@ export default async function LandingPageConfigPage({
               </div>
             </EditorSection>
 
-            <EditorSection
-              location="公開頁位置：FAQ"
-              title="FAQ 常見問題"
-              description="留空的問題不會顯示在公開頁。"
-            >
-              <FaqEditor items={page.faqs} />
-            </EditorSection>
           </form>
 
           <PreviewPanel
@@ -607,90 +594,184 @@ function FormSummaryCard({
   );
 }
 
-function StepEditor({
-  steps,
-  imageValues,
+const layoutOptions: Array<{
+  value: LandingPageContentSectionLayout;
+  label: string;
+}> = [
+  { value: "text", label: "文字區塊" },
+  { value: "image_text", label: "圖片 + 文字" },
+  { value: "two_cards", label: "2 張卡片" },
+  { value: "three_cards", label: "3 張卡片" },
+  { value: "faq", label: "FAQ" },
+  { value: "image_grid", label: "圖片格仔" },
+];
+
+function SectionBuilder({
+  sections,
 }: {
-  steps: Array<{ title: string; body: string }>;
-  imageValues: string[];
+  sections: LandingPageContentSection[];
 }) {
+  const visibleSections = Array.from({ length: 8 }).map(
+    (_, index) =>
+      sections[index] ?? {
+        id: `section-${index + 1}`,
+        type: "content" as const,
+        layout: "text" as const,
+        label: "",
+        title: "",
+        subtitle: "",
+        items: [],
+      }
+  );
+
   return (
     <div className="grid gap-4">
-      {Array.from({ length: 6 }).map((_, index) => {
-        const stepNumber = index + 1;
-        const step = steps[index] ?? { title: "", body: "" };
-
-        return (
-          <div
-            key={stepNumber}
-            className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4"
-          >
-            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-              Step {stepNumber}
-            </p>
-            <div className="mt-3 grid gap-3">
-              <TextField
-                label={`步驟 ${stepNumber} 標題`}
-                value={step.title}
-                name="processStepTitles"
-              />
-              <TextAreaField
-                label={`步驟 ${stepNumber} 內容`}
-                value={step.body}
-                name="processStepBodies"
-              />
-              <TextField
-                label={`Step ${stepNumber} 圖片 URL`}
-                value={imageValues[index] ?? ""}
-                name={`processImage${stepNumber}Url`}
-              />
-              <p className="text-xs font-semibold leading-5 text-[#9a5d76]">
-                有圖片才會在公開頁顯示；只有文字而沒有圖片會自動隱藏。
-              </p>
-            </div>
-          </div>
-        );
-      })}
+      {visibleSections.map((section, sectionIndex) => (
+        <SectionEditorCard
+          key={`${section.id}-${sectionIndex}`}
+          section={section}
+          index={sectionIndex}
+          enabled={sectionIndex < sections.length}
+        />
+      ))}
     </div>
   );
 }
 
-function FaqEditor({
-  items,
+function SectionEditorCard({
+  section,
+  index,
+  enabled,
 }: {
-  items: Array<{ question: string; answer: string }>;
+  section: LandingPageContentSection;
+  index: number;
+  enabled: boolean;
 }) {
-  const visibleItems =
-    items.length > 0
-      ? items
-      : [
-          { question: "", answer: "" },
-          { question: "", answer: "" },
-          { question: "", answer: "" },
-        ];
+  const sectionNumber = index + 1;
+  const visibleItems = Array.from({ length: 6 }).map(
+    (_, itemIndex) =>
+      section.items[itemIndex] ?? {
+        title: "",
+        body: "",
+        imageUrl: "",
+        ctaText: "",
+        ctaUrl: "",
+      }
+  );
 
   return (
-    <div className="grid gap-4">
-      {visibleItems.map((item, index) => (
-        <div
-          key={`faq-${index}`}
-          className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4"
-        >
-          <TextField
-            label={`問題 ${index + 1}`}
-            value={item.question}
-            name="faqQuestions"
-          />
-          <div className="mt-3">
-            <TextAreaField
-              label={`答案 ${index + 1}`}
-              value={item.answer}
-              name="faqAnswers"
-            />
-          </div>
+    <section className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
+      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+            Section {sectionNumber}
+          </p>
+          <h3 className="mt-1 font-bold text-[#321428]">
+            內容區塊 {sectionNumber}
+          </h3>
         </div>
-      ))}
-    </div>
+        <label className="inline-flex items-center gap-2 text-sm font-bold text-[#5a2348]">
+          <input
+            type="checkbox"
+            name={`contentSectionEnabled${index}`}
+            value="true"
+            defaultChecked={enabled}
+            className="h-4 w-4 accent-[#d85ba3]"
+          />
+          使用此區塊
+        </label>
+      </div>
+
+      <input type="hidden" name="contentSectionIds" value={section.id} />
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <TextField
+          label="排序"
+          value={`${sectionNumber}`}
+          name="contentSectionOrders"
+        />
+        <label className="block min-w-0">
+          <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+            版面
+          </span>
+          <select
+            name="contentSectionLayouts"
+            defaultValue={section.layout}
+            className="mt-2 w-full min-w-0 rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64]"
+          >
+            {layoutOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <TextField
+          label="Section 標籤"
+          value={section.label}
+          name="contentSectionLabels"
+        />
+        <TextField
+          label="Section 標題"
+          value={section.title}
+          name="contentSectionTitles"
+        />
+        <TextAreaField
+          label="Section 副標題 / 內容"
+          value={section.subtitle}
+          name="contentSectionSubtitles"
+          wide
+        />
+      </div>
+
+      <div className="mt-5 grid gap-3">
+        {visibleItems.map((item, itemIndex) => (
+          <div
+            key={`${section.id}-item-${itemIndex}`}
+            className="rounded-2xl border border-[#ead9cf] bg-white/80 p-4"
+          >
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+              Item {itemIndex + 1}
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <TextField
+                label={
+                  section.layout === "faq"
+                    ? `問題 ${itemIndex + 1}`
+                    : `項目 ${itemIndex + 1} 標題`
+                }
+                value={item.title}
+                name={`contentSection${index}ItemTitles`}
+              />
+              <TextField
+                label={`項目 ${itemIndex + 1} 圖片 URL`}
+                value={item.imageUrl}
+                name={`contentSection${index}ItemImageUrls`}
+              />
+              <TextAreaField
+                label={
+                  section.layout === "faq"
+                    ? `答案 ${itemIndex + 1}`
+                    : `項目 ${itemIndex + 1} 內容`
+                }
+                value={item.body}
+                name={`contentSection${index}ItemBodies`}
+                wide
+              />
+              <TextField
+                label={`項目 ${itemIndex + 1} CTA 文字`}
+                value={item.ctaText}
+                name={`contentSection${index}ItemCtaTexts`}
+              />
+              <TextField
+                label={`項目 ${itemIndex + 1} CTA URL`}
+                value={item.ctaUrl}
+                name={`contentSection${index}ItemCtaUrls`}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 

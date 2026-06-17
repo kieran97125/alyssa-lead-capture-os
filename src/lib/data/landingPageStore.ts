@@ -7,6 +7,9 @@ import {
   getLandingPageBySlug as getLocalLandingPageBySlug,
   type LandingPageConfig,
   type LandingPageContent,
+  type LandingPageContentSection,
+  type LandingPageContentSectionItem,
+  type LandingPageContentSectionLayout,
   type LandingPageImageAssets,
   type LandingPageMode,
   type LandingPageStatus,
@@ -259,6 +262,59 @@ function asFixedObjectArray<T extends Record<string, string>>(
   });
 }
 
+const sectionLayouts: LandingPageContentSectionLayout[] = [
+  "text",
+  "image_text",
+  "two_cards",
+  "three_cards",
+  "faq",
+  "image_grid",
+];
+
+function asContentSectionItems(value: unknown): LandingPageContentSectionItem[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.slice(0, 6).map((item) => {
+    const record =
+      item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+
+    return {
+      title: localizedString(record.title, ""),
+      body: localizedString(record.body, ""),
+      imageUrl: asString(record.imageUrl, ""),
+      ctaText: localizedString(record.ctaText, ""),
+      ctaUrl: asString(record.ctaUrl, ""),
+    };
+  });
+}
+
+function asContentSections(
+  value: unknown,
+  fallback: LandingPageContentSection[]
+): LandingPageContentSection[] {
+  if (!Array.isArray(value)) return fallback;
+
+  return value.slice(0, 8).map((item, index) => {
+    const record =
+      item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+    const layout = sectionLayouts.includes(
+      record.layout as LandingPageContentSectionLayout
+    )
+      ? (record.layout as LandingPageContentSectionLayout)
+      : "text";
+
+    return {
+      id: asString(record.id, `section-${index + 1}`),
+      type: "content",
+      layout,
+      label: localizedString(record.label, ""),
+      title: localizedString(record.title, ""),
+      subtitle: localizedString(record.subtitle, ""),
+      items: asContentSectionItems(record.items),
+    };
+  });
+}
+
 export function getLandingPageContent(page: LandingPageConfig): LandingPageContent {
   return {
     templateName: page.templateName,
@@ -275,6 +331,7 @@ export function getLandingPageContent(page: LandingPageConfig): LandingPageConte
     trustItems: page.trustItems,
     sections: page.sections,
     processSteps: page.processSteps,
+    contentSections: page.contentSections,
     faqs: page.faqs,
   };
 }
@@ -330,6 +387,10 @@ function mergeContent(
       fallback.processSteps,
       ["title", "body"],
       6
+    ),
+    contentSections: asContentSections(
+      content?.contentSections,
+      fallback.contentSections
     ),
     faqs: asObjectArray(content?.faqs, fallback.faqs, ["question", "answer"]),
   };
@@ -394,6 +455,7 @@ function publicContentFallback(fallback: LandingPageConfig): LandingPageConfig {
     trustItems: [],
     sections: [],
     processSteps: [],
+    contentSections: [],
     faqs: [],
   };
 }
@@ -1040,6 +1102,7 @@ export async function createLandingPageDraft(input: CreateLandingPageDraftInput)
     trustItems: [],
     sections: [],
     processSteps: [],
+    contentSections: [],
     faqs: [],
   };
   const imageAssets: LandingPageImageAssets = {

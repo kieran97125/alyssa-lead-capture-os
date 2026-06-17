@@ -14,6 +14,32 @@ export type LandingPageStatus =
   | "published"
   | "archived";
 
+export type LandingPageContentSectionLayout =
+  | "text"
+  | "image_text"
+  | "two_cards"
+  | "three_cards"
+  | "faq"
+  | "image_grid";
+
+export type LandingPageContentSectionItem = {
+  title: string;
+  body: string;
+  imageUrl: string;
+  ctaText: string;
+  ctaUrl: string;
+};
+
+export type LandingPageContentSection = {
+  id: string;
+  type: "content";
+  layout: LandingPageContentSectionLayout;
+  label: string;
+  title: string;
+  subtitle: string;
+  items: LandingPageContentSectionItem[];
+};
+
 export type LandingPageContent = {
   templateName: string;
   testingStatus: "foundation" | "ready_for_testing";
@@ -35,6 +61,7 @@ export type LandingPageContent = {
     title: string;
     body: string;
   }>;
+  contentSections: LandingPageContentSection[];
   faqs: Array<{
     question: string;
     answer: string;
@@ -98,6 +125,7 @@ export type LandingPageConfig = {
     title: string;
     body: string;
   }>;
+  contentSections: LandingPageContentSection[];
   faqs: Array<{
     question: string;
     answer: string;
@@ -164,6 +192,7 @@ export const defaultLandingPageContent: LandingPageContent = {
       body: "按確認時間到店，由團隊提供療程體驗及建議。",
     },
   ],
+  contentSections: [],
   faqs: [
     {
       question: "HK$388 包括什麼？",
@@ -308,6 +337,66 @@ export function getLandingPageImageStatus(page: LandingPageConfig) {
   if (filledCount === 0) return "尚未設定圖片";
   if (filledCount === landingPageImageSlots.length) return "已設定圖片";
   return "部分設定圖片";
+}
+
+export function getResolvedLandingPageContentSections(
+  page: LandingPageConfig
+): LandingPageContentSection[] {
+  if (page.contentSections.length > 0) return page.contentSections;
+
+  const processImages = [
+    page.processImage1Url,
+    page.processImage2Url,
+    page.processImage3Url,
+    page.processImage4Url,
+    page.processImage5Url,
+    page.processImage6Url,
+  ];
+  const processItems = processImages
+    .map((imageUrl, index) => ({
+      title: page.processSteps[index]?.title || "",
+      body: page.processSteps[index]?.body || "",
+      imageUrl,
+      ctaText: "",
+      ctaUrl: "",
+    }))
+    .filter((item) => item.title || item.body || item.imageUrl);
+  const faqItems = page.faqs
+    .map((faq) => ({
+      title: faq.question,
+      body: faq.answer,
+      imageUrl: "",
+      ctaText: "",
+      ctaUrl: "",
+    }))
+    .filter((item) => item.title || item.body);
+  const sections: LandingPageContentSection[] = [];
+
+  if (processItems.length > 0) {
+    sections.push({
+      id: "legacy-treatment-steps",
+      type: "content",
+      layout: processItems.length <= 3 ? "three_cards" : "image_grid",
+      label: "療程流程",
+      title: "由清潔到舒緩修護",
+      subtitle: "了解每一步療程安排，預約前更清楚。",
+      items: processItems,
+    });
+  }
+
+  if (faqItems.length > 0) {
+    sections.push({
+      id: "legacy-faq",
+      type: "content",
+      layout: "faq",
+      label: "FAQ",
+      title: "預約前常見問題",
+      subtitle: "預約前可以先了解療程及跟進安排。",
+      items: faqItems,
+    });
+  }
+
+  return sections;
 }
 
 export function getLandingPageContext(page: LandingPageConfig) {
