@@ -310,11 +310,21 @@ export default async function LandingPageConfigPage({
                     label="Hero 圖片 URL"
                     value={page.heroImageUrl}
                     name="heroImageUrl"
+                    guidance={[
+                      "建議比例：16:9",
+                      "建議尺寸：1920 × 1080px",
+                      "用途：桌面首屏主視覺",
+                    ]}
                   />
                   <TextField
                     label="手機 Hero 圖片 URL"
                     value={page.mobileHeroImageUrl}
                     name="mobileHeroImageUrl"
+                    guidance={[
+                      "建議比例：4:5",
+                      "建議尺寸：1080 × 1350px",
+                      "用途：手機首屏主視覺",
+                    ]}
                   />
                 </div>
               </div>
@@ -342,6 +352,11 @@ export default async function LandingPageConfigPage({
                   label="優惠摘要圖片 URL"
                   value={page.offerImageUrl}
                   name="offerImageUrl"
+                  guidance={[
+                    "建議比例：4:5 或 1:1",
+                    "建議尺寸：1080 × 1350px / 1080 × 1080px",
+                    "用途：優惠重點或療程價值視覺",
+                  ]}
                 />
               </div>
             </EditorSection>
@@ -396,6 +411,11 @@ export default async function LandingPageConfigPage({
                   label="表格旁圖片 URL"
                   value={page.treatmentImageUrl}
                   name="treatmentImageUrl"
+                  guidance={[
+                    "建議比例：4:5",
+                    "建議尺寸：1080 × 1350px",
+                    "用途：表格旁邊提升預約信心",
+                  ]}
                 />
               </div>
             </EditorSection>
@@ -479,11 +499,13 @@ function TextField({
   value,
   name,
   readOnly = false,
+  guidance,
 }: {
   label: string;
   value: string;
   name?: string;
   readOnly?: boolean;
+  guidance?: string[];
 }) {
   return (
     <label className="block min-w-0">
@@ -496,7 +518,18 @@ function TextField({
         defaultValue={value}
         className="mt-2 w-full min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
       />
+      {guidance && <ImageGuidance items={guidance} />}
     </label>
+  );
+}
+
+function ImageGuidance({ items }: { items: string[] }) {
+  return (
+    <div className="mt-2 rounded-2xl border border-[#ead9cf] bg-white/75 px-3 py-2 text-xs font-semibold leading-5 text-[#6d4a5c]">
+      {items.map((item) => (
+        <p key={item}>{item}</p>
+      ))}
+    </div>
   );
 }
 

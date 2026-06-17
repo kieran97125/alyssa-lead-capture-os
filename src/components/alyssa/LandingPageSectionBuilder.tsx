@@ -45,6 +45,42 @@ function maxItemCount(layout: LandingPageContentSectionLayout) {
   return 1;
 }
 
+function imageGuidanceForLayout(layout: LandingPageContentSectionLayout) {
+  if (layout === "image_text") {
+    return [
+      "建議比例：16:9 或 4:3",
+      "建議尺寸：1600 × 900px / 1200 × 900px",
+      "用途：大圖介紹、療程環境或重點說明",
+    ];
+  }
+
+  if (layout === "two_cards") {
+    return [
+      "建議比例：4:3",
+      "建議尺寸：1200 × 900px",
+      "用途：雙欄圖文卡片",
+    ];
+  }
+
+  if (layout === "three_cards") {
+    return [
+      "建議比例：4:3",
+      "建議尺寸：1200 × 900px",
+      "用途：三格流程、賣點或療程步驟",
+    ];
+  }
+
+  if (layout === "image_grid") {
+    return [
+      "建議比例：1:1",
+      "建議尺寸：1080 × 1080px",
+      "用途：圖片展示或前後對比格",
+    ];
+  }
+
+  return [];
+}
+
 function sectionLabel(layout: LandingPageContentSectionLayout) {
   return layoutOptions.find((option) => option.value === layout)?.label ?? layout;
 }
@@ -392,6 +428,7 @@ function SectionItemEditor({
             label="圖片 URL"
             name={`contentSection${sectionIndex}ItemImageUrls`}
             value={item.imageUrl}
+            guidance={imageGuidanceForLayout(layout)}
             onChange={(value) =>
               onChange((current) => ({ ...current, imageUrl: value }))
             }
@@ -442,11 +479,13 @@ function Field({
   name,
   value,
   onChange,
+  guidance,
 }: {
   label: string;
   name: string;
   value: string;
   onChange: (value: string) => void;
+  guidance?: string[];
 }) {
   return (
     <label className="block min-w-0">
@@ -459,6 +498,13 @@ function Field({
         onChange={(event) => onChange(event.target.value)}
         className="mt-2 w-full min-w-0 rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64]"
       />
+      {guidance && guidance.length > 0 && (
+        <div className="mt-2 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-3 py-2 text-xs font-semibold leading-5 text-[#6d4a5c]">
+          {guidance.map((item) => (
+            <p key={item}>{item}</p>
+          ))}
+        </div>
+      )}
     </label>
   );
 }
