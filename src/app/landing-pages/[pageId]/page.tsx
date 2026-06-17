@@ -611,18 +611,19 @@ function SectionBuilder({
 }: {
   sections: LandingPageContentSection[];
 }) {
-  const visibleSections = Array.from({ length: 8 }).map(
-    (_, index) =>
-      sections[index] ?? {
-        id: `section-${index + 1}`,
-        type: "content" as const,
-        layout: "text" as const,
-        label: "",
-        title: "",
-        subtitle: "",
-        items: [],
-      }
-  );
+  const visibleSections = sections.slice(0, 8);
+  const nextSection =
+    visibleSections.length < 8
+      ? {
+          id: `section-${visibleSections.length + 1}`,
+          type: "content" as const,
+          layout: "text" as const,
+          label: "",
+          title: "",
+          subtitle: "",
+          items: [],
+        }
+      : null;
 
   return (
     <div className="grid gap-4">
@@ -634,6 +635,13 @@ function SectionBuilder({
           enabled={sectionIndex < sections.length}
         />
       ))}
+      {nextSection && (
+        <SectionEditorCard
+          section={nextSection}
+          index={visibleSections.length}
+          enabled={false}
+        />
+      )}
     </div>
   );
 }
@@ -648,7 +656,7 @@ function SectionEditorCard({
   enabled: boolean;
 }) {
   const sectionNumber = index + 1;
-  const visibleItems = Array.from({ length: 6 }).map(
+  const visibleItems = Array.from({ length: enabled ? 6 : 0 }).map(
     (_, itemIndex) =>
       section.items[itemIndex] ?? {
         title: "",
