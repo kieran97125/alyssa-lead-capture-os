@@ -23,11 +23,12 @@ import {
 } from "@/lib/data/configuration";
 import {
   getLandingPageContext,
-  getLandingPageImageUrl,
-  landingPageImageSlots,
   type LandingPageConfig,
 } from "@/lib/data/landingPages";
-import { getPublicEmbedPreviewUrl, getPublicLandingPageUrl } from "@/lib/data/appUrl";
+import {
+  getPublicEmbedPreviewUrl,
+  getPublicLandingPageUrl,
+} from "@/lib/data/appUrl";
 import { getLandingPageEditorData } from "@/lib/data/landingPageStore";
 
 export const dynamic = "force-dynamic";
@@ -65,19 +66,7 @@ export default async function LandingPageConfigPage({
   const selectedFormPreviewUrl = selectedFormToken
     ? getPublicEmbedPreviewUrl(selectedFormToken)
     : "";
-  const publicBrand =
-    (connectedForm ? getBrand(config, connectedForm.brandId) : null) ??
-    getBrand(config, page.brandId) ??
-    context.brand ??
-    null;
-  const previewThemeStyle = publicThemeStyle(
-    resolvePublicBrandTheme({
-      brandSlug: publicBrand?.slug,
-      brandName: publicBrand?.name,
-    })
-  ) as CSSProperties;
   const publicUrl = getPublicLandingPageUrl(page.slug);
-  const publicDisplay = page.status === "published" ? publicUrl : "發布後才會公開";
   const actionMessage =
     typeof query?.builder_status === "string" ? query.builder_status : null;
   const selectedBrand =
@@ -103,33 +92,29 @@ export default async function LandingPageConfigPage({
     context.branch ??
     null;
   const price = selectedPackage ? `HK$${selectedPackage.promoPrice}` : "未設定";
-  const isIneffablePage =
-    /ineffable/i.test(selectedBrand?.name ?? "") ||
-    /ineffable/i.test(selectedBrand?.slug ?? "");
-  const isAlyssaMainForm =
-    /alyssa/i.test(connectedForm?.formName ?? "") ||
-    selectedFormToken === "alyssa-main-form-dev-token";
+  const publicBrand =
+    selectedBrand ??
+    (connectedForm ? getBrand(config, connectedForm.brandId) : null) ??
+    null;
+  const previewThemeStyle = publicThemeStyle(
+    resolvePublicBrandTheme({
+      brandSlug: publicBrand?.slug,
+      brandName: publicBrand?.name,
+    })
+  ) as CSSProperties;
+  const publicDisplay = page.status === "published" ? publicUrl : "發布後可開啟";
   const publishMissingItems = [
     !selectedBrand ? "品牌未設定" : null,
     !selectedTreatment ? "療程未設定" : null,
     !selectedPackage ? "套餐未設定" : null,
     !selectedBranch ? "分店未設定" : null,
-    !connectedForm ? "未連接登記表格" : null,
-    connectedForm && selectedBrand && connectedForm.brandId !== selectedBrand.id
-      ? "表格品牌與頁面品牌不一致"
-      : null,
-    isIneffablePage && isAlyssaMainForm
-      ? "Ineffable 公開頁仍然連接 Alyssa 表格"
-      : null,
-    !page.title.trim() ? "頁面標題未填" : null,
-    !page.heroTitle.trim() ? "Hero 標題未填" : null,
-    !page.ctaText.trim() ? "CTA 文字未填" : null,
+    !connectedForm ? "未連接表格" : null,
+    !page.title.trim() ? "頁面名稱未填寫" : null,
+    !page.heroTitle.trim() ? "Hero 標題未填寫" : null,
+    !page.ctaText.trim() ? "CTA 按鈕文字未填寫" : null,
     !latestDraftVersionNumber ? "請先保存草稿" : null,
   ].filter((item): item is string => Boolean(item));
   const canPublish = canPersist && publishMissingItems.length === 0;
-  const generalImageSlots = landingPageImageSlots.filter(
-    (slot) => !slot.key.startsWith("processImage")
-  );
 
   return (
     <main className="alyssa-shell">
@@ -143,7 +128,7 @@ export default async function LandingPageConfigPage({
                 {page.title}
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                編輯廣告頁內容、圖片、優惠及連接表格。草稿保存後，可再發布成公開頁。
+                按公開頁順序編輯內容：Hero、優惠摘要、療程流程、表格圖片及 FAQ。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -168,7 +153,7 @@ export default async function LandingPageConfigPage({
             <div className="min-w-0">
               <p className="alyssa-kicker">草稿與發布</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                保存草稿後才發布公開頁
+                保存內容後再發布公開頁
               </h2>
               <p className="mt-2 text-sm font-semibold leading-6 text-[#6d4a5c]">
                 {statusMessage}
@@ -195,7 +180,7 @@ export default async function LandingPageConfigPage({
                 disabled={!canPersist}
                 className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:bg-[#d8c5bc] disabled:shadow-none"
               >
-                儲存草稿
+                保存草稿
               </button>
               <form action={publishLandingPageAction}>
                 <input type="hidden" name="pageId" value={page.id} />
@@ -214,65 +199,14 @@ export default async function LandingPageConfigPage({
             <InfoPill label="狀態" value={statusLabel(page.status)} />
             <InfoPill
               label="草稿版本"
-              value={latestDraftVersionNumber ? `${latestDraftVersionNumber}` : "未有"}
+              value={latestDraftVersionNumber ? `${latestDraftVersionNumber}` : "未保存"}
             />
             <InfoPill
               label="發布版本"
               value={publishedVersionNumber ? `${publishedVersionNumber}` : "未發布"}
             />
             <InfoPill label="發布時間" value={formatDate(page.publishedAt)} />
-            <InfoPill label="公開連結" value={publicDisplay} />
-          </div>
-        </section>
-
-        <section className="alyssa-premium-card mt-6 min-w-0 p-5">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="alyssa-kicker">投放前檢查</p>
-              <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                Campaign 上線前快速確認
-              </h2>
-            </div>
-            <Link
-              href={publicUrl}
-              className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
-            >
-              開啟公開頁
-            </Link>
-          </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <ChecklistItem
-              label="公開頁"
-              value={page.status === "published" ? "已發布，可開啟" : "發布後才公開"}
-              ready={page.status === "published"}
-            />
-            <ChecklistItem
-              label="表格預覽"
-              value={connectedForm ? "已連接表格" : "未找到連接表格"}
-              ready={Boolean(connectedForm)}
-            />
-            <ChecklistItem
-              label="表格代號"
-              value={selectedFormToken || "未設定"}
-              ready={Boolean(selectedFormToken)}
-            />
-            <ChecklistItem
-              label="Allowed domain"
-              value={
-                connectedForm && connectedForm.allowedDomains.length > 0
-                  ? `${connectedForm.allowedDomains.length} 個已設定`
-                  : "如嵌入 Wix，請先加入"
-              }
-              ready={Boolean(connectedForm && connectedForm.allowedDomains.length > 0)}
-            />
-            <ChecklistItem label="測試 Lead" value="投放前提交一次測試" ready={false} />
-            <ChecklistItem label="UTM" value="用廣告測試連結確認來源" ready={false} />
-            <ChecklistItem label="價格" value={price} ready={price !== "未設定"} />
-            <ChecklistItem
-              label="公開內容"
-              value="確認文案及圖片"
-              ready={page.status === "published"}
-            />
+            <InfoPill label="公開頁" value={publicDisplay} />
           </div>
         </section>
 
@@ -287,22 +221,22 @@ export default async function LandingPageConfigPage({
             <input type="hidden" name="testingStatus" value={page.testingStatus} />
 
             <EditorSection
-              eyebrow="基本"
-              title="基本設定"
-              description="設定頁面標題、狀態及公開連結。"
+              location="公開頁位置：頁面設定"
+              title="基本資料"
+              description="設定頁面名稱、狀態及公開網址。"
             >
               <div className="grid gap-4 md:grid-cols-2">
-                <TextField label="頁面標題" value={page.title} name="title" />
+                <TextField label="頁面名稱" value={page.title} name="title" />
                 <TextField label="Slug" value={page.slug} readOnly />
                 <TextField label="狀態" value={statusLabel(page.status)} readOnly />
-                <TextField label="公開連結" value={publicDisplay} readOnly />
+                <TextField label="公開頁網址" value={publicDisplay} readOnly />
               </div>
             </EditorSection>
 
             <EditorSection
-              eyebrow="表格"
+              location="公開頁位置：表格連接"
               title="連接登記表格"
-              description="這個 Landing Page 會使用所選表格收集 Leads。"
+              description="公開頁會使用這張表格收集 Leads。"
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <FormSelect
@@ -328,7 +262,7 @@ export default async function LandingPageConfigPage({
                   href="/forms"
                   className="inline-flex justify-center rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
                 >
-                  管理表格
+                  查看表格
                 </Link>
               </div>
               <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -354,9 +288,9 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="首屏"
-              title="Hero 內容"
-              description="公開頁第一屏的主標題、副標題和圖片。"
+              location="公開頁位置：Hero"
+              title="Hero 首屏內容"
+              description="客人進入頁面第一眼看到的標題、文案及主圖。"
             >
               <div className="grid gap-4">
                 <TextField label="Hero 標題" value={page.heroTitle} name="heroTitle" />
@@ -365,75 +299,51 @@ export default async function LandingPageConfigPage({
                   value={page.heroSubtitle}
                   name="heroSubtitle"
                 />
-                <TextField label="Hero 圖片 URL" value={page.heroImageUrl} name="heroImageUrl" />
-              </div>
-            </EditorSection>
-
-            <EditorSection
-              eyebrow="圖片"
-              title="圖片素材"
-              description="目前可填圖片網址；上傳及素材庫會稍後加入。"
-            >
-              <div className="grid gap-4 lg:grid-cols-2">
-                {generalImageSlots.map((slot) => (
-                  <ImageSlotCard
-                    key={slot.key}
-                    name={slot.key}
-                    label={slot.label}
-                    recommendedType={slot.recommendedType}
-                    ratio={slot.ratio}
-                    value={getLandingPageImageUrl(page, slot.key)}
+                <div className="grid gap-4 md:grid-cols-2">
+                  <TextField
+                    label="Hero 圖片 URL"
+                    value={page.heroImageUrl}
+                    name="heroImageUrl"
                   />
-                ))}
+                  <TextField
+                    label="手機 Hero 圖片 URL"
+                    value={page.mobileHeroImageUrl}
+                    name="mobileHeroImageUrl"
+                  />
+                </div>
               </div>
             </EditorSection>
 
             <EditorSection
-              eyebrow="優惠"
-              title="優惠內容"
-              description="設定優惠標籤、優惠文字、主按鈕和次要按鈕。"
+              location="公開頁位置：優惠摘要"
+              title="優惠摘要"
+              description="用於說明今次 Campaign 主打優惠，不會顯示其他療程卡。"
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField label="優惠標籤" value={page.offerBadge} name="offerBadge" />
-                <TextField label="優惠標題" value={page.offerHeadline} name="offerHeadline" />
-                <TextAreaField label="優惠內容" value={page.offerBody} name="offerBody" wide />
-                <TextField label="主按鈕文字" value={page.ctaText} name="ctaText" />
                 <TextField
-                  label="次要按鈕文字"
-                  value={page.secondaryCtaText}
-                  name="secondaryCtaText"
+                  label="優惠標題"
+                  value={page.offerHeadline}
+                  name="offerHeadline"
+                />
+                <TextAreaField
+                  label="優惠內容"
+                  value={page.offerBody}
+                  name="offerBody"
+                  wide
+                />
+                <TextField
+                  label="優惠摘要圖片 URL"
+                  value={page.offerImageUrl}
+                  name="offerImageUrl"
                 />
               </div>
             </EditorSection>
 
             <EditorSection
-              eyebrow="賣點"
-              title="痛點 / 賣點"
-              description="用簡短文字說明客人需要和優惠價值。"
-            >
-              <div className="grid gap-5 lg:grid-cols-2">
-                <Repeater title="客人痛點" items={page.painPoints} name="painPoints" />
-                <Repeater title="主要賣點" items={page.benefits} name="benefits" />
-              </div>
-            </EditorSection>
-
-            <EditorSection
-              eyebrow="內容"
-              title="內容段落"
-              description="公開頁中的說明段落。"
-            >
-              <StructuredRepeater
-                title="Landing Page 段落"
-                titleName="sectionTitles"
-                bodyName="sectionBodies"
-                items={page.sections}
-              />
-            </EditorSection>
-
-            <EditorSection
-              eyebrow="療程"
-              title="療程摘要"
-              description="顯示這個頁面連接的品牌、療程、套餐和分店。"
+              location="公開頁位置：療程資料"
+              title="療程 / 套餐 / 分店"
+              description="這些資料來自已連接的表格設定。"
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField label="品牌" value={selectedBrand?.name ?? "未設定"} readOnly />
@@ -457,43 +367,49 @@ export default async function LandingPageConfigPage({
             </EditorSection>
 
             <EditorSection
-              eyebrow="信任"
-              title="流程 / 信任元素"
-              description="幫客人理解預約和療程流程。"
+              location="公開頁位置：療程流程"
+              title="療程步驟"
+              description="最多 6 個步驟；公開頁只會顯示已填圖片 URL 的步驟。"
             >
-              <div className="grid gap-5 lg:grid-cols-2">
-                <StructuredRepeater
-                  titleName="processStepTitles"
-                  bodyName="processStepBodies"
-                  title="預約流程"
-                  items={page.processSteps}
-                  imageValues={[
-                    page.processImage1Url,
-                    page.processImage2Url,
-                    page.processImage3Url,
-                    page.processImage4Url,
-                    page.processImage5Url,
-                    page.processImage6Url,
-                  ]}
+              <StepEditor
+                steps={page.processSteps}
+                imageValues={[
+                  page.processImage1Url,
+                  page.processImage2Url,
+                  page.processImage3Url,
+                  page.processImage4Url,
+                  page.processImage5Url,
+                  page.processImage6Url,
+                ]}
+              />
+            </EditorSection>
+
+            <EditorSection
+              location="公開頁位置：預約表格旁邊"
+              title="表格區內容"
+              description="表格本身不需在這裡編輯；這裡只設定 CTA 文字及表格旁圖片。"
+            >
+              <div className="grid gap-4 md:grid-cols-2">
+                <TextField label="主按鈕文字" value={page.ctaText} name="ctaText" />
+                <TextField
+                  label="次按鈕文字"
+                  value={page.secondaryCtaText}
+                  name="secondaryCtaText"
                 />
-                <Repeater title="信任元素" items={page.trustItems} name="trustItems" />
+                <TextField
+                  label="表格旁圖片 URL"
+                  value={page.treatmentImageUrl}
+                  name="treatmentImageUrl"
+                />
               </div>
             </EditorSection>
 
             <EditorSection
-              eyebrow="FAQ"
-              title="常見問題"
-              description="常見問題會顯示在公開頁底部。"
+              location="公開頁位置：FAQ"
+              title="FAQ 常見問題"
+              description="留空的問題不會顯示在公開頁。"
             >
-              <StructuredRepeater
-                titleName="faqQuestions"
-                bodyName="faqAnswers"
-                title="常見問題內容"
-                items={page.faqs.map((faq) => ({
-                  title: faq.question,
-                  body: faq.answer,
-                }))}
-              />
+              <FaqEditor items={page.faqs} />
             </EditorSection>
           </form>
 
@@ -530,12 +446,12 @@ function statusLabel(status: LandingPageConfig["status"]) {
 }
 
 function EditorSection({
-  eyebrow,
+  location,
   title,
   description,
   children,
 }: {
-  eyebrow: string;
+  location: string;
   title: string;
   description: string;
   children: ReactNode;
@@ -543,7 +459,7 @@ function EditorSection({
   return (
     <MotionReveal>
       <section className="alyssa-premium-card min-w-0 p-5">
-        <p className="alyssa-kicker">{eyebrow}</p>
+        <p className="alyssa-kicker">{location}</p>
         <h2 className="mt-2 text-xl font-bold text-[#321428]">{title}</h2>
         <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
         <div className="mt-5 min-w-0">{children}</div>
@@ -576,12 +492,10 @@ function TextField({
   name?: string;
   readOnly?: boolean;
 }) {
-  const displayLabel = getEditorFieldLabel(label, name);
-
   return (
     <label className="block min-w-0">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {displayLabel}
+        {label}
       </span>
       <input
         name={name}
@@ -604,12 +518,10 @@ function TextAreaField({
   wide?: boolean;
   name?: string;
 }) {
-  const displayLabel = getEditorFieldLabel(label, name);
-
   return (
     <label className={`block min-w-0 ${wide ? "md:col-span-2" : ""}`}>
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {displayLabel}
+        {label}
       </span>
       <textarea
         name={name}
@@ -619,25 +531,6 @@ function TextAreaField({
       />
     </label>
   );
-}
-
-function getEditorFieldLabel(label: string, name?: string) {
-  if (name === "processStepTitles") {
-    const stepNumber = label.match(/\d+/)?.[0] ?? "";
-    return stepNumber ? `步驟 ${stepNumber} 標題` : "步驟標題";
-  }
-
-  if (name === "processStepBodies") {
-    const stepNumber = label.match(/\d+/)?.[0] ?? "";
-    return stepNumber ? `步驟 ${stepNumber} 內容` : "步驟內容";
-  }
-
-  const processImageMatch = name?.match(/^processImage(\d+)Url$/);
-  if (processImageMatch) {
-    return `步驟 ${processImageMatch[1]} 圖片 URL`;
-  }
-
-  return label;
 }
 
 function FormSelect({
@@ -697,7 +590,7 @@ function FormSummaryCard({
         <h3 className="font-bold text-[#321428]">{form.formName}</h3>
         {active && (
           <span className="rounded-full bg-[#5a2348] px-3 py-1 text-xs font-bold text-white">
-            目前使用
+            已連接
           </span>
         )}
       </div>
@@ -714,159 +607,89 @@ function FormSummaryCard({
   );
 }
 
-function ImageSlotCard({
-  name,
-  label,
-  recommendedType,
-  ratio,
-  value,
-}: {
-  name: string;
-  label: string;
-  recommendedType: string;
-  ratio: string;
-  value: string;
-}) {
-  const hasImage = Boolean(value);
-
-  return (
-    <article className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
-      <div
-        className="flex min-h-40 items-end overflow-hidden rounded-[18px] border border-[#ead9cf] bg-[#321428] p-4 text-white"
-        style={
-          hasImage
-            ? {
-                backgroundImage: `linear-gradient(180deg, rgba(50,20,40,0.1), rgba(50,20,40,0.74)), url(${value})`,
-                backgroundPosition: "center",
-                backgroundSize: "cover",
-              }
-            : undefined
-        }
-      >
-        <div>
-          <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/70">
-            {hasImage ? "已設定圖片" : "尚未設定圖片"}
-          </p>
-          <p className="mt-1 text-lg font-bold">{label}</p>
-        </div>
-      </div>
-      <div className="mt-4 grid gap-3">
-        <TextField label="圖片欄位" value={label} readOnly />
-        <TextField label="建議素材" value={recommendedType} readOnly />
-        <TextField label="建議比例" value={ratio} readOnly />
-        <TextField label="圖片 URL" value={value} name={name} />
-      </div>
-    </article>
-  );
-}
-
-function Repeater({
-  title,
-  items,
-  name,
-}: {
-  title: string;
-  items: string[];
-  name: string;
-}) {
-  const visibleItems = items.length > 0 ? items : ["", "", ""];
-
-  return (
-    <div className="min-w-0">
-      <h3 className="font-bold text-[#321428]">{title}</h3>
-      <div className="mt-3 grid gap-3">
-        {visibleItems.map((item, index) => (
-          <TextField
-            key={`${title}-${index}`}
-            label={`項目 ${index + 1}`}
-            value={item}
-            name={name}
-          />
-        ))}
-      </div>
-    </div>
-  );
-}
-
-function StructuredRepeater({
-  title,
-  items,
-  titleName,
-  bodyName,
+function StepEditor({
+  steps,
   imageValues,
 }: {
-  title: string;
-  items: Array<{ title: string; body: string }>;
-  titleName: string;
-  bodyName: string;
-  imageValues?: string[];
+  steps: Array<{ title: string; body: string }>;
+  imageValues: string[];
 }) {
-  const hasImageFields = Boolean(imageValues);
-  const emptyRows = hasImageFields ? 6 : 3;
-  const visibleItems = Array.from({ length: hasImageFields ? 6 : Math.max(items.length, emptyRows) }).map(
-    (_, index) => items[index] ?? { title: "", body: "" }
-  );
-
   return (
-    <div>
-      <h3 className="font-bold text-[#321428]">{title}</h3>
-      <div className="mt-3 grid gap-4">
-        {visibleItems.map((item, index) => (
-          <div key={`${title}-${index}`} className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
-            <TextField
-              label={`標題 ${index + 1}`}
-              value={item.title}
-              name={titleName}
-            />
-            <div className="mt-3">
-              <TextAreaField
-                label={`內容 ${index + 1}`}
-                value={item.body}
-                name={bodyName}
+    <div className="grid gap-4">
+      {Array.from({ length: 6 }).map((_, index) => {
+        const stepNumber = index + 1;
+        const step = steps[index] ?? { title: "", body: "" };
+
+        return (
+          <div
+            key={stepNumber}
+            className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4"
+          >
+            <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+              Step {stepNumber}
+            </p>
+            <div className="mt-3 grid gap-3">
+              <TextField
+                label={`步驟 ${stepNumber} 標題`}
+                value={step.title}
+                name="processStepTitles"
               />
+              <TextAreaField
+                label={`步驟 ${stepNumber} 內容`}
+                value={step.body}
+                name="processStepBodies"
+              />
+              <TextField
+                label={`Step ${stepNumber} 圖片 URL`}
+                value={imageValues[index] ?? ""}
+                name={`processImage${stepNumber}Url`}
+              />
+              <p className="text-xs font-semibold leading-5 text-[#9a5d76]">
+                有圖片才會在公開頁顯示；只有文字而沒有圖片會自動隱藏。
+              </p>
             </div>
-            {hasImageFields && (
-              <div className="mt-3">
-                <TextField
-                  label={`步驟 ${index + 1} 圖片 URL`}
-                  value={imageValues?.[index] ?? ""}
-                  name={`processImage${index + 1}Url`}
-                />
-              </div>
-            )}
           </div>
-        ))}
-      </div>
+        );
+      })}
     </div>
   );
 }
 
-function ChecklistItem({
-  label,
-  value,
-  ready,
+function FaqEditor({
+  items,
 }: {
-  label: string;
-  value: string;
-  ready: boolean;
+  items: Array<{ question: string; answer: string }>;
 }) {
+  const visibleItems =
+    items.length > 0
+      ? items
+      : [
+          { question: "", answer: "" },
+          { question: "", answer: "" },
+          { question: "", answer: "" },
+        ];
+
   return (
-    <div className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
-      <div className="flex items-start gap-3">
-        <span
-          className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full text-xs font-bold ${
-            ready ? "bg-emerald-100 text-emerald-700" : "bg-white text-[#9a5d76]"
-          }`}
+    <div className="grid gap-4">
+      {visibleItems.map((item, index) => (
+        <div
+          key={`faq-${index}`}
+          className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4"
         >
-          {ready ? "✓" : "•"}
-        </span>
-        <div className="min-w-0">
-          <p className="text-sm font-bold text-[#321428]">{label}</p>
-          <p className="mt-1 break-words text-xs font-semibold leading-5 text-[#6d4a5c]">
-            {value}
-          </p>
+          <TextField
+            label={`問題 ${index + 1}`}
+            value={item.question}
+            name="faqQuestions"
+          />
+          <div className="mt-3">
+            <TextAreaField
+              label={`答案 ${index + 1}`}
+              value={item.answer}
+              name="faqAnswers"
+            />
+          </div>
         </div>
-      </div>
+      ))}
     </div>
   );
 }
@@ -900,37 +723,39 @@ function PreviewPanel({
         >
           <div
             className="min-h-full"
-          style={
-            heroImageUrl
-              ? {
-                  backgroundImage: `linear-gradient(90deg, color-mix(in srgb, var(--public-dark) 86%, transparent), color-mix(in srgb, var(--public-cta) 50%, transparent)), url(${heroImageUrl})`,
-                  backgroundPosition: "center",
-                  backgroundSize: "cover",
-                }
-              : undefined
-          }
-        >
-          <div className="p-5">
-            <p className="w-fit rounded-full bg-white/16 px-3 py-1 text-xs font-bold">
-              {page.offerBadge}
-            </p>
-            <h2 className="mt-4 text-3xl font-bold leading-tight">{page.heroTitle}</h2>
-            <p className="mt-3 text-sm leading-6 text-white/82">{page.heroSubtitle}</p>
-            <div className="mt-5 inline-flex rounded-full bg-[var(--public-cta)] px-4 py-2 text-sm font-bold text-[var(--public-cta-text)]">
-              {page.ctaText}
+            style={
+              heroImageUrl
+                ? {
+                    backgroundImage: `linear-gradient(90deg, color-mix(in srgb, var(--public-dark) 86%, transparent), color-mix(in srgb, var(--public-cta) 50%, transparent)), url(${heroImageUrl})`,
+                    backgroundPosition: "center",
+                    backgroundSize: "cover",
+                  }
+                : undefined
+            }
+          >
+            <div className="p-5">
+              <p className="w-fit rounded-full bg-white/16 px-3 py-1 text-xs font-bold">
+                {page.offerBadge}
+              </p>
+              <h2 className="mt-4 text-3xl font-bold leading-tight">
+                {page.heroTitle}
+              </h2>
+              <p className="mt-3 text-sm leading-6 text-white/82">
+                {page.heroSubtitle}
+              </p>
+              <div className="mt-5 inline-flex rounded-full bg-[var(--public-cta)] px-4 py-2 text-sm font-bold text-[var(--public-cta-text)]">
+                {page.ctaText}
+              </div>
             </div>
-          </div>
           </div>
         </div>
 
         <div className="mt-5 grid gap-3">
-          <PreviewInfo label="優惠" value={`${page.offerHeadline} · ${price}`} />
-          <PreviewInfo label="療程" value={treatment} />
-          <PreviewInfo label="分店" value={branch} />
-          <PreviewInfo label="登記表格" value={formToken || "未設定"} />
-          <PreviewInfo label="公開頁" value={previewUrl} />
+          <InfoPill label="療程" value={treatment} />
+          <InfoPill label="價錢" value={price} />
+          <InfoPill label="分店" value={branch} />
+          <InfoPill label="表格代號" value={formToken || "未設定"} />
         </div>
-
         <Link
           href={previewUrl}
           className="mt-5 inline-flex w-full justify-center rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
@@ -939,18 +764,5 @@ function PreviewPanel({
         </Link>
       </aside>
     </MotionReveal>
-  );
-}
-
-function PreviewInfo({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="min-w-0 rounded-2xl bg-[#fff6f0] p-4">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {label}
-      </p>
-      <p className="mt-2 break-words text-sm font-semibold text-[#5a2348]">
-        {value}
-      </p>
-    </div>
   );
 }
