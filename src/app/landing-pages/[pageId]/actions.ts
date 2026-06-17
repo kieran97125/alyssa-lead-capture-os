@@ -50,8 +50,12 @@ function readPairedList(
   titleName = "title",
   bodyName = "body"
 ) {
-  const titles = readStringList(formData, titleKey);
-  const bodies = readStringList(formData, bodyKey);
+  const titles = formData
+    .getAll(titleKey)
+    .map((value) => String(value).trim());
+  const bodies = formData
+    .getAll(bodyKey)
+    .map((value) => String(value).trim());
   const length = Math.max(titles.length, bodies.length);
 
   return Array.from({ length })
@@ -60,6 +64,25 @@ function readPairedList(
       [bodyName]: bodies[index] ?? "",
     }))
     .filter((item) => item[titleName] || item[bodyName]);
+}
+
+function readFixedPairedList(
+  formData: FormData,
+  titleKey: string,
+  bodyKey: string,
+  length: number
+) {
+  const titles = formData
+    .getAll(titleKey)
+    .map((value) => String(value).trim());
+  const bodies = formData
+    .getAll(bodyKey)
+    .map((value) => String(value).trim());
+
+  return Array.from({ length }).map((_, index) => ({
+    title: titles[index] ?? "",
+    body: bodies[index] ?? "",
+  }));
 }
 
 function parseEditorForm(formData: FormData): {
@@ -124,10 +147,11 @@ function parseEditorForm(formData: FormData): {
       title: string;
       body: string;
     }>,
-    processSteps: readPairedList(
+    processSteps: readFixedPairedList(
       formData,
       "processStepTitles",
-      "processStepBodies"
+      "processStepBodies",
+      6
     ) as Array<{ title: string; body: string }>,
     faqs: readPairedList(
       formData,
@@ -146,6 +170,9 @@ function parseEditorForm(formData: FormData): {
     processImage1Url: readOptionalUrl(formData, "processImage1Url"),
     processImage2Url: readOptionalUrl(formData, "processImage2Url"),
     processImage3Url: readOptionalUrl(formData, "processImage3Url"),
+    processImage4Url: readOptionalUrl(formData, "processImage4Url"),
+    processImage5Url: readOptionalUrl(formData, "processImage5Url"),
+    processImage6Url: readOptionalUrl(formData, "processImage6Url"),
     trustImageUrl: readOptionalUrl(formData, "trustImageUrl"),
   };
 

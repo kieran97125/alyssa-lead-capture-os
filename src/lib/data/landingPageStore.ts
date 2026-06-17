@@ -240,6 +240,25 @@ function asObjectArray<T extends Record<string, string>>(
   return items;
 }
 
+function asFixedObjectArray<T extends Record<string, string>>(
+  value: unknown,
+  fallback: T[],
+  keys: Array<keyof T>,
+  length: number
+) {
+  if (!Array.isArray(value)) return fallback;
+
+  return Array.from({ length }).map((_, index) => {
+    const item = value[index];
+    const record =
+      item && typeof item === "object" ? (item as Record<string, unknown>) : {};
+
+    return Object.fromEntries(
+      keys.map((key) => [key, localizedString(record[key as string], "")])
+    ) as T;
+  });
+}
+
 export function getLandingPageContent(page: LandingPageConfig): LandingPageContent {
   return {
     templateName: page.templateName,
@@ -271,6 +290,9 @@ export function getLandingPageImageAssets(
     processImage1Url: page.processImage1Url,
     processImage2Url: page.processImage2Url,
     processImage3Url: page.processImage3Url,
+    processImage4Url: page.processImage4Url,
+    processImage5Url: page.processImage5Url,
+    processImage6Url: page.processImage6Url,
     trustImageUrl: page.trustImageUrl,
   };
 }
@@ -303,10 +325,12 @@ function mergeContent(
       "title",
       "body",
     ]),
-    processSteps: asObjectArray(content?.processSteps, fallback.processSteps, [
-      "title",
-      "body",
-    ]),
+    processSteps: asFixedObjectArray(
+      content?.processSteps,
+      fallback.processSteps,
+      ["title", "body"],
+      6
+    ),
     faqs: asObjectArray(content?.faqs, fallback.faqs, ["question", "answer"]),
   };
 }
@@ -337,6 +361,18 @@ function mergeImageAssets(
     processImage3Url: asString(
       imageAssets?.processImage3Url,
       fallback.processImage3Url
+    ),
+    processImage4Url: asString(
+      imageAssets?.processImage4Url,
+      fallback.processImage4Url
+    ),
+    processImage5Url: asString(
+      imageAssets?.processImage5Url,
+      fallback.processImage5Url
+    ),
+    processImage6Url: asString(
+      imageAssets?.processImage6Url,
+      fallback.processImage6Url
     ),
     trustImageUrl: asString(imageAssets?.trustImageUrl, fallback.trustImageUrl),
   };
@@ -372,6 +408,9 @@ function blankImageFallback(fallback: LandingPageConfig): LandingPageConfig {
     processImage1Url: "",
     processImage2Url: "",
     processImage3Url: "",
+    processImage4Url: "",
+    processImage5Url: "",
+    processImage6Url: "",
     trustImageUrl: "",
   };
 }
@@ -1011,6 +1050,9 @@ export async function createLandingPageDraft(input: CreateLandingPageDraftInput)
     processImage1Url: "",
     processImage2Url: "",
     processImage3Url: "",
+    processImage4Url: "",
+    processImage5Url: "",
+    processImage6Url: "",
     trustImageUrl: "",
   };
 

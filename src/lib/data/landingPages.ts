@@ -49,6 +49,9 @@ export type LandingPageImageAssets = {
   processImage1Url: string;
   processImage2Url: string;
   processImage3Url: string;
+  processImage4Url: string;
+  processImage5Url: string;
+  processImage6Url: string;
   trustImageUrl: string;
 };
 
@@ -75,6 +78,9 @@ export type LandingPageConfig = {
   processImage1Url: string;
   processImage2Url: string;
   processImage3Url: string;
+  processImage4Url: string;
+  processImage5Url: string;
+  processImage6Url: string;
   trustImageUrl: string;
   offerBadge: string;
   offerHeadline: string;
@@ -196,6 +202,9 @@ export const alyssaLandingPages: LandingPageConfig[] = [
     processImage1Url: "",
     processImage2Url: "",
     processImage3Url: "",
+    processImage4Url: "",
+    processImage5Url: "",
+    processImage6Url: "",
     trustImageUrl: "",
     createdAt: "2026-06-14T00:00:00.000Z",
     updatedAt: "2026-06-14T00:00:00.000Z",
@@ -253,6 +262,24 @@ export const landingPageImageSlots = [
     key: "processImage3Url",
     label: "流程圖片 3",
     recommendedType: "預約確認或 WhatsApp 跟進",
+    ratio: "1:1",
+  },
+  {
+    key: "processImage4Url",
+    label: "步驟圖片 4",
+    recommendedType: "療程流程或舒緩修護畫面",
+    ratio: "1:1",
+  },
+  {
+    key: "processImage5Url",
+    label: "步驟圖片 5",
+    recommendedType: "療程流程或效果說明畫面",
+    ratio: "1:1",
+  },
+  {
+    key: "processImage6Url",
+    label: "步驟圖片 6",
+    recommendedType: "療程完成或預約跟進畫面",
     ratio: "1:1",
   },
   {

@@ -127,6 +127,9 @@ export default async function LandingPageConfigPage({
     !latestDraftVersionNumber ? "請先保存草稿" : null,
   ].filter((item): item is string => Boolean(item));
   const canPublish = canPersist && publishMissingItems.length === 0;
+  const generalImageSlots = landingPageImageSlots.filter(
+    (slot) => !slot.key.startsWith("processImage")
+  );
 
   return (
     <main className="alyssa-shell">
@@ -372,7 +375,7 @@ export default async function LandingPageConfigPage({
               description="目前可填圖片網址；上傳及素材庫會稍後加入。"
             >
               <div className="grid gap-4 lg:grid-cols-2">
-                {landingPageImageSlots.map((slot) => (
+                {generalImageSlots.map((slot) => (
                   <ImageSlotCard
                     key={slot.key}
                     name={slot.key}
@@ -464,6 +467,14 @@ export default async function LandingPageConfigPage({
                   bodyName="processStepBodies"
                   title="預約流程"
                   items={page.processSteps}
+                  imageValues={[
+                    page.processImage1Url,
+                    page.processImage2Url,
+                    page.processImage3Url,
+                    page.processImage4Url,
+                    page.processImage5Url,
+                    page.processImage6Url,
+                  ]}
                 />
                 <Repeater title="信任元素" items={page.trustItems} name="trustItems" />
               </div>
@@ -565,10 +576,12 @@ function TextField({
   name?: string;
   readOnly?: boolean;
 }) {
+  const displayLabel = getEditorFieldLabel(label, name);
+
   return (
     <label className="block min-w-0">
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {label}
+        {displayLabel}
       </span>
       <input
         name={name}
@@ -591,10 +604,12 @@ function TextAreaField({
   wide?: boolean;
   name?: string;
 }) {
+  const displayLabel = getEditorFieldLabel(label, name);
+
   return (
     <label className={`block min-w-0 ${wide ? "md:col-span-2" : ""}`}>
       <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-        {label}
+        {displayLabel}
       </span>
       <textarea
         name={name}
@@ -604,6 +619,25 @@ function TextAreaField({
       />
     </label>
   );
+}
+
+function getEditorFieldLabel(label: string, name?: string) {
+  if (name === "processStepTitles") {
+    const stepNumber = label.match(/\d+/)?.[0] ?? "";
+    return stepNumber ? `步驟 ${stepNumber} 標題` : "步驟標題";
+  }
+
+  if (name === "processStepBodies") {
+    const stepNumber = label.match(/\d+/)?.[0] ?? "";
+    return stepNumber ? `步驟 ${stepNumber} 內容` : "步驟內容";
+  }
+
+  const processImageMatch = name?.match(/^processImage(\d+)Url$/);
+  if (processImageMatch) {
+    return `步驟 ${processImageMatch[1]} 圖片 URL`;
+  }
+
+  return label;
 }
 
 function FormSelect({
@@ -759,20 +793,19 @@ function StructuredRepeater({
   items,
   titleName,
   bodyName,
+  imageValues,
 }: {
   title: string;
   items: Array<{ title: string; body: string }>;
   titleName: string;
   bodyName: string;
+  imageValues?: string[];
 }) {
-  const visibleItems =
-    items.length > 0
-      ? items
-      : [
-          { title: "", body: "" },
-          { title: "", body: "" },
-          { title: "", body: "" },
-        ];
+  const hasImageFields = Boolean(imageValues);
+  const emptyRows = hasImageFields ? 6 : 3;
+  const visibleItems = Array.from({ length: hasImageFields ? 6 : Math.max(items.length, emptyRows) }).map(
+    (_, index) => items[index] ?? { title: "", body: "" }
+  );
 
   return (
     <div>
@@ -792,6 +825,15 @@ function StructuredRepeater({
                 name={bodyName}
               />
             </div>
+            {hasImageFields && (
+              <div className="mt-3">
+                <TextField
+                  label={`步驟 ${index + 1} 圖片 URL`}
+                  value={imageValues?.[index] ?? ""}
+                  name={`processImage${index + 1}Url`}
+                />
+              </div>
+            )}
           </div>
         ))}
       </div>

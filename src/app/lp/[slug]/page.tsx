@@ -116,6 +116,23 @@ export default async function PublicLandingPage({
     brandSlug: publicBrand.slug,
     brandName: brandDisplayName,
   });
+  const processImageUrls = [
+    page.processImage1Url,
+    page.processImage2Url,
+    page.processImage3Url,
+    page.processImage4Url,
+    page.processImage5Url,
+    page.processImage6Url,
+  ];
+  const treatmentStepCards = processImageUrls
+    .map((imageUrl, index) => ({
+      imageUrl,
+      stepNumber: index + 1,
+      title: page.processSteps[index]?.title || `步驟 ${index + 1}`,
+      body: page.processSteps[index]?.body ?? "",
+    }))
+    .filter((step) => Boolean(step.imageUrl))
+    .slice(0, 6);
 
   return (
     <main
@@ -194,7 +211,30 @@ export default async function PublicLandingPage({
         </div>
       </section>
 
-      {isIneffable && (
+      {isIneffable && treatmentStepCards.length > 0 && (
+        <MotionReveal>
+          <section className="mx-auto max-w-7xl px-5 py-12">
+            <SectionHeading
+              eyebrow="療程流程"
+              title="由清潔到舒緩修護"
+              body="了解每一步療程安排，預約前更清楚。"
+            />
+            <div className="mt-7 grid gap-5 md:grid-cols-2 xl:grid-cols-3">
+              {treatmentStepCards.map((step) => (
+                <TreatmentStepCard
+                  key={`${step.stepNumber}-${step.imageUrl}`}
+                  imageUrl={step.imageUrl}
+                  stepNumber={step.stepNumber}
+                  title={step.title}
+                  body={step.body}
+                />
+              ))}
+            </div>
+          </section>
+        </MotionReveal>
+      )}
+
+      {false && isIneffable && (
         <MotionReveal>
           <section className="mx-auto max-w-7xl px-5 py-12">
             <SectionHeading
@@ -401,6 +441,41 @@ function SectionHeading({
         {body}
       </p>
     </div>
+  );
+}
+
+function TreatmentStepCard({
+  imageUrl,
+  stepNumber,
+  title,
+  body,
+}: {
+  imageUrl: string;
+  stepNumber: number;
+  title: string;
+  body: string;
+}) {
+  return (
+    <article className="overflow-hidden rounded-[34px] border border-[var(--public-border)] bg-white shadow-[0_24px_70px_rgba(216,91,163,0.12)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_85px_rgba(216,91,163,0.18)]">
+      <img
+        src={imageUrl}
+        alt={title}
+        className="aspect-[4/3] w-full object-cover"
+      />
+      <div className="p-6">
+        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--public-accent)]">
+          STEP {stepNumber}
+        </p>
+        <h3 className="mt-3 text-xl font-bold leading-tight text-[var(--public-heading)]">
+          {title}
+        </h3>
+        {body && (
+          <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+            {body}
+          </p>
+        )}
+      </div>
+    </article>
   );
 }
 
