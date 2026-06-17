@@ -9,6 +9,8 @@ import {
   updateForm,
   type ManagedFormInput,
 } from "@/lib/data/formManagement";
+import { blockedActionMessage } from "@/lib/security/internalAccess";
+import { requireActionAccess } from "@/lib/security/internalAccessServer";
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -39,6 +41,9 @@ function parseFormInput(formData: FormData) {
 }
 
 export async function createFormAction(formData: FormData) {
+  const access = await requireActionAccess("create_form");
+  if (!access.allowed) redirectWithMessage("/forms/new", blockedActionMessage);
+
   const parsed = parseFormInput(formData);
   if (!parsed.input) {
     redirectWithMessage("/forms/new", parsed.error ?? "資料未能儲存。");
@@ -58,6 +63,8 @@ export async function updateFormAction(formData: FormData) {
   const formId = readString(formData, "formId");
   const parsed = parseFormInput(formData);
   const path = `/forms/${formId}`;
+  const access = await requireActionAccess("edit_form");
+  if (!access.allowed) redirectWithMessage(path, blockedActionMessage);
 
   if (!parsed.input) {
     redirectWithMessage(path, parsed.error ?? "資料未能儲存。");
@@ -72,6 +79,9 @@ export async function updateFormAction(formData: FormData) {
 
 export async function duplicateFormAction(formData: FormData) {
   const formId = readString(formData, "formId");
+  const access = await requireActionAccess("create_form");
+  if (!access.allowed) redirectWithMessage(`/forms/${formId}`, blockedActionMessage);
+
   const result = await duplicateForm(formId);
   revalidatePath("/forms");
 

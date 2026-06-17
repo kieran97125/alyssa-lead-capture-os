@@ -6,6 +6,8 @@ import {
   publishLandingPage,
   saveLandingPageDraft,
 } from "@/lib/data/landingPageStore";
+import { blockedActionMessage } from "@/lib/security/internalAccess";
+import { requireActionAccess } from "@/lib/security/internalAccessServer";
 import type {
   LandingPageContent,
   LandingPageContentSection,
@@ -280,6 +282,9 @@ function parseEditorForm(formData: FormData): {
 
 export async function saveLandingPageDraftAction(formData: FormData) {
   const pageId = String(formData.get("pageId") ?? "");
+  const access = await requireActionAccess("save_landing_page");
+  if (!access.allowed) resultRedirect(pageId, blockedActionMessage);
+
   const parsed = parseEditorForm(formData);
 
   if (parsed.error) resultRedirect(pageId, parsed.error);
@@ -298,6 +303,9 @@ export async function saveLandingPageDraftAction(formData: FormData) {
 
 export async function publishLandingPageAction(formData: FormData) {
   const pageId = String(formData.get("pageId") ?? "");
+  const access = await requireActionAccess("publish_landing_page");
+  if (!access.allowed) resultRedirect(pageId, blockedActionMessage);
+
   const result = await publishLandingPage(pageId);
 
   revalidatePath("/landing-pages");

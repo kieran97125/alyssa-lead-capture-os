@@ -336,20 +336,25 @@ LaunchHub separates public campaign/form routes from internal business and confi
 
 Public routes remain accessible for campaigns, Wix embeds, and lead capture:
 
-- `/`
 - `/lp/[slug]`
 - `/embed/[formToken]`
+- `/legal/[brandSlug]/[documentType]`
+- `/thank-you`
 - `/api/public/forms/[token]`
 - `/api/public/leads`
 - `/api/public/events`
 - `/api/public/thank-you`
 
-Internal routes are protected by a lightweight Basic Auth gate when credentials are configured:
+Internal routes are protected by Basic Auth and role/module access:
 
+- `/`
 - `/dashboard`
 - `/leads`
 - `/performance`
+- `/campaigns`
+- `/campaigns/new`
 - `/forms`
+- `/forms/new`
 - `/forms/[formId]`
 - `/landing-pages`
 - `/landing-pages/[pageId]`
@@ -364,20 +369,36 @@ Internal routes are protected by a lightweight Basic Auth gate when credentials 
 
 This boundary protects dashboards, lead lists, configuration views, landing page management, and system audit information before the project has a full admin login system.
 
-Set these environment variables in Vercel for preview or production internal use:
+Set this environment variable in Vercel for preview or production internal use:
+
+```bash
+INTERNAL_ACCESS_USERS=kieran:ChangeMe_Owner_2026!:owner,editor:ChangeMe_Editor_2026!:editor,leads:ChangeMe_Leads_2026!:lead_viewer
+```
+
+Format:
+
+```text
+username:password:role,username:password:role
+```
+
+Supported roles:
+
+- `owner` - full access, including Settings, brand settings, System Audit, and Landing Page publish.
+- `editor` - Dashboard, Leads, Performance, Campaigns, Forms, and Landing Pages. Can create campaigns, edit forms, and save Landing Page drafts. Cannot publish or access Settings/System Audit.
+- `lead_viewer` - Dashboard and Leads only, with full contact details for CS follow-up.
+
+Legacy Basic Auth variables remain supported as a fallback owner account if `INTERNAL_ACCESS_USERS` is not set:
 
 ```bash
 INTERNAL_BASIC_AUTH_USER=
 INTERNAL_BASIC_AUTH_PASSWORD=
 ```
 
-When both values are set, visiting an internal route prompts for Basic Auth. Public landing pages, embedded forms, public lead submit APIs, static assets, and the public embed script remain reachable without Basic Auth.
+When `INTERNAL_ACCESS_USERS` or the legacy owner credentials are set, visiting an internal route prompts for Basic Auth. Public landing pages, embedded forms, legal pages, public lead submit APIs, static assets, and the public embed script remain reachable without Basic Auth.
 
-When these variables are missing, local development remains open and internal pages show this warning banner:
+If no internal credentials are configured in production, internal admin routes fail closed with a Basic Auth challenge. Local development may use a temporary owner fallback, but Vercel preview/production URLs should always define `INTERNAL_ACCESS_USERS`.
 
-```text
-內部頁面保護尚未設定，正式使用前請加入環境變數。
-```
+Use strong passwords, replace the example values before real use, and test each role in an incognito/private browser session.
 
 Do not commit real credentials. Longer term, this lightweight gate should be replaced or upgraded with Supabase Auth, role-based admin login, or another internal identity provider.
 
@@ -588,8 +609,7 @@ Payment status semantics:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
 - `PAYMENT_WEBHOOK_SECRET` - pending; must be added before production payment webhook use.
-- `INTERNAL_BASIC_AUTH_USER` - required before exposing internal business/config pages.
-- `INTERNAL_BASIC_AUTH_PASSWORD` - required before exposing internal business/config pages.
+- `INTERNAL_ACCESS_USERS` - required before exposing internal business/config pages; supports `owner`, `editor`, and `lead_viewer` Basic Auth accounts.
 - Future WhatsApp webhook secret / verification token - pending; must be added before production WhatsApp webhook use.
 
 ## Future Vercel Deployment
@@ -599,7 +619,7 @@ Do not deploy yet. Before deployment:
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
 - Set `NEXT_PUBLIC_PUBLIC_BASE_URL` and `NEXT_PUBLIC_ADMIN_BASE_URL` only if public campaign pages and admin pages use separate domains.
 - Configure Supabase environment variables in Vercel.
-- Configure `INTERNAL_BASIC_AUTH_USER` and `INTERNAL_BASIC_AUTH_PASSWORD` in Vercel before sharing internal dashboard/config URLs.
+- Configure `INTERNAL_ACCESS_USERS` in Vercel before sharing internal dashboard/config URLs.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.
 - Run `npm run lint` and `npm run build`.

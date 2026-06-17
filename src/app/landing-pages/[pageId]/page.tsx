@@ -35,6 +35,8 @@ import {
   getPublicLandingPageUrl,
 } from "@/lib/data/appUrl";
 import { getLandingPageEditorData } from "@/lib/data/landingPageStore";
+import { canPerformAction } from "@/lib/security/internalAccess";
+import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
 
@@ -47,9 +49,10 @@ export default async function LandingPageConfigPage({
 }) {
   const { pageId } = await params;
   const query = await searchParams;
-  const [editorData, config] = await Promise.all([
+  const [editorData, config, access] = await Promise.all([
     getLandingPageEditorData(pageId),
     getConfigurationData(),
+    getCurrentInternalAccess(),
   ]);
 
   if (!editorData) notFound();
@@ -120,6 +123,8 @@ export default async function LandingPageConfigPage({
     !latestDraftVersionNumber ? "請先保存草稿" : null,
   ].filter((item): item is string => Boolean(item));
   const canPublish = canPersist && publishMissingItems.length === 0;
+  const canSaveDraftAction = canPerformAction(access.role, "save_landing_page");
+  const canPublishAction = canPerformAction(access.role, "publish_landing_page");
   const contentSections = getResolvedLandingPageContentSections(page);
 
   return (
@@ -183,7 +188,7 @@ export default async function LandingPageConfigPage({
               <button
                 type="submit"
                 form="landing-page-editor-form"
-                disabled={!canPersist}
+                disabled={!canPersist || !canSaveDraftAction}
                 className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:bg-[#d8c5bc] disabled:shadow-none"
               >
                 保存草稿
@@ -193,12 +198,17 @@ export default async function LandingPageConfigPage({
                 <button
                   id="landing-page-publish-button"
                   type="submit"
-                  disabled={!canPublish}
+                  disabled={!canPublish || !canPublishAction}
                   className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:text-[#9b8c86]"
                 >
                   發布公開頁
                 </button>
               </form>
+              {!canPublishAction && (
+                <p className="max-w-[260px] rounded-2xl bg-[#fff6f0] px-4 py-3 text-sm font-bold leading-6 text-[#5a2348]">
+                  只有 Owner 可以發布公開頁。
+                </p>
+              )}
             </div>
           </div>
           <div className="mt-5 grid gap-3 md:grid-cols-5">

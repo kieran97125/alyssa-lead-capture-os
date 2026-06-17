@@ -9,6 +9,7 @@ import { countBy, formatDateTime } from "@/lib/data/businessMetrics";
 import { getFormByIdOrSlug } from "@/lib/data/formManagement";
 import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
 import { getGoogleSheetsLeadSyncStatus } from "@/lib/integrations/googleSheetsLeadSync";
+import { hasInternalAccessConfig } from "@/lib/security/internalAccess";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -95,9 +96,7 @@ async function getAuditSummary() {
 async function getReadinessChecks() {
   const mainForm = await getFormByIdOrSlug(alyssaDefaultForm.publicFormToken);
   const publicLp = await getPublishedLandingPageBySlug("alyssa-main-trial-offer");
-  const hasBasicAuth =
-    envPresent("INTERNAL_BASIC_AUTH_USER") &&
-    envPresent("INTERNAL_BASIC_AUTH_PASSWORD");
+  const hasBasicAuth = hasInternalAccessConfig();
   const sheetsStatus = getGoogleSheetsLeadSyncStatus();
 
   return [
@@ -133,7 +132,7 @@ async function getReadinessChecks() {
     },
     {
       label: "Internal Basic Auth",
-      detail: "INTERNAL_BASIC_AUTH_USER / INTERNAL_BASIC_AUTH_PASSWORD",
+      detail: "INTERNAL_ACCESS_USERS or legacy Basic Auth env",
       tone: hasBasicAuth ? "ready" : "attention",
     },
     {

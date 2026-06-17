@@ -1,18 +1,24 @@
 import Link from "next/link";
+import { canAccessModule, type InternalModule } from "@/lib/security/internalAccess";
+import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 const navItems = [
-  { href: "/campaigns/new", label: "建立 Campaign" },
-  { href: "/dashboard", label: "Dashboard" },
-  { href: "/leads", label: "Leads" },
-  { href: "/performance", label: "成效" },
-  { href: "/forms", label: "表格" },
-  { href: "/landing-pages", label: "Landing Pages" },
-  { href: "/settings", label: "設定" },
-  { href: "/embed-preview", label: "嵌入預覽" },
-  { href: "/system-audit", label: "系統稽核" },
-];
+  { href: "/dashboard", label: "Dashboard", module: "dashboard" },
+  { href: "/leads", label: "Leads", module: "leads" },
+  { href: "/performance", label: "成效", module: "performance" },
+  { href: "/campaigns/new", label: "建立 Campaign", module: "campaigns" },
+  { href: "/forms", label: "表格", module: "forms" },
+  { href: "/landing-pages", label: "Landing Pages", module: "landing_pages" },
+  { href: "/settings", label: "設定", module: "settings" },
+  { href: "/system-audit", label: "系統稽核", module: "system_audit" },
+] satisfies Array<{ href: string; label: string; module: InternalModule }>;
 
-export function AppNav() {
+export async function AppNav() {
+  const access = await getCurrentInternalAccess();
+  const visibleItems = navItems.filter((item) =>
+    canAccessModule(access.role, item.module)
+  );
+
   return (
     <header className="sticky top-0 z-40 border-b border-[#ead9cf]/80 bg-[#fff9f3]/88 shadow-[0_10px_35px_rgba(90,35,72,0.06)] backdrop-blur supports-[backdrop-filter]:bg-[#fff9f3]/76">
       <div className="mx-auto flex max-w-7xl flex-col gap-4 px-5 py-4 md:flex-row md:items-center md:justify-between">
@@ -30,7 +36,7 @@ export function AppNav() {
           </span>
         </Link>
         <nav className="flex min-w-0 flex-wrap gap-2">
-          {navItems.map((item) => (
+          {visibleItems.map((item) => (
             <Link
               key={item.href}
               href={item.href}

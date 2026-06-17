@@ -21,6 +21,8 @@ import {
   type SettingsMutationResult,
   type TreatmentInput,
 } from "@/lib/data/settingsEditor";
+import { blockedActionMessage } from "@/lib/security/internalAccess";
+import { requireActionAccess } from "@/lib/security/internalAccessServer";
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -58,6 +60,13 @@ function revalidateSettings() {
     "/forms/new",
     "/landing-pages",
   ].forEach((path) => revalidatePath(path));
+}
+
+async function ensureSettingsAction(path: string) {
+  const access = await requireActionAccess("edit_settings");
+  if (!access.allowed) {
+    redirectBack(path, { ok: false, message: blockedActionMessage });
+  }
 }
 
 function brandInput(formData: FormData): BrandInput {
@@ -113,18 +122,21 @@ function branchInput(formData: FormData): BranchInput {
 }
 
 export async function createBrandAction(formData: FormData) {
+  await ensureSettingsAction("/settings/brands");
   const result = await createBrand(brandInput(formData));
   revalidateSettings();
   redirectBack("/settings/brands", result);
 }
 
 export async function updateBrandAction(formData: FormData) {
+  await ensureSettingsAction("/settings/brands");
   const result = await updateBrand(brandInput(formData));
   revalidateSettings();
   redirectBack("/settings/brands", result);
 }
 
 export async function deleteBrandAction(formData: FormData) {
+  await ensureSettingsAction("/settings/brands");
   const result = await deleteBrandSafely(
     readString(formData, "id"),
     readBoolean(formData, "confirmDelete")
@@ -134,18 +146,21 @@ export async function deleteBrandAction(formData: FormData) {
 }
 
 export async function createTreatmentAction(formData: FormData) {
+  await ensureSettingsAction("/settings/treatments");
   const result = await createTreatment(treatmentInput(formData));
   revalidateSettings();
   redirectBack("/settings/treatments", result);
 }
 
 export async function updateTreatmentAction(formData: FormData) {
+  await ensureSettingsAction("/settings/treatments");
   const result = await updateTreatment(treatmentInput(formData));
   revalidateSettings();
   redirectBack("/settings/treatments", result);
 }
 
 export async function deleteTreatmentAction(formData: FormData) {
+  await ensureSettingsAction("/settings/treatments");
   const result = await deleteTreatmentSafely(
     readString(formData, "id"),
     readBoolean(formData, "confirmDelete")
@@ -155,6 +170,7 @@ export async function deleteTreatmentAction(formData: FormData) {
 }
 
 export async function createPackageAction(formData: FormData) {
+  await ensureSettingsAction("/settings/packages");
   const input = packageInput(formData);
   const result = "treatmentId" in input ? await createPackage(input) : input;
   revalidateSettings();
@@ -162,6 +178,7 @@ export async function createPackageAction(formData: FormData) {
 }
 
 export async function updatePackageAction(formData: FormData) {
+  await ensureSettingsAction("/settings/packages");
   const input = packageInput(formData);
   const result = "treatmentId" in input ? await updatePackage(input) : input;
   revalidateSettings();
@@ -169,6 +186,7 @@ export async function updatePackageAction(formData: FormData) {
 }
 
 export async function deletePackageAction(formData: FormData) {
+  await ensureSettingsAction("/settings/packages");
   const result = await deletePackageSafely(
     readString(formData, "id"),
     readBoolean(formData, "confirmDelete")
@@ -178,18 +196,21 @@ export async function deletePackageAction(formData: FormData) {
 }
 
 export async function createBranchAction(formData: FormData) {
+  await ensureSettingsAction("/settings/branches");
   const result = await createBranch(branchInput(formData));
   revalidateSettings();
   redirectBack("/settings/branches", result);
 }
 
 export async function updateBranchAction(formData: FormData) {
+  await ensureSettingsAction("/settings/branches");
   const result = await updateBranch(branchInput(formData));
   revalidateSettings();
   redirectBack("/settings/branches", result);
 }
 
 export async function deleteBranchAction(formData: FormData) {
+  await ensureSettingsAction("/settings/branches");
   const result = await deleteBranchSafely(
     readString(formData, "id"),
     readBoolean(formData, "confirmDelete")

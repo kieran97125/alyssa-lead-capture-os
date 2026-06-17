@@ -1,4 +1,6 @@
-export const publicExactRoutes = ["/"] as const;
+import type { InternalModule } from "@/lib/security/internalAccess";
+
+export const publicExactRoutes = ["/thank-you"] as const;
 
 export const publicRoutePrefixes = [
   "/lp/",
@@ -11,6 +13,7 @@ export const internalRoutePrefixes = [
   "/dashboard",
   "/leads",
   "/performance",
+  "/campaigns",
   "/forms",
   "/landing-pages",
   "/settings",
@@ -27,14 +30,24 @@ export function isPublicRoute(pathname: string) {
 
 export function isInternalRoute(pathname: string) {
   if (isPublicRoute(pathname)) return false;
+  if (pathname === "/") return true;
   return internalRoutePrefixes.some(
     (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
   );
 }
 
-export function hasInternalBasicAuthConfig() {
-  return Boolean(
-    process.env.INTERNAL_BASIC_AUTH_USER &&
-      process.env.INTERNAL_BASIC_AUTH_PASSWORD
-  );
+export function getInternalRouteModule(pathname: string): InternalModule | null {
+  if (!isInternalRoute(pathname)) return null;
+  if (pathname === "/" || pathname.startsWith("/dashboard")) return "dashboard";
+  if (pathname.startsWith("/leads")) return "leads";
+  if (pathname.startsWith("/performance")) return "performance";
+  if (pathname.startsWith("/campaigns")) return "campaigns";
+  if (pathname.startsWith("/forms") || pathname.startsWith("/embed-preview")) {
+    return "forms";
+  }
+  if (pathname.startsWith("/landing-pages")) return "landing_pages";
+  if (pathname.startsWith("/settings/brands")) return "brands";
+  if (pathname.startsWith("/settings")) return "settings";
+  if (pathname.startsWith("/system-audit")) return "system_audit";
+  return null;
 }
