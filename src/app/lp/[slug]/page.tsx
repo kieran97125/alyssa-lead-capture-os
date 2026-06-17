@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import Script from "next/script";
 import type { CSSProperties } from "react";
 import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
+import { PublicLeadForm } from "@/components/alyssa/PublicLeadForm";
 import {
   publicThemeStyle,
   resolvePublicBrandTheme,
 } from "@/lib/brandThemes";
-import { getEmbedScriptUrl } from "@/lib/data/appUrl";
 import { getConfigurationData } from "@/lib/data/configuration";
 import { getLandingPageContext } from "@/lib/data/landingPages";
 import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
@@ -17,6 +16,14 @@ import {
 } from "@/lib/legal/consent";
 
 export const dynamic = "force-dynamic";
+
+const ineffableAssets = {
+  logo: "/ineffable-wix/assets/logo.png",
+  hero: "/ineffable-wix/assets/hero-model.png",
+  card388: "/ineffable-wix/assets/card-388.png",
+  card588: "/ineffable-wix/assets/card-588.png",
+  card780: "/ineffable-wix/assets/card-780.png",
+};
 
 export async function generateMetadata({
   params,
@@ -93,318 +100,275 @@ export default async function PublicLandingPage({
     brandName: publicBrand.name,
   });
   const themeStyle = publicThemeStyle(theme) as CSSProperties;
-  const brandDisplayName = publicBrand.name || theme.brandName;
-  const brandSlug = publicBrand.slug || theme.key;
-  const embedScriptUrl = getEmbedScriptUrl();
-  const price = `HK$${selectedPackage.promoPrice}`;
-  const heroImageUrl = page.heroImageUrl || page.mobileHeroImageUrl;
-  const hasOfferContent =
-    Boolean(page.offerHeadline || page.offerBody || page.offerImageUrl) ||
-    page.painPoints.length > 0;
-  const hasSections = page.sections.length > 0;
-  const hasBenefits = page.benefits.length > 0;
-  const hasProcess = page.processSteps.length > 0;
-  const hasTrust = page.trustItems.length > 0 || Boolean(page.trustImageUrl);
-  const hasFaqs = page.faqs.length > 0;
+  const isIneffable = theme.key === "ineffable";
+  const brandDisplayName = isIneffable ? "Ineffable Beauty" : publicBrand.name;
+  const promoPrice = Number(selectedPackage.promoPrice ?? 0);
+  const price = promoPrice > 0 ? `HK$${promoPrice}` : "預約查詢";
+  const heroTitle =
+    page.heroTitle || (isIneffable ? "$388 針清舒緩護理" : page.title);
+  const heroSubtitle =
+    page.heroSubtitle ||
+    "針對粉刺、閉口、毛孔堵塞及暗粒問題，配合舒緩護理，適合首次體驗及想改善膚況的客人。";
+  const offerBadge = page.offerBadge || `${price} 首次體驗`;
+  const ctaText = page.ctaText || "立即預約體驗";
+  const secondaryCtaText = page.secondaryCtaText || "查看療程重點";
   const legalProfile = getBrandLegalProfile({
-    brandSlug,
+    brandSlug: publicBrand.slug,
     brandName: brandDisplayName,
   });
 
   return (
     <main
-      className="min-h-screen bg-[var(--public-bg)] text-[var(--public-text)]"
+      className="min-h-screen overflow-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
       style={themeStyle}
     >
-      <section
-        className="relative flex min-h-[86vh] items-end overflow-hidden bg-[var(--public-dark)] px-5 pb-12 pt-24 text-white md:min-h-[760px] md:pb-16"
-        style={
-          heroImageUrl
-            ? {
-                backgroundImage: `linear-gradient(90deg, color-mix(in srgb, var(--public-dark) 88%, transparent), color-mix(in srgb, var(--public-cta) 54%, transparent), color-mix(in srgb, var(--public-dark) 18%, transparent)), url(${heroImageUrl})`,
-                backgroundPosition: "center",
-                backgroundSize: "cover",
-              }
-            : undefined
-        }
-        aria-label="醫學美容 Campaign Landing Page"
-      >
-        <MotionReveal className="mx-auto w-full max-w-7xl">
-          {page.offerBadge && (
-            <MotionReveal delay={0.03}>
-              <p className="w-fit rounded-full border border-white/35 bg-white/12 px-4 py-2 text-sm font-bold backdrop-blur">
-                {page.offerBadge}
-              </p>
-            </MotionReveal>
-          )}
-          <MotionReveal delay={0.1}>
-            <h1 className="mt-5 max-w-3xl text-4xl font-bold leading-tight md:text-6xl">
-              {page.heroTitle}
+      <section className="relative bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
+        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+          <MotionReveal>
+            <div className="flex items-center gap-4">
+              {isIneffable && (
+                <img
+                  src={ineffableAssets.logo}
+                  alt="Ineffable Beauty"
+                  className="h-14 w-14 rounded-full object-cover"
+                />
+              )}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[var(--public-accent)]">
+                  {brandDisplayName}
+                </p>
+                <p className="mt-1 text-sm font-semibold text-[var(--public-muted)]">
+                  亮澤肌膚 · 溫和舒緩 · 清晰預約
+                </p>
+              </div>
+            </div>
+
+            <p className="mt-10 inline-flex rounded-full border border-[var(--public-border)] bg-white/80 px-4 py-2 text-sm font-bold text-[var(--public-accent)] shadow-sm">
+              {offerBadge}
+            </p>
+            <h1 className="mt-5 max-w-3xl text-5xl font-bold leading-[1.05] text-[var(--public-heading)] md:text-7xl">
+              {heroTitle}
             </h1>
-          </MotionReveal>
-          {page.heroSubtitle && (
-            <MotionReveal delay={0.17}>
-              <p className="mt-5 max-w-2xl text-base leading-7 text-white/86 md:text-lg">
-                {page.heroSubtitle}
-              </p>
-            </MotionReveal>
-          )}
-          <MotionReveal delay={0.24}>
+            <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--public-muted)] md:text-lg">
+              {heroSubtitle}
+            </p>
+
             <div className="mt-8 flex flex-wrap gap-3">
               <MotionAnchor
-                href="#alyssa-lp-form"
-                className="rounded-full bg-[var(--public-cta)] px-6 py-3 text-sm font-bold text-[var(--public-cta-text)] shadow-[0_16px_40px_rgba(0,0,0,0.18)] transition hover:bg-[var(--public-cta-hover)] hover:shadow-[0_22px_55px_rgba(0,0,0,0.22)]"
+                href="#lead-form"
+                className="rounded-full bg-[var(--public-cta)] px-7 py-3.5 text-sm font-bold text-white shadow-[0_20px_46px_rgba(216,91,163,0.28)] transition hover:bg-[var(--public-cta-hover)]"
               >
-                {page.ctaText}
+                {ctaText}
               </MotionAnchor>
-              {page.secondaryCtaText && (
-                <MotionAnchor
-                  href="#treatment-summary"
-                  className="rounded-full border border-white/55 bg-white/10 px-6 py-3 text-sm font-bold text-white backdrop-blur transition hover:bg-white/18"
+              <MotionAnchor
+                href="#treatment-value"
+                className="rounded-full border border-[var(--public-border)] bg-white/80 px-7 py-3.5 text-sm font-bold text-[var(--public-accent)] transition hover:bg-white"
+              >
+                {secondaryCtaText}
+              </MotionAnchor>
+            </div>
+
+            <div className="mt-9 grid max-w-3xl gap-3 sm:grid-cols-3">
+              {["清理粉刺閉口", "舒緩泛紅不適", "改善毛孔堵塞"].map((item) => (
+                <p
+                  key={item}
+                  className="rounded-3xl border border-[var(--public-border)] bg-white/80 px-4 py-4 text-sm font-bold text-[var(--public-heading)] shadow-sm"
                 >
-                  {page.secondaryCtaText}
-                </MotionAnchor>
-              )}
+                  {item}
+                </p>
+              ))}
             </div>
           </MotionReveal>
-          <MotionReveal delay={0.31}>
-            <div className="mt-10 grid max-w-4xl gap-3 sm:grid-cols-3">
-              <HeroMetric label="品牌" value={brandDisplayName} />
-              <HeroMetric label="療程" value={selectedTreatment.name} />
-              <HeroMetric label="體驗價" value={price} />
+
+          <MotionReveal delay={0.1}>
+            <div className="relative">
+              <div className="absolute -left-6 top-8 h-40 w-40 rounded-full bg-[#FFF1F7] blur-2xl" />
+              <div className="absolute -right-4 bottom-8 h-48 w-48 rounded-full bg-[#EDE7FF] blur-2xl" />
+              <img
+                src={isIneffable ? ineffableAssets.hero : page.heroImageUrl || ineffableAssets.hero}
+                alt={`${brandDisplayName} campaign visual`}
+                className="relative z-10 min-h-[520px] w-full rounded-[44px] border border-white object-cover object-center shadow-[0_34px_90px_rgba(216,91,163,0.2)]"
+              />
             </div>
           </MotionReveal>
-        </MotionReveal>
+        </div>
       </section>
 
-      {hasOfferContent && (
+      {isIneffable && (
         <MotionReveal>
-          <section
-            id="treatment-summary"
-            className="mx-auto grid max-w-7xl gap-5 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]"
-          >
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-                優惠摘要
-              </p>
-              {page.offerHeadline && (
-                <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
-                  {page.offerHeadline}
-                </h2>
-              )}
-              {page.offerBody && (
-                <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
-                  {page.offerBody}
-                </p>
-              )}
-              <div className="mt-6">
-                <ImagePanel
-                  imageUrl={page.offerImageUrl}
-                  label="優惠圖片"
-                  title="療程體驗重點"
-                  body="可放置療程室、儀器細節、服務體驗或優惠主視覺，幫助客人理解體驗價值。"
-                  ratioClass="aspect-[4/3]"
-                />
-              </div>
-              <div className="mt-6 grid gap-3 sm:grid-cols-2">
-                <InfoCard label="療程" value={selectedTreatment.name} />
-                <InfoCard label="套餐" value={selectedPackage.name} />
-                <InfoCard label="分店" value={selectedBranch.name} />
-                <InfoCard label="付款方式" value="先預約，再由團隊確認安排" />
-              </div>
-            </div>
-            <div className="grid gap-3">
-              <ImagePanel
-                imageUrl={page.treatmentImageUrl}
-                label="療程圖片"
-                title={selectedTreatment.name}
-                body="可展示療程、產品、儀器或體驗環境，保持高級、乾淨、可信賴的視覺感。"
-                ratioClass="aspect-[4/3]"
+          <section className="mx-auto max-w-7xl px-5 py-12">
+            <SectionHeading
+              eyebrow="Offer Menu"
+              title="Ineffable Beauty 熱門體驗"
+              body="目前頁面主推 $388 針清舒緩護理；其他療程卡可作日後 campaign 延伸。"
+            />
+            <div className="mt-7 grid gap-5 lg:grid-cols-3">
+              <OfferCard
+                imageUrl={ineffableAssets.card388}
+                badge="主打優惠"
+                title="$388 針清舒緩護理"
+                body="針對粉刺、閉口及毛孔堵塞，適合首次體驗。"
+                active
               />
-              {page.painPoints.map((item) => (
-                <div
-                  key={item}
-                  className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] p-5 shadow-sm"
-                >
-                  <p className="text-sm font-semibold leading-6 text-[var(--public-cta)]">
-                    {item}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        </MotionReveal>
-      )}
-
-      {hasBenefits && (
-        <MotionReveal>
-          <section className="border-y border-[var(--public-border)] bg-[var(--public-card)]">
-            <div className="mx-auto grid max-w-7xl gap-5 px-5 py-10 md:grid-cols-3">
-              {page.benefits.map((item) => (
-                <div key={item}>
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
-                    賣點
-                  </p>
-                  <p className="mt-2 text-lg font-bold leading-7 text-[var(--public-heading)]">
-                    {item}
-                  </p>
-                </div>
-              ))}
-            </div>
-          </section>
-        </MotionReveal>
-      )}
-
-      {hasSections && (
-        <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.9fr_1.1fr]">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-              為何選擇這個體驗
-            </p>
-            <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
-              清楚了解療程、優惠及預約安排
-            </h2>
-          </div>
-          <div className="grid gap-3">
-            {page.sections.map((section) => (
-              <article
-                key={section.title}
-                className="rounded-[20px] bg-[var(--public-soft-bg)] p-5"
-              >
-                <h3 className="text-lg font-bold text-[var(--public-heading)]">
-                  {section.title}
-                </h3>
-                <p className="mt-2 text-sm leading-6 text-[var(--public-muted)]">
-                  {section.body}
-                </p>
-              </article>
-            ))}
-          </div>
-        </MotionReveal>
-      )}
-
-      {hasProcess && (
-        <MotionReveal>
-          <section className="bg-[var(--public-dark)] px-5 py-10 text-white">
-            <div className="mx-auto max-w-7xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-white/62">
-                預約流程
-              </p>
-              <h2 className="mt-2 text-3xl font-bold">
-                由登記到確認安排，流程清晰簡單
-              </h2>
-              <div className="mt-6 grid gap-4 md:grid-cols-3">
-                {page.processSteps.map((step, index) => (
-                  <article
-                    key={step.title}
-                    className="rounded-[20px] border border-white/14 bg-white/8 p-5"
-                  >
-                    <ProcessImage
-                      imageUrl={
-                        [
-                          page.processImage1Url,
-                          page.processImage2Url,
-                          page.processImage3Url,
-                        ][index] ?? ""
-                      }
-                      label={`步驟 ${index + 1}`}
-                    />
-                    <h3 className="text-lg font-bold">{step.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-white/72">
-                      {step.body}
-                    </p>
-                  </article>
-                ))}
-              </div>
-            </div>
-          </section>
-        </MotionReveal>
-      )}
-
-      {hasTrust && (
-        <MotionReveal className="mx-auto grid max-w-7xl gap-6 px-5 py-10 lg:grid-cols-[0.95fr_1.05fr]">
-          <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-              信任與環境
-            </p>
-            <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
-              專業、乾淨、安心的體驗環境
-            </h2>
-            <div className="mt-6">
-              <ImagePanel
-                imageUrl={page.trustImageUrl}
-                label="診所 / 環境圖片"
-                title="專業環境與服務信任"
-                body="可展示診所環境、接待區、療程房或專業團隊視覺，提升預約信心。"
-                ratioClass="aspect-video"
+              <OfferCard
+                imageUrl={ineffableAssets.card588}
+                badge="進階護理"
+                title="$588 DEP 補濕 + Nano Peel"
+                body="適合想同時提升細緻度及水潤感的客人。"
+              />
+              <OfferCard
+                imageUrl={ineffableAssets.card780}
+                badge="緊緻體驗"
+                title="$780 BTL Exion 眼周護理"
+                body="適合關注眼周細紋、膚質及輪廓感的客人。"
               />
             </div>
-          </div>
-          <div className="grid gap-3">
-            {page.trustItems.map((item) => (
-              <p
-                key={item}
-                className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] px-5 py-4 text-sm font-semibold leading-6 text-[var(--public-cta)] shadow-sm"
-              >
-                {item}
-              </p>
-            ))}
-          </div>
+          </section>
         </MotionReveal>
       )}
 
       <MotionReveal>
-        <section id="alyssa-lp-form" className="bg-[var(--public-soft-bg)] px-5 py-10">
-          <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[0.82fr_1.18fr]">
-            <div>
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-                預約表格
-              </p>
-              <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
-                {page.ctaText}
-              </h2>
-              <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
-                填寫資料後，團隊會按你選擇的療程、套餐及分店安排跟進。
-              </p>
-            </div>
-            <div className="rounded-[28px] border border-[var(--public-border)] bg-[var(--public-card)] p-4 shadow-[0_24px_70px_rgba(58,36,28,0.14)]">
-              <div id="alyssa-lp-form-target" />
-              <Script
-                src={embedScriptUrl}
-                strategy="afterInteractive"
-                data-form-token={connectedForm.publicFormToken}
-                data-brand={brandSlug}
-                data-form-id={connectedForm.id}
-                data-target-id="alyssa-lp-form-target"
-                data-height="900"
-              />
+        <section className="bg-white px-5 py-12">
+          <div className="mx-auto max-w-7xl">
+            <SectionHeading
+              eyebrow="Skin Concerns"
+              title="適合有以下肌膚困擾的你"
+              body="公開頁只保留客人需要理解的療程價值，不顯示內部系統或追蹤說明。"
+            />
+            <div className="mt-7 grid gap-4 md:grid-cols-3">
+              {[
+                "粉刺、閉口、黑頭容易反覆出現",
+                "清潔後仍覺得毛孔堵塞，膚質不夠細緻",
+                "想改善暗粒、粗糙感，同時避免過度刺激",
+              ].map((item) => (
+                <div
+                  key={item}
+                  className="rounded-[28px] border border-[var(--public-border)] bg-[#FFF8FC] p-6 text-lg font-bold leading-8 text-[var(--public-heading)]"
+                >
+                  {item}
+                </div>
+              ))}
             </div>
           </div>
         </section>
       </MotionReveal>
 
-      {hasFaqs && (
-        <MotionReveal className="mx-auto max-w-4xl px-5 py-10">
-          <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-            常見問題
-          </p>
-          <h2 className="mt-2 text-3xl font-bold text-[var(--public-heading)]">
-            預約前可以先了解
-          </h2>
-          <div className="mt-6 divide-y divide-[var(--public-border)] rounded-[24px] border border-[var(--public-border)] bg-[var(--public-card)]">
-            {page.faqs.map((item) => (
-              <details key={item.question} className="group p-5">
-                <summary className="cursor-pointer list-none text-base font-bold text-[var(--public-heading)]">
-                  {item.question}
-                </summary>
-                <p className="mt-3 text-sm leading-6 text-[var(--public-muted)]">
-                  {item.answer}
+      <MotionReveal>
+        <section id="treatment-value" className="px-5 py-12">
+          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.92fr_1.08fr]">
+            <div>
+              <SectionHeading
+                eyebrow="Treatment Value"
+                title={`${price} ${selectedPackage.name}`}
+                body={page.offerBody || "由團隊按你的膚況及預約資料跟進，確認療程、分店及時間安排。"}
+              />
+              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+                <InfoCard label="品牌" value={brandDisplayName} />
+                <InfoCard label="療程" value={selectedTreatment.name} />
+                <InfoCard label="套餐" value={selectedPackage.name} />
+                <InfoCard label="分店" value={selectedBranch.name} />
+              </div>
+            </div>
+            <div className="grid gap-4">
+              {[
+                "深層清潔毛孔，處理粉刺及閉口位置",
+                "舒緩清理後的不適及泛紅感",
+                "改善粗糙觸感，令膚況更乾淨透亮",
+                "適合首次體驗，預約前清楚知道價錢及安排",
+                "由團隊跟進預約，減少來回溝通時間",
+              ].map((item) => (
+                <p
+                  key={item}
+                  className="rounded-[24px] border border-[var(--public-border)] bg-white px-5 py-4 text-sm font-bold leading-6 text-[var(--public-heading)] shadow-sm"
+                >
+                  {item}
                 </p>
-              </details>
-            ))}
+              ))}
+            </div>
           </div>
-        </MotionReveal>
-      )}
+        </section>
+      </MotionReveal>
+
+      <MotionReveal>
+        <section className="bg-[#F6F2FF] px-5 py-12">
+          <div className="mx-auto max-w-7xl">
+            <SectionHeading
+              eyebrow="Booking Flow"
+              title="三步完成預約"
+              body="提交資料後，團隊會按你選擇的療程、套餐及分店跟進。"
+            />
+            <div className="mt-7 grid gap-5 md:grid-cols-3">
+              {[
+                ["1", "填寫預約資料", "留下姓名、電話、心水日期及時間。"],
+                ["2", "團隊跟進確認", "透過 WhatsApp 確認分店及療程安排。"],
+                ["3", "到店體驗護理", "按確認時間到店，進行療程體驗。"],
+              ].map(([step, title, body]) => (
+                <article
+                  key={step}
+                  className="rounded-[30px] bg-white p-6 shadow-[0_20px_55px_rgba(141,123,232,0.16)]"
+                >
+                  <p className="grid h-11 w-11 place-items-center rounded-full bg-[var(--public-cta)] text-sm font-bold text-white">
+                    {step}
+                  </p>
+                  <h3 className="mt-5 text-xl font-bold text-[var(--public-heading)]">
+                    {title}
+                  </h3>
+                  <p className="mt-3 text-sm leading-6 text-[var(--public-muted)]">
+                    {body}
+                  </p>
+                </article>
+              ))}
+            </div>
+          </div>
+        </section>
+      </MotionReveal>
+
+      <MotionReveal>
+        <section className="px-5 py-12">
+          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.8fr_1.2fr]">
+            <SectionHeading
+              eyebrow="Trust"
+              title="清楚、專業、以客人感受為先"
+              body="療程效果及適合程度會因個人膚況而異；團隊會按實際情況提供建議。"
+            />
+            <div className="grid gap-4 sm:grid-cols-3">
+              {["專業療程環境", "清楚價錢安排", "WhatsApp 跟進預約"].map(
+                (item) => (
+                  <p
+                    key={item}
+                    className="rounded-[26px] border border-[var(--public-border)] bg-white px-5 py-6 text-center text-sm font-bold text-[var(--public-heading)]"
+                  >
+                    {item}
+                  </p>
+                )
+              )}
+            </div>
+          </div>
+        </section>
+      </MotionReveal>
+
+      <MotionReveal>
+        <section id="lead-form" className="bg-[#FFF1F7] px-5 py-12">
+          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.82fr_1.18fr]">
+            <div>
+              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
+                Book Now
+              </p>
+              <h2 className="mt-3 text-4xl font-bold leading-tight text-[var(--public-heading)]">
+                {ctaText}
+              </h2>
+              <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
+                填寫後，團隊會按你的療程、分店及心水時間跟進預約安排。
+              </p>
+            </div>
+            <PublicLeadForm
+              formToken={connectedForm.publicFormToken}
+              formId={connectedForm.id}
+              brandSlug={publicBrand.slug}
+            />
+          </div>
+        </section>
+      </MotionReveal>
 
       <PublicLegalFooter
         footerText={getLegalFooterText(legalProfile)}
@@ -413,6 +377,74 @@ export default async function PublicLandingPage({
         disclaimerUrl={legalProfile.disclaimerUrl}
       />
     </main>
+  );
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  body,
+}: {
+  eyebrow: string;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div>
+      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--public-accent)]">
+        {eyebrow}
+      </p>
+      <h2 className="mt-3 text-3xl font-bold leading-tight text-[var(--public-heading)] md:text-4xl">
+        {title}
+      </h2>
+      <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--public-muted)]">
+        {body}
+      </p>
+    </div>
+  );
+}
+
+function OfferCard({
+  imageUrl,
+  badge,
+  title,
+  body,
+  active = false,
+}: {
+  imageUrl: string;
+  badge: string;
+  title: string;
+  body: string;
+  active?: boolean;
+}) {
+  return (
+    <article
+      className={`overflow-hidden rounded-[32px] border bg-white shadow-[0_24px_70px_rgba(216,91,163,0.12)] ${
+        active ? "border-[var(--public-cta)]" : "border-[var(--public-border)]"
+      }`}
+    >
+      <img src={imageUrl} alt={title} className="aspect-[4/3] w-full object-cover" />
+      <div className="p-5">
+        <p className="w-fit rounded-full bg-[#FFF1F7] px-3 py-1 text-xs font-bold text-[var(--public-accent)]">
+          {badge}
+        </p>
+        <h3 className="mt-4 text-xl font-bold text-[var(--public-heading)]">
+          {title}
+        </h3>
+        <p className="mt-2 text-sm leading-6 text-[var(--public-muted)]">{body}</p>
+      </div>
+    </article>
+  );
+}
+
+function InfoCard({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[24px] border border-[var(--public-border)] bg-white p-5 shadow-sm">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
+        {label}
+      </p>
+      <p className="mt-2 text-sm font-bold text-[var(--public-heading)]">{value}</p>
+    </div>
   );
 }
 
@@ -428,7 +460,7 @@ function PublicLegalFooter({
   disclaimerUrl: string;
 }) {
   return (
-    <footer className="border-t border-[var(--public-border)] bg-[var(--public-card)] px-5 py-6">
+    <footer className="border-t border-[var(--public-border)] bg-white px-5 py-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 text-xs font-semibold leading-5 text-[var(--public-muted)] md:flex-row md:items-center md:justify-between">
         <p>{footerText}</p>
         <nav className="flex flex-wrap gap-x-4 gap-y-2">
@@ -441,95 +473,11 @@ function PublicLegalFooter({
           <a className="underline underline-offset-4" href={disclaimerUrl}>
             免責聲明
           </a>
-          <a className="underline underline-offset-4" href="#alyssa-lp-form">
+          <a className="underline underline-offset-4" href="#lead-form">
             預約 / 查詢
           </a>
         </nav>
       </div>
     </footer>
-  );
-}
-
-function HeroMetric({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="border-t border-white/30 pt-3">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/62">
-        {label}
-      </p>
-      <p className="mt-2 text-sm font-bold text-white">{value}</p>
-    </div>
-  );
-}
-
-function InfoCard({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-[20px] border border-[var(--public-border)] bg-[var(--public-card)] p-5 shadow-sm">
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
-        {label}
-      </p>
-      <p className="mt-2 text-sm font-bold text-[var(--public-cta)]">{value}</p>
-    </div>
-  );
-}
-
-function ImagePanel({
-  imageUrl,
-  label,
-  title,
-  body,
-  ratioClass,
-}: {
-  imageUrl: string;
-  label: string;
-  title: string;
-  body: string;
-  ratioClass: string;
-}) {
-  const hasImage = Boolean(imageUrl);
-
-  return (
-    <div
-      className={`flex ${ratioClass} min-h-64 items-end overflow-hidden rounded-[24px] border border-[var(--public-border)] bg-[var(--public-dark)] p-5 text-white shadow-sm transition duration-300 hover:-translate-y-1 hover:shadow-[0_22px_55px_rgba(58,36,28,0.16)]`}
-      style={
-        hasImage
-          ? {
-              backgroundImage: `linear-gradient(180deg, color-mix(in srgb, var(--public-dark) 8%, transparent), color-mix(in srgb, var(--public-dark) 78%, transparent)), url(${imageUrl})`,
-              backgroundPosition: "center",
-              backgroundSize: "cover",
-            }
-          : undefined
-      }
-    >
-      <div>
-        <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/66">
-          {label}
-        </p>
-        <h3 className="mt-2 text-xl font-bold">{title}</h3>
-        <p className="mt-2 max-w-md text-sm leading-6 text-white/74">{body}</p>
-      </div>
-    </div>
-  );
-}
-
-function ProcessImage({ imageUrl, label }: { imageUrl: string; label: string }) {
-  const hasImage = Boolean(imageUrl);
-
-  return (
-    <div
-      className="mb-4 flex aspect-square items-end overflow-hidden rounded-[18px] border border-white/12 bg-white/10 p-4 transition duration-300 hover:-translate-y-1 hover:bg-white/14"
-      style={
-        hasImage
-          ? {
-              backgroundImage: `linear-gradient(180deg, rgba(50,20,40,0.04), rgba(50,20,40,0.72)), url(${imageUrl})`,
-              backgroundPosition: "center",
-              backgroundSize: "cover",
-            }
-          : undefined
-      }
-    >
-      <p className="text-xs font-bold uppercase tracking-[0.16em] text-white/70">
-        {label}
-      </p>
-    </div>
   );
 }

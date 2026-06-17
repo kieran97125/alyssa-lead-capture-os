@@ -27,26 +27,26 @@ const brandLegalProfiles: Record<
   alyssa: {
     brandName: "Alyssa",
     operatingCompanyName: "Alyssa Group Limited",
-    contactLabel: "請透過預約表格或品牌官方 WhatsApp 聯絡我們。",
-    lastUpdated: "2026年6月16日",
+    contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
+    lastUpdated: "2026年6月",
   },
   ineffable: {
     brandName: "Ineffable Beauty",
     operatingCompanyName: "Alyssa Group Limited",
-    contactLabel: "請透過預約表格或品牌官方 WhatsApp 聯絡我們。",
-    lastUpdated: "2026年6月16日",
+    contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
+    lastUpdated: "2026年6月",
   },
   "ineffable-beauty": {
     brandName: "Ineffable Beauty",
     operatingCompanyName: "Alyssa Group Limited",
-    contactLabel: "請透過預約表格或品牌官方 WhatsApp 聯絡我們。",
-    lastUpdated: "2026年6月16日",
+    contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
+    lastUpdated: "2026年6月",
   },
   "skin-light": {
     brandName: "Skin Light",
     operatingCompanyName: "Alyssa Group Limited",
-    contactLabel: "請透過預約表格或品牌官方 WhatsApp 聯絡我們。",
-    lastUpdated: "2026年6月16日",
+    contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
+    lastUpdated: "2026年6月",
   },
 };
 
@@ -74,18 +74,18 @@ export function getBrandLegalProfile({
     brandSlug: normalizedSlug,
     brandName: displayName,
     operatingCompanyName: profile?.operatingCompanyName || null,
-    contactLabel: profile?.contactLabel || "請透過預約表格或品牌官方渠道聯絡我們。",
-    lastUpdated: profile?.lastUpdated || "2026年6月16日",
+    contactLabel: profile?.contactLabel || "如有查詢，請透過登記表格聯絡我們。",
+    lastUpdated: profile?.lastUpdated || "2026年6月",
     ...legalLinks,
   };
 }
 
 export function getLegalFooterText(profile: BrandLegalProfile) {
   if (profile.operatingCompanyName) {
-    return `© 2026 ${profile.brandName}。服務由 ${profile.operatingCompanyName} 營運。`;
+    return `© 2026 ${profile.brandName}，由 ${profile.operatingCompanyName} 營運。`;
   }
 
-  return `© 2026 ${profile.brandName}。品牌營運資料待更新。`;
+  return `© 2026 ${profile.brandName}。`;
 }
 
 export function resolveLegalBrandDisplay(brandSlug: string) {
