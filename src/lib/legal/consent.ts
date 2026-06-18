@@ -32,25 +32,25 @@ const brandLegalProfiles: Record<
 > = {
   alyssa: {
     brandName: "Alyssa",
-    operatingCompanyName: "Alyssa Group Limited",
+    operatingCompanyName: "YISSA GROUP LIMITED",
     contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
     lastUpdated: "2026年6月",
   },
   ineffable: {
     brandName: "Ineffable Beauty",
-    operatingCompanyName: "Alyssa Group Limited",
+    operatingCompanyName: "YISSA GROUP LIMITED",
     contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
     lastUpdated: "2026年6月",
   },
   "ineffable-beauty": {
     brandName: "Ineffable Beauty",
-    operatingCompanyName: "Alyssa Group Limited",
+    operatingCompanyName: "YISSA GROUP LIMITED",
     contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
     lastUpdated: "2026年6月",
   },
   "skin-light": {
     brandName: "Skin Light",
-    operatingCompanyName: "Alyssa Group Limited",
+    operatingCompanyName: "YISSA GROUP LIMITED",
     contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
     lastUpdated: "2026年6月",
   },
@@ -87,13 +87,6 @@ export function getBrandLegalProfile({
 }
 
 export function getLegalFooterText(profile: BrandLegalProfile) {
-  if (
-    profile.brandSlug === "ineffable" ||
-    profile.brandSlug === "ineffable-beauty"
-  ) {
-    return `© 2026 ${profile.brandName}。`;
-  }
-
   if (profile.operatingCompanyName) {
     return `© 2026 ${profile.brandName}，由 ${profile.operatingCompanyName} 營運。`;
   }

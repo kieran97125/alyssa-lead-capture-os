@@ -277,7 +277,7 @@ If the internal app grows into a larger admin surface, shadcn/ui-style primitive
 
 LaunchHub admin and internal business pages remain neutral system screens. Public campaign surfaces can use a selected brand theme without recoloring the backend.
 
-Ineffable Beauty public Landing Pages and public embedded forms use a warm cream / terracotta / coffee palette: cream background, soft beige borders, deep coffee text, and terracotta CTA buttons. Customer-facing copy should use the selected brand name, while the legal/operator footer can still show Alyssa Group Limited where configured.
+Ineffable Beauty public Landing Pages and public embedded forms use a warm cream / terracotta / coffee palette: cream background, soft beige borders, deep coffee text, and terracotta CTA buttons. Customer-facing copy should use the selected brand name, while the legal/operator footer uses YISSA GROUP LIMITED where an operator entity is shown.
 
 Current implementation uses a safe code fallback theme resolver for `ineffable`, `ineffable-beauty`, and `Ineffable Beauty`. Future brand settings can add database-backed theme fields for palette, CTA tone, background, and public typography.
 
