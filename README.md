@@ -190,7 +190,7 @@ The V1 workflow is intentionally structured rather than drag-and-drop:
 - Public render: `/lp/[slug]` renders the `published_version_id` version only for Supabase landing pages. It does not render unsaved editor changes, draft versions, or row-level fallback copy as public campaign content.
 - Internal editor: `/landing-pages/[pageId]` shows Save Draft / Publish controls only as DB-backed actions when the migration is applied; otherwise it clearly stays in local config fallback mode.
 
-Apply the migration in Supabase SQL editor or through your migration workflow before expecting Save Draft / Publish to persist. The current editor still uses read-only prefilled fields; full field editing, media upload, version history UI, draft preview URLs, and auth-based publish permissions remain future builder work.
+Apply the migration in Supabase SQL editor or through your migration workflow before expecting Save Draft / Publish to persist. The current editor still uses read-only prefilled fields; full field editing, media upload, version history UI, draft preview URLs, and any future team-based publish permissions remain future builder work.
 
 ## Multi-form Management
 
@@ -345,7 +345,7 @@ Public routes remain accessible for campaigns, Wix embeds, and lead capture:
 - `/api/public/events`
 - `/api/public/thank-you`
 
-Internal routes are protected by Basic Auth and role/module access:
+Internal admin routes are open by default:
 
 - `/`
 - `/dashboard`
@@ -367,53 +367,32 @@ Internal routes are protected by Basic Auth and role/module access:
 - `/system-audit`
 - `/embed-preview`
 
-This boundary protects dashboards, lead lists, configuration views, landing page management, and system audit information before the project has a full admin login system.
-
-Set these environment variables in Vercel for preview or production internal use:
-
-```bash
-INTERNAL_ACCESS_USERS=kieran:ChangeMe_Owner_2026!:owner,editor:ChangeMe_Editor_2026!:editor,leads:ChangeMe_Leads_2026!:lead_viewer
-INTERNAL_AUTH_SESSION_SECRET=replace-with-long-random-secret
-```
-
-Format:
-
-```text
-username:password:role,username:password:role
-```
-
-Supported roles:
-
-- `owner` - full access, including Settings, brand settings, System Audit, and Landing Page publish.
-- `editor` - Dashboard, Leads, Performance, Campaigns, Forms, and Landing Pages. Can create campaigns, edit forms, and save Landing Page drafts. Cannot publish or access Settings/System Audit.
-- `lead_viewer` - Dashboard and Leads only, with full contact details for CS follow-up.
-
-Legacy Basic Auth variables remain supported as a fallback owner account if `INTERNAL_ACCESS_USERS` is not set:
-
-```bash
-INTERNAL_BASIC_AUTH_USER=
-INTERNAL_BASIC_AUTH_PASSWORD=
-```
-
-When `INTERNAL_ACCESS_USERS` or the legacy owner credentials are set, visiting an internal route without a valid session redirects to `/login`. The branded login page authenticates the username/password, then sets a signed httpOnly `launchhub_internal_session` cookie for the user's role. `/logout` clears the session and redirects back to `/login`.
+LaunchHub currently does not enforce internal login, browser Basic Auth, session cookies, or role blocking for the admin backend. `/login` is a harmless legacy page that links to `/dashboard`; `/logout` only clears any old session cookie and redirects to `/dashboard`.
 
 Public landing pages, embedded forms, legal pages, public lead submit APIs, static assets, and the public embed script remain reachable without login.
 
-If no internal credentials or no `INTERNAL_AUTH_SESSION_SECRET` are configured in production, internal admin routes fail closed and no admin access is granted. Local development may use temporary fallback behavior, but Vercel preview/production URLs should always define both `INTERNAL_ACCESS_USERS` and `INTERNAL_AUTH_SESSION_SECRET`.
+`app.beautytrialhk.com` should be used for the admin backend. `go.beautytrialhk.com` should be used for public landing pages, embedded forms, and legal pages. The proxy keeps this host separation without requiring an internal auth session.
 
-Use strong passwords, replace the example values before real use, and test each role in an incognito/private browser session.
+Legacy env vars from the removed internal auth flow are deprecated and not required for deployment:
 
-Do not commit real credentials. Longer term, this custom internal login can be replaced or upgraded with Supabase Auth, Google Login, role-based admin login, or another internal identity provider.
+- `INTERNAL_ACCESS_USERS`
+- `INTERNAL_AUTH_SESSION_SECRET`
+- `INTERNAL_AUTH_COOKIE_DOMAIN`
+- `INTERNAL_AUTH_DISABLED`
+- `INTERNAL_BASIC_AUTH_USER`
+- `INTERNAL_BASIC_AUTH_PASSWORD`
+
+Do not commit real credentials. If team login is needed later, add a new Supabase Auth, Google Login, or role-based admin login flow deliberately instead of reusing the removed cookie gate.
 
 ## Team Access Direction
 
-Basic Auth is a temporary outer protection layer for early Vercel previews and internal URLs. It protects internal pages before the product has proper team login, but it is not the long-term admin access model.
+The current admin backend is open by default. The previous Basic Auth / custom session gate has been removed from the active route path because it caused production navigation failures.
 
 The intended long-term layer is Supabase Auth plus role-based access control. Each team member should have their own login, a profile, a role, a status, and optional brand access.
 
-Team Access Enforcement V1 adds reusable permission helper foundations while keeping Basic Auth in place. The current internal app uses a temporary access context:
+Team Access Enforcement V1 remains a planning and helper foundation only. Current admin pages use an open compatibility access context:
 
-- `source = "temporary_internal_access"`
+- `source = "auth_disabled"`
 - `role = "owner"`
 - `brandAccess.scope = "all"`
 
@@ -544,7 +523,7 @@ NEXT_PUBLIC_ADMIN_BASE_URL=https://app.beautytrialhk.com
 NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com
 ```
 
-Internal navigation uses relative admin paths such as `/dashboard`, `/landing-pages`, `/forms`, and `/settings`. If `/login` or another internal admin route is opened on the public host, the proxy redirects it to the configured admin origin so the `launchhub_internal_session` cookie is created on the admin host.
+Internal navigation uses relative admin paths such as `/dashboard`, `/landing-pages`, `/forms`, and `/settings`. If `/login` or another internal admin route is opened on the public host, the proxy redirects it to the configured admin origin while keeping admin access open.
 
 ## Supabase Connection
 
@@ -621,8 +600,7 @@ Payment status semantics:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
 - `PAYMENT_WEBHOOK_SECRET` - pending; must be added before production payment webhook use.
-- `INTERNAL_ACCESS_USERS` - required before exposing internal business/config pages; supports `owner`, `editor`, and `lead_viewer` Basic Auth accounts.
-- `INTERNAL_AUTH_SESSION_SECRET` - required before exposing internal business/config pages; signs the httpOnly internal login session cookie.
+- Legacy internal auth env vars are deprecated and not required: `INTERNAL_ACCESS_USERS`, `INTERNAL_AUTH_SESSION_SECRET`, `INTERNAL_AUTH_COOKIE_DOMAIN`, and `INTERNAL_AUTH_DISABLED`.
 - Future WhatsApp webhook secret / verification token - pending; must be added before production WhatsApp webhook use.
 
 ## Future Vercel Deployment
@@ -632,7 +610,7 @@ Do not deploy yet. Before deployment:
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
 - Set `NEXT_PUBLIC_ADMIN_BASE_URL=https://app.beautytrialhk.com` for internal admin pages and `NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com` for public campaign pages when using the split domains.
 - Configure Supabase environment variables in Vercel.
-- Configure `INTERNAL_ACCESS_USERS` and `INTERNAL_AUTH_SESSION_SECRET` in Vercel before sharing internal dashboard/config URLs.
+- Do not configure internal login as a required gate; the admin backend is currently open by product decision.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.
 - Run `npm run lint` and `npm run build`.

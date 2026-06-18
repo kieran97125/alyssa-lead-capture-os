@@ -9,8 +9,6 @@ import {
   type ManagedFormInput,
 } from "@/lib/data/formManagement";
 import { createLandingPageDraft } from "@/lib/data/landingPageStore";
-import { blockedActionMessage } from "@/lib/security/internalAccess";
-import { requireActionAccess } from "@/lib/security/internalAccessServer";
 
 type CampaignMode = "new_landing_page" | "wix_form" | "existing_form_landing_page";
 
@@ -88,11 +86,6 @@ async function createDraftForForm({
 }
 
 export async function createCampaignAction(formData: FormData) {
-  const access = await requireActionAccess("create_campaign");
-  if (!access.allowed) {
-    redirectWithMessage("/campaigns/new", "campaign_status", blockedActionMessage);
-  }
-
   const mode = getCampaignMode(formData);
   const campaignName = readString(formData, "campaignName");
 

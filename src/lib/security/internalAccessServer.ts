@@ -1,47 +1,24 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 import {
-  authenticateInternalAccess,
-  canAccessModule,
-  canPerformAction,
   createSignedInternalSession,
   getInternalAuthCookieDomain,
   internalSessionCookieName,
   internalSessionMaxAgeSeconds,
-  isInternalAuthDisabled,
   type InternalAction,
   type InternalAccessContext,
   type InternalModule,
-  verifySignedInternalSession,
 } from "@/lib/security/internalAccess";
 
-function disabledAccessContext(): InternalAccessContext {
+function openAccessContext(): InternalAccessContext {
   return {
-    username: "auth-disabled",
+    username: "admin-open",
     role: "owner",
     source: "auth_disabled",
   };
 }
 
 export async function getCurrentInternalAccess(): Promise<InternalAccessContext> {
-  if (isInternalAuthDisabled()) return disabledAccessContext();
-
-  const cookieStore = await cookies();
-  const session = await verifySignedInternalSession(
-    cookieStore.get(internalSessionCookieName)?.value
-  );
-
-  if (session) return session;
-
-  const headerStore = await headers();
-  const basicAuth = authenticateInternalAccess(headerStore.get("authorization"));
-
-  if (basicAuth.ok) return basicAuth.context;
-
-  return {
-    username: "",
-    role: "lead_viewer",
-    source: "local_dev_fallback",
-  };
+  return openAccessContext();
 }
 
 export async function setInternalSessionCookie(context: InternalAccessContext) {
@@ -85,20 +62,20 @@ export async function clearInternalSessionCookie() {
   }
 }
 
-export async function requireModuleAccess(module: InternalModule) {
-  const access = await getCurrentInternalAccess();
+export async function requireModuleAccess(_module: InternalModule) {
+  void _module;
 
   return {
-    access,
-    allowed: canAccessModule(access.role, module),
+    access: openAccessContext(),
+    allowed: true,
   };
 }
 
-export async function requireActionAccess(action: InternalAction) {
-  const access = await getCurrentInternalAccess();
+export async function requireActionAccess(_action: InternalAction) {
+  void _action;
 
   return {
-    access,
-    allowed: canPerformAction(access.role, action),
+    access: openAccessContext(),
+    allowed: true,
   };
 }

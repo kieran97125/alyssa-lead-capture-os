@@ -35,8 +35,6 @@ import {
   getPublicLandingPageUrl,
 } from "@/lib/data/appUrl";
 import { getLandingPageEditorData } from "@/lib/data/landingPageStore";
-import { canPerformAction } from "@/lib/security/internalAccess";
-import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
 
@@ -49,10 +47,9 @@ export default async function LandingPageConfigPage({
 }) {
   const { pageId } = await params;
   const query = await searchParams;
-  const [editorData, config, access] = await Promise.all([
+  const [editorData, config] = await Promise.all([
     getLandingPageEditorData(pageId),
     getConfigurationData(),
-    getCurrentInternalAccess(),
   ]);
 
   if (!editorData) notFound();
@@ -123,8 +120,8 @@ export default async function LandingPageConfigPage({
     !latestDraftVersionNumber ? "請先保存草稿" : null,
   ].filter((item): item is string => Boolean(item));
   const canPublish = canPersist && publishMissingItems.length === 0;
-  const canSaveDraftAction = canPerformAction(access.role, "save_landing_page");
-  const canPublishAction = canPerformAction(access.role, "publish_landing_page");
+  const canSaveDraftAction = true;
+  const canPublishAction = true;
   const contentSections = getResolvedLandingPageContentSections(page);
 
   return (
