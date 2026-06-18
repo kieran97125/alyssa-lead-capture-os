@@ -537,6 +537,15 @@ NEXT_PUBLIC_ADMIN_BASE_URL=
 
 If only `NEXT_PUBLIC_APP_URL` is set, the app uses it for both admin and public URLs. If `NEXT_PUBLIC_PUBLIC_BASE_URL` or `NEXT_PUBLIC_ADMIN_BASE_URL` is set, public Landing Page / embed links and internal admin links can be separated later without hard-coding a final domain. This prepares a future split such as admin on one domain and public campaign pages on another.
 
+For the Beauty Trial HK domain split, internal admin pages should use the admin host and public campaign pages should use the public host:
+
+```bash
+NEXT_PUBLIC_ADMIN_BASE_URL=https://app.beautytrialhk.com
+NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com
+```
+
+Internal navigation uses relative admin paths such as `/dashboard`, `/landing-pages`, `/forms`, and `/settings`. If `/login` or another internal admin route is opened on the public host, the proxy redirects it to the configured admin origin so the `launchhub_internal_session` cookie is created on the admin host.
+
 ## Supabase Connection
 
 The app renders locally without Supabase. Public write APIs return local no-op IDs unless these environment variables are configured:
@@ -621,7 +630,7 @@ Payment status semantics:
 Do not deploy yet. Before deployment:
 
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
-- Set `NEXT_PUBLIC_PUBLIC_BASE_URL` and `NEXT_PUBLIC_ADMIN_BASE_URL` only if public campaign pages and admin pages use separate domains.
+- Set `NEXT_PUBLIC_ADMIN_BASE_URL=https://app.beautytrialhk.com` for internal admin pages and `NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com` for public campaign pages when using the split domains.
 - Configure Supabase environment variables in Vercel.
 - Configure `INTERNAL_ACCESS_USERS` and `INTERNAL_AUTH_SESSION_SECRET` in Vercel before sharing internal dashboard/config URLs.
 - Add production Wix domains to `forms.allowed_domains`.
