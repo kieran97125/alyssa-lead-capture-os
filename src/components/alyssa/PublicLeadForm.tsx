@@ -19,6 +19,7 @@ import {
   alyssaTreatments,
 } from "@/lib/data/alyssaConfig";
 import {
+  IMAGE_REFERENCE_FOOTER_NOTE,
   getBrandLegalProfile,
   getLegalLinks,
   getLegalFooterText,
@@ -990,6 +991,7 @@ function PublicLegalFooter({
   return (
     <footer className="mt-5 border-t border-[var(--public-border)] pt-4 text-center text-xs font-semibold leading-5 text-[var(--public-muted)]">
       <p>{footerText}</p>
+      <p className="mt-1">{IMAGE_REFERENCE_FOOTER_NOTE}</p>
       <nav className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
         <a className="underline underline-offset-4" href={privacyPolicyUrl}>
           私隱政策

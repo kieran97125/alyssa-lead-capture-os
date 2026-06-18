@@ -6,6 +6,12 @@ export const LEGAL_CONSENT_HELPER_TEXT =
 
 export const LEGAL_CONSENT_REQUIRED_MESSAGE = "請先閱讀並同意相關條款。";
 
+export const IMAGE_REFERENCE_DISCLAIMER_FULL =
+  "本網站、廣告頁面及相關宣傳內容所使用之圖片、影片、人物相片、療程畫面、肌膚狀態、前後對比或其他視覺素材，除非另有明確標示，均為示意圖或參考圖片，只供一般展示及說明用途。實際療程效果、感受、所需次數及結果會因個人體質、皮膚狀況、生活習慣、護理方式及其他因素而有所不同。相關圖片及內容不構成任何效果保證、醫療建議、專業診斷或治療承諾。";
+
+export const IMAGE_REFERENCE_FOOTER_NOTE =
+  "圖片只供示意及參考，實際療程效果因個人情況而異。";
+
 export type BrandLegalProfile = {
   brandSlug: string;
   brandName: string;

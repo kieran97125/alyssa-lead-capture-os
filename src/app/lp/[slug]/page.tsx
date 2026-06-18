@@ -16,6 +16,7 @@ import {
 } from "@/lib/data/landingPages";
 import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
 import {
+  IMAGE_REFERENCE_FOOTER_NOTE,
   getBrandLegalProfile,
   getLegalFooterText,
 } from "@/lib/legal/consent";
@@ -594,7 +595,10 @@ function PublicLegalFooter({
   return (
     <footer id="legal-footer" className="scroll-mt-6 border-t border-[var(--public-border)] bg-white px-5 py-6">
       <div className="mx-auto flex max-w-7xl flex-col gap-3 text-xs font-semibold leading-5 text-[var(--public-muted)] md:flex-row md:items-center md:justify-between">
-        <p>{footerText}</p>
+        <div className="grid gap-1">
+          <p>{footerText}</p>
+          <p>{IMAGE_REFERENCE_FOOTER_NOTE}</p>
+        </div>
         <nav className="flex flex-wrap gap-x-4 gap-y-2">
           <a className="underline underline-offset-4" href={privacyPolicyUrl}>
             私隱政策

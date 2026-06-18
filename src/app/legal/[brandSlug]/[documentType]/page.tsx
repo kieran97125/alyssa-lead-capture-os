@@ -1,7 +1,10 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { resolveLegalBrandDisplay } from "@/lib/legal/consent";
+import {
+  IMAGE_REFERENCE_DISCLAIMER_FULL,
+  resolveLegalBrandDisplay,
+} from "@/lib/legal/consent";
 
 const documentLabels = {
   privacy: "私隱政策",
@@ -18,6 +21,21 @@ type LegalSection = {
 
 function isDocumentType(value: string): value is DocumentType {
   return value in documentLabels;
+}
+
+function addImageReferenceDisclaimer(
+  sections: LegalSection[],
+  documentType: DocumentType
+) {
+  if (documentType !== "terms" && documentType !== "disclaimer") return sections;
+
+  return [
+    ...sections,
+    {
+      title: "圖片及視覺素材",
+      body: [IMAGE_REFERENCE_DISCLAIMER_FULL],
+    },
+  ];
 }
 
 function getLegalSections(documentType: DocumentType, brandName: string): LegalSection[] {
@@ -166,7 +184,10 @@ export default async function LegalDocumentPage({
 
   const profile = resolveLegalBrandDisplay(brandSlug);
   const label = documentLabels[documentType];
-  const sections = getLegalSections(documentType, profile.brandName);
+  const sections = addImageReferenceDisclaimer(
+    getLegalSections(documentType, profile.brandName),
+    documentType
+  );
   const operatorLine = profile.operatingCompanyName
     ? `服務提供及資料使用者：${profile.brandName}，由 ${profile.operatingCompanyName} 營運。`
     : `服務提供及資料使用者：${profile.brandName}。營運方資料待品牌確認。`;
