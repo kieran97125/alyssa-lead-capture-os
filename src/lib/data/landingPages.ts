@@ -157,6 +157,7 @@ export type LandingPageConfig = {
   publishedAt?: string | null;
   latestVersionNumber?: number | null;
   builderSource?: "local_config" | "supabase";
+  contentSectionsExplicit?: boolean;
 };
 
 export const defaultLandingPageContent: LandingPageContent = {
@@ -448,6 +449,10 @@ export function normalizeLandingPageContentSections(
 export function getResolvedLandingPageContentSections(
   page: LandingPageConfig
 ): LandingPageContentSection[] {
+  if (page.contentSectionsExplicit) {
+    return normalizeLandingPageContentSections(page.contentSections);
+  }
+
   if (page.contentSections.length > 0) {
     return normalizeLandingPageContentSections(page.contentSections);
   }

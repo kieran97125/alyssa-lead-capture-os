@@ -56,6 +56,7 @@ type LandingPageVersionRow = {
 export type LandingPageEditorData = {
   page: LandingPageConfig;
   source: "supabase" | "local_config";
+  loadedFrom: "draft" | "published" | "seed";
   canPersist: boolean;
   statusMessage: string;
   latestDraftVersionNumber: number | null;
@@ -548,6 +549,40 @@ function mapKnownId(
   return value ? mapping[value] ?? value : fallback;
 }
 
+function hasOwnContentSections(content: Record<string, unknown> | null | undefined) {
+  return Boolean(
+    content &&
+      Object.prototype.hasOwnProperty.call(content, "contentSections") &&
+      Array.isArray(content.contentSections)
+  );
+}
+
+function hasPersistedPageState(row: LandingPageRow) {
+  return Boolean(row.content_json || row.image_assets_json);
+}
+
+function logLandingPageLoad({
+  pageId,
+  slug,
+  loadedFrom,
+  page,
+}: {
+  pageId: string;
+  slug: string;
+  loadedFrom: "draft" | "published" | "seed";
+  page: LandingPageConfig;
+}) {
+  if (process.env.NODE_ENV !== "development") return;
+
+  console.info("[landing-page-load]", {
+    pageId,
+    slug,
+    loadedFrom,
+    contentSections: page.contentSections.length,
+    sectionIds: page.contentSections.map((section) => section.id),
+  });
+}
+
 function rowToConfig(
   row: LandingPageRow,
   version?: LandingPageVersionRow | null
@@ -557,14 +592,16 @@ function rowToConfig(
     getLocalLandingPageById(row.slug) ??
     alyssaLandingPages[0];
 
+  const contentSource = version?.content_json ?? row.content_json;
+  const imageSource = version?.image_assets_json ?? row.image_assets_json;
   const contentFallback = publicContentFallback(fallback);
   const content = mergeContent(
     contentFallback,
-    version?.content_json ?? row.content_json
+    contentSource
   );
   const images = mergeImageAssets(
     blankImageFallback(fallback),
-    version?.image_assets_json ?? row.image_assets_json
+    imageSource
   );
 
   return {
@@ -595,6 +632,7 @@ function rowToConfig(
     publishedAt: row.published_at,
     latestVersionNumber: version?.version_number ?? null,
     builderSource: "supabase",
+    contentSectionsExplicit: hasOwnContentSections(contentSource),
   };
 }
 
@@ -665,6 +703,16 @@ async function getLatestVersion(pageId: string, status?: "draft" | "published") 
   }
 
   return (data?.[0] as LandingPageVersionRow | undefined) ?? null;
+}
+
+async function getPublishedVersionForRow(row: LandingPageRow) {
+  const pointedVersion = row.published_version_id
+    ? await getVersionById(row.published_version_id)
+    : null;
+
+  if (pointedVersion?.status === "published") return pointedVersion;
+
+  return getLatestVersion(row.id, "published");
 }
 
 function hasText(value: unknown) {
@@ -985,12 +1033,19 @@ export async function getLandingPageBySlug(slug: string) {
   const row = await findLandingPageRow(slug);
   if (!row) {
     const fallback = getLocalLandingPageBySlug(slug);
-    return fallback ? { ...fallback, builderSource: "local_config" as const } : null;
+    return fallback
+      ? {
+          ...fallback,
+          builderSource: "local_config" as const,
+          contentSectionsExplicit: false,
+        }
+      : null;
   }
 
-  const version = row.published_version_id
-    ? await getVersionById(row.published_version_id)
-    : await getLatestVersion(row.id);
+  const version =
+    (await getLatestVersion(row.id, "draft")) ??
+    (await getPublishedVersionForRow(row)) ??
+    (await getLatestVersion(row.id));
 
   return rowToConfig(row, version);
 }
@@ -1000,12 +1055,19 @@ export async function getLandingPageById(id: string) {
   if (!row) {
     const fallback =
       getLocalLandingPageById(id) ?? getLocalLandingPageBySlug(id);
-    return fallback ? { ...fallback, builderSource: "local_config" as const } : null;
+    return fallback
+      ? {
+          ...fallback,
+          builderSource: "local_config" as const,
+          contentSectionsExplicit: false,
+        }
+      : null;
   }
 
-  const version = row.published_version_id
-    ? await getVersionById(row.published_version_id)
-    : await getLatestVersion(row.id);
+  const version =
+    (await getLatestVersion(row.id, "draft")) ??
+    (await getPublishedVersionForRow(row)) ??
+    (await getLatestVersion(row.id));
 
   return rowToConfig(row, version);
 }
@@ -1026,54 +1088,84 @@ export async function getPublishedLandingPageBySlug(slug: string) {
         message: error.message,
       });
     } else if (data) {
-      if (!data.published_version_id) {
-        console.warn("published_landing_page_missing_version", {
-          pageId: data.id,
-          slug: data.slug,
-        });
-        return null;
-      }
+      const version = await getPublishedVersionForRow(data);
 
-      const version = await getVersionById(data.published_version_id);
-
-      if (!version || version.status !== "published") {
+      if (!version) {
         console.warn("published_landing_page_version_unavailable", {
           pageId: data.id,
           slug: data.slug,
           versionId: data.published_version_id,
-          versionStatus: version?.status ?? "missing",
+          versionStatus: "missing",
         });
-        return null;
+        if (hasPersistedPageState(data)) {
+          const page = rowToConfig(data, null);
+          logLandingPageLoad({
+            pageId: data.id,
+            slug: data.slug,
+            loadedFrom: "published",
+            page,
+          });
+          return page;
+        }
+      } else {
+        const page = rowToConfig(data, version);
+        logLandingPageLoad({
+          pageId: data.id,
+          slug: data.slug,
+          loadedFrom: "published",
+          page,
+        });
+        return page;
       }
-
-      return rowToConfig(data, version);
     }
-
-    return null;
   }
 
   const fallback = getLocalLandingPageBySlug(slug);
-  return fallback ? { ...fallback, builderSource: "local_config" as const } : null;
+  return fallback
+    ? {
+        ...fallback,
+        builderSource: "local_config" as const,
+        contentSectionsExplicit: false,
+      }
+    : null;
 }
 
-export async function getLandingPageEditorData(
+export async function getLandingPageEditorState(
   pageId: string
 ): Promise<LandingPageEditorData | null> {
   if (hasSupabaseAdminEnv()) {
     const row = await findLandingPageRow(pageId);
     if (row) {
       const latestDraft = await getLatestVersion(row.id, "draft");
-      const publishedVersion = row.published_version_id
-        ? await getVersionById(row.published_version_id)
-        : await getLatestVersion(row.id, "published");
-      const latestVersion = latestDraft ?? (await getLatestVersion(row.id));
+      const publishedVersion = await getPublishedVersionForRow(row);
+      const latestVersion = latestDraft ?? publishedVersion;
+      const loadedFrom: "draft" | "published" | "seed" = latestDraft
+        ? "draft"
+        : publishedVersion
+          ? "published"
+          : hasPersistedPageState(row)
+            ? "draft"
+            : "seed";
       const page = rowToConfig(row, latestVersion);
+
+      logLandingPageLoad({
+        pageId: row.id,
+        slug: row.slug,
+        loadedFrom,
+        page,
+      });
 
       return {
         page,
         source: "supabase",
+        loadedFrom,
         canPersist: true,
-        statusMessage: "這個 Landing Page 可以儲存草稿及發布公開版本。",
+        statusMessage:
+          loadedFrom === "draft"
+            ? "正在載入最新草稿。"
+            : loadedFrom === "published"
+              ? "正在載入最新已發布版本。"
+              : "正在載入預設內容；儲存後會以草稿為準。",
         latestDraftVersionNumber: latestDraft?.version_number ?? null,
         publishedVersionNumber: publishedVersion?.version_number ?? null,
       };
@@ -1088,6 +1180,7 @@ export async function getLandingPageEditorData(
   return {
     page,
     source: page.builderSource ?? "local_config",
+    loadedFrom: "seed",
     canPersist,
     statusMessage: canPersist
       ? "這個 Landing Page 可以儲存草稿及發布公開版本。"
@@ -1096,6 +1189,8 @@ export async function getLandingPageEditorData(
     publishedVersionNumber: null,
   };
 }
+
+export const getLandingPageEditorData = getLandingPageEditorState;
 
 export async function getLandingPageList() {
   if (hasSupabaseAdminEnv()) {
@@ -1113,9 +1208,10 @@ export async function getLandingPageList() {
     } else if (data && data.length > 0) {
       const pages = await Promise.all(
         (data as LandingPageRow[]).map(async (row) => {
-          const version = row.published_version_id
-            ? await getVersionById(row.published_version_id)
-            : await getLatestVersion(row.id);
+          const version =
+            (await getLatestVersion(row.id, "draft")) ??
+            (await getPublishedVersionForRow(row)) ??
+            (await getLatestVersion(row.id));
           return rowToConfig(row, version);
         })
       );

@@ -34,7 +34,7 @@ import {
   getPublicEmbedPreviewUrl,
   getPublicLandingPageUrl,
 } from "@/lib/data/appUrl";
-import { getLandingPageEditorData } from "@/lib/data/landingPageStore";
+import { getLandingPageEditorState } from "@/lib/data/landingPageStore";
 
 export const dynamic = "force-dynamic";
 
@@ -48,7 +48,7 @@ export default async function LandingPageConfigPage({
   const { pageId } = await params;
   const query = await searchParams;
   const [editorData, config] = await Promise.all([
-    getLandingPageEditorData(pageId),
+    getLandingPageEditorState(pageId),
     getConfigurationData(),
   ]);
 
@@ -60,6 +60,7 @@ export default async function LandingPageConfigPage({
     statusMessage,
     latestDraftVersionNumber,
     publishedVersionNumber,
+    loadedFrom,
   } = editorData;
   const context = getLandingPageContext(page);
   const connectedForm =
@@ -208,8 +209,9 @@ export default async function LandingPageConfigPage({
               )}
             </div>
           </div>
-          <div className="mt-5 grid gap-3 md:grid-cols-5">
+          <div className="mt-5 grid gap-3 md:grid-cols-6">
             <InfoPill label="狀態" value={statusLabel(page.status)} />
+            <InfoPill label="載入來源" value={loadedFromLabel(loadedFrom)} />
             <InfoPill
               label="草稿版本"
               value={latestDraftVersionNumber ? `${latestDraftVersionNumber}` : "未保存"}
@@ -459,6 +461,12 @@ function statusLabel(status: LandingPageConfig["status"]) {
   if (status === "archived") return "已封存";
   if (status === "paused") return "暫停";
   return "可使用";
+}
+
+function loadedFromLabel(source: "draft" | "published" | "seed") {
+  if (source === "draft") return "最新草稿";
+  if (source === "published") return "最新已發布版本";
+  return "預設內容";
 }
 
 function EditorSection({
