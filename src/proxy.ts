@@ -17,10 +17,8 @@ function cleanBaseUrl(value: string | undefined) {
   return cleaned || null;
 }
 
-function getConfiguredAdminOrigin() {
-  const configured =
-    cleanBaseUrl(process.env.NEXT_PUBLIC_ADMIN_BASE_URL) ??
-    cleanBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
+function originFromBaseUrl(value: string | undefined) {
+  const configured = cleanBaseUrl(value);
   if (!configured) return null;
 
   try {
@@ -28,6 +26,24 @@ function getConfiguredAdminOrigin() {
   } catch {
     return null;
   }
+}
+
+function getConfiguredAdminOrigin(request: NextRequest) {
+  const configuredAdminOrigin = originFromBaseUrl(
+    process.env.NEXT_PUBLIC_ADMIN_BASE_URL
+  );
+  if (configuredAdminOrigin) return configuredAdminOrigin;
+
+  if (request.nextUrl.hostname === "go.beautytrialhk.com") {
+    return "https://app.beautytrialhk.com";
+  }
+
+  const appOrigin = originFromBaseUrl(process.env.NEXT_PUBLIC_APP_URL);
+  if (appOrigin && new URL(appOrigin).hostname !== "go.beautytrialhk.com") {
+    return appOrigin;
+  }
+
+  return null;
 }
 
 function shouldUseAdminOrigin(request: NextRequest) {
@@ -38,7 +54,7 @@ function shouldUseAdminOrigin(request: NextRequest) {
     return null;
   }
 
-  const adminOrigin = getConfiguredAdminOrigin();
+  const adminOrigin = getConfiguredAdminOrigin(request);
   if (!adminOrigin) return null;
   if (request.nextUrl.origin === adminOrigin) return null;
   return adminOrigin;
@@ -98,6 +114,7 @@ function logInternalAccessDebug({
   role,
   routeModule,
   allowed,
+  decision,
 }: {
   request: NextRequest;
   hasCookie: boolean;
@@ -105,6 +122,7 @@ function logInternalAccessDebug({
   role: string | null;
   routeModule: string | null;
   allowed: boolean | null;
+  decision: "allow" | "login_redirect" | "no_permission" | "admin_redirect";
 }) {
   if (process.env.NODE_ENV !== "development") return;
 
@@ -116,6 +134,7 @@ function logInternalAccessDebug({
     role,
     routeModule,
     moduleAllowed: allowed,
+    decision,
   });
 }
 
@@ -124,7 +143,18 @@ export async function proxy(request: NextRequest) {
 
   if (pathname === "/login") {
     const adminOrigin = shouldUseAdminOrigin(request);
-    if (adminOrigin) return redirectToAdminOrigin(request, adminOrigin);
+    if (adminOrigin) {
+      logInternalAccessDebug({
+        request,
+        hasCookie: Boolean(request.cookies.get(internalSessionCookieName)?.value),
+        sessionVerified: false,
+        role: null,
+        routeModule: null,
+        allowed: null,
+        decision: "admin_redirect",
+      });
+      return redirectToAdminOrigin(request, adminOrigin);
+    }
 
     const access = await getRequestAccess(request);
     logInternalAccessDebug({
@@ -134,6 +164,7 @@ export async function proxy(request: NextRequest) {
       role: access?.role ?? null,
       routeModule: null,
       allowed: null,
+      decision: "allow",
     });
     if (!access) return NextResponse.next();
 
@@ -148,12 +179,28 @@ export async function proxy(request: NextRequest) {
   }
 
   const adminOrigin = shouldUseAdminOrigin(request);
-  if (adminOrigin) return redirectToAdminOrigin(request, adminOrigin);
+  if (adminOrigin) {
+    logInternalAccessDebug({
+      request,
+      hasCookie: Boolean(request.cookies.get(internalSessionCookieName)?.value),
+      sessionVerified: false,
+      role: null,
+      routeModule: getInternalRouteModule(pathname),
+      allowed: null,
+      decision: "admin_redirect",
+    });
+    return redirectToAdminOrigin(request, adminOrigin);
+  }
 
   const sessionCookie = request.cookies.get(internalSessionCookieName)?.value;
   const access = await getRequestAccess(request);
   const routeModule = getInternalRouteModule(pathname);
   const allowed = routeModule && access ? canAccessModule(access.role, routeModule) : null;
+  const decision = !access
+    ? "login_redirect"
+    : routeModule && !allowed
+      ? "no_permission"
+      : "allow";
   logInternalAccessDebug({
     request,
     hasCookie: Boolean(sessionCookie),
@@ -161,6 +208,7 @@ export async function proxy(request: NextRequest) {
     role: access?.role ?? null,
     routeModule,
     allowed,
+    decision,
   });
 
   if (!access) {

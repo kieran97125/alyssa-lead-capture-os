@@ -19,6 +19,7 @@ export const internalRoutePrefixes = [
   "/settings",
   "/system-audit",
   "/embed-preview",
+  "/debug",
 ] as const;
 
 export function isPublicRoute(pathname: string) {
@@ -49,5 +50,6 @@ export function getInternalRouteModule(pathname: string): InternalModule | null 
   if (pathname.startsWith("/settings/brands")) return "brands";
   if (pathname.startsWith("/settings")) return "settings";
   if (pathname.startsWith("/system-audit")) return "system_audit";
+  if (pathname.startsWith("/debug")) return "system_audit";
   return null;
 }
