@@ -667,11 +667,14 @@ function SectionBuilder({
     visibleSections.length < 8
       ? {
           id: `section-${visibleSections.length + 1}`,
-          type: "content" as const,
+          name: "",
+          type: "text" as const,
           layout: "text" as const,
           label: "",
           title: "",
           subtitle: "",
+          columns: 1 as const,
+          itemImageMode: "none" as const,
           items: [],
         }
       : null;
@@ -710,9 +713,11 @@ function SectionEditorCard({
   const visibleItems = Array.from({ length: enabled ? 6 : 0 }).map(
     (_, itemIndex) =>
       section.items[itemIndex] ?? {
+        id: `item-${itemIndex + 1}`,
         title: "",
         body: "",
         imageUrl: "",
+        caption: "",
         ctaText: "",
         ctaUrl: "",
       }

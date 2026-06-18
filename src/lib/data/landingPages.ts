@@ -14,29 +14,51 @@ export type LandingPageStatus =
   | "published"
   | "archived";
 
+export type LandingPageContentSectionType =
+  | "text"
+  | "image_text"
+  | "cards"
+  | "steps"
+  | "faq"
+  | "image_grid";
+
 export type LandingPageContentSectionLayout =
   | "text"
   | "image_text"
   | "two_cards"
   | "three_cards"
+  | "cards"
+  | "steps"
   | "faq"
   | "image_grid";
 
+export type LandingPageContentSectionColumns = 1 | 2 | 3 | 4;
+export type LandingPageContentSectionImageMode =
+  | "none"
+  | "optional"
+  | "required";
+
 export type LandingPageContentSectionItem = {
+  id: string;
   title: string;
   body: string;
   imageUrl: string;
+  caption: string;
   ctaText: string;
   ctaUrl: string;
 };
 
 export type LandingPageContentSection = {
   id: string;
-  type: "content";
+  name: string;
+  type: LandingPageContentSectionType;
   layout: LandingPageContentSectionLayout;
   label: string;
   title: string;
   subtitle: string;
+  columns: LandingPageContentSectionColumns;
+  itemImageMode: LandingPageContentSectionImageMode;
+  order?: number;
   items: LandingPageContentSectionItem[];
 };
 
@@ -339,10 +361,96 @@ export function getLandingPageImageStatus(page: LandingPageConfig) {
   return "部分設定圖片";
 }
 
+function contentSectionTypeFromLayout(
+  layout: LandingPageContentSectionLayout,
+  label = "",
+  title = ""
+): LandingPageContentSectionType {
+  if (layout === "two_cards") return "cards";
+  if (layout === "three_cards") {
+    const text = `${label} ${title}`.toLowerCase();
+    return text.includes("step") || text.includes("流程") || text.includes("療程")
+      ? "steps"
+      : "cards";
+  }
+  if (layout === "cards" || layout === "steps") return layout;
+  return layout;
+}
+
+function columnsFromLayout(
+  layout: LandingPageContentSectionLayout
+): LandingPageContentSectionColumns {
+  if (layout === "two_cards") return 2;
+  if (layout === "three_cards" || layout === "image_grid") return 3;
+  return 1;
+}
+
+function imageModeFromType(
+  type: LandingPageContentSectionType
+): LandingPageContentSectionImageMode {
+  if (type === "text" || type === "faq") return "none";
+  if (type === "steps" || type === "image_grid") return "required";
+  return "optional";
+}
+
+export function normalizeLandingPageContentSection(
+  section: LandingPageContentSection,
+  index = 0
+): LandingPageContentSection {
+  const layout = section.layout ?? section.type ?? "text";
+  const label = section.label || section.name || "";
+  const type = contentSectionTypeFromLayout(
+    layout as LandingPageContentSectionLayout,
+    label,
+    section.title
+  );
+  const columns =
+    section.columns && [1, 2, 3, 4].includes(section.columns)
+      ? section.columns
+      : columnsFromLayout(layout as LandingPageContentSectionLayout);
+  const itemImageMode =
+    section.itemImageMode &&
+    ["none", "optional", "required"].includes(section.itemImageMode)
+      ? section.itemImageMode
+      : imageModeFromType(type);
+
+  return {
+    id: section.id || `section-${index + 1}`,
+    name: section.name || label || section.title || `Section ${index + 1}`,
+    type,
+    layout: type,
+    label: label || section.name || section.title || "",
+    title: section.title || "",
+    subtitle: section.subtitle || "",
+    columns,
+    itemImageMode,
+    order: section.order ?? index + 1,
+    items: (section.items ?? []).map((item, itemIndex) => ({
+      id: item.id || `item-${itemIndex + 1}`,
+      title: item.title || "",
+      body: item.body || "",
+      imageUrl: item.imageUrl || "",
+      caption: item.caption || "",
+      ctaText: item.ctaText || "",
+      ctaUrl: item.ctaUrl || "",
+    })),
+  };
+}
+
+export function normalizeLandingPageContentSections(
+  sections: LandingPageContentSection[]
+) {
+  return sections
+    .map((section, index) => normalizeLandingPageContentSection(section, index))
+    .sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+}
+
 export function getResolvedLandingPageContentSections(
   page: LandingPageConfig
 ): LandingPageContentSection[] {
-  if (page.contentSections.length > 0) return page.contentSections;
+  if (page.contentSections.length > 0) {
+    return normalizeLandingPageContentSections(page.contentSections);
+  }
 
   const processImages = [
     page.processImage1Url,
@@ -354,9 +462,11 @@ export function getResolvedLandingPageContentSections(
   ];
   const processItems = processImages
     .map((imageUrl, index) => ({
+      id: `legacy-step-${index + 1}`,
       title: page.processSteps[index]?.title || "",
       body: page.processSteps[index]?.body || "",
       imageUrl,
+      caption: "",
       ctaText: "",
       ctaUrl: "",
     }))
@@ -366,16 +476,20 @@ export function getResolvedLandingPageContentSections(
   if (processItems.length > 0) {
     sections.push({
       id: "legacy-treatment-steps",
-      type: "content",
-      layout: processItems.length <= 3 ? "three_cards" : "image_grid",
+      name: "??瘚?",
+      type: "steps",
+      layout: "steps",
       label: "療程流程",
       title: "由清潔到舒緩修護",
       subtitle: "了解每一步療程安排，預約前更清楚。",
+      columns: processItems.length >= 4 ? 4 : 3,
+      itemImageMode: "required",
+      order: 1,
       items: processItems,
     });
   }
 
-  return sections;
+  return normalizeLandingPageContentSections(sections);
 }
 
 export function getLandingPageContext(page: LandingPageConfig) {

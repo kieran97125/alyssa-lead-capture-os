@@ -11,7 +11,10 @@ import { requireActionAccess } from "@/lib/security/internalAccessServer";
 import type {
   LandingPageContent,
   LandingPageContentSection,
+  LandingPageContentSectionColumns,
+  LandingPageContentSectionImageMode,
   LandingPageContentSectionLayout,
+  LandingPageContentSectionType,
   LandingPageImageAssets,
 } from "@/lib/data/landingPages";
 
@@ -94,9 +97,60 @@ const sectionLayouts: LandingPageContentSectionLayout[] = [
   "image_text",
   "two_cards",
   "three_cards",
+  "cards",
+  "steps",
   "faq",
   "image_grid",
 ];
+
+const sectionTypes: LandingPageContentSectionType[] = [
+  "text",
+  "image_text",
+  "cards",
+  "steps",
+  "faq",
+  "image_grid",
+];
+
+const sectionImageModes: LandingPageContentSectionImageMode[] = [
+  "none",
+  "optional",
+  "required",
+];
+
+function fallbackTypeFromLayout(
+  layout: LandingPageContentSectionLayout
+): LandingPageContentSectionType {
+  if (layout === "two_cards") return "cards";
+  if (layout === "three_cards") return "steps";
+  if (layout === "cards" || layout === "steps") return layout;
+  return layout;
+}
+
+function fallbackColumnsFromLayout(
+  layout: LandingPageContentSectionLayout
+): LandingPageContentSectionColumns {
+  if (layout === "two_cards") return 2;
+  if (layout === "three_cards" || layout === "image_grid") return 3;
+  return 1;
+}
+
+function readColumns(
+  formData: FormData,
+  index: number,
+  fallback: LandingPageContentSectionColumns
+): LandingPageContentSectionColumns {
+  const parsed = Number(readIndexed(formData, "contentSectionColumns", index));
+  return parsed === 1 || parsed === 2 || parsed === 3 || parsed === 4
+    ? parsed
+    : fallback;
+}
+
+function maxItemsForType(type: LandingPageContentSectionType) {
+  if (type === "image_grid") return 12;
+  if (type === "cards" || type === "steps" || type === "faq") return 8;
+  return 1;
+}
 
 function readIndexed(formData: FormData, key: string, index: number) {
   return String(formData.getAll(key)[index] ?? "").trim();
@@ -118,52 +172,70 @@ function readContentSections(formData: FormData): LandingPageContentSection[] {
       )
         ? (layoutValue as LandingPageContentSectionLayout)
         : "text";
-      const items = Array.from({ length: 6 })
-        .map((__, itemIndex) => ({
-          title: readIndexed(
-            formData,
-            `contentSection${index}ItemTitles`,
-            itemIndex
-          ),
-          body: readIndexed(
-            formData,
-            `contentSection${index}ItemBodies`,
-            itemIndex
-          ),
-          imageUrl: readIndexed(
-            formData,
-            `contentSection${index}ItemImageUrls`,
-            itemIndex
-          ),
-          ctaText: readIndexed(
-            formData,
-            `contentSection${index}ItemCtaTexts`,
-            itemIndex
-          ),
-          ctaUrl: readIndexed(
-            formData,
-            `contentSection${index}ItemCtaUrls`,
-            itemIndex
-          ),
-        }))
-        .filter(
-          (item) =>
-            item.title ||
-            item.body ||
-            item.imageUrl ||
-            item.ctaText ||
-            item.ctaUrl
-        );
+      const typeValue = readIndexed(formData, "contentSectionTypes", index);
+      const type = sectionTypes.includes(typeValue as LandingPageContentSectionType)
+        ? (typeValue as LandingPageContentSectionType)
+        : fallbackTypeFromLayout(layout);
+      const imageModeValue = readIndexed(
+        formData,
+        "contentSectionItemImageModes",
+        index
+      );
+      const itemImageMode = sectionImageModes.includes(
+        imageModeValue as LandingPageContentSectionImageMode
+      )
+        ? (imageModeValue as LandingPageContentSectionImageMode)
+        : type === "text" || type === "faq"
+          ? "none"
+          : type === "steps" || type === "image_grid"
+            ? "required"
+            : "optional";
+      const itemIds = formData
+        .getAll(`contentSection${index}ItemIds`)
+        .map((value) => String(value).trim());
+      const titles = formData.getAll(`contentSection${index}ItemTitles`);
+      const bodies = formData.getAll(`contentSection${index}ItemBodies`);
+      const imageUrls = formData.getAll(`contentSection${index}ItemImageUrls`);
+      const captions = formData.getAll(`contentSection${index}ItemCaptions`);
+      const ctaTexts = formData.getAll(`contentSection${index}ItemCtaTexts`);
+      const ctaUrls = formData.getAll(`contentSection${index}ItemCtaUrls`);
+      const itemLength =
+        itemIds.length > 0
+          ? itemIds.length
+          : Math.max(
+              titles.length,
+              bodies.length,
+              imageUrls.length,
+              captions.length,
+              ctaTexts.length,
+              ctaUrls.length
+            );
+      const items = Array.from({
+        length: Math.min(itemLength, maxItemsForType(type)),
+      }).map((__, itemIndex) => ({
+        id: itemIds[itemIndex] || `item-${Date.now()}-${itemIndex + 1}`,
+        title: String(titles[itemIndex] ?? "").trim(),
+        body: String(bodies[itemIndex] ?? "").trim(),
+        imageUrl: String(imageUrls[itemIndex] ?? "").trim(),
+        caption: String(captions[itemIndex] ?? "").trim(),
+        ctaText: String(ctaTexts[itemIndex] ?? "").trim(),
+        ctaUrl: String(ctaUrls[itemIndex] ?? "").trim(),
+      }));
 
       return {
         id:
           readIndexed(formData, "contentSectionIds", index) ||
           `section-${Date.now()}-${index + 1}`,
-        type: "content" as const,
+        name:
+          readIndexed(formData, "contentSectionNames", index) ||
+          readIndexed(formData, "contentSectionLabels", index),
+        type,
         layout,
         label: readIndexed(formData, "contentSectionLabels", index),
         title: readIndexed(formData, "contentSectionTitles", index),
         subtitle: readIndexed(formData, "contentSectionSubtitles", index),
+        columns: readColumns(formData, index, fallbackColumnsFromLayout(layout)),
+        itemImageMode,
         order: Number(readIndexed(formData, "contentSectionOrders", index)) || index + 1,
         items,
       };
@@ -176,11 +248,15 @@ function readContentSections(formData: FormData): LandingPageContentSection[] {
 
   return sections.map((section) => ({
     id: section.id,
+    name: section.name,
     type: section.type,
     layout: section.layout,
     label: section.label,
     title: section.title,
     subtitle: section.subtitle,
+    columns: section.columns,
+    itemImageMode: section.itemImageMode,
+    order: section.order,
     items: section.items,
   }));
 }

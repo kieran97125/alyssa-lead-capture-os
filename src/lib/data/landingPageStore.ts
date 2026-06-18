@@ -5,11 +5,15 @@ import {
   defaultLandingPageContent,
   getLandingPageById as getLocalLandingPageById,
   getLandingPageBySlug as getLocalLandingPageBySlug,
+  normalizeLandingPageContentSections,
   type LandingPageConfig,
   type LandingPageContent,
   type LandingPageContentSection,
   type LandingPageContentSectionItem,
+  type LandingPageContentSectionColumns,
+  type LandingPageContentSectionImageMode,
   type LandingPageContentSectionLayout,
+  type LandingPageContentSectionType,
   type LandingPageImageAssets,
   type LandingPageMode,
   type LandingPageStatus,
@@ -267,21 +271,58 @@ const sectionLayouts: LandingPageContentSectionLayout[] = [
   "image_text",
   "two_cards",
   "three_cards",
+  "cards",
+  "steps",
   "faq",
   "image_grid",
 ];
 
+const sectionTypes: LandingPageContentSectionType[] = [
+  "text",
+  "image_text",
+  "cards",
+  "steps",
+  "faq",
+  "image_grid",
+];
+
+const sectionImageModes: LandingPageContentSectionImageMode[] = [
+  "none",
+  "optional",
+  "required",
+];
+
+function asSectionColumns(
+  value: unknown,
+  fallback: LandingPageContentSectionColumns
+): LandingPageContentSectionColumns {
+  const parsed = Number(value);
+  return parsed === 1 || parsed === 2 || parsed === 3 || parsed === 4
+    ? parsed
+    : fallback;
+}
+
+function columnsForLayout(
+  layout: LandingPageContentSectionLayout
+): LandingPageContentSectionColumns {
+  if (layout === "two_cards") return 2;
+  if (layout === "three_cards" || layout === "image_grid") return 3;
+  return 1;
+}
+
 function asContentSectionItems(value: unknown): LandingPageContentSectionItem[] {
   if (!Array.isArray(value)) return [];
 
-  return value.slice(0, 6).map((item) => {
+  return value.slice(0, 12).map((item, index) => {
     const record =
       item && typeof item === "object" ? (item as Record<string, unknown>) : {};
 
     return {
+      id: asString(record.id, `item-${index + 1}`),
       title: localizedString(record.title, ""),
       body: localizedString(record.body, ""),
       imageUrl: asString(record.imageUrl, ""),
+      caption: localizedString(record.caption, ""),
       ctaText: localizedString(record.ctaText, ""),
       ctaUrl: asString(record.ctaUrl, ""),
     };
@@ -302,17 +343,39 @@ function asContentSections(
     )
       ? (record.layout as LandingPageContentSectionLayout)
       : "text";
+    const type = sectionTypes.includes(record.type as LandingPageContentSectionType)
+      ? (record.type as LandingPageContentSectionType)
+      : layout === "two_cards"
+        ? "cards"
+        : layout === "three_cards"
+          ? "steps"
+          : layout === "cards" || layout === "steps"
+            ? layout
+            : layout;
+    const itemImageMode = sectionImageModes.includes(
+      record.itemImageMode as LandingPageContentSectionImageMode
+    )
+      ? (record.itemImageMode as LandingPageContentSectionImageMode)
+      : type === "text" || type === "faq"
+        ? "none"
+        : type === "steps" || type === "image_grid"
+          ? "required"
+          : "optional";
 
     return {
       id: asString(record.id, `section-${index + 1}`),
-      type: "content",
+      name: localizedString(record.name, localizedString(record.label, "")),
+      type,
       layout,
       label: localizedString(record.label, ""),
       title: localizedString(record.title, ""),
       subtitle: localizedString(record.subtitle, ""),
+      columns: asSectionColumns(record.columns, columnsForLayout(layout)),
+      itemImageMode,
+      order: Number(record.order) || index + 1,
       items: asContentSectionItems(record.items),
     };
-  });
+  }).map((section) => normalizeLandingPageContentSections([section])[0] ?? section);
 }
 
 export function getLandingPageContent(page: LandingPageConfig): LandingPageContent {

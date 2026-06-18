@@ -352,7 +352,12 @@ function SectionHeading({
 
 function hasVisibleItemContent(item: LandingPageContentSectionItem) {
   return Boolean(
-    item.title || item.body || item.imageUrl || item.ctaText || item.ctaUrl
+    item.title ||
+      item.body ||
+      item.imageUrl ||
+      item.caption ||
+      item.ctaText ||
+      item.ctaUrl
   );
 }
 
@@ -365,16 +370,18 @@ function hasVisibleSectionContent(section: LandingPageContentSection) {
 }
 
 function visibleItemsForSection(section: LandingPageContentSection) {
-  const limit =
-    section.layout === "two_cards"
-      ? 2
-      : section.layout === "three_cards"
-        ? 3
-        : section.layout === "faq"
-          ? 6
-          : 6;
+  return section.items.filter((item) => {
+    if (!hasVisibleItemContent(item)) return false;
+    if (section.itemImageMode === "required" && !item.imageUrl) return false;
+    return true;
+  });
+}
 
-  return section.items.filter(hasVisibleItemContent).slice(0, limit);
+function gridClassForColumns(columns: number) {
+  if (columns === 1) return "lg:grid-cols-1";
+  if (columns === 2) return "lg:grid-cols-2";
+  if (columns === 4) return "md:grid-cols-2 xl:grid-cols-4";
+  return "md:grid-cols-2 xl:grid-cols-3";
 }
 
 function ContentSectionBlock({
@@ -387,7 +394,7 @@ function ContentSectionBlock({
 
   if (!section.title && !section.subtitle && items.length === 0) return null;
 
-  if (section.layout === "text") {
+  if (section.type === "text") {
     return (
       <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
         <SectionHeading
@@ -399,7 +406,7 @@ function ContentSectionBlock({
     );
   }
 
-  if (section.layout === "image_text") {
+  if (section.type === "image_text") {
     const firstItem = items[0];
     return (
       <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-5 shadow-[0_24px_70px_rgba(216,91,163,0.1)] md:p-7">
@@ -437,7 +444,7 @@ function ContentSectionBlock({
     );
   }
 
-  if (section.layout === "faq") {
+  if (section.type === "faq") {
     return (
       <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
         <SectionHeading
@@ -466,12 +473,7 @@ function ContentSectionBlock({
     );
   }
 
-  const gridClass =
-    section.layout === "two_cards"
-      ? "lg:grid-cols-2"
-      : section.layout === "three_cards"
-        ? "lg:grid-cols-3"
-        : "md:grid-cols-2 xl:grid-cols-3";
+  const gridClass = gridClassForColumns(section.columns);
 
   return (
     <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
@@ -486,7 +488,8 @@ function ContentSectionBlock({
             key={`${section.id}-${index}`}
             item={item}
             index={index}
-            imageOnly={section.layout === "image_grid"}
+            imageOnly={section.type === "image_grid"}
+            labelPrefix={section.type === "steps" ? "STEP" : "ITEM"}
           />
         ))}
       </div>
@@ -498,10 +501,12 @@ function ContentCard({
   item,
   index,
   imageOnly = false,
+  labelPrefix = "ITEM",
 }: {
   item: LandingPageContentSectionItem;
   index: number;
   imageOnly?: boolean;
+  labelPrefix?: "ITEM" | "STEP";
 }) {
   return (
     <article className="overflow-hidden rounded-[34px] border border-[var(--public-border)] bg-white shadow-[0_24px_70px_rgba(216,91,163,0.12)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_85px_rgba(216,91,163,0.18)]">
@@ -528,7 +533,7 @@ function ContentCard({
       {!imageOnly && (
         <div className="px-6 pb-7 pt-5">
           <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--public-accent)]">
-            {`ITEM ${index + 1}`}
+            {`${labelPrefix} ${index + 1}`}
           </p>
           {item.title && (
             <h3 className="mt-3 text-xl font-bold leading-tight text-[var(--public-heading)]">
@@ -538,6 +543,11 @@ function ContentCard({
           {item.body && (
             <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
               {item.body}
+            </p>
+          )}
+          {item.caption && (
+            <p className="mt-3 text-xs font-semibold leading-5 text-[var(--public-muted)]">
+              {item.caption}
             </p>
           )}
           {item.ctaText && item.ctaUrl && (
@@ -561,6 +571,11 @@ function ContentCard({
           <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
             {item.body}
           </p>
+          )}
+          {item.caption && (
+            <p className="mt-3 text-xs font-semibold leading-5 text-[var(--public-muted)]">
+              {item.caption}
+            </p>
           )}
         </div>
       )}
