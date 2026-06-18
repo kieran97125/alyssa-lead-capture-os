@@ -2,6 +2,7 @@ import { randomBytes } from "crypto";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
 import {
   getBranch,
+  getBrand,
   getConfigurationData,
   getPackage,
   getTreatment,
@@ -41,6 +42,34 @@ function slugify(value: string) {
 
 function shortId() {
   return randomBytes(3).toString("hex");
+}
+
+export function buildPublicFormTokenBase(formName: string, brandSlug: string) {
+  const selectedBrandSlug = slugify(brandSlug)
+    .replace(/^alyssa-ineffable-beauty$/, "ineffable-beauty")
+    .replace(/^alyssa-ineffable$/, "ineffable");
+  const brandPrefix = selectedBrandSlug || slugify(formName);
+  const alternateBrandPrefix =
+    brandPrefix === "ineffable-beauty" ? "ineffable" : "";
+  let formSlug = slugify(formName);
+
+  [brandPrefix, alternateBrandPrefix]
+    .filter(Boolean)
+    .forEach((prefix) => {
+      if (formSlug === prefix) formSlug = "";
+      if (formSlug.startsWith(`${prefix}-`)) {
+        formSlug = formSlug.slice(prefix.length + 1);
+      }
+    });
+
+  formSlug = formSlug.replace(/-form$/, "");
+
+  const descriptor = formSlug || "campaign";
+  const base = `${brandPrefix}-${descriptor}-form`;
+
+  return base
+    .replace(/^alyssa-ineffable-beauty-/, "ineffable-beauty-")
+    .replace(/^alyssa-ineffable-/, "ineffable-");
 }
 
 function normalizeOrigin(value: string) {
@@ -104,8 +133,8 @@ function asForm(row: Record<string, unknown>): FormSetting {
   };
 }
 
-async function createUniqueToken(formName: string) {
-  const base = `alyssa-${slugify(formName)}-form`;
+async function createUniqueToken(formName: string, brandSlug: string) {
+  const base = buildPublicFormTokenBase(formName, brandSlug);
 
   if (!hasSupabaseAdminEnv()) {
     return `${base}-${shortId()}`;
@@ -187,9 +216,11 @@ export async function createForm(
   const config = await getConfigurationData();
   const validation = validateInput(config, input);
   if (!validation.ok) return { ok: false, message: validation.message };
+  const brand = getBrand(config, validation.input.brandId);
+  if (!brand) return { ok: false, message: "請選擇有效品牌。" };
 
   const supabase = createSupabaseAdminClient();
-  const token = await createUniqueToken(validation.input.formName);
+  const token = await createUniqueToken(validation.input.formName, brand.slug);
   const { data, error } = await supabase
     .from("forms")
     .insert({
@@ -258,12 +289,14 @@ export async function duplicateForm(formId: string): Promise<FormMutationResult>
     return { ok: false, message: "正式資料庫未連接，暫時未能複製表格。" };
   }
 
-  const { form } = await getFormByIdOrSlug(formId);
+  const { form, config } = await getFormByIdOrSlug(formId);
   if (!form) return { ok: false, message: "找不到表格。" };
+  const brand = getBrand(config, form.brandId);
+  if (!brand) return { ok: false, message: "請選擇有效品牌。" };
 
   const supabase = createSupabaseAdminClient();
   const name = `${form.formName} Copy`;
-  const token = await createUniqueToken(name);
+  const token = await createUniqueToken(name, brand.slug);
   const { data, error } = await supabase
     .from("forms")
     .insert({
