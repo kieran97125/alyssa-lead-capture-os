@@ -28,7 +28,8 @@ export type InternalAccessContext = {
     | "session"
     | "multi_basic_auth"
     | "legacy_basic_auth"
-    | "local_dev_fallback";
+    | "local_dev_fallback"
+    | "auth_disabled";
 };
 
 type ConfiguredUser = {
@@ -109,6 +110,19 @@ function isSupportedRole(value: string): value is InternalRole {
 
 function isProductionRuntime() {
   return process.env.NODE_ENV === "production";
+}
+
+export function isInternalAuthDisabled() {
+  return process.env.INTERNAL_AUTH_DISABLED === "true";
+}
+
+export function getInternalAuthCookieDomain() {
+  const value = process.env.INTERNAL_AUTH_COOKIE_DOMAIN?.trim();
+  if (!value) return undefined;
+  if (value.includes("://") || value.includes("/") || value.includes(":")) {
+    return undefined;
+  }
+  return value;
 }
 
 function parseMultiAccessUsers(value: string | undefined): ConfiguredUser[] {

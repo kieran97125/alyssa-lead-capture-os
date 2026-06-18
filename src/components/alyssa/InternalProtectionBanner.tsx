@@ -1,9 +1,11 @@
 import {
   hasInternalAccessConfig,
   hasInternalSessionConfig,
+  isInternalAuthDisabled,
 } from "@/lib/security/internalAccess";
 
 export function InternalProtectionBanner() {
+  if (isInternalAuthDisabled()) return null;
   if (hasInternalAccessConfig() && hasInternalSessionConfig()) return null;
 
   return (

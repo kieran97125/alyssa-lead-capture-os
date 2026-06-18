@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import {
   authenticateUsernamePassword,
+  isInternalAuthDisabled,
 } from "@/lib/security/internalAccess";
 import { setInternalSessionCookie } from "@/lib/security/internalAccessServer";
 
@@ -24,6 +25,8 @@ export async function loginAction(formData: FormData) {
   const username = readString(formData, "username");
   const password = String(formData.get("password") ?? "");
   const nextPath = safeNextPath(readString(formData, "next"));
+
+  if (isInternalAuthDisabled()) redirect(nextPath);
 
   const auth = authenticateUsernamePassword(username, password);
   if (!auth.ok) redirectToLoginError(nextPath);

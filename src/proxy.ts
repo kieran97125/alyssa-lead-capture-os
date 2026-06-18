@@ -4,6 +4,7 @@ import {
   canAccessModule,
   hasInternalSessionConfig,
   internalSessionCookieName,
+  isInternalAuthDisabled,
   noPermissionMessage,
   verifySignedInternalSession,
 } from "@/lib/security/internalAccess";
@@ -97,6 +98,14 @@ function redirectToLogin(request: NextRequest) {
 }
 
 async function getRequestAccess(request: NextRequest) {
+  if (isInternalAuthDisabled()) {
+    return {
+      username: "auth-disabled",
+      role: "owner" as const,
+      source: "auth_disabled" as const,
+    };
+  }
+
   if (process.env.NODE_ENV === "production" && !hasInternalSessionConfig()) {
     return null;
   }
@@ -159,6 +168,10 @@ export async function proxy(request: NextRequest) {
       return redirectToAdminOrigin(request, adminOrigin);
     }
 
+    if (isInternalAuthDisabled()) {
+      return NextResponse.next();
+    }
+
     const access = await getRequestAccess(request);
     logInternalAccessDebug({
       request,
@@ -178,6 +191,19 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!isInternalRoute(pathname)) {
+    return NextResponse.next();
+  }
+
+  if (isInternalAuthDisabled()) {
+    logInternalAccessDebug({
+      request,
+      hasCookie: Boolean(request.cookies.get(internalSessionCookieName)?.value),
+      sessionVerified: false,
+      role: "owner",
+      routeModule: getInternalRouteModule(pathname),
+      allowed: true,
+      decision: "allow",
+    });
     return NextResponse.next();
   }
 

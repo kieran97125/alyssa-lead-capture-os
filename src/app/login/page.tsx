@@ -1,5 +1,9 @@
+import Link from "next/link";
 import { loginAction } from "@/app/login/actions";
-import { loginErrorMessage } from "@/lib/security/internalAccess";
+import {
+  isInternalAuthDisabled,
+  loginErrorMessage,
+} from "@/lib/security/internalAccess";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +15,7 @@ export default async function LoginPage({
   const query = await searchParams;
   const hasError = query?.error === "1";
   const nextPath = typeof query?.next === "string" ? query.next : "/dashboard";
+  const authDisabled = isInternalAuthDisabled();
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_18%_10%,#fff1f7_0,#fff9f3_34%,#f6f2ff_100%)] px-5 py-10 text-[#321428]">
@@ -42,7 +47,19 @@ export default async function LoginPage({
             請使用內部帳戶登入，系統會按角色顯示可使用功能。
           </p>
 
-          {hasError && (
+          {authDisabled && (
+            <div className="mt-5 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-900">
+              <p>Internal auth is currently disabled by server configuration.</p>
+              <Link
+                href="/dashboard"
+                className="mt-3 inline-flex rounded-full bg-[#5a2348] px-4 py-2 text-xs font-bold text-white"
+              >
+                Open Dashboard
+              </Link>
+            </div>
+          )}
+
+          {hasError && !authDisabled && (
             <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-700">
               {loginErrorMessage}
             </p>
@@ -56,6 +73,7 @@ export default async function LoginPage({
               name="username"
               autoComplete="username"
               required
+              disabled={authDisabled}
               className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
             />
           </label>
@@ -69,13 +87,15 @@ export default async function LoginPage({
               type="password"
               autoComplete="current-password"
               required
+              disabled={authDisabled}
               className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
             />
           </label>
 
           <button
             type="submit"
-            className="mt-6 w-full rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_16px_36px_rgba(228,111,100,0.24)] transition hover:-translate-y-0.5 hover:bg-[#d85f55]"
+            disabled={authDisabled}
+            className="mt-6 w-full rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_16px_36px_rgba(228,111,100,0.24)] transition hover:-translate-y-0.5 hover:bg-[#d85f55] disabled:cursor-not-allowed disabled:opacity-50"
           >
             登入
           </button>

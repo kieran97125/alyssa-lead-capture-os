@@ -3,10 +3,12 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { getAdminBaseUrl, getPublicBaseUrl } from "@/lib/data/appUrl";
 import {
   canAccessModule,
+  getInternalAuthCookieDomain,
   getRoleLabel,
   getVisibleModulesForRole,
   internalSessionCookieName,
   internalSessionMaxAgeSeconds,
+  isInternalAuthDisabled,
   verifySignedInternalSession,
   type InternalModule,
 } from "@/lib/security/internalAccess";
@@ -40,16 +42,19 @@ export default async function DebugSessionPage() {
   const [cookieStore, headerStore] = await Promise.all([cookies(), headers()]);
   const sessionCookie = cookieStore.get(internalSessionCookieName);
   const session = await verifySignedInternalSession(sessionCookie?.value);
+  const authDisabled = isInternalAuthDisabled();
+  const effectiveRole = authDisabled ? "owner" : session?.role;
+  const cookieDomainConfigured = Boolean(getInternalAuthCookieDomain());
   const host =
     headerStore.get("x-forwarded-host") ?? headerStore.get("host") ?? "unknown";
   const protocol = headerStore.get("x-forwarded-proto") ?? "http";
-  const visibleModules = session
-    ? getVisibleModulesForRole(session.role).join(", ")
+  const visibleModules = effectiveRole
+    ? getVisibleModulesForRole(effectiveRole).join(", ")
     : "";
 
   const accessRows = checkedModules.map((module) => ({
     module,
-    allowed: session ? canAccessModule(session.role, module) : false,
+    allowed: effectiveRole ? canAccessModule(effectiveRole, module) : false,
   }));
 
   return (
@@ -73,11 +78,15 @@ export default async function DebugSessionPage() {
             label="Session cookie exists"
             value={yesNo(Boolean(sessionCookie?.value))}
           />
+          <Row label="Auth disabled" value={yesNo(authDisabled)} />
           <Row label="Session verifies" value={yesNo(Boolean(session))} />
-          <Row label="Username" value={session?.username ?? ""} />
+          <Row
+            label="Username"
+            value={authDisabled ? "auth-disabled" : session?.username ?? ""}
+          />
           <Row
             label="Role"
-            value={session ? `${session.role} (${getRoleLabel(session.role)})` : ""}
+            value={effectiveRole ? `${effectiveRole} (${getRoleLabel(effectiveRole)})` : ""}
           />
           <Row label="Allowed modules" value={visibleModules} />
           {accessRows.map((row) => (
@@ -91,6 +100,11 @@ export default async function DebugSessionPage() {
             label="Cookie settings summary"
             value={`httpOnly=true; secure=${process.env.NODE_ENV === "production"}; sameSite=lax; path=/; maxAge=${internalSessionMaxAgeSeconds}s`}
           />
+          <Row
+            label="Cookie domain configured"
+            value={yesNo(cookieDomainConfigured)}
+          />
+          <Row label="Cookie path expected" value="/" />
           <Row label="Admin base URL" value={getAdminBaseUrl()} />
           <Row label="Public base URL" value={getPublicBaseUrl()} />
         </dl>
