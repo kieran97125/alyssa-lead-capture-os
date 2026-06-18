@@ -76,6 +76,7 @@ export type LandingPageMutationResult = {
 
 export type LandingPageDraftMeta = {
   title?: string;
+  slug?: string;
   formId?: string;
 };
 
@@ -98,6 +99,7 @@ const uuidPattern =
 type LandingPageLoadSource = "draft" | "published" | "row" | "seed";
 
 const publicLandingPageSlugAliases = {
+  "alyssa-388-13e933": "ineffable-388-13e933",
   "alyssa-388-488b24": "ineffable-388-488b24",
 } as const;
 
@@ -128,11 +130,19 @@ function pickLandingPageRowBySlug(rows: LandingPageRow[], slug: string) {
 }
 
 function normalizeIneffableAliasText(value: string, slug: string) {
-  if (getCanonicalLandingPageSlug(slug) !== "ineffable-388-488b24") {
+  if (!isIneffableLandingPageSlug(slug)) {
     return value;
   }
 
   return value.replace(/\bAlyssa\b/g, "Ineffable Beauty");
+}
+
+export function isIneffableLandingPageSlug(slug: string) {
+  const canonicalSlug = getCanonicalLandingPageSlug(slug);
+  return (
+    canonicalSlug.startsWith("ineffable-") ||
+    canonicalSlug.startsWith("ineffable-beauty-")
+  );
 }
 
 function normalizeIneffableAliasStringArray(values: string[], slug: string) {
@@ -330,6 +340,32 @@ async function createUniqueLandingPageSlug(title: string, brandSlug: string) {
   }
 
   return `${base}-${Date.now().toString(36)}-${shortId()}`;
+}
+
+function normalizeEditableLandingPageSlug(value: string | undefined, fallback: string) {
+  const slug = slugify(value || fallback);
+  return getCanonicalLandingPageSlug(slug);
+}
+
+async function ensureLandingPageSlugAvailable(slug: string, currentPageId: string) {
+  if (!hasSupabaseAdminEnv()) return null;
+
+  const supabase = createSupabaseAdminClient();
+  const lookupSlugs = getLandingPageLookupSlugs(slug);
+  const { data, error } = await supabase
+    .from("landing_pages")
+    .select("id,slug")
+    .in("slug", lookupSlugs);
+
+  if (error) {
+    return `Slug 未能檢查：${error.message}`;
+  }
+
+  const conflict = (data ?? []).find(
+    (row) => row.id !== currentPageId && typeof row.slug === "string"
+  );
+
+  return conflict ? "Slug 已被其他 Landing Page 使用。" : null;
 }
 
 function asStringArray(value: unknown, fallback: string[]) {
@@ -1694,6 +1730,215 @@ export async function publishLandingPageFromEditor(
     source: "supabase",
     message: `發布版本 ${version.version_number} 已更新公開頁。`,
     page: rowToConfig({ ...publishRow, status: "published", published_at: now }, version),
+    versionNumber: version.version_number,
+  };
+}
+
+export async function saveLandingPageDraftWithSlug(
+  pageId: string,
+  content: LandingPageContent,
+  imageAssets: LandingPageImageAssets,
+  meta: LandingPageDraftMeta = {}
+): Promise<LandingPageMutationResult> {
+  const row = await findLandingPageRow(pageId);
+  if (!row || !hasSupabaseAdminEnv()) {
+    return {
+      ok: false,
+      source: "local_config",
+      message: "目前未能保存，請確認這個 Landing Page 已連接正式資料。",
+    };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const latest = await getLatestVersion(row.id);
+  const versionNumber = (latest?.version_number ?? 0) + 1;
+  const savedAt = new Date().toISOString();
+  const nextSlug = normalizeEditableLandingPageSlug(meta.slug, row.slug);
+  const slugConflict = await ensureLandingPageSlugAvailable(nextSlug, row.id);
+
+  if (slugConflict) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: slugConflict,
+    };
+  }
+
+  const { error: versionError } = await supabase
+    .from("landing_page_versions")
+    .insert({
+      page_id: row.id,
+      version_number: versionNumber,
+      status: "draft",
+      content_json: content,
+      image_assets_json: imageAssets,
+    });
+
+  if (versionError) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `草稿未能保存：${versionError.message}`,
+    };
+  }
+
+  const updatedRow: LandingPageRow = {
+    ...row,
+    slug: nextSlug,
+    title: meta.title ?? row.title,
+    form_id: meta.formId ?? row.form_id,
+    content_json: content as unknown as Record<string, unknown>,
+    image_assets_json: imageAssets as unknown as Record<string, unknown>,
+    updated_at: savedAt,
+  };
+
+  const { error: pageError } = await supabase
+    .from("landing_pages")
+    .update({
+      slug: nextSlug,
+      title: updatedRow.title,
+      form_id: updatedRow.form_id,
+      status: row.published_version_id ? row.status : "draft",
+      content_json: content,
+      image_assets_json: imageAssets,
+      updated_at: savedAt,
+    })
+    .eq("id", row.id);
+
+  if (pageError) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `Landing Page 未能更新：${pageError.message}`,
+    };
+  }
+
+  return {
+    ok: true,
+    source: "supabase",
+    message: `草稿版本 ${versionNumber} 已保存。`,
+    page: rowToConfig(updatedRow, {
+      id: "draft",
+      page_id: row.id,
+      version_number: versionNumber,
+      status: "draft",
+      content_json: content as unknown as Record<string, unknown>,
+      image_assets_json: imageAssets as unknown as Record<string, unknown>,
+      created_at: savedAt,
+    }),
+    versionNumber,
+  };
+}
+
+export async function publishLandingPageFromEditorWithSlug(
+  pageId: string,
+  content: LandingPageContent,
+  imageAssets: LandingPageImageAssets,
+  meta: LandingPageDraftMeta = {}
+): Promise<LandingPageMutationResult> {
+  const row = await findLandingPageRow(pageId);
+  if (!row || !hasSupabaseAdminEnv()) {
+    return {
+      ok: false,
+      source: "local_config",
+      message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
+    };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const now = new Date().toISOString();
+  const nextSlug = normalizeEditableLandingPageSlug(meta.slug, row.slug);
+  const slugConflict = await ensureLandingPageSlugAvailable(nextSlug, row.id);
+
+  if (slugConflict) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: slugConflict,
+    };
+  }
+
+  const publishRow: LandingPageRow = {
+    ...row,
+    slug: nextSlug,
+    title: meta.title ?? row.title,
+    form_id: meta.formId ?? row.form_id,
+    content_json: content as unknown as Record<string, unknown>,
+    image_assets_json: imageAssets as unknown as Record<string, unknown>,
+    updated_at: now,
+  };
+  const latest = await getLatestVersion(row.id);
+  const versionNumber = (latest?.version_number ?? 0) + 1;
+  const pendingVersion: LandingPageVersionRow = {
+    id: "pending",
+    page_id: row.id,
+    version_number: versionNumber,
+    status: "published",
+    content_json: publishRow.content_json,
+    image_assets_json: publishRow.image_assets_json,
+    created_at: now,
+  };
+  const missing = await validatePublishReadiness(publishRow, pendingVersion);
+
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `發布前請先完成：${missing.join("、")}`,
+    };
+  }
+
+  const { data: version, error: versionError } = await supabase
+    .from("landing_page_versions")
+    .insert({
+      page_id: row.id,
+      version_number: versionNumber,
+      status: "published",
+      content_json: content,
+      image_assets_json: imageAssets,
+    })
+    .select("*")
+    .single<LandingPageVersionRow>();
+
+  if (versionError || !version) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `發布版本未能建立：${versionError?.message ?? "unknown error"}`,
+    };
+  }
+
+  const { error: pageError } = await supabase
+    .from("landing_pages")
+    .update({
+      slug: nextSlug,
+      title: publishRow.title,
+      form_id: publishRow.form_id,
+      status: "published",
+      content_json: content,
+      image_assets_json: imageAssets,
+      published_version_id: version.id,
+      published_at: now,
+      updated_at: now,
+    })
+    .eq("id", row.id);
+
+  if (pageError) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `Landing Page 發布狀態未能更新：${pageError.message}`,
+    };
+  }
+
+  return {
+    ok: true,
+    source: "supabase",
+    message: `發布版本 ${version.version_number} 已更新公開頁。`,
+    page: rowToConfig(
+      { ...publishRow, status: "published", published_at: now },
+      version
+    ),
     versionNumber: version.version_number,
   };
 }

@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
-  publishLandingPageFromEditor,
-  saveLandingPageDraft,
+  publishLandingPageFromEditorWithSlug,
+  saveLandingPageDraftWithSlug,
 } from "@/lib/data/landingPageStore";
 import type {
   LandingPageContent,
@@ -261,12 +261,14 @@ function readContentSections(formData: FormData): LandingPageContentSection[] {
 
 function parseEditorForm(formData: FormData): {
   title: string;
+  slug: string;
   formId: string;
   content: LandingPageContent;
   imageAssets: LandingPageImageAssets;
   error: string | null;
 } {
   const title = readString(formData, "title");
+  const slug = readString(formData, "slug");
   const formId = readString(formData, "connectedFormId");
   const heroTitle = readString(formData, "heroTitle");
   const ctaText = readString(formData, "ctaText");
@@ -274,6 +276,7 @@ function parseEditorForm(formData: FormData): {
   if (!title) {
     return {
       title,
+      slug,
       formId,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
@@ -284,6 +287,7 @@ function parseEditorForm(formData: FormData): {
   if (!heroTitle) {
     return {
       title,
+      slug,
       formId,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
@@ -294,6 +298,7 @@ function parseEditorForm(formData: FormData): {
   if (!ctaText) {
     return {
       title,
+      slug,
       formId,
       content: {} as LandingPageContent,
       imageAssets: {} as LandingPageImageAssets,
@@ -351,7 +356,7 @@ function parseEditorForm(formData: FormData): {
     trustImageUrl: readOptionalUrl(formData, "trustImageUrl"),
   };
 
-  return { title, formId, content, imageAssets, error: null };
+  return { title, slug, formId, content, imageAssets, error: null };
 }
 
 export async function saveLandingPageDraftAction(formData: FormData) {
@@ -360,16 +365,21 @@ export async function saveLandingPageDraftAction(formData: FormData) {
 
   if (parsed.error) resultRedirect(pageId, parsed.error);
 
-  const result = await saveLandingPageDraft(pageId, parsed.content, parsed.imageAssets, {
+  const result = await saveLandingPageDraftWithSlug(pageId, parsed.content, parsed.imageAssets, {
     title: parsed.title,
+    slug: parsed.slug || undefined,
     formId: parsed.formId || undefined,
   });
 
   revalidatePath("/landing-pages");
   revalidatePath(`/landing-pages/${pageId}`);
   revalidatePath(`/lp/${pageId}`);
+  if (result.ok && result.page?.slug && result.page.slug !== pageId) {
+    revalidatePath(`/landing-pages/${result.page.slug}`);
+    revalidatePath(`/lp/${result.page.slug}`);
+  }
 
-  resultRedirect(pageId, result.message);
+  resultRedirect(result.page?.slug ?? pageId, result.message);
 }
 
 export async function publishLandingPageAction(formData: FormData) {
@@ -378,12 +388,13 @@ export async function publishLandingPageAction(formData: FormData) {
 
   if (parsed.error) resultRedirect(pageId, parsed.error);
 
-  const result = await publishLandingPageFromEditor(
+  const result = await publishLandingPageFromEditorWithSlug(
     pageId,
     parsed.content,
     parsed.imageAssets,
     {
       title: parsed.title,
+      slug: parsed.slug || undefined,
       formId: parsed.formId || undefined,
     }
   );
@@ -399,5 +410,5 @@ export async function publishLandingPageAction(formData: FormData) {
     }
   }
 
-  resultRedirect(pageId, result.message);
+  resultRedirect(result.page?.slug ?? pageId, result.message);
 }

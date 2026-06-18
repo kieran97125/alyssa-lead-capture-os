@@ -18,6 +18,7 @@ import {
 import {
   getCanonicalLandingPageSlug,
   getPublishedLandingPageBySlug,
+  isIneffableLandingPageSlug,
 } from "@/lib/data/landingPageStore";
 import {
   IMAGE_REFERENCE_FOOTER_NOTE,
@@ -141,7 +142,7 @@ export default async function PublicLandingPage({
     notFound();
   }
 
-  const isIneffableCanonical = page.slug === "ineffable-388-488b24";
+  const isIneffableCanonical = isIneffableLandingPageSlug(page.slug);
   const theme = resolvePublicBrandTheme({
     brandSlug: isIneffableCanonical ? "ineffable" : publicBrand.slug,
     brandName: isIneffableCanonical ? "Ineffable Beauty" : publicBrand.name,
@@ -164,7 +165,7 @@ export default async function PublicLandingPage({
   const heroImageUrl =
     page.heroImageUrl || (isIneffable ? ineffableAssets.hero : "");
   const legalProfile = getBrandLegalProfile({
-    brandSlug: publicBrand.slug,
+    brandSlug: isIneffable ? "ineffable" : publicBrand.slug,
     brandName: brandDisplayName,
   });
   const contentSections = getResolvedLandingPageContentSections(page).filter(
@@ -351,7 +352,7 @@ export default async function PublicLandingPage({
               <PublicLeadForm
                 formToken={connectedForm.publicFormToken}
                 formId={connectedForm.id}
-                brandSlug={publicBrand.slug}
+                brandSlug={isIneffable ? "ineffable" : publicBrand.slug}
               />
             </div>
           </div>

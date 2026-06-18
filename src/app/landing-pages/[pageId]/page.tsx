@@ -258,7 +258,7 @@ export default async function LandingPageConfigPage({
             >
               <div className="grid gap-4 md:grid-cols-2">
                 <TextField label="頁面名稱" value={page.title} name="title" />
-                <TextField label="Slug" value={page.slug} readOnly />
+                <TextField label="Slug" value={page.slug} name="slug" />
                 <TextField label="狀態" value={statusLabel(page.status)} readOnly />
                 <TextField label="公開頁網址" value={publicDisplay} readOnly />
               </div>

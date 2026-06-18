@@ -321,6 +321,18 @@ function normalizeBrand(raw: Record<string, unknown>): BrandOption {
   };
 }
 
+function getBrandDisplayOverride(brandSlug?: string | null): BrandOption | null {
+  if (brandSlug === "ineffable" || brandSlug === "ineffable-beauty") {
+    return {
+      id: "ineffable-brand-display",
+      name: "Ineffable Beauty",
+      slug: "ineffable",
+    };
+  }
+
+  return null;
+}
+
 function isDisplayPackage(item: PackageOption) {
   return item.paymentRequired || item.promoPrice > 0;
 }
@@ -390,6 +402,7 @@ export function PublicLeadForm({
     alyssaBranches.map(normalizeBranch)
   );
   const [brand, setBrand] = useState<BrandOption>(() =>
+    getBrandDisplayOverride(brandSlug) ??
     normalizeBrand({ id: "alyssa-brand-seed", name: "Alyssa", slug: "alyssa" })
   );
   const [formData, setFormData] = useState({
@@ -464,7 +477,8 @@ export function PublicLeadForm({
         setConfigMessage("");
 
         const nextForm = normalizeForm(result.form ?? {});
-        const nextBrand = normalizeBrand(result.brand ?? {});
+        const nextBrand =
+          getBrandDisplayOverride(brandSlug) ?? normalizeBrand(result.brand ?? {});
         const nextTreatments = (result.treatments ?? [])
           .map(normalizeTreatment)
           .filter((item: TreatmentOption) => item.id && item.name);
@@ -499,7 +513,7 @@ export function PublicLeadForm({
     }
 
     void loadConfig();
-  }, [formToken]);
+  }, [brandSlug, formToken]);
 
   useEffect(() => {
     const initialAttribution = captureCurrentPageAttribution({

@@ -87,6 +87,13 @@ export function getBrandLegalProfile({
 }
 
 export function getLegalFooterText(profile: BrandLegalProfile) {
+  if (
+    profile.brandSlug === "ineffable" ||
+    profile.brandSlug === "ineffable-beauty"
+  ) {
+    return `© 2026 ${profile.brandName}。`;
+  }
+
   if (profile.operatingCompanyName) {
     return `© 2026 ${profile.brandName}，由 ${profile.operatingCompanyName} 營運。`;
   }
