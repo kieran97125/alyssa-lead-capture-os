@@ -56,11 +56,14 @@ type LandingPageVersionRow = {
 export type LandingPageEditorData = {
   page: LandingPageConfig;
   source: "supabase" | "local_config";
-  loadedFrom: "draft" | "published" | "seed";
+  loadedFrom: LandingPageLoadSource;
   canPersist: boolean;
   statusMessage: string;
   latestDraftVersionNumber: number | null;
   publishedVersionNumber: number | null;
+  pageRecordId: string | null;
+  versionId: string | null;
+  versionCreatedAt: string | null;
 };
 
 export type LandingPageMutationResult = {
@@ -91,6 +94,84 @@ export type CreateLandingPageDraftInput = {
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+type LandingPageLoadSource = "draft" | "published" | "row" | "seed";
+
+const publicLandingPageSlugAliases = {
+  "alyssa-388-488b24": "ineffable-388-488b24",
+} as const;
+
+export function getCanonicalLandingPageSlug(slug: string) {
+  return (
+    publicLandingPageSlugAliases[
+      slug as keyof typeof publicLandingPageSlugAliases
+    ] ?? slug
+  );
+}
+
+function getLandingPageLookupSlugs(slug: string) {
+  const canonicalSlug = getCanonicalLandingPageSlug(slug);
+  const legacySlugs = Object.entries(publicLandingPageSlugAliases)
+    .filter(([, target]) => target === canonicalSlug)
+    .map(([source]) => source);
+
+  return Array.from(new Set([canonicalSlug, slug, ...legacySlugs]));
+}
+
+function pickLandingPageRowBySlug(rows: LandingPageRow[], slug: string) {
+  const lookupSlugs = getLandingPageLookupSlugs(slug);
+  return (
+    lookupSlugs
+      .map((candidate) => rows.find((row) => row.slug === candidate))
+      .find(Boolean) ?? null
+  );
+}
+
+function normalizeIneffableAliasText(value: string, slug: string) {
+  if (getCanonicalLandingPageSlug(slug) !== "ineffable-388-488b24") {
+    return value;
+  }
+
+  return value.replace(/\bAlyssa\b/g, "Ineffable Beauty");
+}
+
+function normalizeIneffableAliasStringArray(values: string[], slug: string) {
+  return values.map((value) => normalizeIneffableAliasText(value, slug));
+}
+
+function normalizeIneffableAliasPairs<T extends Record<string, string>>(
+  values: T[],
+  slug: string
+) {
+  return values.map((item) =>
+    Object.fromEntries(
+      Object.entries(item).map(([key, value]) => [
+        key,
+        normalizeIneffableAliasText(value, slug),
+      ])
+    ) as T
+  );
+}
+
+function normalizeIneffableAliasContentSections(
+  sections: LandingPageContentSection[],
+  slug: string
+) {
+  return sections.map((section) => ({
+    ...section,
+    name: normalizeIneffableAliasText(section.name, slug),
+    label: normalizeIneffableAliasText(section.label, slug),
+    title: normalizeIneffableAliasText(section.title, slug),
+    subtitle: normalizeIneffableAliasText(section.subtitle, slug),
+    items: section.items.map((item) => ({
+      ...item,
+      title: normalizeIneffableAliasText(item.title, slug),
+      body: normalizeIneffableAliasText(item.body, slug),
+      caption: normalizeIneffableAliasText(item.caption, slug),
+      ctaText: normalizeIneffableAliasText(item.ctaText, slug),
+    })),
+  }));
+}
 
 const supabaseToLocalIds = {
   brand: {
@@ -197,8 +278,41 @@ function shortId() {
   return randomBytes(3).toString("hex");
 }
 
-async function createUniqueLandingPageSlug(title: string) {
-  const base = `alyssa-${slugify(title)}`;
+export function buildLandingPageSlugBase(title: string, brandSlug: string) {
+  const selectedBrandSlug = slugify(brandSlug)
+    .replace(/^alyssa-ineffable-beauty$/, "ineffable-beauty")
+    .replace(/^alyssa-ineffable$/, "ineffable");
+  const brandPrefix = selectedBrandSlug || "campaign";
+  const alternateBrandPrefix =
+    brandPrefix === "ineffable-beauty" ? "ineffable" : "";
+  let pageSlug = slugify(title);
+
+  [brandPrefix, alternateBrandPrefix]
+    .filter(Boolean)
+    .forEach((prefix) => {
+      if (pageSlug === prefix) pageSlug = "";
+      if (pageSlug.startsWith(`${prefix}-`)) {
+        pageSlug = pageSlug.slice(prefix.length + 1);
+      }
+    });
+
+  if (brandPrefix.startsWith("ineffable")) {
+    pageSlug = pageSlug
+      .replace(/^alyssa-ineffable-beauty-/, "")
+      .replace(/^alyssa-ineffable-/, "")
+      .replace(/^alyssa-/, "");
+  }
+
+  const descriptor = pageSlug || "campaign";
+  const base = `${brandPrefix}-${descriptor}`;
+
+  return base
+    .replace(/^alyssa-ineffable-beauty-/, "ineffable-beauty-")
+    .replace(/^alyssa-ineffable-/, "ineffable-");
+}
+
+async function createUniqueLandingPageSlug(title: string, brandSlug: string) {
+  const base = buildLandingPageSlugBase(title, brandSlug);
 
   if (!hasSupabaseAdminEnv()) return `${base}-${shortId()}`;
 
@@ -569,7 +683,7 @@ function logLandingPageLoad({
 }: {
   pageId: string;
   slug: string;
-  loadedFrom: "draft" | "published" | "seed";
+  loadedFrom: LandingPageLoadSource;
   page: LandingPageConfig;
 }) {
   if (process.env.NODE_ENV !== "development") return;
@@ -587,7 +701,10 @@ function rowToConfig(
   row: LandingPageRow,
   version?: LandingPageVersionRow | null
 ): LandingPageConfig {
+  const canonicalSlug = getCanonicalLandingPageSlug(row.slug);
   const fallback =
+    getLocalLandingPageBySlug(canonicalSlug) ??
+    getLocalLandingPageById(canonicalSlug) ??
     getLocalLandingPageBySlug(row.slug) ??
     getLocalLandingPageById(row.slug) ??
     alyssaLandingPages[0];
@@ -608,9 +725,22 @@ function rowToConfig(
     ...fallback,
     ...content,
     ...images,
-    id: row.slug,
-    slug: row.slug,
-    title: localizeKnownDefaultText(row.title),
+    id: canonicalSlug,
+    slug: canonicalSlug,
+    title: normalizeIneffableAliasText(
+      localizeKnownDefaultText(row.title),
+      canonicalSlug
+    ),
+    heroTitle: normalizeIneffableAliasText(content.heroTitle, canonicalSlug),
+    heroSubtitle: normalizeIneffableAliasText(content.heroSubtitle, canonicalSlug),
+    offerBadge: normalizeIneffableAliasText(content.offerBadge, canonicalSlug),
+    offerHeadline: normalizeIneffableAliasText(content.offerHeadline, canonicalSlug),
+    offerBody: normalizeIneffableAliasText(content.offerBody, canonicalSlug),
+    ctaText: normalizeIneffableAliasText(content.ctaText, canonicalSlug),
+    secondaryCtaText: normalizeIneffableAliasText(
+      content.secondaryCtaText,
+      canonicalSlug
+    ),
     brandId: mapKnownId(row.brand_id, supabaseToLocalIds.brand, ""),
     treatmentId: mapKnownId(
       row.treatment_id,
@@ -632,6 +762,19 @@ function rowToConfig(
     publishedAt: row.published_at,
     latestVersionNumber: version?.version_number ?? null,
     builderSource: "supabase",
+    painPoints: normalizeIneffableAliasStringArray(content.painPoints, canonicalSlug),
+    benefits: normalizeIneffableAliasStringArray(content.benefits, canonicalSlug),
+    trustItems: normalizeIneffableAliasStringArray(content.trustItems, canonicalSlug),
+    sections: normalizeIneffableAliasPairs(content.sections, canonicalSlug),
+    processSteps: normalizeIneffableAliasPairs(
+      content.processSteps,
+      canonicalSlug
+    ),
+    contentSections: normalizeIneffableAliasContentSections(
+      content.contentSections,
+      canonicalSlug
+    ),
+    faqs: normalizeIneffableAliasPairs(content.faqs, canonicalSlug),
     contentSectionsExplicit: hasOwnContentSections(contentSource),
   };
 }
@@ -640,12 +783,29 @@ async function findLandingPageRow(pageId: string) {
   if (!hasSupabaseAdminEnv()) return null;
 
   const supabase = createSupabaseAdminClient();
-  const column = uuidPattern.test(pageId) ? "id" : "slug";
+  if (uuidPattern.test(pageId)) {
+    const { data, error } = await supabase
+      .from("landing_pages")
+      .select("*")
+      .eq("id", pageId)
+      .maybeSingle<LandingPageRow>();
+
+    if (error) {
+      console.warn("landing_pages lookup failed", {
+        code: error.code,
+        message: error.message,
+      });
+      return null;
+    }
+
+    return data;
+  }
+
+  const lookupSlugs = getLandingPageLookupSlugs(pageId);
   const { data, error } = await supabase
     .from("landing_pages")
     .select("*")
-    .eq(column, pageId)
-    .maybeSingle<LandingPageRow>();
+    .in("slug", lookupSlugs);
 
   if (error) {
     console.warn("landing_pages lookup failed", {
@@ -655,7 +815,7 @@ async function findLandingPageRow(pageId: string) {
     return null;
   }
 
-  return data;
+  return pickLandingPageRowBySlug((data ?? []) as LandingPageRow[], pageId);
 }
 
 async function getVersionById(versionId: string | null) {
@@ -1032,7 +1192,9 @@ async function validatePublishReadiness(
 export async function getLandingPageBySlug(slug: string) {
   const row = await findLandingPageRow(slug);
   if (!row) {
-    const fallback = getLocalLandingPageBySlug(slug);
+    const canonicalSlug = getCanonicalLandingPageSlug(slug);
+    const fallback =
+      getLocalLandingPageBySlug(canonicalSlug) ?? getLocalLandingPageBySlug(slug);
     return fallback
       ? {
           ...fallback,
@@ -1053,8 +1215,12 @@ export async function getLandingPageBySlug(slug: string) {
 export async function getLandingPageById(id: string) {
   const row = await findLandingPageRow(id);
   if (!row) {
+    const canonicalSlug = getCanonicalLandingPageSlug(id);
     const fallback =
-      getLocalLandingPageById(id) ?? getLocalLandingPageBySlug(id);
+      getLocalLandingPageById(canonicalSlug) ??
+      getLocalLandingPageBySlug(canonicalSlug) ??
+      getLocalLandingPageById(id) ??
+      getLocalLandingPageBySlug(id);
     return fallback
       ? {
           ...fallback,
@@ -1078,49 +1244,59 @@ export async function getPublishedLandingPageBySlug(slug: string) {
     const { data, error } = await supabase
       .from("landing_pages")
       .select("*")
-      .eq("slug", slug)
-      .eq("status", "published")
-      .maybeSingle<LandingPageRow>();
+      .in("slug", getLandingPageLookupSlugs(slug))
+      .eq("status", "published");
 
     if (error) {
       console.warn("published landing page lookup failed", {
         code: error.code,
         message: error.message,
       });
-    } else if (data) {
-      const version = await getPublishedVersionForRow(data);
+    } else {
+      const row = pickLandingPageRowBySlug(
+        ((data ?? []) as LandingPageRow[]),
+        slug
+      );
 
-      if (!version) {
-        console.warn("published_landing_page_version_unavailable", {
-          pageId: data.id,
-          slug: data.slug,
-          versionId: data.published_version_id,
-          versionStatus: "missing",
-        });
-        if (hasPersistedPageState(data)) {
-          const page = rowToConfig(data, null);
+      if (!row) {
+        // Fall through to local fallback below.
+      } else {
+        const version = await getPublishedVersionForRow(row);
+
+        if (!version) {
+          console.warn("published_landing_page_version_unavailable", {
+            pageId: row.id,
+            slug: row.slug,
+            versionId: row.published_version_id,
+            versionStatus: "missing",
+          });
+          if (hasPersistedPageState(row)) {
+            const page = rowToConfig(row, null);
+            logLandingPageLoad({
+              pageId: row.id,
+              slug: row.slug,
+              loadedFrom: "published",
+              page,
+            });
+            return page;
+          }
+        } else {
+          const page = rowToConfig(row, version);
           logLandingPageLoad({
-            pageId: data.id,
-            slug: data.slug,
+            pageId: row.id,
+            slug: row.slug,
             loadedFrom: "published",
             page,
           });
           return page;
         }
-      } else {
-        const page = rowToConfig(data, version);
-        logLandingPageLoad({
-          pageId: data.id,
-          slug: data.slug,
-          loadedFrom: "published",
-          page,
-        });
-        return page;
       }
     }
   }
 
-  const fallback = getLocalLandingPageBySlug(slug);
+  const canonicalSlug = getCanonicalLandingPageSlug(slug);
+  const fallback =
+    getLocalLandingPageBySlug(canonicalSlug) ?? getLocalLandingPageBySlug(slug);
   return fallback
     ? {
         ...fallback,
@@ -1139,12 +1315,12 @@ export async function getLandingPageEditorState(
       const latestDraft = await getLatestVersion(row.id, "draft");
       const publishedVersion = await getPublishedVersionForRow(row);
       const latestVersion = latestDraft ?? publishedVersion;
-      const loadedFrom: "draft" | "published" | "seed" = latestDraft
+      const loadedFrom: LandingPageLoadSource = latestDraft
         ? "draft"
         : publishedVersion
           ? "published"
           : hasPersistedPageState(row)
-            ? "draft"
+            ? "row"
             : "seed";
       const page = rowToConfig(row, latestVersion);
 
@@ -1165,9 +1341,14 @@ export async function getLandingPageEditorState(
             ? "正在載入最新草稿。"
             : loadedFrom === "published"
               ? "正在載入最新已發布版本。"
-              : "正在載入預設內容；儲存後會以草稿為準。",
+              : loadedFrom === "row"
+                ? "正在載入頁面目前保存內容。"
+                : "正在載入預設內容；儲存後會以草稿為準。",
         latestDraftVersionNumber: latestDraft?.version_number ?? null,
         publishedVersionNumber: publishedVersion?.version_number ?? null,
+        pageRecordId: row.id,
+        versionId: latestVersion?.id ?? null,
+        versionCreatedAt: latestVersion?.created_at ?? null,
       };
     }
   }
@@ -1187,6 +1368,9 @@ export async function getLandingPageEditorState(
       : "目前只可查看內容；儲存草稿及發布功能稍後開放。",
     latestDraftVersionNumber: null,
     publishedVersionNumber: null,
+    pageRecordId: null,
+    versionId: null,
+    versionCreatedAt: null,
   };
 }
 
@@ -1245,7 +1429,23 @@ export async function createLandingPageDraft(input: CreateLandingPageDraftInput)
   }
 
   const supabase = createSupabaseAdminClient();
-  const slug = await createUniqueLandingPageSlug(input.title);
+  const { data: brand, error: brandError } = await supabase
+    .from("brands")
+    .select("slug")
+    .eq("id", input.brandId)
+    .maybeSingle<{ slug: string | null }>();
+
+  if (brandError || !brand?.slug) {
+    console.warn("landing_page_brand_slug_lookup_failed", brandError);
+    return {
+      ok: false,
+      message: "Landing Page 未能建立，請確認品牌資料及品牌代號。",
+      pageId: null,
+      slug: null,
+    };
+  }
+
+  const slug = await createUniqueLandingPageSlug(input.title, brand.slug);
   const content: LandingPageContent = {
     templateName: "offer-landing-page",
     testingStatus: "ready_for_testing",
@@ -1398,6 +1598,103 @@ export async function saveLandingPageDraft(
     source: "supabase",
     message: `草稿版本 ${versionNumber} 已儲存。`,
     versionNumber,
+  };
+}
+
+export async function publishLandingPageFromEditor(
+  pageId: string,
+  content: LandingPageContent,
+  imageAssets: LandingPageImageAssets,
+  meta: LandingPageDraftMeta = {}
+): Promise<LandingPageMutationResult> {
+  const row = await findLandingPageRow(pageId);
+  if (!row || !hasSupabaseAdminEnv()) {
+    return {
+      ok: false,
+      source: "local_config",
+      message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
+    };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const now = new Date().toISOString();
+  const publishRow: LandingPageRow = {
+    ...row,
+    title: meta.title ?? row.title,
+    form_id: meta.formId ?? row.form_id,
+    content_json: content as unknown as Record<string, unknown>,
+    image_assets_json: imageAssets as unknown as Record<string, unknown>,
+    updated_at: now,
+  };
+  const latest = await getLatestVersion(row.id);
+  const versionNumber = (latest?.version_number ?? 0) + 1;
+  const pendingVersion: LandingPageVersionRow = {
+    id: "pending",
+    page_id: row.id,
+    version_number: versionNumber,
+    status: "published",
+    content_json: publishRow.content_json,
+    image_assets_json: publishRow.image_assets_json,
+    created_at: now,
+  };
+  const missing = await validatePublishReadiness(publishRow, pendingVersion);
+
+  if (missing.length > 0) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `發布前請先完成：${missing.join("、")}`,
+    };
+  }
+
+  const { data: version, error: versionError } = await supabase
+    .from("landing_page_versions")
+    .insert({
+      page_id: row.id,
+      version_number: versionNumber,
+      status: "published",
+      content_json: content,
+      image_assets_json: imageAssets,
+    })
+    .select("*")
+    .single<LandingPageVersionRow>();
+
+  if (versionError || !version) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `發布版本未能建立：${versionError?.message ?? "unknown error"}`,
+    };
+  }
+
+  const { error: pageError } = await supabase
+    .from("landing_pages")
+    .update({
+      title: publishRow.title,
+      form_id: publishRow.form_id,
+      status: "published",
+      content_json: content,
+      image_assets_json: imageAssets,
+      published_version_id: version.id,
+      published_at: now,
+      updated_at: now,
+    })
+    .eq("id", row.id);
+
+  if (pageError) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `Landing Page 發布狀態未能更新：${pageError.message}`,
+    };
+  }
+
+  return {
+    ok: true,
+    source: "supabase",
+    message: `發布版本 ${version.version_number} 已更新公開頁。`,
+    page: rowToConfig({ ...publishRow, status: "published", published_at: now }, version),
+    versionNumber: version.version_number,
   };
 }
 

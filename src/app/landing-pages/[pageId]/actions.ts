@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
-  publishLandingPage,
+  publishLandingPageFromEditor,
   saveLandingPageDraft,
 } from "@/lib/data/landingPageStore";
 import type {
@@ -374,13 +374,29 @@ export async function saveLandingPageDraftAction(formData: FormData) {
 
 export async function publishLandingPageAction(formData: FormData) {
   const pageId = String(formData.get("pageId") ?? "");
-  const result = await publishLandingPage(pageId);
+  const parsed = parseEditorForm(formData);
+
+  if (parsed.error) resultRedirect(pageId, parsed.error);
+
+  const result = await publishLandingPageFromEditor(
+    pageId,
+    parsed.content,
+    parsed.imageAssets,
+    {
+      title: parsed.title,
+      formId: parsed.formId || undefined,
+    }
+  );
 
   revalidatePath("/landing-pages");
   revalidatePath(`/landing-pages/${pageId}`);
 
   if (result.ok) {
     revalidatePath(`/lp/${pageId}`);
+    if (result.page?.slug && result.page.slug !== pageId) {
+      revalidatePath(`/landing-pages/${result.page.slug}`);
+      revalidatePath(`/lp/${result.page.slug}`);
+    }
   }
 
   resultRedirect(pageId, result.message);

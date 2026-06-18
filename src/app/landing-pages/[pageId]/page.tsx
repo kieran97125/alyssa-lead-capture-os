@@ -37,6 +37,7 @@ import {
 import { getLandingPageEditorState } from "@/lib/data/landingPageStore";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 export default async function LandingPageConfigPage({
   params,
@@ -61,6 +62,9 @@ export default async function LandingPageConfigPage({
     latestDraftVersionNumber,
     publishedVersionNumber,
     loadedFrom,
+    pageRecordId,
+    versionId,
+    versionCreatedAt,
   } = editorData;
   const context = getLandingPageContext(page);
   const connectedForm =
@@ -124,6 +128,16 @@ export default async function LandingPageConfigPage({
   const canSaveDraftAction = true;
   const canPublishAction = true;
   const contentSections = getResolvedLandingPageContentSections(page);
+  const editorDebugItems = [
+    `loadedFrom=${loadedFrom}`,
+    `pageId=${pageRecordId ?? page.id}`,
+    `slug=${page.slug}`,
+    `versionId=${versionId ?? "none"}`,
+    `versionCreatedAt=${versionCreatedAt ?? "none"}`,
+    `updatedAt=${page.updatedAt ?? "none"}`,
+    `publishedAt=${page.publishedAt ?? "none"}`,
+    `contentSections=${contentSections.length}`,
+  ];
 
   return (
     <main className="alyssa-shell">
@@ -191,17 +205,16 @@ export default async function LandingPageConfigPage({
               >
                 保存草稿
               </button>
-              <form action={publishLandingPageAction}>
-                <input type="hidden" name="pageId" value={page.id} />
-                <button
-                  id="landing-page-publish-button"
-                  type="submit"
-                  disabled={!canPublish || !canPublishAction}
-                  className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:text-[#9b8c86]"
-                >
-                  發布公開頁
-                </button>
-              </form>
+              <button
+                id="landing-page-publish-button"
+                type="submit"
+                form="landing-page-editor-form"
+                formAction={publishLandingPageAction}
+                disabled={!canPublish || !canPublishAction}
+                className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348] transition hover:-translate-y-1 disabled:cursor-not-allowed disabled:text-[#9b8c86]"
+              >
+                發布公開頁
+              </button>
               {!canPublishAction && (
                 <p className="max-w-[260px] rounded-2xl bg-[#fff6f0] px-4 py-3 text-sm font-bold leading-6 text-[#5a2348]">
                   只有 Owner 可以發布公開頁。
@@ -223,6 +236,9 @@ export default async function LandingPageConfigPage({
             <InfoPill label="發布時間" value={formatDate(page.publishedAt)} />
             <InfoPill label="公開頁" value={publicDisplay} />
           </div>
+          <p className="mt-3 rounded-2xl bg-[#3b2433] px-4 py-3 font-mono text-xs leading-6 text-white/80">
+            {editorDebugItems.join(" · ")}
+          </p>
         </section>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_390px]">
@@ -463,9 +479,10 @@ function statusLabel(status: LandingPageConfig["status"]) {
   return "可使用";
 }
 
-function loadedFromLabel(source: "draft" | "published" | "seed") {
+function loadedFromLabel(source: "draft" | "published" | "row" | "seed") {
   if (source === "draft") return "最新草稿";
   if (source === "published") return "最新已發布版本";
+  if (source === "row") return "頁面保存內容";
   return "預設內容";
 }
 

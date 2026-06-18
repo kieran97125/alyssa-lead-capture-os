@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import Script from "next/script";
+import { notFound, redirect } from "next/navigation";
 import type { CSSProperties } from "react";
 import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
 import { PublicLeadForm } from "@/components/alyssa/PublicLeadForm";
@@ -14,7 +15,10 @@ import {
   type LandingPageContentSection,
   type LandingPageContentSectionItem,
 } from "@/lib/data/landingPages";
-import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
+import {
+  getCanonicalLandingPageSlug,
+  getPublishedLandingPageBySlug,
+} from "@/lib/data/landingPageStore";
 import {
   IMAGE_REFERENCE_FOOTER_NOTE,
   getBrandLegalProfile,
@@ -22,11 +26,37 @@ import {
 } from "@/lib/legal/consent";
 
 export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 const ineffableAssets = {
   logo: "/ineffable-wix/assets/logo.png",
   hero: "/ineffable-wix/assets/hero-model.png",
 };
+
+function serializeSearchParams(
+  params: Record<string, string | string[] | undefined> | undefined
+) {
+  if (!params) return "";
+
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => searchParams.append(key, item));
+      return;
+    }
+
+    if (value) searchParams.set(key, value);
+  });
+
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
+function getMetaPixelId() {
+  const rawPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "";
+  const pixelId = rawPixelId.replace(/[^0-9]/g, "");
+  return pixelId || null;
+}
 
 export async function generateMetadata({
   params,
@@ -34,7 +64,9 @@ export async function generateMetadata({
   params: Promise<{ slug: string }>;
 }): Promise<Metadata> {
   const { slug } = await params;
-  const page = await getPublishedLandingPageBySlug(slug);
+  const page = await getPublishedLandingPageBySlug(
+    getCanonicalLandingPageSlug(slug)
+  );
 
   if (!page) {
     return {
@@ -54,12 +86,21 @@ export async function generateMetadata({
 
 export default async function PublicLandingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
+  const query = await searchParams;
+  const canonicalSlug = getCanonicalLandingPageSlug(slug);
+
+  if (canonicalSlug !== slug) {
+    redirect(`/lp/${canonicalSlug}${serializeSearchParams(query)}`);
+  }
+
   const [page, config] = await Promise.all([
-    getPublishedLandingPageBySlug(slug),
+    getPublishedLandingPageBySlug(canonicalSlug),
     getConfigurationData(),
   ]);
 
@@ -100,12 +141,13 @@ export default async function PublicLandingPage({
     notFound();
   }
 
+  const isIneffableCanonical = page.slug === "ineffable-388-488b24";
   const theme = resolvePublicBrandTheme({
-    brandSlug: publicBrand.slug,
-    brandName: publicBrand.name,
+    brandSlug: isIneffableCanonical ? "ineffable" : publicBrand.slug,
+    brandName: isIneffableCanonical ? "Ineffable Beauty" : publicBrand.name,
   });
   const themeStyle = publicThemeStyle(theme) as CSSProperties;
-  const isIneffable = theme.key === "ineffable";
+  const isIneffable = theme.key === "ineffable" || isIneffableCanonical;
   const brandDisplayName = isIneffable ? "Ineffable Beauty" : publicBrand.name;
   const promoPrice = Number(selectedPackage.promoPrice ?? 0);
   const price = promoPrice > 0 ? `HK$${promoPrice}` : "預約查詢";
@@ -128,12 +170,14 @@ export default async function PublicLandingPage({
   const contentSections = getResolvedLandingPageContentSections(page).filter(
     hasVisibleSectionContent
   );
+  const metaPixelId = getMetaPixelId();
 
   return (
     <main
       className="min-h-screen overflow-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
       style={themeStyle}
     >
+      <PublicMetaPixel pixelId={metaPixelId} />
       <section id="hero" className="relative scroll-mt-6 bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <MotionReveal>
@@ -321,6 +365,42 @@ export default async function PublicLandingPage({
         disclaimerUrl={legalProfile.disclaimerUrl}
       />
     </main>
+  );
+}
+
+function PublicMetaPixel({ pixelId }: { pixelId: string | null }) {
+  if (!pixelId) return null;
+
+  return (
+    <>
+      <Script
+        id="meta-pixel-pageview"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '${pixelId}');
+fbq('track', 'PageView');
+          `.trim(),
+        }}
+      />
+      <noscript>
+        <img
+          height="1"
+          width="1"
+          style={{ display: "none" }}
+          src={`https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1`}
+          alt=""
+        />
+      </noscript>
+    </>
   );
 }
 

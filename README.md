@@ -186,8 +186,8 @@ The migration creates:
 The V1 workflow is intentionally structured rather than drag-and-drop:
 
 - Save draft: writes the current page-level content and image asset JSON into `landing_page_versions` with `status = 'draft'`, then updates the parent `landing_pages` row as draft.
-- Publish: requires a saved draft, checks required brand / treatment / package / branch / form / public copy fields, then publishes that latest draft, updates `landing_pages.status = 'published'`, sets `published_version_id`, and updates `published_at`.
-- Public render: `/lp/[slug]` renders the `published_version_id` version only for Supabase landing pages. It does not render unsaved editor changes, draft versions, or row-level fallback copy as public campaign content.
+- Publish: submits the current editor form state, checks required brand / treatment / package / branch / form / public copy fields, creates a new published version, updates `landing_pages.status = 'published'`, sets `published_version_id`, and updates `published_at`.
+- Public render: `/lp/[slug]` renders the `published_version_id` version only for Supabase landing pages. It does not render draft versions as public campaign content.
 - Internal editor: `/landing-pages/[pageId]` shows Save Draft / Publish controls only as DB-backed actions when the migration is applied; otherwise it clearly stays in local config fallback mode.
 
 Apply the migration in Supabase SQL editor or through your migration workflow before expecting Save Draft / Publish to persist. The current editor still uses read-only prefilled fields; full field editing, media upload, version history UI, draft preview URLs, and any future team-based publish permissions remain future builder work.
@@ -217,7 +217,7 @@ This keeps form management flexible without creating per-form style systems or a
 - Existing form Landing Page - reuses a selected existing form, then creates a new draft Landing Page connected to that form.
 - All options use the same lead capture, source tracking, package price, and booking base.
 - Landing Page editor can change the connected form later; existing leads are not changed.
-- Publishing remains a separate step in the Landing Page editor.
+- Publishing remains a separate step in the Landing Page editor and publishes the current editor content.
 
 ## Landing Page Image Asset Strategy
 
@@ -525,6 +525,18 @@ NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com
 
 Internal navigation uses relative admin paths such as `/dashboard`, `/landing-pages`, `/forms`, and `/settings`. If `/login` or another internal admin route is opened on the public host, the proxy redirects it to the configured admin origin while keeping admin access open.
 
+Public campaign slugs should use the active brand name. The Ineffable $388 campaign canonical URL is `/lp/ineffable-388-488b24`; the older `/lp/alyssa-388-488b24` URL is kept as a redirect/alias so existing ad links can continue to resolve without showing Alyssa branding.
+
+## Public Meta Pixel PageView
+
+Public Landing Pages can fire a Meta Pixel `PageView` event for campaign traffic. This is public-page only and is not loaded on admin pages such as `/dashboard`, `/landing-pages`, `/leads`, `/settings`, or `/system-audit`.
+
+```bash
+NEXT_PUBLIC_META_PIXEL_ID=
+```
+
+If `NEXT_PUBLIC_META_PIXEL_ID` is not set, no Pixel script is rendered. Lead/CompleteRegistration events are not fired in this pass; they should be added later only after event naming and consent requirements are confirmed.
+
 ## Supabase Connection
 
 The app renders locally without Supabase. Public write APIs return local no-op IDs unless these environment variables are configured:
@@ -596,6 +608,7 @@ Payment status semantics:
 - `NEXT_PUBLIC_APP_URL` - required for production embed script URLs.
 - `NEXT_PUBLIC_PUBLIC_BASE_URL` - optional; use later if public Landing Pages move to a separate domain.
 - `NEXT_PUBLIC_ADMIN_BASE_URL` - optional; use later if internal admin pages move to a separate domain.
+- `NEXT_PUBLIC_META_PIXEL_ID` - optional; enables Meta Pixel PageView on public Landing Pages only.
 - `NEXT_PUBLIC_SUPABASE_URL` - pending; required before browser-side Supabase-aware flows are introduced.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.

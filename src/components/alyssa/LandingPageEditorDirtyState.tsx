@@ -9,7 +9,6 @@ type LandingPageEditorDirtyStateProps = {
 
 export function LandingPageEditorDirtyState({
   editorFormId,
-  publishButtonId,
 }: LandingPageEditorDirtyStateProps) {
   const [isDirty, setIsDirty] = useState(false);
 
@@ -27,21 +26,11 @@ export function LandingPageEditorDirtyState({
     };
   }, [editorFormId]);
 
-  useEffect(() => {
-    const button = document.getElementById(
-      publishButtonId
-    ) as HTMLButtonElement | null;
-    if (!button || !isDirty) return;
-
-    button.disabled = true;
-    button.dataset.unsavedChanges = "true";
-  }, [isDirty, publishButtonId]);
-
   if (!isDirty) return null;
 
   return (
     <p className="mt-3 rounded-2xl border border-[#d9b66f] bg-[#fff6f0] px-4 py-3 text-sm font-bold text-[#5a2348]">
-      有未保存內容。請先儲存草稿，然後再發布公開頁。
+      有未保存修改。按「保存草稿」會保存草稿；按「發布公開頁」會直接發布目前畫面上的內容。
     </p>
   );
 }
