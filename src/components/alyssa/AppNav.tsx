@@ -2,13 +2,13 @@ import Link from "next/link";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
+  { href: "/campaigns/new", label: "Launch" },
+  { href: "/landing-pages", label: "Landing Pages" },
+  { href: "/forms", label: "Forms" },
   { href: "/leads", label: "Leads" },
   { href: "/performance", label: "Performance" },
-  { href: "/campaigns/new", label: "Create Campaign" },
-  { href: "/forms", label: "Forms" },
-  { href: "/landing-pages", label: "Landing Pages" },
+  { href: "/settings#brand-library", label: "Brand Library" },
   { href: "/settings", label: "Settings" },
-  { href: "/system-audit", label: "System Audit" },
 ];
 
 export async function AppNav() {

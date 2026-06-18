@@ -1,11 +1,11 @@
 import Link from "next/link";
 
 const settingsItems = [
-  { href: "/settings", label: "設定中心" },
-  { href: "/settings/brands", label: "品牌資料" },
-  { href: "/settings/treatments", label: "療程資料" },
-  { href: "/settings/packages", label: "套餐價錢" },
-  { href: "/settings/branches", label: "分店資料" },
+  { href: "/settings#brand-library", label: "Brand Library" },
+  { href: "/settings/brands", label: "品牌" },
+  { href: "/settings/treatments", label: "療程" },
+  { href: "/settings/packages", label: "優惠 / 套餐" },
+  { href: "/settings/branches", label: "分店" },
   { href: "/settings/templates", label: "Landing Page 版型" },
   { href: "/settings/team", label: "團隊權限" },
 ];

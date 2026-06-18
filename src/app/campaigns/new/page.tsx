@@ -39,29 +39,33 @@ export default async function NewCampaignPage({
       <div className="mx-auto max-w-6xl px-5 py-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="alyssa-kicker">建立 Campaign</p>
+            <p className="alyssa-kicker">Launch</p>
             <h1 className="mt-2 text-3xl font-bold text-[#321428]">
               建立新 Campaign
             </h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-              選擇今次要建立廣告頁、Wix 登記表格，或用現有表格開一頁新的廣告 Landing Page。
+              選擇今次 Campaign 要輸出 Wix 嵌入表格，還是完整 Landing Page。表格、Landing Page 和 Leads 會共用同一套品牌、療程、優惠和分店資料。
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <Link
-              href="/forms"
+              href="/settings#brand-library"
               className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
             >
-              查看表格
+              Brand Library
             </Link>
             <Link
               href="/landing-pages"
               className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
             >
-              查看 Landing Pages
+              Landing Pages
             </Link>
           </div>
         </header>
+
+        <section className="mt-5 rounded-2xl border border-[#ead9cf] bg-white/82 px-5 py-4 text-sm leading-6 text-[#6d4a5c]">
+          Launch 會用 Brand Library 入面的品牌、療程、優惠套餐和分店資料建立 Campaign。若資料未齊，請先到 Brand Library 更新，再回來建立表格或 Landing Page。
+        </section>
 
         {message && (
           <div className="mt-5 rounded-2xl border border-[#d9b66f] bg-[#fff6f0] px-4 py-3 text-sm font-bold text-[#5a2348]">
@@ -75,35 +79,35 @@ export default async function NewCampaignPage({
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <ChoiceCard
                 value="new_landing_page"
-                title="新廣告 Landing Page"
-                body="適合測試新優惠、新療程或新文案角度。系統會建立新表格，並連接到新的 Landing Page。"
+                title="建立登記表格 + Landing Page"
+                body="適合新廣告 Campaign：系統會建立一張新的登記表格，並準備一頁可發布的 Landing Page。"
                 defaultChecked
               />
               <ChoiceCard
                 value="wix_form"
-                title="只建立 Wix 登記表格"
-                body="適合 Wix 頁面已有內容，只需要一張可嵌入的登記表格收集 Leads。"
+                title="建立 Wix 嵌入登記表格"
+                body="適合 Wix 已有頁面內容，只需要一張可嵌入的表格收集 Leads。"
               />
               <ChoiceCard
                 value="existing_form_landing_page"
-                title="用現有表格開 Landing Page"
-                body="適合重用已準備好的登記表格，再開一頁新的廣告 Landing Page。"
+                title="使用現有表格建立 Landing Page"
+                body="適合重用已設定好的表格，快速建立另一個 Campaign Landing Page。"
               />
             </div>
           </section>
 
           <section className="alyssa-premium-card p-5">
-            <p className="alyssa-kicker">2. Campaign 資料</p>
+            <p className="alyssa-kicker">2. 基本資料</p>
             <div className="mt-4 grid gap-4 md:grid-cols-2">
               <TextField
                 label="Campaign 名稱"
                 name="campaignName"
-                placeholder="例如：Alyssa HK$388 首次體驗"
+                placeholder="例：Ineffable $388 柔清舒敏護理"
               />
               <TextField
-                label="新表格名稱"
+                label="表格名稱"
                 name="formName"
-                placeholder="留空會沿用 Campaign 名稱"
+                placeholder="留空則使用 Campaign 名稱"
                 required={false}
               />
               <SelectField
@@ -122,18 +126,18 @@ export default async function NewCampaignPage({
                 options={config.treatments.map((treatment) => ({
                   value: treatment.id,
                   label: `${treatment.name} (${
-                    getBrand(config, treatment.brandId)?.name ?? "品牌"
+                    getBrand(config, treatment.brandId)?.name ?? "未設定品牌"
                   })`,
                 }))}
               />
               <SelectField
-                label="套餐價錢"
+                label="優惠 / 套餐"
                 name="defaultPackageId"
                 defaultValue={firstPackage?.id}
                 options={config.packages.map((item) => ({
                   value: item.id,
                   label: `${packagePriceLabel(item)} (${
-                    getTreatment(config, item.treatmentId)?.name ?? "療程"
+                    getTreatment(config, item.treatmentId)?.name ?? "未設定療程"
                   })`,
                 }))}
               />
@@ -144,7 +148,7 @@ export default async function NewCampaignPage({
                 options={config.branches.map((branch) => ({
                   value: branch.id,
                   label: `${branch.name} (${
-                    getBrand(config, branch.brandId)?.name ?? "品牌"
+                    getBrand(config, branch.brandId)?.name ?? "未設定品牌"
                   })`,
                 }))}
               />
@@ -152,7 +156,7 @@ export default async function NewCampaignPage({
 
             <label className="mt-4 block min-w-0">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                可使用新表格的網站
+                可使用表格的網站網址
               </span>
               <textarea
                 name="allowedDomains"
@@ -166,7 +170,7 @@ export default async function NewCampaignPage({
           <section className="alyssa-premium-card p-5">
             <p className="alyssa-kicker">3. 現有表格</p>
             <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              如選擇用現有表格開 Landing Page，請選擇表格
+              如選擇重用表格，請指定要連接的登記表格
             </h2>
             {config.forms.length > 0 ? (
               <>
@@ -177,7 +181,7 @@ export default async function NewCampaignPage({
                   required={false}
                   options={config.forms.map((form) => ({
                     value: form.id,
-                    label: `${form.formName} · ${form.publicFormToken}`,
+                    label: `${form.formName} - ${form.publicFormToken}`,
                   }))}
                 />
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -210,7 +214,7 @@ export default async function NewCampaignPage({
                   href="/forms/new"
                   className="mt-3 inline-flex rounded-full bg-[#5a2348] px-4 py-2 text-sm font-bold text-white"
                 >
-                  先建立表格
+                  建立表格
                 </Link>
               </div>
             )}
@@ -222,31 +226,31 @@ export default async function NewCampaignPage({
               <TextField
                 label="頁面標題"
                 name="pageTitle"
-                placeholder="例如：Alyssa 首次體驗優惠"
+                placeholder="例：$388 柔清舒敏護理首次體驗"
                 required={false}
               />
               <TextField
                 label="Hero 標題"
                 name="heroTitle"
-                placeholder="留空會沿用頁面標題"
+                placeholder="例：首次體驗柔清舒敏護理"
                 required={false}
               />
               <TextField
                 label="優惠標籤"
                 name="offerBadge"
-                placeholder="例如：HK$388 首次體驗"
+                placeholder="例：HK$388 首次體驗優惠"
                 required={false}
               />
               <TextField
-                label="CTA 文字"
+                label="CTA 按鈕文字"
                 name="ctaText"
-                placeholder="例如：立即預約體驗"
+                placeholder="例：立即預約體驗"
                 required={false}
               />
               <TextAreaField
-                label="Hero 副標題"
+                label="Hero 簡介"
                 name="heroSubtitle"
-                placeholder="簡短說明今次優惠、療程價值或適合人群。"
+                placeholder="簡短說明療程、優惠和預約安排。"
               />
             </div>
           </section>
@@ -256,10 +260,10 @@ export default async function NewCampaignPage({
               <div>
                 <p className="alyssa-kicker">5. 建立</p>
                 <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                  建立後即可預覽及使用
+                  建立 Campaign 並進入下一步
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                  系統會按你選擇的方式，前往表格設定或 Landing Page 編輯頁。
+                  Wix 表格會前往表格詳情頁；Landing Page 會前往內容編輯頁。
                 </p>
               </div>
               <button
