@@ -79,19 +79,19 @@ export default async function NewCampaignPage({
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <ChoiceCard
                 value="new_landing_page"
-                title="建立登記表格 + Landing Page"
-                body="適合新廣告 Campaign：系統會建立一張新的登記表格，並準備一頁可發布的 Landing Page。"
+                title="建立 Wix 登記表格及 Landing Page"
+                body="適合測試新優惠、新療程或新文案角度。系統會建立新表格，並連接到新的 Landing Page。"
                 defaultChecked
               />
               <ChoiceCard
                 value="wix_form"
-                title="建立 Wix 嵌入登記表格"
-                body="適合 Wix 已有頁面內容，只需要一張可嵌入的表格收集 Leads。"
+                title="只建立 Wix 登記表格"
+                body="適合 Wix 頁面已有內容，只需要一張可嵌入的登記表格收集 Leads。"
               />
               <ChoiceCard
                 value="existing_form_landing_page"
-                title="使用現有表格建立 Landing Page"
-                body="適合重用已設定好的表格，快速建立另一個 Campaign Landing Page。"
+                title="用現有表格開 Landing Page"
+                body="適合重用已準備好的登記表格，再開一頁新的廣告 Landing Page。"
               />
             </div>
           </section>
@@ -181,7 +181,7 @@ export default async function NewCampaignPage({
                   required={false}
                   options={config.forms.map((form) => ({
                     value: form.id,
-                    label: `${form.formName} - ${form.publicFormToken}`,
+                    label: form.formName,
                   }))}
                 />
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
@@ -328,9 +328,6 @@ function ExistingFormSummary({
   return (
     <article className="min-w-0 rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4">
       <h3 className="font-bold text-[#321428]">{form.formName}</h3>
-      <p className="mt-2 break-words rounded-xl bg-white/80 px-3 py-2 font-mono text-xs font-semibold text-[#5a2348]">
-        {form.publicFormToken}
-      </p>
       <div className="mt-3 grid gap-2 text-xs font-semibold leading-5 text-[#6d4a5c]">
         <p>{brand}</p>
         <p>{treatment}</p>

@@ -1,156 +1,149 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import { StatCard } from "@/components/alyssa/ui";
 import {
   asNumber,
-  businessStatus,
-  campaignLabel,
-  dateRangeOptions,
-  displayCustomerName,
-  displayPhone,
-  formatAppointment,
-  formatDateTime,
   getLeadRows,
-  isTrackable,
   money,
-  parseRange,
-  percent,
-  sourceLabel,
-  type DateRangeKey,
   type LeadRow,
 } from "@/lib/data/businessMetrics";
+import { getConfigurationData } from "@/lib/data/configuration";
+import { getLandingPageList } from "@/lib/data/landingPageStore";
 
 export const dynamic = "force-dynamic";
 
-type DashboardSummary = {
-  activeRange: DateRangeKey;
-  rangeLabel: string;
-  latestLeadAt: string | null;
-  errorMessage: string | null;
-  leads: LeadRow[];
-  kpis: {
-    totalLeads: number;
-    newBookings: number;
-    bookingOnly: number;
-    paidLeads: number;
-    estimatedAmount: number;
-    trackableRate: number;
-  };
-};
-
-async function getDashboardSummary(rangeKey: DateRangeKey): Promise<DashboardSummary> {
-  const { range, leads, error } = await getLeadRows(rangeKey, 5000);
-  const totalLeads = leads.length;
-  const trackableCount = leads.filter(isTrackable).length;
+async function getDashboardOverview() {
+  const [today, week, config, landingPages] = await Promise.all([
+    getLeadRows("today", 5000),
+    getLeadRows("last7", 5000),
+    getConfigurationData(),
+    getLandingPageList(),
+  ]);
+  const weekLeads = week.leads;
+  const latestLeadAt = weekLeads[0]?.created_at ?? today.leads[0]?.created_at ?? null;
+  const latestPageAt =
+    landingPages.pages
+      .map((page) => page.updatedAt || page.publishedAt || page.createdAt)
+      .filter(Boolean)
+      .sort()
+      .at(-1) ?? null;
 
   return {
-    activeRange: range.key,
-    rangeLabel: range.label,
-    latestLeadAt: leads[0]?.created_at ?? null,
-    errorMessage: error ? "資料暫時未能讀取，請稍後再試" : null,
-    leads,
-    kpis: {
-      totalLeads,
-      newBookings: leads.filter((lead) => lead.booking_status === "requested").length,
-      bookingOnly: leads.filter((lead) => lead.payment_status === "booking_only").length,
-      paidLeads: leads.filter((lead) => lead.payment_status === "paid").length,
-      estimatedAmount: leads.reduce((sum, lead) => sum + asNumber(lead.price), 0),
-      trackableRate: totalLeads > 0 ? trackableCount / totalLeads : 0,
-    },
+    todayLeads: today.leads.length,
+    weekLeads,
+    weekLeadCount: weekLeads.length,
+    publishedLandingPages: landingPages.pages.filter(
+      (page) => page.status === "published"
+    ).length,
+    formCount: config.forms.length,
+    latestUpdate: latestLeadAt || latestPageAt,
+    estimatedAmount: weekLeads.reduce(
+      (sum, lead) => sum + asNumber(lead.price),
+      0
+    ),
+    errorMessage:
+      today.error || week.error ? "資料暫時未能讀取，請稍後再試。" : null,
   };
 }
 
-export default async function DashboardPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ range?: string | string[] }>;
-}) {
-  const params = await searchParams;
-  const summary = await getDashboardSummary(parseRange(params?.range));
+export default async function DashboardPage() {
+  const overview = await getDashboardOverview();
 
   return (
     <main className="alyssa-shell">
       <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
-        <section className="rounded-[28px] border border-[#ead9cf] bg-white/82 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
-          <div className="flex min-w-0 flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-            <div className="min-w-0">
-              <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-                Lead performance dashboard
-              </p>
+        <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
+          <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+            <div>
+              <p className="alyssa-kicker">Dashboard</p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                品牌 Leads 成效總覽
+                Campaign Launch OS
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                查看最新登記、預約狀態、套餐金額同來源成效。
+                管理品牌登記表格、Landing Page、Leads 收集及來源追蹤。
               </p>
             </div>
-            <div className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348]">
-              正式登記資料
+            <div className="flex flex-wrap gap-2">
+              <PrimaryAction href="/campaigns/new">
+                建立表格及 Landing Page
+              </PrimaryAction>
+              <SecondaryAction href="/leads">查看 Leads</SecondaryAction>
+              <SecondaryAction href="/landing-pages">
+                管理 Landing Pages
+              </SecondaryAction>
             </div>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-2">
-            {dateRangeOptions.map((item) => (
-              <Link
-                key={item.key}
-                href={`/dashboard?range=${item.key}`}
-                className={`rounded-full px-4 py-2 text-sm font-bold transition ${
-                  summary.activeRange === item.key
-                    ? "bg-[#5a2348] text-white"
-                    : "border border-[#ead9cf] bg-white text-[#5a2348]"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </div>
-          <p className="mt-3 text-xs font-semibold text-[#7b5a6a]">
-            目前期間：{summary.rangeLabel}
-            {summary.latestLeadAt ? `；最新登記：${formatDateTime(summary.latestLeadAt)}` : ""}
-          </p>
-          {summary.errorMessage && (
-            <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-              {summary.errorMessage}
+          {overview.errorMessage && (
+            <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+              {overview.errorMessage}
             </p>
           )}
         </section>
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
-          <KpiCard label="總 Leads" value={summary.kpis.totalLeads.toString()} />
-          <KpiCard label="新預約" value={summary.kpis.newBookings.toString()} />
-          <KpiCard label="只預約未付款" value={summary.kpis.bookingOnly.toString()} />
-          <KpiCard label="已付款 Leads" value={summary.kpis.paidLeads.toString()} />
-          <KpiCard label="預計療程金額" value={money(summary.kpis.estimatedAmount)} />
-          <KpiCard label="可追蹤來源比例" value={percent(summary.kpis.trackableRate)} />
-        </section>
-
-        <MotionReveal delay={0.16}>
-          <LatestLeadsTable leads={summary.leads.slice(0, 5)} />
-        </MotionReveal>
-
-        <section className="mt-6 grid gap-5 lg:grid-cols-3">
-          <QuickLinkCard
-            href="/leads"
-            title="查看所有 Leads"
-            description="進入完整最新登記紀錄，查看客人、電話、療程、套餐、分店、來源同狀態。"
-            delay={0.06}
+        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
+          <KpiCard label="今日 Leads" value={overview.todayLeads.toString()} />
+          <KpiCard label="本週 Leads" value={overview.weekLeadCount.toString()} />
+          <KpiCard
+            label="已發布 Landing Pages"
+            value={overview.publishedLandingPages.toString()}
           />
-          <QuickLinkCard
-            href="/performance"
-            title="查看成效分析"
-            description="按品牌、來源、廣告系列、療程、套餐同分店拆解登記成效。"
-            delay={0.12}
-          />
-          <QuickLinkCard
-            href="/system-audit"
-            title="查看系統稽核"
-            description="查看內部追蹤、事件紀錄同系統狀態。"
-            delay={0.18}
+          <KpiCard label="可用登記表格" value={overview.formCount.toString()} />
+          <KpiCard
+            label="最近更新"
+            value={formatShortDateTime(overview.latestUpdate)}
           />
         </section>
 
+        <section className="mt-6 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
+          <MotionReveal delay={0.08}>
+            <LatestLeadsTable leads={overview.weekLeads.slice(0, 6)} />
+          </MotionReveal>
+
+          <MotionReveal delay={0.14}>
+            <section className="alyssa-premium-card p-5">
+              <p className="alyssa-kicker">本週預計金額</p>
+              <p className="mt-3 text-4xl font-bold text-[#321428]">
+                {money(overview.estimatedAmount)}
+              </p>
+              <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
+                以已提交 Leads 所選套餐價錢計算，實際收入需待團隊跟進確認。
+              </p>
+              <div className="mt-5 grid gap-3">
+                <SecondaryAction href="/performance">查看成效</SecondaryAction>
+                <SecondaryAction href="/settings#brand-library">
+                  管理 Brand Library
+                </SecondaryAction>
+              </div>
+            </section>
+          </MotionReveal>
+        </section>
+
+        <section className="mt-6">
+          <div className="mb-4">
+            <p className="alyssa-kicker">Launch 快捷入口</p>
+            <h2 className="mt-2 text-2xl font-bold text-[#321428]">
+              選擇今次 Campaign 的建立方式
+            </h2>
+          </div>
+          <div className="grid gap-5 lg:grid-cols-3">
+            <LaunchCard
+              title="建立表格及 Landing Page"
+              body="適合測試新優惠、新療程或新文案角度。"
+            />
+            <LaunchCard
+              title="只建立 Wix 登記表格"
+              body="適合 Wix 頁面已有內容，只需要一張可嵌入的登記表格收集 Leads。"
+            />
+            <LaunchCard
+              title="用現有表格開 Landing Page"
+              body="適合重用已準備好的登記表格，再開一頁新的廣告 Landing Page。"
+            />
+          </div>
+        </section>
       </div>
     </main>
   );
@@ -164,105 +157,121 @@ function KpiCard({ label, value }: { label: string; value: string }) {
   );
 }
 
-function QuickLinkCard({
+function PrimaryAction({
   href,
-  title,
-  description,
-  delay = 0,
+  children,
 }: {
   href: string;
-  title: string;
-  description: string;
-  delay?: number;
+  children: ReactNode;
 }) {
   return (
-    <MotionReveal delay={delay}>
     <Link
       href={href}
-      className="alyssa-premium-card alyssa-interactive-card alyssa-focus block min-w-0 p-5"
+      className="inline-flex justify-center rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.2)] transition hover:-translate-y-0.5 hover:bg-[#d95f55]"
     >
-      <h2 className="text-xl font-bold text-[#321428]">{title}</h2>
-      <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{description}</p>
+      {children}
     </Link>
+  );
+}
+
+function SecondaryAction({
+  href,
+  children,
+}: {
+  href: string;
+  children: ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className="inline-flex justify-center rounded-full border border-[#ead9cf] bg-white px-5 py-3 text-sm font-bold text-[#5a2348] transition hover:border-[#c9828e]"
+    >
+      {children}
+    </Link>
+  );
+}
+
+function LaunchCard({ title, body }: { title: string; body: string }) {
+  return (
+    <MotionReveal>
+      <Link
+        href="/campaigns/new"
+        className="alyssa-premium-card alyssa-interactive-card alyssa-focus block h-full p-5"
+      >
+        <h3 className="text-xl font-bold text-[#321428]">{title}</h3>
+        <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
+      </Link>
     </MotionReveal>
   );
 }
 
 function LatestLeadsTable({ leads }: { leads: LeadRow[] }) {
   return (
-    <section className="alyssa-premium-card mt-6 min-w-0 p-5">
-      <h2 className="text-xl font-bold text-[#321428]">最新登記紀錄</h2>
+    <section className="alyssa-premium-card min-w-0 p-5">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="alyssa-kicker">最新 Leads</p>
+          <h2 className="mt-2 text-xl font-bold text-[#321428]">
+            最近登記紀錄
+          </h2>
+        </div>
+        <Link
+          href="/leads"
+          className="rounded-full border border-[#ead9cf] bg-white px-4 py-2 text-sm font-bold text-[#5a2348]"
+        >
+          查看全部
+        </Link>
+      </div>
       <div className="mt-4 max-w-full overflow-x-auto">
-        <table className="alyssa-table min-w-[1180px] text-left text-sm">
+        <table className="alyssa-table min-w-[780px] text-left text-sm">
           <thead>
             <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
-              {[
-                "登記時間",
-                "品牌",
-                "客人",
-                "電話",
-                "療程",
-                "套餐 / 價錢",
-                "分店",
-                "預約日期時間",
-                "來源",
-                "廣告系列",
-                "狀態",
-              ].map((heading) => (
-                <th key={heading} className="border-b border-[#ead9cf] px-3 py-3">
-                  {heading}
-                </th>
-              ))}
+              {["登記時間", "客人", "電話", "品牌", "療程 / 優惠", "狀態"].map(
+                (heading) => (
+                  <th key={heading} className="border-b border-[#ead9cf] px-3 py-3">
+                    {heading}
+                  </th>
+                )
+              )}
             </tr>
           </thead>
           <tbody>
             {leads.length > 0 ? (
               leads.map((lead) => (
-                <tr key={lead.id} className="align-top text-[#5a2348] transition hover:bg-[#fff6f0]/70">
+                <tr
+                  key={lead.id}
+                  className="align-top text-[#5a2348] transition hover:bg-[#fff6f0]/70"
+                >
                   <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {formatDateTime(lead.created_at)}
+                    {formatShortDateTime(lead.created_at)}
                   </td>
                   <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {lead.brand?.name || "未標記"}
+                    {lead.customer_name || lead.contact?.customer_name || "未提供"}
                   </td>
                   <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {displayCustomerName(lead)}
+                    {lead.phone || lead.normalized_phone || lead.contact?.phone || "未提供"}
                   </td>
                   <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {displayPhone(lead)}
+                    {lead.brand?.name || "未設定"}
                   </td>
                   <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {lead.treatment?.name || "未標記"}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {lead.package?.name || "未標記"}
+                    {lead.treatment?.name || "未設定"}
                     <span className="block font-bold text-[#321428]">
+                      {lead.package?.name || "未設定"} ·{" "}
                       {money(asNumber(lead.price), lead.currency || "HKD")}
                     </span>
                   </td>
                   <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {lead.branch?.name || "未標記"}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {formatAppointment(lead)}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {sourceLabel(lead)}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {campaignLabel(lead)}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
                     <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
-                      {businessStatus(lead)}
+                      {leadStatusLabel(lead)}
                     </span>
                   </td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={11} className="px-3 py-6 text-center text-[#7b5a6a]">
-                  目前期間未有登記紀錄。
+                <td colSpan={6} className="px-3 py-6 text-center text-[#7b5a6a]">
+                  暫時未有最新登記。
                 </td>
               </tr>
             )}
@@ -271,4 +280,27 @@ function LatestLeadsTable({ leads }: { leads: LeadRow[] }) {
       </div>
     </section>
   );
+}
+
+function leadStatusLabel(lead: LeadRow) {
+  const bookingStatus = lead.booking?.booking_status || lead.booking_status;
+  if (lead.payment_status === "paid") return "已付款";
+  if (bookingStatus === "confirmed") return "已確認預約";
+  if (lead.payment_status === "booking_only") return "只預約";
+  if (lead.payment_status === "pending") return "待付款";
+  if (lead.lead_status === "lost") return "已流失";
+  if (lead.lead_status === "submitted") return "已提交";
+  return "待跟進";
+}
+
+function formatShortDateTime(value: string | null | undefined) {
+  if (!value) return "暫未有記錄";
+
+  return new Intl.DateTimeFormat("zh-HK", {
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Asia/Hong_Kong",
+  }).format(new Date(value));
 }

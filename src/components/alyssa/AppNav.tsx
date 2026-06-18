@@ -33,7 +33,11 @@ export async function AppNav() {
             <Link
               key={item.href}
               href={item.href}
-              className="alyssa-focus rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-semibold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white hover:shadow-[0_10px_24px_rgba(90,35,72,0.08)]"
+              className={`alyssa-focus rounded-full border px-4 py-2 text-sm font-semibold shadow-sm transition hover:shadow-[0_10px_24px_rgba(90,35,72,0.08)] ${
+                item.href === "/campaigns/new"
+                  ? "border-[#e46f64] bg-[#e46f64] text-white hover:border-[#d95f55] hover:bg-[#d95f55]"
+                  : "border-[#ead9cf] bg-white/78 text-[#5a2348] hover:border-[#c9828e] hover:bg-white"
+              }`}
             >
               {item.label}
             </Link>
