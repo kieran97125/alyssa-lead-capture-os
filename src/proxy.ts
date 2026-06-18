@@ -1,5 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { isInternalRoute } from "@/lib/security/routeBoundary";
+import {
+  adminSessionCookieName,
+  isAdminPasswordGateEnabled,
+  verifySignedAdminSession,
+} from "@/lib/security/internalAccess";
 
 function cleanBaseUrl(value: string | undefined) {
   const cleaned = value?.trim().replace(/\/+$/, "");
@@ -83,11 +88,36 @@ function isAdminBackendPath(pathname: string) {
   return pathname === "/login" || pathname === "/logout" || isInternalRoute(pathname);
 }
 
-export function proxy(request: NextRequest) {
+function redirectToLogin(request: NextRequest) {
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = "/login";
+  loginUrl.search = "";
+  loginUrl.searchParams.set(
+    "next",
+    `${request.nextUrl.pathname}${request.nextUrl.search}`
+  );
+
+  return NextResponse.redirect(loginUrl);
+}
+
+export async function proxy(request: NextRequest) {
   if (isAdminBackendPath(request.nextUrl.pathname)) {
     const adminOrigin = shouldUseAdminOrigin(request);
     if (adminOrigin) {
       return redirectToAdminOrigin(request, adminOrigin);
+    }
+  }
+
+  if (
+    isAdminPasswordGateEnabled() &&
+    isInternalRoute(request.nextUrl.pathname)
+  ) {
+    const session = await verifySignedAdminSession(
+      request.cookies.get(adminSessionCookieName)?.value
+    );
+
+    if (!session.ok) {
+      return redirectToLogin(request);
     }
   }
 

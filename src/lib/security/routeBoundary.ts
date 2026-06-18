@@ -14,6 +14,7 @@ export const internalRoutePrefixes = [
   "/leads",
   "/performance",
   "/campaigns",
+  "/create-campaign",
   "/forms",
   "/landing-pages",
   "/settings",

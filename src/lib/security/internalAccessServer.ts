@@ -1,43 +1,44 @@
 import { cookies } from "next/headers";
 import {
-  createSignedInternalSession,
-  getInternalAuthCookieDomain,
-  internalSessionCookieName,
-  internalSessionMaxAgeSeconds,
-  type InternalAction,
+  adminSessionCookieName,
+  adminSessionMaxAgeSeconds,
+  createSignedAdminSession,
+  legacyInternalSessionCookieName,
+  verifySignedAdminSession,
   type InternalAccessContext,
+  type InternalAction,
   type InternalModule,
 } from "@/lib/security/internalAccess";
 
 function openAccessContext(): InternalAccessContext {
   return {
-    username: "admin-open",
-    role: "owner",
-    source: "auth_disabled",
+    source: "development_not_configured",
   };
 }
 
 export async function getCurrentInternalAccess(): Promise<InternalAccessContext> {
-  return openAccessContext();
+  const cookieStore = await cookies();
+  const result = await verifySignedAdminSession(
+    cookieStore.get(adminSessionCookieName)?.value
+  );
+
+  return result.ok && result.source
+    ? { source: result.source }
+    : openAccessContext();
 }
 
-export async function setInternalSessionCookie(context: InternalAccessContext) {
-  const session = await createSignedInternalSession(context);
+export async function setAdminSessionCookie() {
+  const session = await createSignedAdminSession();
   if (!session) return false;
 
   const cookieStore = await cookies();
-  const cookieOptions = {
+  cookieStore.set(adminSessionCookieName, session, {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "lax",
     path: "/",
-    maxAge: internalSessionMaxAgeSeconds,
-  } as const;
-  const cookieDomain = getInternalAuthCookieDomain();
-
-  cookieStore.set(internalSessionCookieName, session, cookieDomain
-    ? { ...cookieOptions, domain: cookieDomain }
-    : cookieOptions);
+    maxAge: adminSessionMaxAgeSeconds,
+  });
 
   return true;
 }
@@ -51,22 +52,16 @@ export async function clearInternalSessionCookie() {
     path: "/",
     maxAge: 0,
   } as const;
-  const cookieDomain = getInternalAuthCookieDomain();
 
-  cookieStore.set(internalSessionCookieName, "", cookieOptions);
-  if (cookieDomain) {
-    cookieStore.set(internalSessionCookieName, "", {
-      ...cookieOptions,
-      domain: cookieDomain,
-    });
-  }
+  cookieStore.set(adminSessionCookieName, "", cookieOptions);
+  cookieStore.set(legacyInternalSessionCookieName, "", cookieOptions);
 }
 
 export async function requireModuleAccess(_module: InternalModule) {
   void _module;
 
   return {
-    access: openAccessContext(),
+    access: await getCurrentInternalAccess(),
     allowed: true,
   };
 }
@@ -75,7 +70,7 @@ export async function requireActionAccess(_action: InternalAction) {
   void _action;
 
   return {
-    access: openAccessContext(),
+    access: await getCurrentInternalAccess(),
     allowed: true,
   };
 }

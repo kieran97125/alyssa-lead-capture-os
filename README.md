@@ -345,7 +345,7 @@ Public routes remain accessible for campaigns, Wix embeds, and lead capture:
 - `/api/public/events`
 - `/api/public/thank-you`
 
-Internal admin routes are open by default:
+Internal admin routes are protected by a simple shared LaunchHub admin password:
 
 - `/`
 - `/dashboard`
@@ -353,6 +353,7 @@ Internal admin routes are open by default:
 - `/performance`
 - `/campaigns`
 - `/campaigns/new`
+- `/create-campaign`
 - `/forms`
 - `/forms/new`
 - `/forms/[formId]`
@@ -366,12 +367,18 @@ Internal admin routes are open by default:
 - `/settings/templates`
 - `/system-audit`
 - `/embed-preview`
+- `/debug/session`
 
-LaunchHub currently does not enforce internal login, browser Basic Auth, session cookies, or role blocking for the admin backend. `/login` is a harmless legacy page that links to `/dashboard`; `/logout` only clears any old session cookie and redirects to `/dashboard`.
+LaunchHub uses one shared admin password for the current admin backend. There is no username, no roles, no owner/editor/lead_viewer blocking, and no domain-wide cookie. Successful password entry sets a host-only `httpOnly` signed cookie for the current admin host with `sameSite=lax`, `path=/`, secure cookies in production, and an expiry of about 12 hours. `/logout` clears the cookie and redirects to `/login`.
 
 Public landing pages, embedded forms, legal pages, public lead submit APIs, static assets, and the public embed script remain reachable without login.
 
-`app.beautytrialhk.com` should be used for the admin backend. `go.beautytrialhk.com` should be used for public landing pages, embedded forms, and legal pages. The proxy keeps this host separation without requiring an internal auth session.
+`app.beautytrialhk.com` should be used for the admin backend. `go.beautytrialhk.com` should be used for public landing pages, embedded forms, and legal pages. The proxy keeps this host separation and only redirects admin paths from the public host back to the admin host.
+
+Required Vercel env vars for the simple admin gate:
+
+- `LAUNCHHUB_ADMIN_PASSWORD`
+- `LAUNCHHUB_ADMIN_SESSION_SECRET`
 
 Legacy env vars from the removed internal auth flow are deprecated and not required for deployment:
 
@@ -382,19 +389,19 @@ Legacy env vars from the removed internal auth flow are deprecated and not requi
 - `INTERNAL_BASIC_AUTH_USER`
 - `INTERNAL_BASIC_AUTH_PASSWORD`
 
-Do not commit real credentials. If team login is needed later, add a new Supabase Auth, Google Login, or role-based admin login flow deliberately instead of reusing the removed cookie gate.
+Do not commit real credentials. If team login is needed later, add a new Supabase Auth, Google Login, or role-based admin login flow deliberately instead of extending this shared password gate.
 
 ## Team Access Direction
 
-The current admin backend is open by default. The previous Basic Auth / custom session gate has been removed from the active route path because it caused production navigation failures.
+The current admin backend uses a simple shared password gate only. The previous Basic Auth / custom role session gate has been removed from the active route path because it caused production navigation failures.
 
 The intended long-term layer is Supabase Auth plus role-based access control. Each team member should have their own login, a profile, a role, a status, and optional brand access.
 
-Team Access Enforcement V1 remains a planning and helper foundation only. Current admin pages use an open compatibility access context:
+Team Access Enforcement V1 remains a planning and helper foundation only. Current admin pages do not enforce roles or brand permissions:
 
-- `source = "auth_disabled"`
-- `role = "owner"`
-- `brandAccess.scope = "all"`
+- no `owner` / `editor` / `lead_viewer` route blocking
+- no per-brand filtering based on a logged-in user
+- no user management, invitations, or password reset
 
 This does not mean real login exists yet. It prepares internal pages and navigation to understand the shape of role, module, and brand access before Supabase Auth is connected.
 
@@ -612,6 +619,8 @@ Payment status semantics:
 - `NEXT_PUBLIC_SUPABASE_URL` - pending; required before browser-side Supabase-aware flows are introduced.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
+- `LAUNCHHUB_ADMIN_PASSWORD` - required for the shared admin password gate.
+- `LAUNCHHUB_ADMIN_SESSION_SECRET` - required for signing the admin session cookie.
 - `PAYMENT_WEBHOOK_SECRET` - pending; must be added before production payment webhook use.
 - Legacy internal auth env vars are deprecated and not required: `INTERNAL_ACCESS_USERS`, `INTERNAL_AUTH_SESSION_SECRET`, `INTERNAL_AUTH_COOKIE_DOMAIN`, and `INTERNAL_AUTH_DISABLED`.
 - Future WhatsApp webhook secret / verification token - pending; must be added before production WhatsApp webhook use.
@@ -623,7 +632,7 @@ Do not deploy yet. Before deployment:
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
 - Set `NEXT_PUBLIC_ADMIN_BASE_URL=https://app.beautytrialhk.com` for internal admin pages and `NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com` for public campaign pages when using the split domains.
 - Configure Supabase environment variables in Vercel.
-- Do not configure internal login as a required gate; the admin backend is currently open by product decision.
+- Configure `LAUNCHHUB_ADMIN_PASSWORD` and `LAUNCHHUB_ADMIN_SESSION_SECRET` in Vercel.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.
 - Run `npm run lint` and `npm run build`.
