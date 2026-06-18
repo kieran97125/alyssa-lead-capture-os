@@ -369,10 +369,11 @@ Internal routes are protected by Basic Auth and role/module access:
 
 This boundary protects dashboards, lead lists, configuration views, landing page management, and system audit information before the project has a full admin login system.
 
-Set this environment variable in Vercel for preview or production internal use:
+Set these environment variables in Vercel for preview or production internal use:
 
 ```bash
 INTERNAL_ACCESS_USERS=kieran:ChangeMe_Owner_2026!:owner,editor:ChangeMe_Editor_2026!:editor,leads:ChangeMe_Leads_2026!:lead_viewer
+INTERNAL_AUTH_SESSION_SECRET=replace-with-long-random-secret
 ```
 
 Format:
@@ -394,13 +395,15 @@ INTERNAL_BASIC_AUTH_USER=
 INTERNAL_BASIC_AUTH_PASSWORD=
 ```
 
-When `INTERNAL_ACCESS_USERS` or the legacy owner credentials are set, visiting an internal route prompts for Basic Auth. Public landing pages, embedded forms, legal pages, public lead submit APIs, static assets, and the public embed script remain reachable without Basic Auth.
+When `INTERNAL_ACCESS_USERS` or the legacy owner credentials are set, visiting an internal route without a valid session redirects to `/login`. The branded login page authenticates the username/password, then sets a signed httpOnly `launchhub_internal_session` cookie for the user's role. `/logout` clears the session and redirects back to `/login`.
 
-If no internal credentials are configured in production, internal admin routes fail closed with a Basic Auth challenge. Local development may use a temporary owner fallback, but Vercel preview/production URLs should always define `INTERNAL_ACCESS_USERS`.
+Public landing pages, embedded forms, legal pages, public lead submit APIs, static assets, and the public embed script remain reachable without login.
+
+If no internal credentials or no `INTERNAL_AUTH_SESSION_SECRET` are configured in production, internal admin routes fail closed and no admin access is granted. Local development may use temporary fallback behavior, but Vercel preview/production URLs should always define both `INTERNAL_ACCESS_USERS` and `INTERNAL_AUTH_SESSION_SECRET`.
 
 Use strong passwords, replace the example values before real use, and test each role in an incognito/private browser session.
 
-Do not commit real credentials. Longer term, this lightweight gate should be replaced or upgraded with Supabase Auth, role-based admin login, or another internal identity provider.
+Do not commit real credentials. Longer term, this custom internal login can be replaced or upgraded with Supabase Auth, Google Login, role-based admin login, or another internal identity provider.
 
 ## Team Access Direction
 
@@ -610,6 +613,7 @@ Payment status semantics:
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
 - `PAYMENT_WEBHOOK_SECRET` - pending; must be added before production payment webhook use.
 - `INTERNAL_ACCESS_USERS` - required before exposing internal business/config pages; supports `owner`, `editor`, and `lead_viewer` Basic Auth accounts.
+- `INTERNAL_AUTH_SESSION_SECRET` - required before exposing internal business/config pages; signs the httpOnly internal login session cookie.
 - Future WhatsApp webhook secret / verification token - pending; must be added before production WhatsApp webhook use.
 
 ## Future Vercel Deployment
@@ -619,7 +623,7 @@ Do not deploy yet. Before deployment:
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
 - Set `NEXT_PUBLIC_PUBLIC_BASE_URL` and `NEXT_PUBLIC_ADMIN_BASE_URL` only if public campaign pages and admin pages use separate domains.
 - Configure Supabase environment variables in Vercel.
-- Configure `INTERNAL_ACCESS_USERS` in Vercel before sharing internal dashboard/config URLs.
+- Configure `INTERNAL_ACCESS_USERS` and `INTERNAL_AUTH_SESSION_SECRET` in Vercel before sharing internal dashboard/config URLs.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.
 - Run `npm run lint` and `npm run build`.

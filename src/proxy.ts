@@ -2,21 +2,15 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   authenticateInternalAccess,
   canAccessModule,
+  hasInternalSessionConfig,
+  internalSessionCookieName,
   noPermissionMessage,
+  verifySignedInternalSession,
 } from "@/lib/security/internalAccess";
 import {
   getInternalRouteModule,
   isInternalRoute,
 } from "@/lib/security/routeBoundary";
-
-function unauthorized() {
-  return new NextResponse("Authentication required", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": 'Basic realm="LaunchHub internal pages", charset="UTF-8"',
-    },
-  });
-}
 
 function forbidden(message: string) {
   return new NextResponse(
@@ -30,25 +24,56 @@ function forbidden(message: string) {
   );
 }
 
-export function proxy(request: NextRequest) {
+function redirectToLogin(request: NextRequest) {
+  const loginUrl = request.nextUrl.clone();
+  loginUrl.pathname = "/login";
+  loginUrl.search = "";
+  loginUrl.searchParams.set(
+    "next",
+    `${request.nextUrl.pathname}${request.nextUrl.search}`
+  );
+
+  return NextResponse.redirect(loginUrl);
+}
+
+async function getRequestAccess(request: NextRequest) {
+  if (process.env.NODE_ENV === "production" && !hasInternalSessionConfig()) {
+    return null;
+  }
+
+  const session = await verifySignedInternalSession(
+    request.cookies.get(internalSessionCookieName)?.value
+  );
+  if (session) return session;
+
+  const basicAuth = authenticateInternalAccess(request.headers.get("authorization"));
+  return basicAuth.ok ? basicAuth.context : null;
+}
+
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname === "/login") {
+    const access = await getRequestAccess(request);
+    if (!access) return NextResponse.next();
+
+    const dashboardUrl = request.nextUrl.clone();
+    dashboardUrl.pathname = "/dashboard";
+    dashboardUrl.search = "";
+    return NextResponse.redirect(dashboardUrl);
+  }
 
   if (!isInternalRoute(pathname)) {
     return NextResponse.next();
   }
 
-  const access = authenticateInternalAccess(request.headers.get("authorization"));
-
-  if (!access.ok) {
-    if (access.reason === "not_configured") {
-      return unauthorized();
-    }
-
-    return unauthorized();
+  const access = await getRequestAccess(request);
+  if (!access) {
+    return redirectToLogin(request);
   }
 
   const routeModule = getInternalRouteModule(pathname);
-  if (routeModule && !canAccessModule(access.context.role, routeModule)) {
+  if (routeModule && !canAccessModule(access.role, routeModule)) {
     return forbidden(noPermissionMessage);
   }
 

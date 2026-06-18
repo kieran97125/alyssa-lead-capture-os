@@ -9,7 +9,10 @@ import { countBy, formatDateTime } from "@/lib/data/businessMetrics";
 import { getFormByIdOrSlug } from "@/lib/data/formManagement";
 import { getPublishedLandingPageBySlug } from "@/lib/data/landingPageStore";
 import { getGoogleSheetsLeadSyncStatus } from "@/lib/integrations/googleSheetsLeadSync";
-import { hasInternalAccessConfig } from "@/lib/security/internalAccess";
+import {
+  hasInternalAccessConfig,
+  hasInternalSessionConfig,
+} from "@/lib/security/internalAccess";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -97,6 +100,7 @@ async function getReadinessChecks() {
   const mainForm = await getFormByIdOrSlug(alyssaDefaultForm.publicFormToken);
   const publicLp = await getPublishedLandingPageBySlug("alyssa-main-trial-offer");
   const hasBasicAuth = hasInternalAccessConfig();
+  const hasSessionSecret = hasInternalSessionConfig();
   const sheetsStatus = getGoogleSheetsLeadSyncStatus();
 
   return [
@@ -131,9 +135,14 @@ async function getReadinessChecks() {
       tone: "ready",
     },
     {
-      label: "Internal Basic Auth",
+      label: "Internal users",
       detail: "INTERNAL_ACCESS_USERS or legacy Basic Auth env",
       tone: hasBasicAuth ? "ready" : "attention",
+    },
+    {
+      label: "Internal session secret",
+      detail: "INTERNAL_AUTH_SESSION_SECRET",
+      tone: hasSessionSecret ? "ready" : "attention",
     },
     {
       label: "Google Sheets lead sync",

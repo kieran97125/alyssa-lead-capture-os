@@ -1,6 +1,6 @@
 import type { InternalModule } from "@/lib/security/internalAccess";
 
-export const publicExactRoutes = ["/thank-you"] as const;
+export const publicExactRoutes = ["/login", "/logout", "/thank-you"] as const;
 
 export const publicRoutePrefixes = [
   "/lp/",

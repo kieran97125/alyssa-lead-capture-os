@@ -1,18 +1,29 @@
-import { headers } from "next/headers";
+import { cookies, headers } from "next/headers";
 import {
   authenticateInternalAccess,
   canAccessModule,
   canPerformAction,
+  createSignedInternalSession,
+  internalSessionCookieName,
+  internalSessionMaxAgeSeconds,
   type InternalAction,
   type InternalAccessContext,
   type InternalModule,
+  verifySignedInternalSession,
 } from "@/lib/security/internalAccess";
 
 export async function getCurrentInternalAccess(): Promise<InternalAccessContext> {
-  const headerStore = await headers();
-  const result = authenticateInternalAccess(headerStore.get("authorization"));
+  const cookieStore = await cookies();
+  const session = await verifySignedInternalSession(
+    cookieStore.get(internalSessionCookieName)?.value
+  );
 
-  if (result.ok) return result.context;
+  if (session) return session;
+
+  const headerStore = await headers();
+  const basicAuth = authenticateInternalAccess(headerStore.get("authorization"));
+
+  if (basicAuth.ok) return basicAuth.context;
 
   return {
     username: "",
@@ -21,22 +32,47 @@ export async function getCurrentInternalAccess(): Promise<InternalAccessContext>
   };
 }
 
+export async function setInternalSessionCookie(context: InternalAccessContext) {
+  const session = await createSignedInternalSession(context);
+  if (!session) return false;
+
+  const cookieStore = await cookies();
+  cookieStore.set(internalSessionCookieName, session, {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: internalSessionMaxAgeSeconds,
+  });
+
+  return true;
+}
+
+export async function clearInternalSessionCookie() {
+  const cookieStore = await cookies();
+  cookieStore.set(internalSessionCookieName, "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    maxAge: 0,
+  });
+}
+
 export async function requireModuleAccess(module: InternalModule) {
-  const headerStore = await headers();
-  const result = authenticateInternalAccess(headerStore.get("authorization"));
+  const access = await getCurrentInternalAccess();
 
   return {
-    access: result.ok ? result.context : null,
-    allowed: result.ok ? canAccessModule(result.context.role, module) : false,
+    access,
+    allowed: canAccessModule(access.role, module),
   };
 }
 
 export async function requireActionAccess(action: InternalAction) {
-  const headerStore = await headers();
-  const result = authenticateInternalAccess(headerStore.get("authorization"));
+  const access = await getCurrentInternalAccess();
 
   return {
-    access: result.ok ? result.context : null,
-    allowed: result.ok ? canPerformAction(result.context.role, action) : false,
+    access,
+    allowed: canPerformAction(access.role, action),
   };
 }

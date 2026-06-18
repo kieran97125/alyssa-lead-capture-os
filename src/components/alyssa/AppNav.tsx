@@ -1,5 +1,9 @@
 import Link from "next/link";
-import { canAccessModule, type InternalModule } from "@/lib/security/internalAccess";
+import {
+  canAccessModule,
+  getRoleLabel,
+  type InternalModule,
+} from "@/lib/security/internalAccess";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 const navItems = [
@@ -35,17 +39,32 @@ export async function AppNav() {
             </span>
           </span>
         </Link>
-        <nav className="flex min-w-0 flex-wrap gap-2">
-          {visibleItems.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              className="alyssa-focus rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-semibold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white hover:shadow-[0_10px_24px_rgba(90,35,72,0.08)]"
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
+        <div className="flex min-w-0 flex-col gap-3 md:items-end">
+          <nav className="flex min-w-0 flex-wrap gap-2">
+            {visibleItems.map((item) => (
+              <Link
+                key={item.href}
+                href={item.href}
+                className="alyssa-focus rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-semibold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white hover:shadow-[0_10px_24px_rgba(90,35,72,0.08)]"
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          {access.username && (
+            <div className="flex flex-wrap items-center gap-2 text-xs font-bold text-[#9a5d76]">
+              <span className="rounded-full bg-white/78 px-3 py-1">
+                {access.username} · {getRoleLabel(access.role)}
+              </span>
+              <Link
+                href="/logout"
+                className="rounded-full border border-[#ead9cf] bg-white/78 px-3 py-1 text-[#5a2348] transition hover:bg-white"
+              >
+                登出
+              </Link>
+            </div>
+          )}
+        </div>
       </div>
     </header>
   );
