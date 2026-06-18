@@ -46,18 +46,21 @@ function getConfiguredAdminOrigin(request: NextRequest) {
   return null;
 }
 
-function shouldUseAdminOrigin(request: NextRequest) {
-  if (
-    process.env.NODE_ENV !== "production" &&
-    ["localhost", "127.0.0.1", "::1"].includes(request.nextUrl.hostname)
-  ) {
-    return null;
-  }
+function getConfiguredPublicOrigin() {
+  return originFromBaseUrl(process.env.NEXT_PUBLIC_PUBLIC_BASE_URL);
+}
 
+function shouldUseAdminOrigin(request: NextRequest) {
   const adminOrigin = getConfiguredAdminOrigin(request);
   if (!adminOrigin) return null;
   if (request.nextUrl.origin === adminOrigin) return null;
-  return adminOrigin;
+
+  const publicOrigin = getConfiguredPublicOrigin();
+  const isKnownPublicHost =
+    request.nextUrl.hostname === "go.beautytrialhk.com" ||
+    (publicOrigin !== null && request.nextUrl.origin === publicOrigin);
+
+  return isKnownPublicHost ? adminOrigin : null;
 }
 
 function redirectToAdminOrigin(request: NextRequest, adminOrigin: string) {
