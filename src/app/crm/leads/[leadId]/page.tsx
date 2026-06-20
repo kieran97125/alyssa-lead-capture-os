@@ -3,9 +3,24 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
-import { getLeadRows } from "@/lib/data/businessMetrics";
-import { getCrmWriteMode } from "@/lib/crm/config";
+import { formatDateTime, getLeadRows } from "@/lib/data/businessMetrics";
 import { toCrmLeadCase } from "@/lib/crm/leadOps";
+import {
+  addNoteAction,
+  assignCsAction,
+  createFollowUpTaskAction,
+  saveBookingAction,
+  saveLostReasonAction,
+  updateStatusAction,
+} from "./actions";
+import {
+  applyCrmRecordToLeadCase,
+  bootstrapCrmLeadCaseFromLead,
+  getCrmCaseBundleByCaseRecord,
+  getCrmCaseBundleBySourceLeadId,
+  getCrmRuntimeStatus,
+  type CrmInteractionRecord,
+} from "@/lib/crm/store";
 
 export const dynamic = "force-dynamic";
 
@@ -20,9 +35,19 @@ export default async function CrmLeadDetailPage({
 
   if (!lead) notFound();
 
-  const leadCase = toCrmLeadCase(lead);
+  const baseLeadCase = toCrmLeadCase(lead);
+  const runtime = await getCrmRuntimeStatus();
+  const bootstrappedCase = runtime.actionsEnabled
+    ? await bootstrapCrmLeadCaseFromLead(lead)
+    : null;
+  const bundle = bootstrappedCase
+    ? await getCrmCaseBundleByCaseRecord(bootstrappedCase)
+    : await getCrmCaseBundleBySourceLeadId(lead.id);
+  const leadCase = applyCrmRecordToLeadCase(
+    baseLeadCase,
+    bundle.caseRecord ?? bootstrappedCase
+  );
   const hasCtwa = Object.values(leadCase.ctwa).some(Boolean);
-  const writeMode = getCrmWriteMode();
 
   return (
     <CrmShell>
@@ -75,9 +100,9 @@ export default async function CrmLeadDetailPage({
               CRM detail could not refresh all latest records.
             </p>
           )}
-          {!writeMode.actionsEnabled && (
+          {!runtime.actionsEnabled && (
             <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
-              {writeMode.disabledReason}
+              {runtime.disabledReason}
             </p>
           )}
         </header>
@@ -110,9 +135,11 @@ export default async function CrmLeadDetailPage({
                   <InfoLine label="CRM source" value={leadCase.sourceLabel} />
                   <InfoLine label="Raw source type" value={leadCase.sourceTypeRaw} />
                   <InfoLine label="Landing page" value={leadCase.landingPageSlug || "-"} />
+                  <InfoLine label="Form token" value={bundle.caseRecord?.form_token || "-"} />
                   <InfoLine label="Page URL" value={leadCase.pageUrl || "-"} />
                   <InfoLine label="Campaign" value={leadCase.campaignLabel} />
                   <InfoLine label="Ad / Content" value={leadCase.adLabel} />
+                  <InfoLine label="Lost reason" value={bundle.caseRecord?.lost_reason || "-"} />
                 </Panel>
 
                 <Panel title="CTWA / WhatsApp Ad">
@@ -142,13 +169,150 @@ export default async function CrmLeadDetailPage({
               </div>
 
               <div className="grid gap-3.5 xl:grid-cols-3">
-                <OperationPanel title="Assignment" fieldLabel="Assigned CS" value={leadCase.assignedCsLabel} />
-                <OperationPanel title="Status Pipeline" fieldLabel="Current status" value={leadCase.statusLabel} />
-                <OperationPanel title="Notes" fieldLabel="Internal note" value="Add note after CRM tables are enabled." multiline />
-                <OperationPanel title="Booking" fieldLabel="Booking status" value="Create or update booking later." />
-                <OperationPanel title="Follow-up Task" fieldLabel="Next follow-up" value={leadCase.nextFollowUpLabel} />
-                <OperationPanel title="Lost Reason" fieldLabel="Reason" value="Set when case is marked lost." />
-                <Placeholder title="Timeline" body="Form submit, WhatsApp messages, notes, status changes, bookings, and follow-up tasks will be stored as crm_interactions later." />
+                <ActionPanel
+                  title="Assignment"
+                  enabled={runtime.actionsEnabled}
+                  action={assignCsAction.bind(null, leadId)}
+                  submitLabel="Save assignment"
+                >
+                  <TextInput
+                    name="assigned_to"
+                    label="Assigned CS"
+                    defaultValue={bundle.caseRecord?.assigned_to || ""}
+                    placeholder="CS name"
+                  />
+                </ActionPanel>
+
+                <ActionPanel
+                  title="Status Pipeline"
+                  enabled={runtime.actionsEnabled}
+                  action={updateStatusAction.bind(null, leadId)}
+                  submitLabel="Update status"
+                >
+                  <SelectInput
+                    name="status"
+                    label="Current status"
+                    defaultValue={leadCase.status}
+                    options={[
+                      ["new", "New"],
+                      ["contacting", "Contacting"],
+                      ["booked", "Booked"],
+                      ["confirmed", "Confirmed"],
+                      ["showed", "Showed"],
+                      ["paid", "Paid"],
+                      ["no_show", "No-show"],
+                      ["lost", "Lost"],
+                      ["invalid", "Invalid"],
+                    ]}
+                  />
+                  <TextAreaInput
+                    name="status_note"
+                    label="Status note"
+                    placeholder="Optional note"
+                  />
+                </ActionPanel>
+
+                <ActionPanel
+                  title="Notes"
+                  enabled={runtime.actionsEnabled}
+                  action={addNoteAction.bind(null, leadId)}
+                  submitLabel="Add note"
+                >
+                  <TextAreaInput
+                    name="note"
+                    label="Internal note"
+                    placeholder="Write CS follow-up notes"
+                  />
+                </ActionPanel>
+
+                <ActionPanel
+                  title="Booking"
+                  enabled={runtime.actionsEnabled}
+                  action={saveBookingAction.bind(null, leadId)}
+                  submitLabel="Save booking"
+                >
+                  <TextInput
+                    name="branch_label"
+                    label="Branch"
+                    defaultValue={bundle.booking?.branch_label || leadCase.branchName}
+                  />
+                  <TextInput
+                    name="treatment_label"
+                    label="Treatment"
+                    defaultValue={bundle.booking?.treatment_label || leadCase.treatmentOffer}
+                  />
+                  <div className="grid gap-2 sm:grid-cols-2">
+                    <TextInput
+                      type="date"
+                      name="booking_date"
+                      label="Date"
+                      defaultValue={bundle.booking?.booking_date || ""}
+                    />
+                    <TextInput
+                      type="time"
+                      name="booking_time"
+                      label="Time"
+                      defaultValue={bundle.booking?.booking_time || ""}
+                    />
+                  </div>
+                  <SelectInput
+                    name="booking_status"
+                    label="Booking status"
+                    defaultValue={bundle.booking?.status || "tentative"}
+                    options={[
+                      ["tentative", "Tentative"],
+                      ["booked", "Booked"],
+                      ["confirmed", "Confirmed"],
+                      ["showed", "Showed"],
+                      ["no_show", "No-show"],
+                      ["cancelled", "Cancelled"],
+                    ]}
+                  />
+                </ActionPanel>
+
+                <ActionPanel
+                  title="Follow-up Task"
+                  enabled={runtime.actionsEnabled}
+                  action={createFollowUpTaskAction.bind(null, leadId)}
+                  submitLabel="Create task"
+                >
+                  <TextInput
+                    name="task_assigned_to"
+                    label="CS owner"
+                    defaultValue={bundle.caseRecord?.assigned_to || ""}
+                  />
+                  <TextInput
+                    name="due_at"
+                    type="datetime-local"
+                    label="Due at"
+                  />
+                  <TextInput
+                    name="task_type"
+                    label="Task type"
+                    defaultValue="follow_up"
+                  />
+                  <TextAreaInput
+                    name="task_note"
+                    label="Task note"
+                    placeholder="Follow-up reminder"
+                  />
+                </ActionPanel>
+
+                <ActionPanel
+                  title="Lost Reason"
+                  enabled={runtime.actionsEnabled}
+                  action={saveLostReasonAction.bind(null, leadId)}
+                  submitLabel="Save lost reason"
+                >
+                  <TextAreaInput
+                    name="lost_reason"
+                    label="Reason"
+                    defaultValue={bundle.caseRecord?.lost_reason || ""}
+                    placeholder="Why this case was lost"
+                  />
+                </ActionPanel>
+
+                <TimelinePanel interactions={bundle.interactions} />
                 <Placeholder title="Quick Replies" body="Brand-approved replies will be selectable here later." />
                 <Placeholder title="AI Reply Suggestions" body="AI suggestions will use brand knowledge and conversation context later." />
                 <Placeholder title="Brand Knowledge" body="Treatment FAQ, policies, and brand information will support CS and AI responses." />
@@ -187,50 +351,177 @@ function InfoLine({ label, value }: { label: string; value: string }) {
   );
 }
 
-function OperationPanel({
+function ActionPanel({
   title,
-  fieldLabel,
-  value,
-  multiline = false,
+  enabled,
+  action,
+  submitLabel,
+  children,
 }: {
   title: string;
-  fieldLabel: string;
-  value: string;
-  multiline?: boolean;
+  enabled: boolean;
+  action: (formData: FormData) => Promise<void>;
+  submitLabel: string;
+  children: ReactNode;
 }) {
   return (
     <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[13px] font-bold text-[#111827]">{title}</h2>
-        <span className="rounded-md bg-[#fef3c7] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#92400e]">
-          Disabled
+        <span
+          className={`rounded-md px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] ${
+            enabled
+              ? "bg-[#ecfdf5] text-[#047857]"
+              : "bg-[#fef3c7] text-[#92400e]"
+          }`}
+        >
+          {enabled ? "Enabled" : "Disabled"}
         </span>
       </div>
-      <label className="mt-3 block">
-        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
-          {fieldLabel}
-        </span>
-        {multiline ? (
-          <textarea
-            disabled
-            defaultValue={value}
-            className="mt-1.5 min-h-16 w-full resize-none rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-2 text-[12px] font-semibold text-[#64748b]"
-          />
-        ) : (
-          <input
-            disabled
-            defaultValue={value}
-            className="mt-1.5 h-8 w-full rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#64748b]"
-          />
-        )}
-      </label>
-      <button
-        type="button"
-        disabled
-        className="mt-3 h-7 whitespace-nowrap rounded-md bg-[#e5e7eb] px-2.5 text-[10px] font-bold text-[#94a3b8]"
+      <form action={action} className="mt-3 grid gap-2">
+        <fieldset disabled={!enabled} className="grid gap-2 disabled:opacity-70">
+          {children}
+        </fieldset>
+        <button
+          type="submit"
+          disabled={!enabled}
+          className={`h-7 whitespace-nowrap rounded-md px-2.5 text-[10px] font-bold ${
+            enabled
+              ? "bg-[#111827] text-white transition hover:bg-[#0f172a]"
+              : "bg-[#e5e7eb] text-[#94a3b8]"
+          }`}
+        >
+          {submitLabel}
+        </button>
+      </form>
+    </section>
+  );
+}
+
+function TextInput({
+  label,
+  name,
+  type = "text",
+  defaultValue = "",
+  placeholder,
+}: {
+  label: string;
+  name: string;
+  type?: string;
+  defaultValue?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+        {label}
+      </span>
+      <input
+        name={name}
+        type={type}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        className="mt-1.5 h-8 w-full rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#111827] outline-none focus:border-[#2563eb] focus:bg-white"
+      />
+    </label>
+  );
+}
+
+function TextAreaInput({
+  label,
+  name,
+  defaultValue = "",
+  placeholder,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+        {label}
+      </span>
+      <textarea
+        name={name}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        className="mt-1.5 min-h-16 w-full resize-y rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-2 text-[12px] font-semibold text-[#111827] outline-none focus:border-[#2563eb] focus:bg-white"
+      />
+    </label>
+  );
+}
+
+function SelectInput({
+  label,
+  name,
+  defaultValue,
+  options,
+}: {
+  label: string;
+  name: string;
+  defaultValue: string;
+  options: Array<[string, string]>;
+}) {
+  return (
+    <label className="block">
+      <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+        {label}
+      </span>
+      <select
+        name={name}
+        defaultValue={defaultValue}
+        className="mt-1.5 h-8 w-full rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#111827] outline-none focus:border-[#2563eb] focus:bg-white"
       >
-        Save later
-      </button>
+        {options.map(([value, labelText]) => (
+          <option key={value} value={value}>
+            {labelText}
+          </option>
+        ))}
+      </select>
+    </label>
+  );
+}
+
+function TimelinePanel({ interactions }: { interactions: CrmInteractionRecord[] }) {
+  return (
+    <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5 xl:col-span-3">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-bold text-[#111827]">Timeline</h2>
+        <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
+          crm_interactions
+        </span>
+      </div>
+      {interactions.length > 0 ? (
+        <ol className="mt-3 grid gap-2">
+          {interactions.map((item) => (
+            <li
+              key={item.id}
+              className="rounded-md border border-[#eef2f6] bg-[#f8fafc] px-3 py-2"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[11px] font-bold text-[#111827]">
+                  {item.interaction_type}
+                </span>
+                <span className="text-[10px] font-semibold text-[#64748b]">
+                  {formatDateTime(item.created_at)}
+                </span>
+              </div>
+              <p className="mt-1 text-[12px] leading-5 text-[#475569]">
+                {item.body || "-"}
+              </p>
+              <p className="mt-1 text-[10px] font-semibold text-[#94a3b8]">
+                {item.author || "CS"} · {item.source_type || "crm"}
+              </p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="mt-3 rounded-md bg-[#f8fafc] px-3 py-3 text-[12px] font-semibold text-[#64748b]">
+          No CRM interactions yet.
+        </p>
+      )}
     </section>
   );
 }

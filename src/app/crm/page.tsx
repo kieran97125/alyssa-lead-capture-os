@@ -1,8 +1,12 @@
 import { CrmInboxTable } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getLeadRows } from "@/lib/data/businessMetrics";
-import { getCrmWriteMode } from "@/lib/crm/config";
 import { summarizeCrmCases, toCrmLeadCase } from "@/lib/crm/leadOps";
+import {
+  applyCrmRecordToLeadCase,
+  getCrmCasesBySourceLeadIds,
+  getCrmRuntimeStatus,
+} from "@/lib/crm/store";
 
 export const dynamic = "force-dynamic";
 
@@ -10,9 +14,14 @@ const tabs = ["Chats", "Orders", "Appointments", "Contacts", "Groups"];
 
 export default async function CrmPage() {
   const { leads, error } = await getLeadRows("month", 500);
-  const cases = leads.map(toCrmLeadCase);
+  const [runtime, crmCasesByLeadId] = await Promise.all([
+    getCrmRuntimeStatus(),
+    getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id)),
+  ]);
+  const cases = leads.map((lead) =>
+    applyCrmRecordToLeadCase(toCrmLeadCase(lead), crmCasesByLeadId.get(lead.id) ?? null)
+  );
   const summary = summarizeCrmCases(cases);
-  const writeMode = getCrmWriteMode();
 
   return (
     <CrmShell>
@@ -23,7 +32,7 @@ export default async function CrmPage() {
               <div className="flex items-center gap-2.5">
                 <h1 className="text-lg font-bold text-[#111827]">Inbox</h1>
                 <span className="rounded-md bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#047857]">
-                  Read-only
+                  {runtime.actionsEnabled ? "Actions enabled" : "Read-only"}
                 </span>
               </div>
               <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
@@ -82,7 +91,7 @@ export default async function CrmPage() {
               <button
                 type="button"
                 disabled
-                title={writeMode.disabledReason ?? "CRM write actions require deployed CRM tables."}
+                title={runtime.disabledReason ?? "CRM write actions are enabled on detail pages."}
                 className="h-9 whitespace-nowrap rounded-md bg-[#e5e7eb] px-2.5 text-[12px] font-bold text-[#94a3b8]"
               >
                 New task
@@ -90,9 +99,9 @@ export default async function CrmPage() {
             </div>
           </div>
 
-          {!writeMode.actionsEnabled && (
+          {!runtime.actionsEnabled && (
             <p className="border-t border-amber-100 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-800">
-              {writeMode.disabledReason}
+              {runtime.disabledReason}
             </p>
           )}
 

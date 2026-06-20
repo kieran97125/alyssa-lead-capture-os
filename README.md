@@ -40,7 +40,7 @@ The contract is that Campaign Launch OS creates the first attribution-backed lea
 
 ## LeadOps CRM Foundation
 
-LaunchHub now includes a read-only LeadOps CRM foundation at `/crm`. It is a lightweight operational view over existing LaunchHub lead data, not a full CRM write system.
+LaunchHub includes a LeadOps CRM area at `/crm`. By default it is a safe read-only operational view over existing LaunchHub lead data. When the dedicated CRM tables exist and `CRM_WRITE_ENABLED=true`, the detail page can enable the CS operation write layer.
 
 Current scope:
 
@@ -49,46 +49,63 @@ Current scope:
 - Use `brand_slug + normalized_phone` as the canonical CRM identity.
 - Normalize CRM source display into `landing_form`, `whatsapp_ad`, `whatsapp_direct`, `manual`, `import`, or `unknown`.
 - Surface CTWA fields when they exist, including source ID, source URL, referral headline/body, campaign ID, ad set ID, ad ID, phone number ID, and future WhatsApp Business Account ID.
-- Show disabled placeholders for notes, timeline, booking updates, quick replies, AI suggestions, status pipeline, brand knowledge, intent/tagging, and next best action.
+- Show assignment, status, next follow-up, notes, booking, lost reason, and timeline areas.
+- Keep quick replies, AI suggestions, brand knowledge, intent/tagging, and next best action as future placeholders.
 
 Current non-goals:
 
-- No CRM writes.
 - No WhatsApp inbox.
 - No AI reply generation.
-- No booking or status mutation.
-- No new CRM migration.
+- No WhatsApp API send actions.
+- No mutation of the original LaunchHub lead/source/payment/legal consent records.
 - No brand-specific hardcoding.
 
 The CRM domain model is intended to be portable into a future brand-neutral GrowthOS CRM app. Proposed future tables are documented in `docs/CRM_SCHEMA_PROPOSAL.md`; this is a proposal only and no live migration has been applied.
 
-## LeadOps CRM Phase 2 Direction
+## LeadOps CRM Phase 2B Safe Write Layer
 
-CRM Phase 2 adds the foundation for CS operations and WhatsApp channel settings while keeping LaunchHub lead capture untouched.
+CRM Phase 2B adds a safe CS operation write layer while keeping LaunchHub lead capture untouched.
 
-Current Phase 2 scope:
+Runtime behavior:
 
 - `CRM_WRITE_ENABLED` is a server-side feature flag.
-- If `CRM_WRITE_ENABLED` is not `true`, CRM write controls stay disabled and the read-only inbox continues to work from existing LaunchHub leads.
-- In this safe foundation build, CRM write actions remain disabled even if the flag is set until the CRM tables and server actions are deliberately deployed.
-- `/crm` shows CS operation readiness such as assignment, status, next follow-up, source type, CTWA Source ID, and disabled action controls.
-- `/crm/leads/[leadId]` shows disabled panels for assignment, status pipeline, notes, booking, follow-up task, lost reason, and timeline.
+- If `CRM_WRITE_ENABLED` is not `true`, CRM write controls stay disabled and `/crm` continues to work from existing LaunchHub leads.
+- If the CRM tables are missing, CRM write controls stay disabled even when the flag is set.
+- If the CRM tables exist and `CRM_WRITE_ENABLED=true`, `/crm/leads/[leadId]` enables CS operation forms.
+- The disabled admin message is: `CRM write actions are not enabled yet.`
+- `/crm` overlays assignment, status, and next follow-up values from `crm_lead_cases` when records exist.
+- `/crm/leads/[leadId]` can bootstrap a CRM case from a LaunchHub lead without modifying the original lead.
 - `/crm/settings` shows the WhatsApp Channel Settings architecture without connecting to Meta / WhatsApp APIs.
-- Raw WhatsApp access tokens must not be stored or displayed in the UI. The future table stores only `access_token_secret_ref`.
+- Raw WhatsApp access tokens must not be stored or displayed in the UI.
 
-CRM Phase 2 schema is documented in:
+CS write actions:
 
-- `docs/CRM_PHASE2_SCHEMA.sql`
+- Assign CS: updates `crm_lead_cases.assigned_to` and writes `crm_interactions`.
+- Update status: updates `crm_lead_cases.status`, writes `crm_status_history`, and writes `crm_interactions`.
+- Add note: writes `crm_interactions`.
+- Booking: creates or updates `crm_bookings`, links `crm_lead_cases.booking_id` where possible, and writes `crm_interactions`.
+- Follow-up task: creates `crm_follow_up_tasks`, updates `crm_lead_cases.next_follow_up_at`, and writes `crm_interactions`.
+- Lost reason: updates `crm_lead_cases.lost_reason`, sets status to `lost`, writes `crm_status_history`, and writes `crm_interactions`.
 
-This file is a proposal only. It has not been executed against the live database. Proposed tables include `crm_contacts`, `crm_lead_cases`, `crm_interactions`, `crm_status_history`, `crm_bookings`, `crm_follow_up_tasks`, `crm_quick_replies`, `crm_brand_knowledge_items`, `whatsapp_channels`, `whatsapp_message_templates`, and `whatsapp_webhook_events`.
+CRM Phase 2 schema files:
 
-Storage direction:
+- `docs/CRM_PHASE2_SCHEMA.sql` is the broader planning proposal.
+- `docs/CRM_PHASE2_APPLY.sql` is the Phase 2B review/apply script for the six CS operation tables only.
 
-- Status changes should write to `crm_status_history` and create a `crm_interactions` timeline record.
-- Notes should write to `crm_interactions`.
-- Booking operations should write to `crm_bookings` and related timeline records.
-- Follow-up reminders should write to `crm_follow_up_tasks`.
-- WhatsApp channel metadata should write to `whatsapp_channels`, but only with token secret references and hashed verify tokens.
+`docs/CRM_PHASE2_APPLY.sql` has not been executed against the live database by this code change. It uses `create table if not exists`, non-destructive indexes, and comments. It does not alter existing LaunchHub tables.
+
+Activation steps:
+
+1. Review `docs/CRM_PHASE2_APPLY.sql`.
+2. Apply it manually in Supabase after approval.
+3. Set `CRM_WRITE_ENABLED=true`.
+4. Confirm `/crm` and `/crm/leads/[leadId]` show enabled CS actions.
+
+Safety boundaries:
+
+- Public landing pages, public embed forms, public lead APIs, UTM/source capture, payment semantics, legal consent validation, and Google Sheets sync are unchanged.
+- The original LaunchHub lead record is not modified by CRM bootstrapping.
+- WhatsApp quick replies, brand knowledge editing, and WhatsApp API sends remain future work.
 
 GrowthOS portability:
 

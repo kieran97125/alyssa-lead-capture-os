@@ -1,5 +1,5 @@
 import { CrmShell } from "@/components/crm/CrmShell";
-import { getCrmWriteMode } from "@/lib/crm/config";
+import { getCrmRuntimeStatus } from "@/lib/crm/store";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -23,8 +23,8 @@ const templateFields = [
   ["Status", "Draft / submitted / approved / rejected"],
 ];
 
-export default function CrmSettingsPage() {
-  const writeMode = getCrmWriteMode();
+export default async function CrmSettingsPage() {
+  const runtime = await getCrmRuntimeStatus();
 
   return (
     <CrmShell active="settings">
@@ -40,7 +40,7 @@ export default function CrmSettingsPage() {
               </p>
             </div>
             <span className="w-fit rounded-md bg-[#fef3c7] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#92400e]">
-              {writeMode.enabled ? "Writes flagged on" : "Writes disabled"}
+              {runtime.actionsEnabled ? "CS actions enabled" : "Writes disabled"}
             </span>
           </div>
         </header>

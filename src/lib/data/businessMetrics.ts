@@ -26,6 +26,7 @@ type LeadRecord = {
   created_at: string;
   submitted_at: string | null;
   contact_id: string | null;
+  form_id: string | null;
   source_snapshot_id: string | null;
   customer_name: string | null;
   phone: string | null;
@@ -49,6 +50,7 @@ type ContactRecord = {
   customer_name: string | null;
   phone: string | null;
   normalized_phone: string | null;
+  email: string | null;
 };
 
 type SourceSnapshotRecord = {
@@ -93,10 +95,17 @@ type PackageRecord = NameRecord & {
   currency: string | null;
 };
 
+type FormRecord = {
+  id: string;
+  form_name: string | null;
+  public_form_token: string | null;
+};
+
 export type LeadRow = LeadRecord & {
   contact: ContactRecord | null;
   sourceSnapshot: SourceSnapshotRecord | null;
   booking: BookingRecord | null;
+  form: FormRecord | null;
   brand: NameRecord | null;
   treatment: NameRecord | null;
   package: PackageRecord | null;
@@ -426,6 +435,7 @@ export async function getLeadRows(
           "created_at",
           "submitted_at",
           "contact_id",
+          "form_id",
           "source_snapshot_id",
           "customer_name",
           "phone",
@@ -454,6 +464,7 @@ export async function getLeadRows(
     const leadRecords = (data ?? []) as unknown as LeadRecord[];
     const [
       contacts,
+      forms,
       brands,
       treatments,
       packages,
@@ -463,8 +474,13 @@ export async function getLeadRows(
     ] = await Promise.all([
       fetchByIds<ContactRecord>(
         "contacts",
-        "id,customer_name,phone,normalized_phone",
+        "id,customer_name,phone,normalized_phone,email",
         ids(leadRecords.map((lead) => lead.contact_id))
+      ),
+      fetchByIds<FormRecord>(
+        "forms",
+        "id,form_name,public_form_token",
+        ids(leadRecords.map((lead) => lead.form_id))
       ),
       fetchByIds<NameRecord>("brands", "id,name", ids(leadRecords.map((lead) => lead.brand_id))),
       fetchByIds<NameRecord>(
@@ -519,6 +535,7 @@ export async function getLeadRows(
       return {
         ...lead,
         contact: (lead.contact_id && contacts.get(lead.contact_id)) || null,
+        form: (lead.form_id && forms.get(lead.form_id)) || null,
         sourceSnapshot,
         booking: bookingsByLeadId.get(lead.id) || null,
         brand: (lead.brand_id && brands.get(lead.brand_id)) || null,
