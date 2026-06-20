@@ -6,7 +6,6 @@ const navItems = [
   { href: "/landing-pages", label: "Landing Pages" },
   { href: "/forms", label: "Forms" },
   { href: "/leads", label: "Leads" },
-  { href: "/crm", label: "CRM" },
   { href: "/performance", label: "Performance" },
   { href: "/settings#brand-library", label: "Brand Library" },
   { href: "/settings", label: "Settings" },

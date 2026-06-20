@@ -1,14 +1,11 @@
-import Link from "next/link";
-import { AppNav } from "@/components/alyssa/AppNav";
-import { MotionReveal } from "@/components/alyssa/MotionReveal";
+import { CrmInboxTable } from "@/components/crm/CrmInboxTable";
+import { CrmShell } from "@/components/crm/CrmShell";
 import { getLeadRows } from "@/lib/data/businessMetrics";
-import {
-  summarizeCrmCases,
-  toCrmLeadCase,
-  type CrmLeadCase,
-} from "@/lib/crm/leadOps";
+import { summarizeCrmCases, toCrmLeadCase } from "@/lib/crm/leadOps";
 
 export const dynamic = "force-dynamic";
+
+const tabs = ["Chats", "Orders", "Appointments", "Contacts", "Groups"];
 
 export default async function CrmPage() {
   const { leads, error } = await getLeadRows("month", 500);
@@ -16,194 +13,99 @@ export default async function CrmPage() {
   const summary = summarizeCrmCases(cases);
 
   return (
-    <main className="alyssa-shell">
-      <AppNav />
-      <div className="mx-auto max-w-7xl px-5 py-8">
-        <MotionReveal>
-          <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
-                <p className="alyssa-kicker">LeadOps CRM</p>
-                <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                  Phone-first CRM Inbox
-                </h1>
-                <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                  以品牌 + 電話作為客人身份，集中查看表格、Landing Page 及日後 WhatsApp 廣告 Leads。
-                </p>
+    <CrmShell>
+      <div className="flex h-screen min-w-0 flex-col">
+        <header className="shrink-0 border-b border-[#e5e7eb] bg-white">
+          <div className="flex flex-col gap-3 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <div className="flex items-center gap-3">
+                <h1 className="text-xl font-bold text-[#111827]">Inbox</h1>
+                <span className="rounded-full bg-[#ecfdf5] px-2.5 py-1 text-[11px] font-bold text-[#047857]">
+                  Read-only
+                </span>
               </div>
-              <div className="flex flex-wrap gap-2">
-                <Link
-                  href="/leads"
-                  className="alyssa-focus rounded-full border border-[#ead9cf] bg-white px-5 py-3 text-sm font-bold text-[#5a2348] shadow-sm transition hover:-translate-y-0.5 hover:bg-[#fff6f0]"
-                >
-                  查看原始 Leads
-                </Link>
-                <Link
-                  href="/campaigns/new"
-                  className="alyssa-focus rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.24)] transition hover:-translate-y-0.5 hover:bg-[#d95f55]"
-                >
-                  建立 Campaign
-                </Link>
-              </div>
-            </div>
-            {error && (
-              <p className="mt-4 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                CRM Inbox 暫時未能讀取最新資料，請稍後再試。
-              </p>
-            )}
-          </section>
-        </MotionReveal>
-
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          <CrmStat label="Open cases" value={summary.total} />
-          <CrmStat label="WhatsApp ad leads" value={summary.whatsappAds} />
-          <CrmStat label="Form / Landing Page leads" value={summary.formLeads} />
-          <CrmStat label="未設定下次跟進" value={summary.missingNextFollowUp} />
-        </section>
-
-        <MotionReveal delay={0.08}>
-          <section className="alyssa-premium-card mt-6 min-w-0 p-5">
-            <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-              <div>
-                <p className="alyssa-kicker">CRM Inbox</p>
-                <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                  最新 Lead Cases
-                </h2>
-              </div>
-              <p className="text-sm font-semibold text-[#7b5a6a]">
-                目前為唯讀視圖，跟進動作會於 CRM 寫入階段加入。
+              <p className="mt-1 text-xs font-semibold text-[#64748b]">
+                LeadOps CRM uses brand + normalized phone as the customer identity.
               </p>
             </div>
-
-            <div className="mt-4 max-w-full overflow-x-auto">
-              <table className="alyssa-table min-w-[1360px] text-left text-sm">
-                <thead>
-                  <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
-                    {[
-                      "Created / Last activity",
-                      "客人",
-                      "電話",
-                      "品牌",
-                      "療程 / Offer",
-                      "來源",
-                      "CTWA Source ID",
-                      "Landing Page / URL",
-                      "Campaign / Ad",
-                      "狀態",
-                      "CS",
-                      "下次跟進",
-                      "WhatsApp",
-                      "詳情",
-                    ].map((heading) => (
-                      <th key={heading} className="border-b border-[#ead9cf] px-3 py-3">
-                        {heading}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {cases.length > 0 ? (
-                    cases.map((item) => <CrmRow key={item.id} item={item} />)
-                  ) : (
-                    <tr>
-                      <td colSpan={14} className="px-3 py-8 text-center text-[#7b5a6a]">
-                        暫時未有 CRM cases。
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+            <div className="grid grid-cols-2 gap-2 text-[11px] font-bold text-[#475569] sm:flex">
+              <Metric label="Open" value={summary.total} />
+              <Metric label="WhatsApp Ads" value={summary.whatsappAds} />
+              <Metric label="Forms" value={summary.formLeads} />
+              <Metric label="No next follow-up" value={summary.missingNextFollowUp} />
             </div>
-          </section>
-        </MotionReveal>
+          </div>
+
+          <div className="flex min-w-0 flex-col gap-3 border-t border-[#f1f5f9] px-4 py-2 xl:flex-row xl:items-center xl:justify-between">
+            <nav className="flex gap-1 overflow-x-auto">
+              {tabs.map((tab, index) => (
+                <button
+                  key={tab}
+                  type="button"
+                  disabled={index !== 0}
+                  className={`h-9 whitespace-nowrap rounded-lg px-3 text-sm font-bold ${
+                    index === 0
+                      ? "bg-[#111827] text-white"
+                      : "text-[#94a3b8] hover:bg-[#f8fafc]"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </nav>
+
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              <button className="h-9 whitespace-nowrap rounded-lg border border-[#dbe2ea] bg-white px-3 text-xs font-bold text-[#334155]">
+                Filter
+              </button>
+              <select className="h-9 rounded-lg border border-[#dbe2ea] bg-white px-3 text-xs font-bold text-[#334155]">
+                <option>All sources</option>
+                <option>WhatsApp ads</option>
+                <option>Landing forms</option>
+              </select>
+              <select className="h-9 rounded-lg border border-[#dbe2ea] bg-white px-3 text-xs font-bold text-[#334155]">
+                <option>All statuses</option>
+                <option>New</option>
+                <option>Contacting</option>
+                <option>Booked</option>
+              </select>
+              <label className="min-w-[240px] flex-1 xl:w-[360px] xl:flex-none">
+                <span className="sr-only">Search CRM inbox</span>
+                <input
+                  type="search"
+                  placeholder="Search name, phone, CTWA ID, campaign..."
+                  className="h-9 w-full rounded-lg border border-[#dbe2ea] bg-[#f8fafc] px-3 text-xs font-semibold text-[#111827] outline-none transition focus:border-[#2563eb] focus:bg-white"
+                />
+              </label>
+              <button
+                type="button"
+                disabled
+                title="CRM write actions coming soon"
+                className="h-9 whitespace-nowrap rounded-lg bg-[#e5e7eb] px-3 text-xs font-bold text-[#94a3b8]"
+              >
+                New task
+              </button>
+            </div>
+          </div>
+
+          {error && (
+            <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-xs font-semibold text-red-700">
+              CRM inbox cannot read the latest records right now. Please try again later.
+            </p>
+          )}
+        </header>
+
+        <CrmInboxTable cases={cases} />
       </div>
-    </main>
+    </CrmShell>
   );
 }
 
-function CrmStat({ label, value }: { label: string; value: number }) {
+function Metric({ label, value }: { label: string; value: number }) {
   return (
-    <MotionReveal>
-      <div className="alyssa-premium-card min-w-0 p-4">
-        <p className="alyssa-kicker">{label}</p>
-        <p className="mt-2 text-3xl font-bold text-[#321428]">{value}</p>
-      </div>
-    </MotionReveal>
-  );
-}
-
-function CrmRow({ item }: { item: CrmLeadCase }) {
-  return (
-    <tr className="align-top text-[#5a2348] transition hover:bg-[#fff6f0]/70">
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        <span className="block font-semibold">{item.createdLabel}</span>
-        <span className="mt-1 block text-xs text-[#7b5a6a]">
-          Last: {item.lastActivityLabel}
-        </span>
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3 font-semibold">
-        {item.customerName}
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        <span className="block font-semibold">{item.normalizedPhone}</span>
-        <span className="mt-1 block text-xs text-[#7b5a6a]">
-          {item.canonicalIdentity}
-        </span>
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">{item.brandName}</td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        <span className="block font-semibold">{item.treatmentOffer}</span>
-        <span className="mt-1 block text-xs text-[#7b5a6a]">
-          {item.packagePrice}
-        </span>
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
-          {item.sourceLabel}
-        </span>
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        {item.ctwa.ctwa_source_id || "—"}
-      </td>
-      <td className="max-w-[220px] border-b border-[#f1e3dc] px-3 py-3">
-        <span className="block font-semibold">{item.landingPageSlug || "—"}</span>
-        <span className="mt-1 block truncate text-xs text-[#7b5a6a]">
-          {item.pageUrl || "未有 Page URL"}
-        </span>
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        <span className="block">{item.campaignLabel}</span>
-        <span className="mt-1 block text-xs text-[#7b5a6a]">{item.adLabel}</span>
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        <span className="rounded-full bg-[#f6f2ff] px-3 py-1 text-xs font-bold text-[#5a2348]">
-          {item.statusLabel}
-        </span>
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">{item.assignedCsLabel}</td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">{item.nextFollowUpLabel}</td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        {item.whatsappUrl ? (
-          <a
-            href={item.whatsappUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="alyssa-focus rounded-full bg-[#e46f64] px-3 py-2 text-xs font-bold text-white"
-          >
-            WhatsApp
-          </a>
-        ) : (
-          <span className="text-xs text-[#9a5d76]">未有電話</span>
-        )}
-      </td>
-      <td className="border-b border-[#f1e3dc] px-3 py-3">
-        <Link
-          href={`/crm/leads/${item.id}`}
-          className="alyssa-focus rounded-full border border-[#ead9cf] bg-white px-3 py-2 text-xs font-bold text-[#5a2348]"
-        >
-          開啟
-        </Link>
-      </td>
-    </tr>
+    <div className="rounded-lg border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2">
+      <span className="text-[#64748b]">{label}</span>
+      <span className="ml-2 text-[#111827]">{value}</span>
+    </div>
   );
 }

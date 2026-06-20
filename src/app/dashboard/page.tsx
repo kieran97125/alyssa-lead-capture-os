@@ -74,6 +74,7 @@ export default async function DashboardPage() {
               <SecondaryAction href="/landing-pages">
                 管理 Landing Pages
               </SecondaryAction>
+              <SecondaryAction href="/crm">開啟 LeadOps CRM</SecondaryAction>
             </div>
           </div>
 
