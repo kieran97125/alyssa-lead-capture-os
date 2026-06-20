@@ -36,7 +36,31 @@ Both apps must share the same base data model. The shared base concepts are:
 - `packages`
 - `branches`
 
-The contract is that Campaign Launch OS creates the first attribution-backed lead record and source snapshot when a customer arrives from Wix, a form, CTWA, or another captured source. The future CRM reads the same `contacts`, `leads`, `lead_source_snapshots`, and `bookings` records, then writes operational outcomes back through `bookings`, `leads`, and `lead_events`. This lets the dashboard later calculate source-to-booking, source-to-show, and source-to-paid conversion without treating the CRM as a separate data island.
+The contract is that Campaign Launch OS creates the first attribution-backed lead record and source snapshot when a customer arrives from Wix, a form, CTWA, or another captured source. The LeadOps CRM foundation reads the same `contacts`, `leads`, `lead_source_snapshots`, and `bookings` records. A future CRM write layer can then write operational outcomes back through `bookings`, `leads`, and `lead_events`. This lets the dashboard later calculate source-to-booking, source-to-show, and source-to-paid conversion without treating CRM data as a separate island.
+
+## LeadOps CRM Foundation
+
+LaunchHub now includes a read-only LeadOps CRM foundation at `/crm`. It is a lightweight operational view over existing LaunchHub lead data, not a full CRM write system.
+
+Current scope:
+
+- Read existing Supabase-backed leads, contacts, source snapshots, bookings, brands, treatments, packages, and branches.
+- Display a phone-first CRM inbox for CS follow-up.
+- Use `brand_slug + normalized_phone` as the canonical CRM identity.
+- Normalize CRM source display into `landing_form`, `whatsapp_ad`, `whatsapp_direct`, `manual`, `import`, or `unknown`.
+- Surface CTWA fields when they exist, including source ID, source URL, referral headline/body, campaign ID, ad set ID, ad ID, phone number ID, and future WhatsApp Business Account ID.
+- Show disabled placeholders for notes, timeline, booking updates, quick replies, AI suggestions, status pipeline, brand knowledge, intent/tagging, and next best action.
+
+Current non-goals:
+
+- No CRM writes.
+- No WhatsApp inbox.
+- No AI reply generation.
+- No booking or status mutation.
+- No new CRM migration.
+- No brand-specific hardcoding.
+
+The CRM domain model is intended to be portable into a future brand-neutral GrowthOS CRM app. Proposed future tables are documented in `docs/CRM_SCHEMA_PROPOSAL.md`; this is a proposal only and no live migration has been applied.
 
 ## Project Status
 
@@ -69,7 +93,7 @@ LaunchHub supports two output modes that share the same lead capture, UTM, sourc
 - It remains a campaign testing layer backed by the same lead attribution model.
 - The current implementation uses local seed config for `landing_pages`; a future builder can persist fields such as `hero_title`, `hero_subtitle`, `hero_image_url`, `offer_badge`, `cta_text`, and `sections_json`.
 
-Future CRM connection remains separate. The future CRM app should read and write outcomes against the shared lead base instead of becoming part of the Campaign Launch OS UI.
+Future CRM write operations remain separate. The current `/crm` area is a read-only operational foundation; the future CRM app should read and write outcomes against the shared lead base instead of creating a separate data island.
 
 ## Configuration Layer Direction
 
@@ -306,6 +330,8 @@ Open:
 - `/` - Public product entry page for the lead capture and shared attribution base.
 - `/dashboard` - Executive overview for lead performance, top KPIs, latest few leads, and quick links.
 - `/leads` - Latest leads feed, newest first, with business-facing lead details.
+- `/crm` - Read-only LeadOps CRM inbox using phone-first brand/customer identity.
+- `/crm/leads/[leadId]` - Read-only CRM case detail with contact, source, CTWA, and follow-up placeholders.
 - `/performance` - Brand, source/campaign, treatment/package, and branch performance analysis.
 - `/forms` - Form connection layer showing selected brand, treatment, package, branch, allowed domains, embed code, and landing page relationship.
 - `/forms/[formId]` - Form-level configuration detail for form-only embed and landing page mode reuse.
@@ -350,6 +376,8 @@ Internal admin routes are protected by a simple shared LaunchHub admin password:
 - `/`
 - `/dashboard`
 - `/leads`
+- `/crm`
+- `/crm/leads/[leadId]`
 - `/performance`
 - `/campaigns`
 - `/campaigns/new`

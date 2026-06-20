@@ -12,6 +12,7 @@ export const publicRoutePrefixes = [
 export const internalRoutePrefixes = [
   "/dashboard",
   "/leads",
+  "/crm",
   "/performance",
   "/campaigns",
   "/create-campaign",
@@ -42,6 +43,7 @@ export function getInternalRouteModule(pathname: string): InternalModule | null 
   if (!isInternalRoute(pathname)) return null;
   if (pathname === "/" || pathname.startsWith("/dashboard")) return "dashboard";
   if (pathname.startsWith("/leads")) return "leads";
+  if (pathname.startsWith("/crm")) return "leads";
   if (pathname.startsWith("/performance")) return "performance";
   if (pathname.startsWith("/campaigns")) return "campaigns";
   if (pathname.startsWith("/forms") || pathname.startsWith("/embed-preview")) {

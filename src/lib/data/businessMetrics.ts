@@ -54,10 +54,23 @@ type ContactRecord = {
 type SourceSnapshotRecord = {
   id: string;
   lead_id: string | null;
+  source_type: string | null;
   utm_source: string | null;
   utm_medium: string | null;
   utm_campaign: string | null;
   utm_content: string | null;
+  landing_page_url: string | null;
+  current_page_url: string | null;
+  page_path: string | null;
+  ctwa_id: string | null;
+  whatsapp_phone_number_id: string | null;
+  meta_ad_id: string | null;
+  meta_adset_id: string | null;
+  meta_campaign_id: string | null;
+  meta_source_url: string | null;
+  whatsapp_referral_headline: string | null;
+  whatsapp_referral_body: string | null;
+  whatsapp_referral_source_id: string | null;
   tracking_status: string | null;
   audit_reason: string | null;
 };
@@ -471,7 +484,29 @@ export async function getLeadRows(
       ),
       fetchByIds<SourceSnapshotRecord>(
         "lead_source_snapshots",
-        "id,lead_id,utm_source,utm_medium,utm_campaign,utm_content,tracking_status,audit_reason",
+        [
+          "id",
+          "lead_id",
+          "source_type",
+          "utm_source",
+          "utm_medium",
+          "utm_campaign",
+          "utm_content",
+          "landing_page_url",
+          "current_page_url",
+          "page_path",
+          "ctwa_id",
+          "whatsapp_phone_number_id",
+          "meta_ad_id",
+          "meta_adset_id",
+          "meta_campaign_id",
+          "meta_source_url",
+          "whatsapp_referral_headline",
+          "whatsapp_referral_body",
+          "whatsapp_referral_source_id",
+          "tracking_status",
+          "audit_reason",
+        ].join(","),
         ids(leadRecords.map((lead) => lead.source_snapshot_id))
       ),
       fetchBookingsByLeadIds(leadRecords.map((lead) => lead.id)),
