@@ -21,7 +21,7 @@ export function CrmStatusBadge({
 }) {
   return (
     <span
-      className={`inline-flex whitespace-nowrap rounded-full border px-2.5 py-1 text-[11px] font-bold ${statusStyles[status]}`}
+      className={`inline-flex whitespace-nowrap rounded-md border px-2 py-0.5 text-[10px] font-bold leading-4 ${statusStyles[status]}`}
     >
       {label}
     </span>
