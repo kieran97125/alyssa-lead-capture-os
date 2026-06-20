@@ -1,19 +1,41 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
-const sidebarItems = [
-  { label: "Home", href: "/crm", active: false, enabled: true },
-  { label: "Inbox", href: "/crm", active: true, enabled: true },
-  { label: "Contacts", href: "/crm", active: false, enabled: false },
-  { label: "Bookings", href: "/crm", active: false, enabled: false },
-  { label: "Quick Replies", href: "/crm", active: false, enabled: false },
-  { label: "AI Assist", href: "/crm", active: false, enabled: false },
-  { label: "Brand Knowledge", href: "/crm", active: false, enabled: false },
-  { label: "Reports", href: "/crm", active: false, enabled: false },
-  { label: "Settings", href: "/crm", active: false, enabled: false },
+type CrmSidebarKey =
+  | "home"
+  | "inbox"
+  | "contacts"
+  | "bookings"
+  | "quick-replies"
+  | "ai-assist"
+  | "brand-knowledge"
+  | "reports"
+  | "settings";
+
+const sidebarItems: Array<{
+  key: CrmSidebarKey;
+  label: string;
+  href: string;
+  enabled: boolean;
+}> = [
+  { key: "home", label: "Home", href: "/crm", enabled: true },
+  { key: "inbox", label: "Inbox", href: "/crm", enabled: true },
+  { key: "contacts", label: "Contacts", href: "/crm", enabled: false },
+  { key: "bookings", label: "Bookings", href: "/crm", enabled: false },
+  { key: "quick-replies", label: "Quick Replies", href: "/crm", enabled: false },
+  { key: "ai-assist", label: "AI Assist", href: "/crm", enabled: false },
+  { key: "brand-knowledge", label: "Brand Knowledge", href: "/crm", enabled: false },
+  { key: "reports", label: "Reports", href: "/crm", enabled: false },
+  { key: "settings", label: "Settings", href: "/crm/settings", enabled: true },
 ];
 
-export function CrmShell({ children }: { children: ReactNode }) {
+export function CrmShell({
+  children,
+  active = "inbox",
+}: {
+  children: ReactNode;
+  active?: CrmSidebarKey;
+}) {
   return (
     <main className="min-h-screen bg-[#f5f6f8] text-[#1f2933]">
       <div className="flex min-h-screen">
@@ -31,7 +53,7 @@ export function CrmShell({ children }: { children: ReactNode }) {
                   key={item.label}
                   href={item.href}
                   className={`flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold transition ${
-                    item.active
+                    item.key === active
                       ? "bg-white text-[#111827]"
                       : "text-[#d1d5db] hover:bg-white/10 hover:text-white"
                   }`}

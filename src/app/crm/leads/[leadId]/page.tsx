@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
 import { getLeadRows } from "@/lib/data/businessMetrics";
+import { getCrmWriteMode } from "@/lib/crm/config";
 import { toCrmLeadCase } from "@/lib/crm/leadOps";
 
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ export default async function CrmLeadDetailPage({
 
   const leadCase = toCrmLeadCase(lead);
   const hasCtwa = Object.values(leadCase.ctwa).some(Boolean);
+  const writeMode = getCrmWriteMode();
 
   return (
     <CrmShell>
@@ -71,6 +73,11 @@ export default async function CrmLeadDetailPage({
           {error && (
             <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
               CRM detail could not refresh all latest records.
+            </p>
+          )}
+          {!writeMode.actionsEnabled && (
+            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+              {writeMode.disabledReason}
             </p>
           )}
         </header>
@@ -135,12 +142,15 @@ export default async function CrmLeadDetailPage({
               </div>
 
               <div className="grid gap-3.5 xl:grid-cols-3">
-                <Placeholder title="Timeline" body="Form submit, WhatsApp messages, bookings, and status changes will appear here later." />
-                <Placeholder title="Notes" body="Internal notes are reserved for the CRM write phase." />
-                <Placeholder title="Booking" body="Confirmation, reschedule, show, no-show, and paid outcomes will be CRM write actions later." />
+                <OperationPanel title="Assignment" fieldLabel="Assigned CS" value={leadCase.assignedCsLabel} />
+                <OperationPanel title="Status Pipeline" fieldLabel="Current status" value={leadCase.statusLabel} />
+                <OperationPanel title="Notes" fieldLabel="Internal note" value="Add note after CRM tables are enabled." multiline />
+                <OperationPanel title="Booking" fieldLabel="Booking status" value="Create or update booking later." />
+                <OperationPanel title="Follow-up Task" fieldLabel="Next follow-up" value={leadCase.nextFollowUpLabel} />
+                <OperationPanel title="Lost Reason" fieldLabel="Reason" value="Set when case is marked lost." />
+                <Placeholder title="Timeline" body="Form submit, WhatsApp messages, notes, status changes, bookings, and follow-up tasks will be stored as crm_interactions later." />
                 <Placeholder title="Quick Replies" body="Brand-approved replies will be selectable here later." />
                 <Placeholder title="AI Reply Suggestions" body="AI suggestions will use brand knowledge and conversation context later." />
-                <Placeholder title="Status Pipeline" body="new, contacting, booked, confirmed, showed, paid, no_show, lost, invalid." />
                 <Placeholder title="Brand Knowledge" body="Treatment FAQ, policies, and brand information will support CS and AI responses." />
                 <Placeholder title="Intent / Tagging" body="Inquiry intent, objections, budget, and treatment tags are reserved." />
                 <Placeholder title="Next Best Action" body="Future CRM can recommend WhatsApp follow-up, booking confirmation, or payment reminders." />
@@ -174,6 +184,54 @@ function InfoLine({ label, value }: { label: string; value: string }) {
         {value}
       </dd>
     </div>
+  );
+}
+
+function OperationPanel({
+  title,
+  fieldLabel,
+  value,
+  multiline = false,
+}: {
+  title: string;
+  fieldLabel: string;
+  value: string;
+  multiline?: boolean;
+}) {
+  return (
+    <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-bold text-[#111827]">{title}</h2>
+        <span className="rounded-md bg-[#fef3c7] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#92400e]">
+          Disabled
+        </span>
+      </div>
+      <label className="mt-3 block">
+        <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+          {fieldLabel}
+        </span>
+        {multiline ? (
+          <textarea
+            disabled
+            defaultValue={value}
+            className="mt-1.5 min-h-16 w-full resize-none rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-2 text-[12px] font-semibold text-[#64748b]"
+          />
+        ) : (
+          <input
+            disabled
+            defaultValue={value}
+            className="mt-1.5 h-8 w-full rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#64748b]"
+          />
+        )}
+      </label>
+      <button
+        type="button"
+        disabled
+        className="mt-3 h-7 whitespace-nowrap rounded-md bg-[#e5e7eb] px-2.5 text-[10px] font-bold text-[#94a3b8]"
+      >
+        Save later
+      </button>
+    </section>
   );
 }
 

@@ -1,6 +1,7 @@
 import { CrmInboxTable } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getLeadRows } from "@/lib/data/businessMetrics";
+import { getCrmWriteMode } from "@/lib/crm/config";
 import { summarizeCrmCases, toCrmLeadCase } from "@/lib/crm/leadOps";
 
 export const dynamic = "force-dynamic";
@@ -11,6 +12,7 @@ export default async function CrmPage() {
   const { leads, error } = await getLeadRows("month", 500);
   const cases = leads.map(toCrmLeadCase);
   const summary = summarizeCrmCases(cases);
+  const writeMode = getCrmWriteMode();
 
   return (
     <CrmShell>
@@ -80,13 +82,19 @@ export default async function CrmPage() {
               <button
                 type="button"
                 disabled
-                title="CRM write actions coming soon"
+                title={writeMode.disabledReason ?? "CRM write actions require deployed CRM tables."}
                 className="h-9 whitespace-nowrap rounded-md bg-[#e5e7eb] px-2.5 text-[12px] font-bold text-[#94a3b8]"
               >
                 New task
               </button>
             </div>
           </div>
+
+          {!writeMode.actionsEnabled && (
+            <p className="border-t border-amber-100 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-800">
+              {writeMode.disabledReason}
+            </p>
+          )}
 
           {error && (
             <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-[12px] font-semibold text-red-700">

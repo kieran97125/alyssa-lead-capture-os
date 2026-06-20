@@ -16,6 +16,7 @@ const headings = [
   "Tag",
   "Brand / Bot Name",
   "CTWA Source URL",
+  "Next Follow-up",
   "Actions",
 ];
 
@@ -118,6 +119,11 @@ export function CrmInboxTable({ cases }: { cases: CrmLeadCase[] }) {
                   <td className="border-b border-[#eef2f6] px-2.5 py-1.5">
                     <span className="block max-w-[180px] truncate text-[10px] text-[#64748b]">
                       {item.ctwa.ctwa_source_url || item.pageUrl || "-"}
+                    </span>
+                  </td>
+                  <td className="border-b border-[#eef2f6] px-2.5 py-1.5">
+                    <span className="whitespace-nowrap text-[11px] font-semibold text-[#64748b]">
+                      {item.nextFollowUpLabel}
                     </span>
                   </td>
                   <td className="border-b border-[#eef2f6] px-2.5 py-1.5">

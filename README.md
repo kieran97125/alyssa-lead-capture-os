@@ -62,6 +62,41 @@ Current non-goals:
 
 The CRM domain model is intended to be portable into a future brand-neutral GrowthOS CRM app. Proposed future tables are documented in `docs/CRM_SCHEMA_PROPOSAL.md`; this is a proposal only and no live migration has been applied.
 
+## LeadOps CRM Phase 2 Direction
+
+CRM Phase 2 adds the foundation for CS operations and WhatsApp channel settings while keeping LaunchHub lead capture untouched.
+
+Current Phase 2 scope:
+
+- `CRM_WRITE_ENABLED` is a server-side feature flag.
+- If `CRM_WRITE_ENABLED` is not `true`, CRM write controls stay disabled and the read-only inbox continues to work from existing LaunchHub leads.
+- In this safe foundation build, CRM write actions remain disabled even if the flag is set until the CRM tables and server actions are deliberately deployed.
+- `/crm` shows CS operation readiness such as assignment, status, next follow-up, source type, CTWA Source ID, and disabled action controls.
+- `/crm/leads/[leadId]` shows disabled panels for assignment, status pipeline, notes, booking, follow-up task, lost reason, and timeline.
+- `/crm/settings` shows the WhatsApp Channel Settings architecture without connecting to Meta / WhatsApp APIs.
+- Raw WhatsApp access tokens must not be stored or displayed in the UI. The future table stores only `access_token_secret_ref`.
+
+CRM Phase 2 schema is documented in:
+
+- `docs/CRM_PHASE2_SCHEMA.sql`
+
+This file is a proposal only. It has not been executed against the live database. Proposed tables include `crm_contacts`, `crm_lead_cases`, `crm_interactions`, `crm_status_history`, `crm_bookings`, `crm_follow_up_tasks`, `crm_quick_replies`, `crm_brand_knowledge_items`, `whatsapp_channels`, `whatsapp_message_templates`, and `whatsapp_webhook_events`.
+
+Storage direction:
+
+- Status changes should write to `crm_status_history` and create a `crm_interactions` timeline record.
+- Notes should write to `crm_interactions`.
+- Booking operations should write to `crm_bookings` and related timeline records.
+- Follow-up reminders should write to `crm_follow_up_tasks`.
+- WhatsApp channel metadata should write to `whatsapp_channels`, but only with token secret references and hashed verify tokens.
+
+GrowthOS portability:
+
+- Current LaunchHub identity is `brand_slug + normalized_phone`.
+- Future GrowthOS identity should be `tenant_id + brand_id + normalized_phone`.
+- CRM source intake should remain omnichannel: landing forms, WhatsApp API messages, CTWA ad leads, WhatsApp direct messages, manual leads, and imports.
+- No CRM table should depend on the Alyssa/Ineffable workspace name.
+
 ## Project Status
 
 - Local app ready.
@@ -332,6 +367,7 @@ Open:
 - `/leads` - Latest leads feed, newest first, with business-facing lead details.
 - `/crm` - Read-only LeadOps CRM inbox using phone-first brand/customer identity.
 - `/crm/leads/[leadId]` - Read-only CRM case detail with contact, source, CTWA, and follow-up placeholders.
+- `/crm/settings` - WhatsApp Channel Settings architecture; no API connection or raw token display.
 - `/performance` - Brand, source/campaign, treatment/package, and branch performance analysis.
 - `/forms` - Form connection layer showing selected brand, treatment, package, branch, allowed domains, embed code, and landing page relationship.
 - `/forms/[formId]` - Form-level configuration detail for form-only embed and landing page mode reuse.
@@ -378,6 +414,7 @@ Internal admin routes are protected by a simple shared LaunchHub admin password:
 - `/leads`
 - `/crm`
 - `/crm/leads/[leadId]`
+- `/crm/settings`
 - `/performance`
 - `/campaigns`
 - `/campaigns/new`
