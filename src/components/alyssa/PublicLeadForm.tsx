@@ -286,6 +286,19 @@ function captureCurrentPageAttribution({
       : firstStored
         ? "public_landing_page_local_storage_recovered"
         : "public_landing_page_no_tracking_signal";
+  const recoveredCurrentPageUrl =
+    getString(latestStored?.current_page_url) ||
+    getString(firstStored?.current_page_url);
+  const recoveredLandingPageUrl =
+    getString(firstStored?.landing_page_url) ||
+    getString(latestStored?.landing_page_url);
+  const livePageUrl = parentUrlParam || window.location.href;
+  const currentPageUrl = hasCurrentParams
+    ? livePageUrl
+    : recoveredCurrentPageUrl || livePageUrl;
+  const landingPageUrl = hasCurrentParams
+    ? livePageUrl
+    : recoveredLandingPageUrl || livePageUrl;
   const basePayload = {
     source_capture_method: sourceCaptureMethod,
     visitor_id: visitorId,
@@ -295,11 +308,8 @@ function captureCurrentPageAttribution({
     form_token: formToken,
     parent_origin: parentOriginParam || window.location.origin,
     referrer: document.referrer || "",
-    landing_page_url:
-      hasCurrentParams || !firstStored?.landing_page_url
-        ? parentUrlParam || window.location.href
-        : firstStored.landing_page_url,
-    current_page_url: parentUrlParam || window.location.href,
+    landing_page_url: landingPageUrl,
+    current_page_url: currentPageUrl,
     page_path: parentPath,
     page_title: document.title || "",
     captured_at: new Date().toISOString(),

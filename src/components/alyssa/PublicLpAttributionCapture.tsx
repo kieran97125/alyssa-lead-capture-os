@@ -30,6 +30,7 @@ const attributionKeys = [
 type AttributionDebugState = {
   href: string;
   search: string;
+  initialSearch: string;
   currentPageUrl: string;
   landingPageUrl: string;
   captured: Record<string, string>;
@@ -67,21 +68,40 @@ function pickSourceParams(searchParams: URLSearchParams) {
   return output;
 }
 
+function createEffectiveUrl(initialQueryString: string) {
+  const cleanedInitialQuery = initialQueryString.trim();
+  const hasLiveSearch = Boolean(window.location.search);
+  const effectiveSearch =
+    hasLiveSearch || !cleanedInitialQuery
+      ? window.location.search
+      : cleanedInitialQuery.startsWith("?")
+        ? cleanedInitialQuery
+        : `?${cleanedInitialQuery}`;
+
+  return {
+    href: `${window.location.origin}${window.location.pathname}${effectiveSearch}${window.location.hash}`,
+    search: effectiveSearch,
+  };
+}
+
 export function PublicLpAttributionCapture({
   formToken,
   formId,
   brandSlug,
+  initialQueryString = "",
 }: {
   formToken: string;
   formId: string;
   brandSlug: string;
+  initialQueryString?: string;
 }) {
   const [debugState, setDebugState] = useState<AttributionDebugState | null>(
     null
   );
 
   useEffect(() => {
-    const searchParams = new URLSearchParams(window.location.search);
+    const effectiveUrl = createEffectiveUrl(initialQueryString);
+    const searchParams = new URLSearchParams(effectiveUrl.search);
     const paramPayload = pickSourceParams(searchParams);
     const debugEnabled = searchParams.get("attribution_debug") === "1";
 
@@ -90,8 +110,9 @@ export function PublicLpAttributionCapture({
         setDebugState({
           href: window.location.href,
           search: window.location.search,
-          currentPageUrl: window.location.href,
-          landingPageUrl: window.location.href,
+          initialSearch: initialQueryString,
+          currentPageUrl: effectiveUrl.href,
+          landingPageUrl: effectiveUrl.href,
           captured: paramPayload,
           hasAttributionParams: Object.keys(paramPayload).length > 0,
         })
@@ -113,8 +134,8 @@ export function PublicLpAttributionCapture({
       form_token: formToken,
       parent_origin: window.location.origin,
       referrer: document.referrer || "",
-      landing_page_url: window.location.href,
-      current_page_url: window.location.href,
+      landing_page_url: effectiveUrl.href,
+      current_page_url: effectiveUrl.href,
       page_path: window.location.pathname,
       page_title: document.title || "",
       captured_at: new Date().toISOString(),
@@ -125,7 +146,7 @@ export function PublicLpAttributionCapture({
     writeStorage("alyssa_latest_touch", payload, window.sessionStorage);
     writeStorage("alyssa_visitor_id", visitorId, window.localStorage);
     writeStorage("alyssa_session_id", sessionId, window.sessionStorage);
-  }, [brandSlug, formId, formToken]);
+  }, [brandSlug, formId, formToken, initialQueryString]);
 
   if (!debugState) return null;
 
@@ -135,6 +156,10 @@ export function PublicLpAttributionCapture({
       <dl className="mt-3 grid gap-2">
         <DebugRow label="href" value={debugState.href} />
         <DebugRow label="search" value={debugState.search || "(empty)"} />
+        <DebugRow
+          label="initial search"
+          value={debugState.initialSearch || "(empty)"}
+        />
         <DebugRow
           label="has params"
           value={debugState.hasAttributionParams ? "yes" : "no"}

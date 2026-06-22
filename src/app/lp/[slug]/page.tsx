@@ -35,6 +35,25 @@ const ineffableAssets = {
   hero: "/ineffable-wix/assets/hero-model.png",
 };
 
+function serializeSearchParams(
+  params: Record<string, string | string[] | undefined> | undefined
+) {
+  if (!params) return "";
+
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (Array.isArray(value)) {
+      value.forEach((item) => searchParams.append(key, item));
+      return;
+    }
+
+    if (value) searchParams.set(key, value);
+  });
+
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}
+
 function getMetaPixelId() {
   const rawPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "";
   const pixelId = rawPixelId.replace(/[^0-9]/g, "");
@@ -69,11 +88,15 @@ export async function generateMetadata({
 
 export default async function PublicLandingPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ slug: string }>;
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
+  const query = await searchParams;
   const canonicalSlug = getCanonicalLandingPageSlug(slug);
+  const initialQueryString = serializeSearchParams(query);
 
   const [page, config] = await Promise.all([
     getPublishedLandingPageBySlug(canonicalSlug),
@@ -157,6 +180,7 @@ export default async function PublicLandingPage({
         formToken={connectedForm.publicFormToken}
         formId={connectedForm.id}
         brandSlug={isIneffable ? "ineffable" : publicBrand.slug}
+        initialQueryString={initialQueryString}
       />
       <MetaPixelPageView pixelId={metaPixelId} />
       <section id="hero" className="relative scroll-mt-6 bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
