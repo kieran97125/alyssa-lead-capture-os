@@ -84,6 +84,25 @@ function redirectToAdminOrigin(request: NextRequest, adminOrigin: string) {
   return NextResponse.redirect(targetUrl);
 }
 
+const publicLandingPageSlugAliases: Record<string, string> = {
+  "alyssa-388-13e933": "ineffable-388-13e933",
+  "alyssa-388-488b24": "ineffable-388-488b24",
+};
+
+function redirectLegacyPublicLandingPageSlug(request: NextRequest) {
+  const match = request.nextUrl.pathname.match(/^\/lp\/([^/]+)\/?$/);
+  const slug = match?.[1];
+  if (!slug) return null;
+
+  const canonicalSlug = publicLandingPageSlugAliases[slug];
+  if (!canonicalSlug || canonicalSlug === slug) return null;
+
+  const targetUrl = request.nextUrl.clone();
+  targetUrl.pathname = `/lp/${canonicalSlug}`;
+
+  return NextResponse.redirect(targetUrl);
+}
+
 function isAdminBackendPath(pathname: string) {
   return pathname === "/login" || pathname === "/logout" || isInternalRoute(pathname);
 }
@@ -101,6 +120,9 @@ function redirectToLogin(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const publicLpRedirect = redirectLegacyPublicLandingPageSlug(request);
+  if (publicLpRedirect) return publicLpRedirect;
+
   if (isAdminBackendPath(request.nextUrl.pathname)) {
     const adminOrigin = shouldUseAdminOrigin(request);
     if (adminOrigin) {
