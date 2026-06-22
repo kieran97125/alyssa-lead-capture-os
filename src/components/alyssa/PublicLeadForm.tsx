@@ -28,6 +28,11 @@ import {
   LEGAL_CONSENT_REQUIRED_MESSAGE,
   LEGAL_CONSENT_TEXT,
 } from "@/lib/legal/consent";
+import {
+  getConfiguredMetaPixelId,
+  isMetaPixelDebugEnabled,
+  sendMetaPixelBeacon,
+} from "@/lib/metaPixel/client";
 
 type AttributionEnvelope = {
   first_touch_json?: Record<string, unknown>;
@@ -540,8 +545,14 @@ export function PublicLeadForm({
   }
 
   function logSkippedConversion(reason: string) {
-    if (process.env.NODE_ENV === "development") {
+    if (process.env.NODE_ENV === "development" || isMetaPixelDebugEnabled()) {
       console.info("[LaunchHub] CompleteRegistration skipped", { reason });
+    }
+  }
+
+  function logConversionDebug(message: string, data: Record<string, unknown>) {
+    if (isMetaPixelDebugEnabled()) {
+      console.info("[LaunchHub] CompleteRegistration", message, data);
     }
   }
 
@@ -564,6 +575,10 @@ export function PublicLeadForm({
         return;
       }
 
+      logConversionDebug("iframe mode uses parent postMessage", {
+        formToken,
+        brandSlug: brand.slug || brandSlug || "",
+      });
       window.parent.postMessage(
         {
           type: "launchhub:form-submitted",
@@ -584,10 +599,29 @@ export function PublicLeadForm({
 
     if (typeof fbq !== "function") {
       logSkippedConversion("fbq_not_found");
-      return;
+    } else {
+      fbq("track", "CompleteRegistration", payload);
+      logConversionDebug("fbq CompleteRegistration attempted", {
+        value: payload.value,
+        currency: payload.currency,
+        content_category: payload.content_category,
+      });
     }
 
-    fbq("track", "CompleteRegistration", payload);
+    const beaconResult = sendMetaPixelBeacon({
+      pixelId: getConfiguredMetaPixelId(),
+      eventName: "CompleteRegistration",
+      value: payload.value,
+      currency: payload.currency,
+      contentCategory: payload.content_category,
+      eventKey: `complete-registration:${formToken}:${Date.now()}`,
+    });
+
+    logConversionDebug("fallback CompleteRegistration beacon handled", {
+      sent: beaconResult.sent,
+      reason: beaconResult.reason,
+      urlCreated: Boolean(beaconResult.url),
+    });
   }
 
   useEffect(() => {
