@@ -9,6 +9,7 @@ import {
 } from "@/lib/supabase/admin";
 import {
   crmStatusLabel,
+  deriveInitialCrmStatusFromLead,
   type CrmLeadCase,
   type CrmSourceType,
   type CrmStatus,
@@ -521,11 +522,12 @@ export async function bootstrapCrmLeadCaseFromLead(
   if (existingCase) return existingCase as CrmLeadCaseRecord;
 
   const snapshot = lead.sourceSnapshot;
+  const initialStatus = deriveInitialCrmStatusFromLead(lead);
   const casePayload = {
     contact_id: String(contact.id),
     source_lead_id: lead.id,
     brand_slug: leadCase.brandSlug,
-    status: leadCase.status,
+    status: initialStatus,
     assigned_to: null,
     treatment_label: lead.treatment?.name ?? leadCase.treatmentOffer,
     offer_label: lead.package?.name ?? leadCase.packagePrice,

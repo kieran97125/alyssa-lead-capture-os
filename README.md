@@ -105,6 +105,7 @@ Safety boundaries:
 
 - Public landing pages, public embed forms, public lead APIs, UTM/source capture, payment semantics, legal consent validation, and Google Sheets sync are unchanged.
 - The original LaunchHub lead record is not modified by CRM bootstrapping.
+- CRM bootstrapping defaults normal landing form / registration leads to `new`. It must not treat `booking_only` payment status or a requested form appointment as `booked`; `booked` should come only from explicit booking evidence such as a CS booking action, booking date/time, or a reliable booked/rescheduled source state.
 - WhatsApp quick replies, brand knowledge editing, and WhatsApp API sends remain future work.
 
 GrowthOS portability:

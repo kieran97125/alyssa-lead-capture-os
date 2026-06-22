@@ -163,9 +163,12 @@ export function crmSourceTypeLabel(type: CrmSourceType) {
   return labels[type];
 }
 
-export function mapCrmStatus(lead: LeadRow): CrmStatus {
+export function deriveInitialCrmStatusFromLead(lead: LeadRow): CrmStatus {
   const bookingStatus = lead.booking?.booking_status || lead.booking_status;
   const leadStatus = lead.lead_status;
+  const appointmentDate = lead.booking?.appointment_date || lead.appointment_date;
+  const appointmentTime = lead.booking?.appointment_time || lead.appointment_time;
+  const hasAppointmentEvidence = Boolean(appointmentDate || appointmentTime);
 
   if (leadStatus === "invalid") return "invalid";
   if (leadStatus === "lost") return "lost";
@@ -173,11 +176,19 @@ export function mapCrmStatus(lead: LeadRow): CrmStatus {
   if (bookingStatus === "no_show") return "no_show";
   if (bookingStatus === "show" || bookingStatus === "showed") return "showed";
   if (bookingStatus === "confirmed") return "confirmed";
-  if (bookingStatus === "requested" || lead.payment_status === "booking_only") {
+  if (
+    bookingStatus === "booked" ||
+    bookingStatus === "rescheduled" ||
+    hasAppointmentEvidence
+  ) {
     return "booked";
   }
   if (lead.payment_status === "pending") return "contacting";
   return "new";
+}
+
+export function mapCrmStatus(lead: LeadRow): CrmStatus {
+  return deriveInitialCrmStatusFromLead(lead);
 }
 
 export function crmStatusLabel(status: CrmStatus) {
