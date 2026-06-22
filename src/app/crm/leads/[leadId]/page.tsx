@@ -32,6 +32,11 @@ export default async function CrmLeadDetailPage({
   searchParams?: Promise<{
     crm_success?: string | string[];
     crm_error?: string | string[];
+    crm_operation?: string | string[];
+    crm_code?: string | string[];
+    crm_message?: string | string[];
+    crm_details?: string | string[];
+    crm_hint?: string | string[];
   }>;
 }) {
   const { leadId } = await params;
@@ -108,20 +113,38 @@ export default async function CrmLeadDetailPage({
             </p>
           )}
           {!runtime.actionsEnabled && (
-            <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
-              {runtime.disabledReason}
-            </p>
+            <div className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
+              <p>{runtime.disabledReason}</p>
+              {runtime.debug && (
+                <dl className="mt-2 grid gap-1 rounded-md bg-white/70 p-2 font-mono text-[10px] leading-4 text-[#475569]">
+                  <DebugLine label="operation" value={runtime.debug.operation} />
+                  <DebugLine label="code" value={runtime.debug.code ?? "-"} />
+                  <DebugLine label="message" value={runtime.debug.message} />
+                  <DebugLine label="details" value={runtime.debug.details ?? "-"} />
+                  <DebugLine label="hint" value={runtime.debug.hint ?? "-"} />
+                </dl>
+              )}
+            </div>
           )}
           {feedback && (
-            <p
+            <div
               className={`mt-2 rounded-md px-3 py-2 text-[12px] font-semibold ${
                 feedback.kind === "success"
                   ? "bg-emerald-50 text-emerald-800"
                   : "bg-red-50 text-red-700"
               }`}
             >
-              {feedback.message}
-            </p>
+              <p>{feedback.message}</p>
+              {feedback.debug && (
+                <dl className="mt-2 grid gap-1 rounded-md bg-white/70 p-2 font-mono text-[10px] leading-4 text-[#475569]">
+                  <DebugLine label="operation" value={feedback.debug.operation} />
+                  <DebugLine label="code" value={feedback.debug.code} />
+                  <DebugLine label="message" value={feedback.debug.message} />
+                  <DebugLine label="details" value={feedback.debug.details} />
+                  <DebugLine label="hint" value={feedback.debug.hint} />
+                </dl>
+              )}
+            </div>
           )}
         </header>
 
@@ -351,15 +374,23 @@ function getCrmFeedback(
     | {
         crm_success?: string | string[];
         crm_error?: string | string[];
+        crm_operation?: string | string[];
+        crm_code?: string | string[];
+        crm_message?: string | string[];
+        crm_details?: string | string[];
+        crm_hint?: string | string[];
       }
     | undefined
 ) {
-  const success = Array.isArray(query?.crm_success)
-    ? query?.crm_success[0]
-    : query?.crm_success;
-  const error = Array.isArray(query?.crm_error)
-    ? query?.crm_error[0]
-    : query?.crm_error;
+  const success = firstQueryValue(query?.crm_success);
+  const error = firstQueryValue(query?.crm_error);
+  const debug = {
+    operation: firstQueryValue(query?.crm_operation) || "-",
+    code: firstQueryValue(query?.crm_code) || "-",
+    message: firstQueryValue(query?.crm_message) || "-",
+    details: firstQueryValue(query?.crm_details) || "-",
+    hint: firstQueryValue(query?.crm_hint) || "-",
+  };
 
   if (success === "note_saved") {
     return {
@@ -378,7 +409,11 @@ function getCrmFeedback(
   if (error === "write_disabled") {
     return {
       kind: "error" as const,
-      message: "CRM write actions are not enabled yet.",
+      message:
+        debug.message !== "-"
+          ? debug.message
+          : "CRM write actions are not enabled yet.",
+      debug: debug.message !== "-" ? debug : undefined,
     };
   }
 
@@ -386,10 +421,24 @@ function getCrmFeedback(
     return {
       kind: "error" as const,
       message: "Note could not be saved. Please check CRM table setup and try again.",
+      debug,
     };
   }
 
   return null;
+}
+
+function firstQueryValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+function DebugLine({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1 sm:grid-cols-[88px_1fr]">
+      <dt className="font-bold uppercase text-[#64748b]">{label}</dt>
+      <dd className="break-words text-[#111827]">{value}</dd>
+    </div>
+  );
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {

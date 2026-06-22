@@ -4,6 +4,7 @@ import {
 } from "@/lib/data/businessMetrics";
 import {
   createSupabaseAdminClient,
+  getSupabaseAdminEnvStatus,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
 import {
@@ -19,6 +20,7 @@ export type CrmRuntimeStatus = {
   tablesAvailable: boolean;
   actionsEnabled: boolean;
   disabledReason: string | null;
+  debug: CrmOperationDebug | null;
 };
 
 export type CrmLeadCaseRecord = {
@@ -101,6 +103,31 @@ export type CrmCaseBundle = {
   tasks: CrmFollowUpTaskRecord[];
 };
 
+export type CrmOperationDebug = {
+  operation: string;
+  code: string | null;
+  message: string;
+  details: string | null;
+  hint: string | null;
+};
+
+export class CrmOperationError extends Error {
+  debug: CrmOperationDebug;
+
+  constructor(debug: CrmOperationDebug) {
+    super(debug.message);
+    this.name = "CrmOperationError";
+    this.debug = debug;
+  }
+}
+
+type SupabaseLikeError = {
+  code?: string | null;
+  message?: string | null;
+  details?: string | null;
+  hint?: string | null;
+};
+
 const requiredTables = [
   "crm_contacts",
   "crm_lead_cases",
@@ -111,6 +138,39 @@ const requiredTables = [
 ];
 
 export const crmWriteDisabledMessage = "CRM write actions are not enabled yet.";
+export const crmAdminClientNotConfiguredMessage =
+  "CRM admin database client is not configured.";
+
+function cleanDebugValue(value: unknown, fallback = "") {
+  if (typeof value !== "string") return fallback;
+  return value.trim().slice(0, 600);
+}
+
+export function crmOperationError(
+  operation: string,
+  error: SupabaseLikeError | Error | null | undefined,
+  fallbackMessage: string
+) {
+  const maybeSupabaseError = error as SupabaseLikeError | undefined;
+  return new CrmOperationError({
+    operation,
+    code: cleanDebugValue(maybeSupabaseError?.code, "") || null,
+    message:
+      cleanDebugValue(maybeSupabaseError?.message, "") ||
+      cleanDebugValue(error instanceof Error ? error.message : null, fallbackMessage),
+    details: cleanDebugValue(maybeSupabaseError?.details, "") || null,
+    hint: cleanDebugValue(maybeSupabaseError?.hint, "") || null,
+  });
+}
+
+function logCrmOperationError(label: string, error: unknown) {
+  if (error instanceof CrmOperationError) {
+    console.error(label, error.debug);
+    return;
+  }
+
+  console.error(label, safeError(error));
+}
 
 export function isCrmWriteFlagEnabled() {
   return process.env.CRM_WRITE_ENABLED?.trim().toLowerCase() === "true";
@@ -125,15 +185,27 @@ export async function getCrmRuntimeStatus(): Promise<CrmRuntimeStatus> {
       tablesAvailable: false,
       actionsEnabled: false,
       disabledReason: crmWriteDisabledMessage,
+      debug: null,
     };
   }
 
-  if (!hasSupabaseAdminEnv()) {
+  const adminEnvStatus = getSupabaseAdminEnvStatus();
+
+  if (!adminEnvStatus.ready) {
     return {
       writeFlagEnabled,
       tablesAvailable: false,
       actionsEnabled: false,
-      disabledReason: crmWriteDisabledMessage,
+      disabledReason: crmAdminClientNotConfiguredMessage,
+      debug: {
+        operation: "service-role admin client check",
+        code: adminEnvStatus.serviceRoleKeyLooksLikeAnon
+          ? "service_role_key_looks_like_anon"
+          : "service_role_env_missing",
+        message: crmAdminClientNotConfiguredMessage,
+        details: `reason=${adminEnvStatus.reason ?? "unknown"}; urlPresent=${adminEnvStatus.urlPresent}; serviceRoleKeyPresent=${adminEnvStatus.serviceRoleKeyPresent}; serviceRoleKeyRole=${adminEnvStatus.serviceRoleKeyRole ?? "unknown"}`,
+        hint: "Set SUPABASE_SERVICE_ROLE_KEY to the server-only service_role key in Vercel. Do not use NEXT_PUBLIC_SUPABASE_ANON_KEY.",
+      },
     };
   }
 
@@ -158,6 +230,13 @@ export async function getCrmRuntimeStatus(): Promise<CrmRuntimeStatus> {
           tablesAvailable: false,
           actionsEnabled: false,
           disabledReason: crmWriteDisabledMessage,
+          debug: {
+            operation: `CRM table availability check: ${table}`,
+            code: error.code ?? null,
+            message: error.message,
+            details: error.details ?? null,
+            hint: error.hint ?? null,
+          },
         };
       }
     }
@@ -167,6 +246,7 @@ export async function getCrmRuntimeStatus(): Promise<CrmRuntimeStatus> {
       tablesAvailable: true,
       actionsEnabled: true,
       disabledReason: null,
+      debug: null,
     };
   } catch (error) {
     console.warn("crm_write_runtime_check_failed", safeError(error));
@@ -175,6 +255,13 @@ export async function getCrmRuntimeStatus(): Promise<CrmRuntimeStatus> {
       tablesAvailable: false,
       actionsEnabled: false,
       disabledReason: crmWriteDisabledMessage,
+      debug: {
+        operation: "CRM runtime check",
+        code: null,
+        message: error instanceof Error ? error.message : "CRM runtime check failed.",
+        details: null,
+        hint: null,
+      },
     };
   }
 }
@@ -357,9 +444,23 @@ export function applyCrmRecordToLeadCase(
   };
 }
 
-export async function bootstrapCrmLeadCaseFromLead(lead: LeadRow) {
+export async function bootstrapCrmLeadCaseFromLead(
+  lead: LeadRow,
+  options: { throwOnError?: boolean } = {}
+) {
   const runtime = await getCrmRuntimeStatus();
   if (!runtime.actionsEnabled || !hasSupabaseAdminEnv()) {
+    if (options.throwOnError) {
+      throw new CrmOperationError(
+        runtime.debug ?? {
+          operation: "runtime check",
+          code: null,
+          message: crmWriteDisabledMessage,
+          details: null,
+          hint: null,
+        }
+      );
+    }
     return null;
   }
 
@@ -390,10 +491,13 @@ export async function bootstrapCrmLeadCaseFromLead(lead: LeadRow) {
     .single();
 
   if (contactError || !contact) {
-    console.warn("crm_contact_bootstrap_failed", {
-      code: contactError?.code,
-      message: contactError?.message,
-    });
+    const operationError = crmOperationError(
+      "contact bootstrap failed",
+      contactError,
+      "CRM contact could not be created."
+    );
+    logCrmOperationError("crm_contact_bootstrap_failed", operationError);
+    if (options.throwOnError) throw operationError;
     return null;
   }
 
@@ -404,10 +508,13 @@ export async function bootstrapCrmLeadCaseFromLead(lead: LeadRow) {
     .maybeSingle();
 
   if (existingCaseError) {
-    console.warn("crm_case_existing_check_failed", {
-      code: existingCaseError.code,
-      message: existingCaseError.message,
-    });
+    const operationError = crmOperationError(
+      "case bootstrap lookup failed",
+      existingCaseError,
+      "CRM case lookup failed."
+    );
+    logCrmOperationError("crm_case_existing_check_failed", operationError);
+    if (options.throwOnError) throw operationError;
     return null;
   }
 
@@ -460,10 +567,13 @@ export async function bootstrapCrmLeadCaseFromLead(lead: LeadRow) {
     .single();
 
   if (caseError || !createdCase) {
-    console.warn("crm_case_bootstrap_failed", {
-      code: caseError?.code,
-      message: caseError?.message,
-    });
+    const operationError = crmOperationError(
+      "case bootstrap failed",
+      caseError,
+      "CRM case could not be created."
+    );
+    logCrmOperationError("crm_case_bootstrap_failed", operationError);
+    if (options.throwOnError) throw operationError;
     return null;
   }
 
@@ -503,9 +613,19 @@ export async function createCrmInteraction(input: {
   body: string;
   author?: string | null;
   sourceType?: string | null;
+  operation?: string;
 }) {
   if (!hasSupabaseAdminEnv()) {
-    throw new Error("supabase_admin_env_missing");
+    const adminEnvStatus = getSupabaseAdminEnvStatus();
+    throw new CrmOperationError({
+      operation: input.operation ?? "interaction insert failed",
+      code: adminEnvStatus.serviceRoleKeyLooksLikeAnon
+        ? "service_role_key_looks_like_anon"
+        : "service_role_env_missing",
+      message: crmAdminClientNotConfiguredMessage,
+      details: `reason=${adminEnvStatus.reason ?? "unknown"}; urlPresent=${adminEnvStatus.urlPresent}; serviceRoleKeyPresent=${adminEnvStatus.serviceRoleKeyPresent}; serviceRoleKeyRole=${adminEnvStatus.serviceRoleKeyRole ?? "unknown"}`,
+      hint: "Set SUPABASE_SERVICE_ROLE_KEY to the server-only service_role key. Do not use the public anon key.",
+    });
   }
 
   const supabase = createSupabaseAdminClient();
@@ -525,7 +645,11 @@ export async function createCrmInteraction(input: {
     .single();
 
   if (error || !data) {
-    throw error ?? new Error("crm_interaction_insert_failed");
+    throw crmOperationError(
+      input.operation ?? "interaction insert failed",
+      error,
+      "CRM interaction could not be created."
+    );
   }
 
   return data as CrmInteractionRecord;
