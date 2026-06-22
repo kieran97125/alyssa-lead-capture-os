@@ -490,27 +490,45 @@ export async function insertCrmInteraction(input: {
   if (!hasSupabaseAdminEnv()) return;
 
   try {
-    const supabase = createSupabaseAdminClient();
-    const { error } = await supabase.from("crm_interactions").insert({
+    await createCrmInteraction(input);
+  } catch (error) {
+    console.warn("crm_interaction_insert_failed", safeError(error));
+  }
+}
+
+export async function createCrmInteraction(input: {
+  caseId: string;
+  contactId: string;
+  interactionType: string;
+  body: string;
+  author?: string | null;
+  sourceType?: string | null;
+}) {
+  if (!hasSupabaseAdminEnv()) {
+    throw new Error("supabase_admin_env_missing");
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("crm_interactions")
+    .insert({
       case_id: input.caseId,
       contact_id: input.contactId,
       interaction_type: input.interactionType,
       direction: "internal",
       body: input.body,
-      author: input.author ?? "CS",
+      author: input.author ?? "admin",
       source_type: input.sourceType ?? "crm",
       metadata_json: {},
-    });
+    })
+    .select("*")
+    .single();
 
-    if (error) {
-      console.warn("crm_interaction_insert_failed", {
-        code: error.code,
-        message: error.message,
-      });
-    }
-  } catch (error) {
-    console.warn("crm_interaction_insert_failed", safeError(error));
+  if (error || !data) {
+    throw error ?? new Error("crm_interaction_insert_failed");
   }
+
+  return data as CrmInteractionRecord;
 }
 
 export function safeText(value: FormDataEntryValue | null, maxLength = 500) {

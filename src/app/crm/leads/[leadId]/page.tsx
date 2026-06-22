@@ -26,10 +26,17 @@ export const dynamic = "force-dynamic";
 
 export default async function CrmLeadDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ leadId: string }>;
+  searchParams?: Promise<{
+    crm_success?: string | string[];
+    crm_error?: string | string[];
+  }>;
 }) {
   const { leadId } = await params;
+  const query = await searchParams;
+  const feedback = getCrmFeedback(query);
   const { leads, error } = await getLeadRows("month", 5000);
   const lead = leads.find((item) => item.id === leadId);
 
@@ -103,6 +110,17 @@ export default async function CrmLeadDetailPage({
           {!runtime.actionsEnabled && (
             <p className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
               {runtime.disabledReason}
+            </p>
+          )}
+          {feedback && (
+            <p
+              className={`mt-2 rounded-md px-3 py-2 text-[12px] font-semibold ${
+                feedback.kind === "success"
+                  ? "bg-emerald-50 text-emerald-800"
+                  : "bg-red-50 text-red-700"
+              }`}
+            >
+              {feedback.message}
             </p>
           )}
         </header>
@@ -222,6 +240,7 @@ export default async function CrmLeadDetailPage({
                     name="note"
                     label="Internal note"
                     placeholder="Write CS follow-up notes"
+                    maxLength={2000}
                   />
                 </ActionPanel>
 
@@ -325,6 +344,52 @@ export default async function CrmLeadDetailPage({
       </div>
     </CrmShell>
   );
+}
+
+function getCrmFeedback(
+  query:
+    | {
+        crm_success?: string | string[];
+        crm_error?: string | string[];
+      }
+    | undefined
+) {
+  const success = Array.isArray(query?.crm_success)
+    ? query?.crm_success[0]
+    : query?.crm_success;
+  const error = Array.isArray(query?.crm_error)
+    ? query?.crm_error[0]
+    : query?.crm_error;
+
+  if (success === "note_saved") {
+    return {
+      kind: "success" as const,
+      message: "Note saved. Timeline has been refreshed.",
+    };
+  }
+
+  if (error === "note_required") {
+    return {
+      kind: "error" as const,
+      message: "Please enter a note before saving.",
+    };
+  }
+
+  if (error === "write_disabled") {
+    return {
+      kind: "error" as const,
+      message: "CRM write actions are not enabled yet.",
+    };
+  }
+
+  if (error === "note_failed") {
+    return {
+      kind: "error" as const,
+      message: "Note could not be saved. Please check CRM table setup and try again.",
+    };
+  }
+
+  return null;
 }
 
 function Panel({ title, children }: { title: string; children: ReactNode }) {
@@ -432,11 +497,13 @@ function TextAreaInput({
   name,
   defaultValue = "",
   placeholder,
+  maxLength,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
   placeholder?: string;
+  maxLength?: number;
 }) {
   return (
     <label className="block">
@@ -447,6 +514,7 @@ function TextAreaInput({
         name={name}
         defaultValue={defaultValue}
         placeholder={placeholder}
+        maxLength={maxLength}
         className="mt-1.5 min-h-16 w-full resize-y rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-2 text-[12px] font-semibold text-[#111827] outline-none focus:border-[#2563eb] focus:bg-white"
       />
     </label>

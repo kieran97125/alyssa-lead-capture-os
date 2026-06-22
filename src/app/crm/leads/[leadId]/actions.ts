@@ -1,9 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { getLeadRows } from "@/lib/data/businessMetrics";
 import {
   bootstrapCrmLeadCaseFromLead,
+  createCrmInteraction,
   getCrmCaseBundleByCaseRecord,
   getCrmRuntimeStatus,
   insertCrmInteraction,
@@ -136,17 +138,62 @@ export async function updateStatusAction(leadId: string, formData: FormData) {
 }
 
 export async function addNoteAction(leadId: string, formData: FormData) {
-  await runCrmAction(leadId, async (caseRecord) => {
-    const note = safeText(formData.get("note"), 1200);
-    if (!note) return;
+  const note = safeText(formData.get("note"), 2000);
+  let result: "note_saved" | "note_required" | "note_failed" | "write_disabled" =
+    "note_failed";
 
-    await insertCrmInteraction({
-      caseId: caseRecord.id,
-      contactId: caseRecord.contact_id,
-      interactionType: "note",
-      body: note,
-    });
-  });
+  if (!note) {
+    redirect(crmLeadDetailUrl(leadId, "crm_error", "note_required"));
+  }
+
+  try {
+    const runtime = await getCrmRuntimeStatus();
+
+    if (!runtime.actionsEnabled) {
+      result = "write_disabled";
+    } else {
+      const { leads, error } = await getLeadRows("month", 5000);
+      if (error) throw error;
+
+      const lead = leads.find((item) => item.id === leadId);
+      if (!lead) throw new Error("crm_note_lead_not_found");
+
+      const caseRecord = await bootstrapCrmLeadCaseFromLead(lead);
+      if (!caseRecord) throw new Error("crm_note_bootstrap_failed");
+
+      await createCrmInteraction({
+        caseId: caseRecord.id,
+        contactId: caseRecord.contact_id,
+        interactionType: "note",
+        body: note,
+        author: "admin",
+        sourceType: "crm",
+      });
+
+      result = "note_saved";
+    }
+  } catch (error) {
+    console.warn("crm_note_action_failed", safeError(error));
+    result = "note_failed";
+  }
+
+  revalidatePath("/crm");
+  revalidatePath(`/crm/leads/${leadId}`);
+  redirect(
+    crmLeadDetailUrl(
+      leadId,
+      result === "note_saved" ? "crm_success" : "crm_error",
+      result
+    )
+  );
+}
+
+function crmLeadDetailUrl(
+  leadId: string,
+  key: "crm_success" | "crm_error",
+  value: string
+) {
+  return `/crm/leads/${encodeURIComponent(leadId)}?${key}=${encodeURIComponent(value)}`;
 }
 
 export async function saveBookingAction(leadId: string, formData: FormData) {
