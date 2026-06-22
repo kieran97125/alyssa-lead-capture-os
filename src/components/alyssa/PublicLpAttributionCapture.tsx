@@ -27,12 +27,38 @@ const attributionKeys = [
   "whatsapp_referral_source_id",
 ] as const;
 
+const trackingRestoreKeys = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "fbclid",
+  "gclid",
+  "wbraid",
+  "gbraid",
+  "campaign_id",
+  "adset_id",
+  "ad_id",
+] as const;
+
+const queryRestoreKeys = [
+  ...trackingRestoreKeys,
+  "pixel_debug",
+  "attribution_debug",
+  "v",
+] as const;
+
 type AttributionDebugState = {
   href: string;
   search: string;
   initialSearch: string;
   currentPageUrl: string;
   landingPageUrl: string;
+  restoredUrl: string;
+  sourceUsed: "live" | "initialSearch" | "none";
+  pageViewDlUrl: string;
+  completeRegistrationDlUrl: string;
   captured: Record<string, string>;
   hasAttributionParams: boolean;
 };
@@ -84,6 +110,35 @@ function createEffectiveUrl(initialQueryString: string) {
   };
 }
 
+function restoreMissingPublicLpQueryParams(initialQueryString: string) {
+  if (!window.location.pathname.startsWith("/lp/")) return "";
+
+  const initialParams = new URLSearchParams(initialQueryString);
+  const hasInitialTracking = trackingRestoreKeys.some((key) =>
+    initialParams.has(key)
+  );
+
+  if (!hasInitialTracking) return "";
+
+  const currentUrl = new URL(window.location.href);
+  let changed = false;
+
+  queryRestoreKeys.forEach((key) => {
+    if (!initialParams.has(key) || currentUrl.searchParams.has(key)) return;
+
+    initialParams.getAll(key).forEach((value) => {
+      currentUrl.searchParams.append(key, value);
+    });
+    changed = true;
+  });
+
+  if (!changed) return "";
+
+  const restoredUrl = currentUrl.toString();
+  window.history.replaceState(window.history.state, "", restoredUrl);
+  return restoredUrl;
+}
+
 export function PublicLpAttributionCapture({
   formToken,
   formId,
@@ -100,10 +155,18 @@ export function PublicLpAttributionCapture({
   );
 
   useEffect(() => {
+    const restoredUrl = restoreMissingPublicLpQueryParams(initialQueryString);
     const effectiveUrl = createEffectiveUrl(initialQueryString);
     const searchParams = new URLSearchParams(effectiveUrl.search);
     const paramPayload = pickSourceParams(searchParams);
     const debugEnabled = searchParams.get("attribution_debug") === "1";
+    const sourceUsed = restoredUrl
+      ? "initialSearch"
+      : window.location.search
+      ? "live"
+      : initialQueryString
+        ? "initialSearch"
+        : "none";
 
     if (debugEnabled) {
       queueMicrotask(() =>
@@ -113,6 +176,10 @@ export function PublicLpAttributionCapture({
           initialSearch: initialQueryString,
           currentPageUrl: effectiveUrl.href,
           landingPageUrl: effectiveUrl.href,
+          restoredUrl,
+          sourceUsed,
+          pageViewDlUrl: effectiveUrl.href,
+          completeRegistrationDlUrl: effectiveUrl.href,
           captured: paramPayload,
           hasAttributionParams: Object.keys(paramPayload).length > 0,
         })
@@ -146,6 +213,16 @@ export function PublicLpAttributionCapture({
     writeStorage("alyssa_latest_touch", payload, window.sessionStorage);
     writeStorage("alyssa_visitor_id", visitorId, window.localStorage);
     writeStorage("alyssa_session_id", sessionId, window.sessionStorage);
+
+    const restoreTimers = [250, 1000, 2500].map((delay) =>
+      window.setTimeout(() => {
+        restoreMissingPublicLpQueryParams(initialQueryString);
+      }, delay)
+    );
+
+    return () => {
+      restoreTimers.forEach((timer) => window.clearTimeout(timer));
+    };
   }, [brandSlug, formId, formToken, initialQueryString]);
 
   if (!debugState) return null;
@@ -171,6 +248,13 @@ export function PublicLpAttributionCapture({
         <DebugRow
           label="landing_page_url"
           value={debugState.landingPageUrl}
+        />
+        <DebugRow label="restored URL" value={debugState.restoredUrl || "-"} />
+        <DebugRow label="source used" value={debugState.sourceUsed} />
+        <DebugRow label="PageView dl URL" value={debugState.pageViewDlUrl} />
+        <DebugRow
+          label="CompleteRegistration dl URL"
+          value={debugState.completeRegistrationDlUrl}
         />
         {attributionKeys.map((key) => (
           <DebugRow key={key} label={key} value={debugState.captured[key] || ""} />

@@ -7,6 +7,7 @@ export type MetaPixelBeaconPayload = {
   currency?: string;
   contentCategory?: string;
   eventKey: string;
+  pageUrl?: string;
 };
 
 type MetaPixelBeaconWindow = Window & {
@@ -36,8 +37,9 @@ export function buildMetaPixelBeaconUrl({
   pixelId,
   eventName,
   value,
-  currency = "HKD",
+  currency,
   contentCategory,
+  pageUrl,
 }: Omit<MetaPixelBeaconPayload, "eventKey">) {
   const safePixelId = cleanMetaPixelId(pixelId);
   if (!safePixelId) return null;
@@ -46,15 +48,15 @@ export function buildMetaPixelBeaconUrl({
     id: safePixelId,
     ev: eventName,
     noscript: "1",
-    dl: window.location.href,
+    dl: pageUrl || window.location.href,
   });
 
   if (document.referrer) params.set("rl", document.referrer);
   if (typeof value === "number" && Number.isFinite(value)) {
-    params.set("value", String(value));
+    params.set("cd[value]", String(value));
   }
-  if (currency) params.set("currency", currency);
-  if (contentCategory) params.set("content_category", contentCategory);
+  if (currency) params.set("cd[currency]", currency);
+  if (contentCategory) params.set("cd[content_category]", contentCategory);
 
   return `https://www.facebook.com/tr?${params.toString()}`;
 }

@@ -75,8 +75,18 @@ function getWindowDebugState(
   };
 }
 
+function isPixelDebugEnabled(initialQueryString = "") {
+  if (isMetaPixelDebugEnabled()) return true;
+
+  try {
+    return new URLSearchParams(initialQueryString).get("pixel_debug") === "1";
+  } catch {
+    return false;
+  }
+}
+
 function debugPixel(message: string, state: PixelDebugState) {
-  if (isMetaPixelDebugEnabled()) {
+  if (state.debugEnabled) {
     console.info("[LaunchHub] Meta Pixel", message, state);
   }
 }
@@ -172,17 +182,30 @@ function requestPageView(windowRef: MetaPixelWindow, pixelId: string) {
   }
 }
 
-function requestPageViewBeacon(windowRef: MetaPixelWindow, pixelId: string) {
+function requestPageViewBeacon(
+  windowRef: MetaPixelWindow,
+  pixelId: string,
+  pageUrl?: string
+) {
   windowRef.__launchhubMetaPixelPageViewBeaconUrl ??= {};
   const beaconResult = sendMetaPixelBeacon({
     pixelId,
     eventName: "PageView",
-    eventKey: `pageview:${window.location.href}`,
+    eventKey: `pageview:${pageUrl || window.location.href}`,
+    pageUrl,
   });
   windowRef.__launchhubMetaPixelPageViewBeaconUrl[pixelId] = beaconResult.url;
 }
 
-export function MetaPixelPageView({ pixelId }: { pixelId: string | null }) {
+export function MetaPixelPageView({
+  pixelId,
+  preservedPageUrl,
+  initialQueryString = "",
+}: {
+  pixelId: string | null;
+  preservedPageUrl?: string;
+  initialQueryString?: string;
+}) {
   const safePixelId = cleanMetaPixelId(pixelId);
   const [debugState, setDebugState] = useState<PixelDebugState>({
     pixelId: safePixelId,
@@ -201,7 +224,16 @@ export function MetaPixelPageView({ pixelId }: { pixelId: string | null }) {
 
   useEffect(() => {
     const windowRef = window as MetaPixelWindow;
-    const enabled = isMetaPixelDebugEnabled();
+    const enabled = isPixelDebugEnabled(initialQueryString);
+    const cleanedInitialQuery = initialQueryString.trim();
+    const initialSearch = cleanedInitialQuery
+      ? cleanedInitialQuery.startsWith("?")
+        ? cleanedInitialQuery
+        : `?${cleanedInitialQuery}`
+      : "";
+    const pageViewUrl =
+      preservedPageUrl ||
+      `${window.location.origin}${window.location.pathname}${initialSearch}${window.location.hash}`;
 
     function publishDebug(message: string) {
       const nextState = getWindowDebugState(windowRef, safePixelId, enabled);
@@ -217,7 +249,7 @@ export function MetaPixelPageView({ pixelId }: { pixelId: string | null }) {
 
     windowRef.__launchhubMetaPixelLastError = null;
     installOfficialCompatibleFbq(windowRef);
-    requestPageViewBeacon(windowRef, safePixelId);
+    requestPageViewBeacon(windowRef, safePixelId, pageViewUrl);
     publishDebug("component mounted");
 
     ensureFbeventsScript(
@@ -241,6 +273,7 @@ export function MetaPixelPageView({ pixelId }: { pixelId: string | null }) {
                 currency: "HKD",
                 contentCategory: "registration",
                 eventKey: `debug-complete-registration:${Date.now()}`,
+                pageUrl: pageViewUrl,
               });
             };
           }
@@ -258,7 +291,7 @@ export function MetaPixelPageView({ pixelId }: { pixelId: string | null }) {
       }
     );
     publishDebug("script injection requested");
-  }, [safePixelId]);
+  }, [initialQueryString, preservedPageUrl, safePixelId]);
 
   if (!safePixelId) return null;
 
@@ -296,7 +329,7 @@ export function MetaPixelPageView({ pixelId }: { pixelId: string | null }) {
             />
             <DebugRow
               label="PageView beacon URL"
-              value={debugState.fallbackPageViewBeaconUrl ? "created" : "not created"}
+              value={debugState.fallbackPageViewBeaconUrl || "not created"}
             />
             <DebugRow label="Last error" value={debugState.lastError ?? "-"} />
           </dl>

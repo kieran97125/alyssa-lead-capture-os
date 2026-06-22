@@ -75,6 +75,7 @@ type PublicLeadFormProps = {
   formToken: string;
   formId?: string;
   brandSlug?: string;
+  initialQueryString?: string;
   expectedParentOrigin?: string;
   mode?: "inline" | "embed";
   className?: string;
@@ -202,6 +203,46 @@ function pickParams(searchParams: URLSearchParams) {
   return output;
 }
 
+function normalizeQueryString(value: string) {
+  const cleaned = value.trim();
+  if (!cleaned) return "";
+  return cleaned.startsWith("?") ? cleaned : `?${cleaned}`;
+}
+
+function createUrlFromSearch(search: string) {
+  return `${window.location.origin}${window.location.pathname}${search}${window.location.hash}`;
+}
+
+function getEffectiveAttributionUrl(initialQueryString = "") {
+  const liveParams = new URLSearchParams(window.location.search);
+  const livePayload = pickParams(liveParams);
+
+  if (Object.keys(livePayload).length > 0) {
+    return {
+      href: window.location.href,
+      search: window.location.search,
+      sourceUsed: "live",
+    };
+  }
+
+  const initialSearch = normalizeQueryString(initialQueryString);
+  const initialPayload = pickParams(new URLSearchParams(initialSearch));
+
+  if (Object.keys(initialPayload).length > 0) {
+    return {
+      href: createUrlFromSearch(initialSearch),
+      search: initialSearch,
+      sourceUsed: "initialSearch",
+    };
+  }
+
+  return {
+    href: window.location.href,
+    search: window.location.search,
+    sourceUsed: "storage",
+  };
+}
+
 function classifyTracking(payload: Record<string, unknown>) {
   const utmCount = [
     "utm_source",
@@ -251,14 +292,17 @@ function captureCurrentPageAttribution({
   formToken,
   formId,
   brandSlug,
+  initialQueryString = "",
 }: {
   formToken: string;
   formId: string;
   brandSlug: string;
+  initialQueryString?: string;
 }): AttributionEnvelope {
   const localKey = "alyssa_first_touch";
   const sessionKey = "alyssa_latest_touch";
-  const searchParams = new URLSearchParams(window.location.search);
+  const effectiveUrl = getEffectiveAttributionUrl(initialQueryString);
+  const searchParams = new URLSearchParams(effectiveUrl.search);
   const parentOriginParam = normalizeOrigin(searchParams.get("parent_origin"));
   const parentUrlParam = searchParams.get("parent_url") || "";
   let parentPath = window.location.pathname;
@@ -292,7 +336,7 @@ function captureCurrentPageAttribution({
   const recoveredLandingPageUrl =
     getString(firstStored?.landing_page_url) ||
     getString(latestStored?.landing_page_url);
-  const livePageUrl = parentUrlParam || window.location.href;
+  const livePageUrl = parentUrlParam || effectiveUrl.href;
   const currentPageUrl = hasCurrentParams
     ? livePageUrl
     : recoveredCurrentPageUrl || livePageUrl;
@@ -312,6 +356,9 @@ function captureCurrentPageAttribution({
     current_page_url: currentPageUrl,
     page_path: parentPath,
     page_title: document.title || "",
+    preserved_initial_full_url: effectiveUrl.href,
+    preserved_initial_search: initialQueryString,
+    attribution_source_used: effectiveUrl.sourceUsed,
     captured_at: new Date().toISOString(),
   };
   const latestTouch = {
@@ -463,6 +510,7 @@ export function PublicLeadForm({
   formToken,
   formId,
   brandSlug,
+  initialQueryString = "",
   expectedParentOrigin,
   mode = "inline",
   className = "",
@@ -556,19 +604,29 @@ export function PublicLeadForm({
     };
   }
 
+  function isFormPixelDebugEnabled() {
+    if (isMetaPixelDebugEnabled()) return true;
+
+    try {
+      return new URLSearchParams(initialQueryString).get("pixel_debug") === "1";
+    } catch {
+      return false;
+    }
+  }
+
   function logSkippedConversion(reason: string) {
-    if (process.env.NODE_ENV === "development" || isMetaPixelDebugEnabled()) {
+    if (process.env.NODE_ENV === "development" || isFormPixelDebugEnabled()) {
       console.info("[LaunchHub] CompleteRegistration skipped", { reason });
     }
   }
 
   function logConversionDebug(message: string, data: Record<string, unknown>) {
-    if (isMetaPixelDebugEnabled()) {
+    if (isFormPixelDebugEnabled()) {
       console.info("[LaunchHub] CompleteRegistration", message, data);
     }
   }
 
-  function handleSuccessfulRegistrationEvent() {
+  function handleSuccessfulRegistrationEvent(eventAttribution: AttributionEnvelope) {
     if (conversionEventSentRef.current) return;
     conversionEventSentRef.current = true;
 
@@ -627,6 +685,9 @@ export function PublicLeadForm({
       currency: payload.currency,
       contentCategory: payload.content_category,
       eventKey: `complete-registration:${formToken}:${Date.now()}`,
+      pageUrl: getString(
+        eventAttribution.submitted_touch_json?.current_page_url
+      ),
     });
 
     logConversionDebug("fallback CompleteRegistration beacon handled", {
@@ -693,6 +754,7 @@ export function PublicLeadForm({
       formToken,
       formId: formId || publicForm.id,
       brandSlug: brand.slug || brandSlug || "alyssa",
+      initialQueryString,
     });
     queueMicrotask(() => setAttribution(initialAttribution));
     void logPublicEvent("form_view", { form_token: formToken }, initialAttribution);
@@ -724,7 +786,15 @@ export function PublicLeadForm({
     }
 
     return () => window.removeEventListener("message", onMessage);
-  }, [brand.slug, brandSlug, expectedParentOrigin, formId, formToken, publicForm.id]);
+  }, [
+    brand.slug,
+    brandSlug,
+    expectedParentOrigin,
+    formId,
+    formToken,
+    initialQueryString,
+    publicForm.id,
+  ]);
 
   function updateField(key: keyof typeof formData, value: string) {
     setFormData((current) => {
@@ -757,6 +827,7 @@ export function PublicLeadForm({
       formToken,
       formId: formId || publicForm.id,
       brandSlug: brand.slug || brandSlug || "alyssa",
+      initialQueryString,
     });
     queueMicrotask(() => setAttribution(liveAttribution));
 
@@ -811,7 +882,7 @@ export function PublicLeadForm({
       }
 
       setState("success");
-      handleSuccessfulRegistrationEvent();
+      handleSuccessfulRegistrationEvent(liveAttribution);
       setMessage("已收到你的登記，我們會盡快透過 WhatsApp 跟進。");
     } catch (error) {
       setState("error");

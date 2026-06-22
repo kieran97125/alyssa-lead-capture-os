@@ -60,6 +60,15 @@ function getMetaPixelId() {
   return pixelId || null;
 }
 
+function getPublicLandingPageUrl(slug: string, search: string) {
+  const baseUrl =
+    process.env.NEXT_PUBLIC_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "") ||
+    process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ||
+    "";
+
+  return baseUrl ? `${baseUrl}/lp/${slug}${search}` : undefined;
+}
+
 export async function generateMetadata({
   params,
 }: {
@@ -97,6 +106,10 @@ export default async function PublicLandingPage({
   const query = await searchParams;
   const canonicalSlug = getCanonicalLandingPageSlug(slug);
   const initialQueryString = serializeSearchParams(query);
+  const preservedPageUrl = getPublicLandingPageUrl(
+    canonicalSlug,
+    initialQueryString
+  );
 
   const [page, config] = await Promise.all([
     getPublishedLandingPageBySlug(canonicalSlug),
@@ -182,7 +195,11 @@ export default async function PublicLandingPage({
         brandSlug={isIneffable ? "ineffable" : publicBrand.slug}
         initialQueryString={initialQueryString}
       />
-      <MetaPixelPageView pixelId={metaPixelId} />
+      <MetaPixelPageView
+        pixelId={metaPixelId}
+        preservedPageUrl={preservedPageUrl}
+        initialQueryString={initialQueryString}
+      />
       <section id="hero" className="relative scroll-mt-6 bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <MotionReveal>
@@ -357,6 +374,7 @@ export default async function PublicLandingPage({
                 formToken={connectedForm.publicFormToken}
                 formId={connectedForm.id}
                 brandSlug={isIneffable ? "ineffable" : publicBrand.slug}
+                initialQueryString={initialQueryString}
               />
             </div>
           </div>
