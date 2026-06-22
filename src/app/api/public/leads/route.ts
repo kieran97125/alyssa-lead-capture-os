@@ -43,6 +43,12 @@ type LeadSubmitPayload = {
   legalConsentAccepted?: boolean | string;
 };
 
+type AttributionSourceUsed =
+  | "body"
+  | "preserved_body"
+  | "proxy_cookie"
+  | "direct";
+
 const DUPLICATE_WINDOW_MS = 3 * 60 * 1000;
 const IP_RATE_WINDOW_MS = 3 * 60 * 1000;
 const IP_RATE_LIMIT = 8;
@@ -110,10 +116,10 @@ function resolveSubmittedAttribution(
   const bodyFirstTouch = getSafeTouch(payload.first_touch_json);
   const bodyLatestTouch = getSafeTouch(payload.latest_touch_json);
   const bodySubmittedTouch = getSafeTouch(payload.submitted_touch_json);
+  const proxyCookieValue = request.cookies.get(PUBLIC_ATTRIBUTION_COOKIE_NAME)
+    ?.value;
   const proxyCookieTouch =
-    decodePublicAttributionCookie(
-      request.cookies.get(PUBLIC_ATTRIBUTION_COOKIE_NAME)?.value
-    ) ?? null;
+    decodePublicAttributionCookie(proxyCookieValue) ?? null;
 
   const bodyPreservedTouch = hasPublicAttributionTracking(bodyFirstTouch)
     ? bodyFirstTouch
@@ -121,14 +127,22 @@ function resolveSubmittedAttribution(
       ? bodyLatestTouch
       : null;
   const submittedHasTracking = hasPublicAttributionTracking(bodySubmittedTouch);
+  const preservedBodyHasTracking = Boolean(bodyPreservedTouch);
+  const proxyCookiePresent = Boolean(proxyCookieValue);
+  const proxyCookieParseOk = Boolean(proxyCookieTouch);
+  const proxyCookieHasTracking = hasPublicAttributionTracking(proxyCookieTouch);
 
   if (submittedHasTracking) {
     return {
       firstTouch: bodyFirstTouch,
       latestTouch: bodyLatestTouch,
       submittedTouch: bodySubmittedTouch,
-      sourceUsed: "submitted_body",
-      proxyCookiePresent: Boolean(proxyCookieTouch),
+      sourceUsed: "body" as AttributionSourceUsed,
+      proxyCookiePresent,
+      proxyCookieParseOk,
+      bodyHasTracking: submittedHasTracking,
+      preservedBodyHasTracking,
+      proxyCookieHasTracking,
     };
   }
 
@@ -139,8 +153,12 @@ function resolveSubmittedAttribution(
       firstTouch: bodyFirstTouch,
       latestTouch: bodyLatestTouch,
       submittedTouch,
-      sourceUsed: "body_preserved",
-      proxyCookiePresent: Boolean(proxyCookieTouch),
+      sourceUsed: "preserved_body" as AttributionSourceUsed,
+      proxyCookiePresent,
+      proxyCookieParseOk,
+      bodyHasTracking: submittedHasTracking,
+      preservedBodyHasTracking,
+      proxyCookieHasTracking,
     };
   }
 
@@ -157,8 +175,12 @@ function resolveSubmittedAttribution(
       firstTouch,
       latestTouch,
       submittedTouch,
-      sourceUsed: "proxy_cookie",
+      sourceUsed: "proxy_cookie" as AttributionSourceUsed,
       proxyCookiePresent: true,
+      proxyCookieParseOk,
+      bodyHasTracking: submittedHasTracking,
+      preservedBodyHasTracking,
+      proxyCookieHasTracking,
     };
   }
 
@@ -166,8 +188,78 @@ function resolveSubmittedAttribution(
     firstTouch: bodyFirstTouch,
     latestTouch: bodyLatestTouch,
     submittedTouch: bodySubmittedTouch,
-    sourceUsed: "direct",
-    proxyCookiePresent: false,
+    sourceUsed: "direct" as AttributionSourceUsed,
+    proxyCookiePresent,
+    proxyCookieParseOk,
+    bodyHasTracking: submittedHasTracking,
+    preservedBodyHasTracking,
+    proxyCookieHasTracking,
+  };
+}
+
+function valueHasAttributionDebug(value: unknown) {
+  if (typeof value !== "string") return false;
+  if (!value.includes("attribution_debug=1")) return false;
+
+  try {
+    const parsed = new URL(value);
+    return parsed.searchParams.get("attribution_debug") === "1";
+  } catch {
+    return value.includes("attribution_debug=1");
+  }
+}
+
+function touchHasAttributionDebug(touch: TouchPayload) {
+  const record = touch as Record<string, unknown>;
+
+  return Boolean(
+    valueHasAttributionDebug(touch.current_page_url) ||
+      valueHasAttributionDebug(touch.landing_page_url) ||
+      valueHasAttributionDebug(record.preserved_initial_full_url) ||
+      valueHasAttributionDebug(record.preserved_initial_search)
+  );
+}
+
+function shouldReturnAttributionDebug(
+  request: NextRequest,
+  payload: LeadSubmitPayload,
+  submittedTouch: TouchPayload
+) {
+  return Boolean(
+    request.nextUrl.searchParams.get("attribution_debug") === "1" ||
+      touchHasAttributionDebug(getSafeTouch(payload.first_touch_json)) ||
+      touchHasAttributionDebug(getSafeTouch(payload.latest_touch_json)) ||
+      touchHasAttributionDebug(getSafeTouch(payload.submitted_touch_json)) ||
+      touchHasAttributionDebug(submittedTouch)
+  );
+}
+
+function createAttributionDebugPayload({
+  resolvedAttribution,
+  submittedTouch,
+  classification,
+}: {
+  resolvedAttribution: ReturnType<typeof resolveSubmittedAttribution>;
+  submittedTouch: TouchPayload;
+  classification: ReturnType<typeof classifySubmittedTouch>;
+}) {
+  return {
+    attribution_debug: true,
+    proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
+    proxy_cookie_parse_ok: resolvedAttribution.proxyCookieParseOk,
+    body_has_tracking: resolvedAttribution.bodyHasTracking,
+    preserved_body_has_tracking: resolvedAttribution.preservedBodyHasTracking,
+    proxy_cookie_has_tracking: resolvedAttribution.proxyCookieHasTracking,
+    final_attribution_source_used: resolvedAttribution.sourceUsed,
+    final_utm_source: cleanText(submittedTouch.utm_source, 300),
+    final_utm_medium: cleanText(submittedTouch.utm_medium, 300),
+    final_utm_campaign: cleanText(submittedTouch.utm_campaign, 300),
+    final_utm_content: cleanText(submittedTouch.utm_content, 300),
+    final_fbclid: cleanText(submittedTouch.fbclid, 500),
+    final_current_page_url: cleanText(submittedTouch.current_page_url, 2000),
+    final_landing_page_url: cleanText(submittedTouch.landing_page_url, 2000),
+    final_tracking_status: classification.trackingStatus,
+    final_audit_reason: classification.auditReason,
   };
 }
 
@@ -328,7 +420,8 @@ function isReasonableTime(value: string | null) {
 
 async function createLocalResponse(
   payload: LeadSubmitPayload,
-  submittedTouchOverride?: TouchPayload
+  submittedTouchOverride?: TouchPayload,
+  attributionDebug?: ReturnType<typeof createAttributionDebugPayload>
 ) {
   const submittedTouch =
     submittedTouchOverride ?? payload.submitted_touch_json ?? {};
@@ -344,6 +437,7 @@ async function createLocalResponse(
       source_type: classification.sourceType,
       tracking_status: classification.trackingStatus,
       audit_reason: classification.auditReason,
+      ...(attributionDebug ? { attribution_debug: attributionDebug } : {}),
     },
     { status: 201 }
   );
@@ -446,6 +540,17 @@ export async function POST(request: NextRequest) {
   const resolvedAttribution = resolveSubmittedAttribution(request, payload);
   const submittedTouch = resolvedAttribution.submittedTouch;
   const classification = classifySubmittedTouch(submittedTouch);
+  const attributionDebug = shouldReturnAttributionDebug(
+    request,
+    payload,
+    submittedTouch
+  )
+    ? createAttributionDebugPayload({
+        resolvedAttribution,
+        submittedTouch,
+        classification,
+      })
+    : undefined;
 
   if (!hasSupabaseAdminEnv()) {
     if (formToken !== alyssaDefaultForm.publicFormToken) {
@@ -458,7 +563,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return createLocalResponse(payload, submittedTouch);
+    return createLocalResponse(payload, submittedTouch, attributionDebug);
   }
 
   const supabase = createSupabaseAdminClient();
@@ -965,6 +1070,7 @@ export async function POST(request: NextRequest) {
       source_type: classification.sourceType,
       tracking_status: classification.trackingStatus,
       audit_reason: classification.auditReason,
+      ...(attributionDebug ? { attribution_debug: attributionDebug } : {}),
     },
     { status: 201 }
   );

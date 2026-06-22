@@ -47,6 +47,29 @@ type AttributionEnvelope = {
 
 type SubmitState = "idle" | "loading" | "success" | "error";
 
+type AttributionDebugResponse = {
+  attribution_debug: true;
+  proxy_cookie_present: boolean;
+  proxy_cookie_parse_ok: boolean;
+  body_has_tracking: boolean;
+  preserved_body_has_tracking: boolean;
+  proxy_cookie_has_tracking: boolean;
+  final_attribution_source_used:
+    | "body"
+    | "preserved_body"
+    | "proxy_cookie"
+    | "direct";
+  final_utm_source: string;
+  final_utm_medium: string;
+  final_utm_campaign: string;
+  final_utm_content: string;
+  final_fbclid: string;
+  final_current_page_url: string;
+  final_landing_page_url: string;
+  final_tracking_status: string;
+  final_audit_reason: string;
+};
+
 type FormOption = {
   id: string;
   name: string;
@@ -122,6 +145,14 @@ function getNumber(value: unknown) {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function getAttributionDebugResponse(value: unknown) {
+  if (!value || typeof value !== "object") return null;
+  const item = value as Partial<AttributionDebugResponse>;
+  return item.attribution_debug === true
+    ? (item as AttributionDebugResponse)
+    : null;
 }
 
 function normalizeOrigin(value: string | null | undefined) {
@@ -563,6 +594,8 @@ export function PublicLeadForm({
   const [message, setMessage] = useState("");
   const [configMessage, setConfigMessage] = useState("");
   const [formStarted, setFormStarted] = useState(false);
+  const [attributionDebug, setAttributionDebug] =
+    useState<AttributionDebugResponse | null>(null);
   const [publicForm, setPublicForm] = useState<PublicFormConfig>(() =>
     normalizeForm(alyssaDefaultForm)
   );
@@ -891,6 +924,7 @@ export function PublicLeadForm({
 
     setState("loading");
     setMessage("正在提交預約資料...");
+    setAttributionDebug(null);
     await logPublicEvent(
       "form_submit_attempt",
       { form_token: formToken },
@@ -905,6 +939,7 @@ export function PublicLeadForm({
       };
       const response = await fetch("/api/public/leads", {
         method: "POST",
+        credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...resolvedFormData,
@@ -916,6 +951,7 @@ export function PublicLeadForm({
         }),
       });
       const result = await response.json();
+      setAttributionDebug(getAttributionDebugResponse(result.attribution_debug));
 
       if (!response.ok || !result.ok) {
         setState("error");
@@ -974,12 +1010,17 @@ export function PublicLeadForm({
               </p>
             </Notice>
           ) : state === "success" ? (
-            <Notice tone="success" title="已收到你的登記">
-              <p>{message}</p>
-              <p className="mt-3">
-                {brand.name} 團隊會透過 WhatsApp 聯絡你，確認療程及預約細節。
-              </p>
-            </Notice>
+            <div className="grid gap-4">
+              <Notice tone="success" title="已收到你的登記">
+                <p>{message}</p>
+                <p className="mt-3">
+                  {brand.name} 團隊會透過 WhatsApp 聯絡你，確認療程及預約細節。
+                </p>
+              </Notice>
+              {attributionDebug && (
+                <AttributionDebugPanel debug={attributionDebug} />
+              )}
+            </div>
           ) : (
             <>
               <section className="rounded-3xl border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-4">
@@ -1253,6 +1294,49 @@ export function PublicLeadForm({
           )}
         </div>
       </div>
+    </section>
+  );
+}
+
+function AttributionDebugPanel({
+  debug,
+}: {
+  debug: AttributionDebugResponse;
+}) {
+  const rows = [
+    ["proxy cookie present", String(debug.proxy_cookie_present)],
+    ["proxy cookie parse ok", String(debug.proxy_cookie_parse_ok)],
+    ["body has tracking", String(debug.body_has_tracking)],
+    ["preserved body has tracking", String(debug.preserved_body_has_tracking)],
+    ["proxy cookie has tracking", String(debug.proxy_cookie_has_tracking)],
+    ["final source used", debug.final_attribution_source_used],
+    ["final utm_source", debug.final_utm_source || "-"],
+    ["final utm_medium", debug.final_utm_medium || "-"],
+    ["final utm_campaign", debug.final_utm_campaign || "-"],
+    ["final utm_content", debug.final_utm_content || "-"],
+    ["final fbclid", debug.final_fbclid || "-"],
+    ["final tracking_status", debug.final_tracking_status || "-"],
+    ["final audit_reason", debug.final_audit_reason || "-"],
+    ["final current_page_url", debug.final_current_page_url || "-"],
+  ];
+
+  return (
+    <section className="rounded-[24px] border border-[#f3c8dd] bg-white/95 p-4 text-left text-xs font-semibold leading-5 text-[#5a2348] shadow-sm">
+      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#d85ba3]">
+        Attribution Debug
+      </p>
+      <dl className="mt-3 grid gap-2">
+        {rows.map(([label, value]) => (
+          <div key={label} className="grid gap-1">
+            <dt className="text-[10px] uppercase tracking-[0.12em] text-[#8d6a82]">
+              {label}
+            </dt>
+            <dd className="break-all rounded-2xl bg-[#fff8fc] px-3 py-2 font-mono text-[11px] text-[#5a2348]">
+              {value}
+            </dd>
+          </div>
+        ))}
+      </dl>
     </section>
   );
 }
