@@ -221,15 +221,17 @@ export function parseRange(value: string | string[] | undefined): DateRangeKey {
 
 export function sourceLabel(lead: LeadRow) {
   const snapshot = lead.sourceSnapshot;
+  const source = snapshot?.utm_source?.trim();
+  const medium = snapshot?.utm_medium?.trim();
+
+  if (source) return `${source} / ${medium || "-"}`;
 
   if (lead.source_type === "whatsapp_ctwa") return "WhatsApp CTWA";
-  if (lead.source_type === "organic_unknown") return "自然流量 / 未知";
+  if (lead.source_type === "organic_unknown") return "直接 / 無追蹤";
   if (lead.source_type === "manual") return "人手建立";
   if (lead.source_type === "imported") return "匯入資料";
 
-  return [snapshot?.utm_source, snapshot?.utm_medium]
-    .filter(Boolean)
-    .join(" / ") || "未標記來源";
+  return "直接 / 無追蹤";
 }
 
 export function campaignLabel(lead: LeadRow) {

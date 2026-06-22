@@ -54,10 +54,40 @@ function serializeSearchParams(
   return query ? `?${query}` : "";
 }
 
-function getMetaPixelId() {
-  const rawPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "";
-  const pixelId = rawPixelId.replace(/[^0-9]/g, "");
+function cleanMetaPixelEnv(value: string | undefined) {
+  const pixelId = value?.trim().replace(/[^0-9]/g, "") ?? "";
   return pixelId || null;
+}
+
+function getMetaPixelEnvName(brandSlug: string) {
+  const suffix = brandSlug
+    .trim()
+    .replace(/[^a-zA-Z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .toUpperCase();
+
+  return suffix ? `NEXT_PUBLIC_META_PIXEL_ID_${suffix}` : null;
+}
+
+function getMetaPixelIdForBrand(brandSlug: string) {
+  const normalizedBrandSlug = brandSlug.trim().toLowerCase();
+
+  if (
+    normalizedBrandSlug === "ineffable" ||
+    normalizedBrandSlug === "ineffable-beauty"
+  ) {
+    return (
+      cleanMetaPixelEnv(process.env.NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE) ||
+      cleanMetaPixelEnv(process.env.NEXT_PUBLIC_META_PIXEL_ID)
+    );
+  }
+
+  if (normalizedBrandSlug === "alyssa") {
+    return cleanMetaPixelEnv(process.env.NEXT_PUBLIC_META_PIXEL_ID_ALYSSA);
+  }
+
+  const envName = getMetaPixelEnvName(normalizedBrandSlug);
+  return envName ? cleanMetaPixelEnv(process.env[envName]) : null;
 }
 
 function getPublicLandingPageUrl(slug: string, search: string) {
@@ -182,7 +212,8 @@ export default async function PublicLandingPage({
   const contentSections = getResolvedLandingPageContentSections(page).filter(
     hasVisibleSectionContent
   );
-  const metaPixelId = getMetaPixelId();
+  const publicBrandSlug = isIneffable ? "ineffable" : publicBrand.slug;
+  const metaPixelId = getMetaPixelIdForBrand(publicBrandSlug);
 
   return (
     <main
@@ -192,7 +223,7 @@ export default async function PublicLandingPage({
       <PublicLpAttributionCapture
         formToken={connectedForm.publicFormToken}
         formId={connectedForm.id}
-        brandSlug={isIneffable ? "ineffable" : publicBrand.slug}
+        brandSlug={publicBrandSlug}
         initialQueryString={initialQueryString}
       />
       <MetaPixelPageView
@@ -373,7 +404,7 @@ export default async function PublicLandingPage({
               <PublicLeadForm
                 formToken={connectedForm.publicFormToken}
                 formId={connectedForm.id}
-                brandSlug={isIneffable ? "ineffable" : publicBrand.slug}
+                brandSlug={publicBrandSlug}
                 initialQueryString={initialQueryString}
               />
             </div>

@@ -25,6 +25,28 @@ export function getConfiguredMetaPixelId() {
   return cleanMetaPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID);
 }
 
+export function getConfiguredMetaPixelIdForBrand(
+  brandSlug: string | null | undefined
+) {
+  const normalizedBrandSlug = brandSlug?.trim().toLowerCase() ?? "";
+
+  if (
+    normalizedBrandSlug === "ineffable" ||
+    normalizedBrandSlug === "ineffable-beauty"
+  ) {
+    return (
+      cleanMetaPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE) ||
+      getConfiguredMetaPixelId()
+    );
+  }
+
+  if (normalizedBrandSlug === "alyssa") {
+    return cleanMetaPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID_ALYSSA);
+  }
+
+  return null;
+}
+
 export function isMetaPixelDebugEnabled() {
   try {
     return new URLSearchParams(window.location.search).get("pixel_debug") === "1";

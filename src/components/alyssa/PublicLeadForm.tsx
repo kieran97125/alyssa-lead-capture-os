@@ -29,7 +29,7 @@ import {
   LEGAL_CONSENT_TEXT,
 } from "@/lib/legal/consent";
 import {
-  getConfiguredMetaPixelId,
+  getConfiguredMetaPixelIdForBrand,
   isMetaPixelDebugEnabled,
   sendMetaPixelBeacon,
 } from "@/lib/metaPixel/client";
@@ -678,8 +678,12 @@ export function PublicLeadForm({
       });
     }
 
+    const conversionPixelId = getConfiguredMetaPixelIdForBrand(
+      brand.slug || brandSlug
+    );
+
     const beaconResult = sendMetaPixelBeacon({
-      pixelId: getConfiguredMetaPixelId(),
+      pixelId: conversionPixelId,
       eventName: "CompleteRegistration",
       value: payload.value,
       currency: payload.currency,
@@ -694,6 +698,7 @@ export function PublicLeadForm({
       sent: beaconResult.sent,
       reason: beaconResult.reason,
       urlCreated: Boolean(beaconResult.url),
+      pixelConfigured: Boolean(conversionPixelId),
     });
   }
 

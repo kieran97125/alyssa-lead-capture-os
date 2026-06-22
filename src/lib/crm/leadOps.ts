@@ -6,6 +6,7 @@ import {
   formatAppointment,
   formatDateTime,
   money,
+  sourceLabel as businessSourceLabel,
   type LeadRow,
 } from "@/lib/data/businessMetrics";
 
@@ -163,6 +164,14 @@ export function crmSourceTypeLabel(type: CrmSourceType) {
   return labels[type];
 }
 
+function crmDisplaySourceLabel(lead: LeadRow, type: CrmSourceType) {
+  const source = businessSourceLabel(lead);
+
+  if (type === "landing_form") return source;
+  if (type === "unknown") return "直接 / 無追蹤";
+  return crmSourceTypeLabel(type);
+}
+
 export function deriveInitialCrmStatusFromLead(lead: LeadRow): CrmStatus {
   const bookingStatus = lead.booking?.booking_status || lead.booking_status;
   const leadStatus = lead.lead_status;
@@ -247,7 +256,7 @@ export function toCrmLeadCase(lead: LeadRow): CrmLeadCase {
     branchName: lead.branch?.name || unknownLabel,
     appointmentLabel: formatAppointment(lead),
     crmSourceType,
-    sourceLabel: crmSourceTypeLabel(crmSourceType),
+    sourceLabel: crmDisplaySourceLabel(lead, crmSourceType),
     sourceTypeRaw: lead.source_type || lead.sourceSnapshot?.source_type || unknownLabel,
     campaignLabel: campaign,
     adLabel: ad,

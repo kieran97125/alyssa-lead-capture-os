@@ -35,11 +35,20 @@ const trackingRestoreKeys = [
   "utm_term",
   "fbclid",
   "gclid",
+  "ttclid",
+  "msclkid",
   "wbraid",
   "gbraid",
   "campaign_id",
   "adset_id",
   "ad_id",
+  "ctwa_id",
+  "ctwa_clid",
+  "meta_ad_id",
+  "meta_adset_id",
+  "meta_campaign_id",
+  "placement",
+  "whatsapp_referral_source_id",
 ] as const;
 
 const queryRestoreKeys = [

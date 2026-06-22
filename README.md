@@ -277,7 +277,7 @@ LaunchHub supports multiple reusable registration forms per brand.
 - Each form has its own `public_form_token` and Wix embed code.
 - A form can be embedded directly in Wix or connected to a Landing Page campaign.
 - Forms differ by business configuration: brand, treatment, package, branch, allowed domains, and status.
-- Creating or duplicating a form generates a new safe token in the format `alyssa-[slug]-form-[shortid]`.
+- Creating or duplicating a form generates a new safe token from the selected brand slug, for example `ineffable-beauty-388-form-[shortid]` or `alyssa-main-form-[shortid]`.
 - Duplicate form copies configuration only, creates a new form token, and does not copy leads or submissions.
 - Unused forms can simply be left unused for now.
 - Archive, delete, and re-enable workflows are not part of V1.
@@ -639,7 +639,37 @@ Use this structure on the Wix page:
 </script>
 ```
 
-Preserved iframe query/source parameters include `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `fbclid`, `gclid`, `wbraid`, `gbraid`, `campaign_id`, `adset_id`, `ad_id`, `parent_url`, and `parent_origin`.
+Preserved iframe query/source parameters include `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `fbclid`, `gclid`, `ttclid`, `msclkid`, `wbraid`, `gbraid`, `campaign_id`, `adset_id`, `ad_id`, `placement`, `ctwa_id`, `ctwa_clid`, `meta_campaign_id`, `meta_adset_id`, `meta_ad_id`, `parent_url`, and `parent_origin`.
+
+Brand examples:
+
+```html
+<!-- Ineffable Beauty Wix page -->
+<div id="ineffable-launchhub-form"></div>
+<script
+  src="https://go.beautytrialhk.com/embed/alyssa-form.js"
+  data-form-token="INEFFABLE_FORM_TOKEN"
+  data-brand="ineffable"
+  data-form-id="INEFFABLE_FORM_ID"
+  data-target-id="ineffable-launchhub-form"
+  async
+></script>
+```
+
+```html
+<!-- Alyssa Wix page -->
+<div id="alyssa-launchhub-form"></div>
+<script
+  src="https://go.beautytrialhk.com/embed/alyssa-form.js"
+  data-form-token="ALYSSA_FORM_TOKEN"
+  data-brand="alyssa"
+  data-form-id="ALYSSA_FORM_ID"
+  data-target-id="alyssa-launchhub-form"
+  async
+></script>
+```
+
+Each brand should use its own form token. Parent Wix URL query parameters are passed into the iframe so UTM/click attribution is saved with the lead.
 
 Allowed origins for the LaunchHub form should include the Wix campaign hosts and the public LaunchHub host, for example:
 
@@ -670,17 +700,19 @@ NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com
 
 Internal navigation uses relative admin paths such as `/dashboard`, `/landing-pages`, `/forms`, and `/settings`. If `/login` or another internal admin route is opened on the public host, the proxy redirects it to the configured admin origin while keeping admin access open.
 
-Public campaign slugs should use the active brand name. The Ineffable $388 campaign canonical URL is `/lp/ineffable-388-488b24`; the older `/lp/alyssa-388-488b24` URL is kept as a redirect/alias so existing ad links can continue to resolve without showing Alyssa branding.
+Public campaign slugs should use the active brand name. Current Ineffable $388 canonical URLs use `/lp/ineffable-388-...`; the known older `/lp/alyssa-388-13e933` and `/lp/alyssa-388-488b24` URLs are kept as exact redirect aliases so existing ad links continue to resolve without showing Alyssa branding. Do not add broad `alyssa-*` redirects because real Alyssa campaigns must remain Alyssa-owned.
 
 ## Public Meta Pixel PageView And CompleteRegistration
 
 Public Landing Pages can fire a Meta Pixel `PageView` event for campaign traffic. This is public-page only and is not loaded on admin pages such as `/dashboard`, `/landing-pages`, `/leads`, `/settings`, or `/system-audit`.
 
 ```bash
+NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE=1020143980486592
+NEXT_PUBLIC_META_PIXEL_ID_ALYSSA=
 NEXT_PUBLIC_META_PIXEL_ID=
 ```
 
-If `NEXT_PUBLIC_META_PIXEL_ID` is not set, no Pixel script is rendered. Public lead submission still works.
+Pixel IDs are brand-scoped. Ineffable public landing pages use `NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE`, falling back to the legacy `NEXT_PUBLIC_META_PIXEL_ID` for existing single-pixel deployments. Alyssa public landing pages use `NEXT_PUBLIC_META_PIXEL_ID_ALYSSA`; if that env var is missing, Alyssa pages skip Pixel instead of sending traffic to the Ineffable Pixel. If no Pixel ID is configured for the resolved brand, no Pixel script is rendered and public lead submission still works.
 
 Direct public landing pages on `go.beautytrialhk.com/lp/...` install the standard Meta Pixel base loader in the browser, load `https://connect.facebook.net/en_US/fbevents.js`, call `fbq("init", pixelId)`, and fire `fbq("track", "PageView")` after the Meta script loads. They also create a direct safe image beacon fallback to `https://www.facebook.com/tr` for PageView. Add `?pixel_debug=1` to a public LP URL to show a small debug panel and console logs for Pixel ID, script injection, script load, `fbq` availability, `fbq.loaded`, `fbq.version`, PageView request state, fallback beacon state, and the last load/error state. Direct public landing pages fire `CompleteRegistration` only after `/api/public/leads` returns success; they attempt `fbq("track", "CompleteRegistration")` and create a direct safe image beacon fallback. If `fbq` is unavailable, the form still succeeds and the fallback can still run.
 
@@ -700,6 +732,8 @@ Wix iframe embeds do not fire Pixel inside the iframe. After successful save, th
 ```
 
 No customer name, phone, email, appointment time, free-text notes, raw lead ID, or sensitive treatment details are sent to Meta.
+
+Meta Conversions API is not implemented in this pass. A future CAPI layer should trigger only after successful lead save, use a brand-specific Pixel/Dataset ID and access token, support `test_event_code` for Meta Test Events, and share a dedupe `event_id` with the browser event if both browser Pixel and CAPI are enabled.
 
 ## Supabase Connection
 
@@ -772,7 +806,9 @@ Payment status semantics:
 - `NEXT_PUBLIC_APP_URL` - required for production embed script URLs.
 - `NEXT_PUBLIC_PUBLIC_BASE_URL` - optional; use later if public Landing Pages move to a separate domain.
 - `NEXT_PUBLIC_ADMIN_BASE_URL` - optional; use later if internal admin pages move to a separate domain.
-- `NEXT_PUBLIC_META_PIXEL_ID` - optional; enables Meta Pixel PageView on public Landing Pages only.
+- `NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE` - optional; enables Ineffable public Landing Page Pixel events.
+- `NEXT_PUBLIC_META_PIXEL_ID_ALYSSA` - optional; enables Alyssa public Landing Page Pixel events when configured.
+- `NEXT_PUBLIC_META_PIXEL_ID` - optional legacy fallback for existing Ineffable/single-pixel deployments.
 - `NEXT_PUBLIC_SUPABASE_URL` - pending; required before browser-side Supabase-aware flows are introduced.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
@@ -832,7 +868,7 @@ Future brand legal profile fields to add when settings become editable:
 
 ## Google Sheets Lead Sync V1
 
-LaunchHub can send each successfully created public lead to a Google Apps Script webhook, which can append one Ineffable CS follow-up row into Google Sheets before the full CRM is ready.
+LaunchHub can send each successfully created public lead to a Google Apps Script webhook, which can append one CS follow-up row into Google Sheets before the full CRM is ready.
 
 Setup:
 
@@ -875,6 +911,8 @@ CS teammates can manually update `跟進狀態`, `CS 負責人`, `備註`, and `
 ## Public Reliability & Security V1
 
 This pass adds a lightweight public safety layer for small-scale campaign testing.
+
+Launch principle: save valid customer registrations first, then review or filter suspicious/test records later. Required customer fields, phone shape, legal consent, domain validation, duplicate window checks, and the hidden honeypot remain in place. Do not add aggressive bot-score rejection or silent drops at submit time unless a separate abuse incident requires it. If later filtering is needed, prefer post-save labels such as `suspected_test`, `suspected_bot`, or `excluded_from_lead_count` in a future reviewed data model.
 
 - Public forms include a hidden honeypot field; if it is filled, the submission is rejected with a friendly user message.
 - `/api/public/leads` checks for same form + same normalized phone duplicate submissions within a short window before creating another lead.
