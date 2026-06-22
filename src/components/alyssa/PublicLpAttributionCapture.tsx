@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 const attributionKeys = [
   "utm_source",
@@ -26,6 +26,15 @@ const attributionKeys = [
   "placement",
   "whatsapp_referral_source_id",
 ] as const;
+
+type AttributionDebugState = {
+  href: string;
+  search: string;
+  currentPageUrl: string;
+  landingPageUrl: string;
+  captured: Record<string, string>;
+  hasAttributionParams: boolean;
+};
 
 function readStorage(key: string, storage: Storage) {
   try {
@@ -67,9 +76,27 @@ export function PublicLpAttributionCapture({
   formId: string;
   brandSlug: string;
 }) {
+  const [debugState, setDebugState] = useState<AttributionDebugState | null>(
+    null
+  );
+
   useEffect(() => {
     const searchParams = new URLSearchParams(window.location.search);
     const paramPayload = pickSourceParams(searchParams);
+    const debugEnabled = searchParams.get("attribution_debug") === "1";
+
+    if (debugEnabled) {
+      queueMicrotask(() =>
+        setDebugState({
+          href: window.location.href,
+          search: window.location.search,
+          currentPageUrl: window.location.href,
+          landingPageUrl: window.location.href,
+          captured: paramPayload,
+          hasAttributionParams: Object.keys(paramPayload).length > 0,
+        })
+      );
+    }
 
     if (Object.keys(paramPayload).length === 0) return;
 
@@ -100,5 +127,43 @@ export function PublicLpAttributionCapture({
     writeStorage("alyssa_session_id", sessionId, window.sessionStorage);
   }, [brandSlug, formId, formToken]);
 
-  return null;
+  if (!debugState) return null;
+
+  return (
+    <aside className="fixed bottom-4 left-4 z-50 max-w-md rounded-2xl border border-amber-200 bg-white/95 p-4 text-xs font-semibold text-slate-800 shadow-2xl backdrop-blur">
+      <p className="text-sm font-bold text-amber-700">Attribution debug</p>
+      <dl className="mt-3 grid gap-2">
+        <DebugRow label="href" value={debugState.href} />
+        <DebugRow label="search" value={debugState.search || "(empty)"} />
+        <DebugRow
+          label="has params"
+          value={debugState.hasAttributionParams ? "yes" : "no"}
+        />
+        <DebugRow
+          label="current_page_url"
+          value={debugState.currentPageUrl}
+        />
+        <DebugRow
+          label="landing_page_url"
+          value={debugState.landingPageUrl}
+        />
+        {attributionKeys.map((key) => (
+          <DebugRow key={key} label={key} value={debugState.captured[key] || ""} />
+        ))}
+      </dl>
+    </aside>
+  );
+}
+
+function DebugRow({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="grid gap-1">
+      <dt className="text-[10px] uppercase tracking-[0.16em] text-slate-500">
+        {label}
+      </dt>
+      <dd className="break-all rounded-xl bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-900">
+        {value || "-"}
+      </dd>
+    </div>
+  );
 }

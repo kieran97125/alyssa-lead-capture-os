@@ -296,17 +296,17 @@ function captureCurrentPageAttribution({
     parent_origin: parentOriginParam || window.location.origin,
     referrer: document.referrer || "",
     landing_page_url:
-      firstStored && firstStored.landing_page_url
-        ? firstStored.landing_page_url
-        : parentUrlParam || window.location.href,
+      hasCurrentParams || !firstStored?.landing_page_url
+        ? parentUrlParam || window.location.href
+        : firstStored.landing_page_url,
     current_page_url: parentUrlParam || window.location.href,
     page_path: parentPath,
     page_title: document.title || "",
     captured_at: new Date().toISOString(),
   };
   const latestTouch = {
-    ...basePayload,
     ...(latestStored || {}),
+    ...basePayload,
     ...paramPayload,
     source_capture_method: sourceCaptureMethod,
   };
@@ -743,20 +743,31 @@ export function PublicLeadForm({
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
+    const liveAttribution = captureCurrentPageAttribution({
+      formToken,
+      formId: formId || publicForm.id,
+      brandSlug: brand.slug || brandSlug || "alyssa",
+    });
+    queueMicrotask(() => setAttribution(liveAttribution));
+
     if (!formData.legalConsentAccepted) {
       setState("error");
       setMessage(LEGAL_CONSENT_REQUIRED_MESSAGE);
       await logPublicEvent(
         "form_submit_failed",
         { error: "legal_consent_missing" },
-        attribution
+        liveAttribution
       );
       return;
     }
 
     setState("loading");
     setMessage("正在提交預約資料...");
-    await logPublicEvent("form_submit_attempt", { form_token: formToken }, attribution);
+    await logPublicEvent(
+      "form_submit_attempt",
+      { form_token: formToken },
+      liveAttribution
+    );
 
     try {
       const resolvedFormData = {
@@ -771,9 +782,9 @@ export function PublicLeadForm({
           ...resolvedFormData,
           form_token: formToken,
           form_id: formId || publicForm.id,
-          first_touch_json: attribution.first_touch_json || {},
-          latest_touch_json: attribution.latest_touch_json || {},
-          submitted_touch_json: attribution.submitted_touch_json || {},
+          first_touch_json: liveAttribution.first_touch_json || {},
+          latest_touch_json: liveAttribution.latest_touch_json || {},
+          submitted_touch_json: liveAttribution.submitted_touch_json || {},
         }),
       });
       const result = await response.json();
@@ -784,7 +795,7 @@ export function PublicLeadForm({
         await logPublicEvent(
           "form_submit_failed",
           { error: result.error || "submission_failed" },
-          attribution
+          liveAttribution
         );
         return;
       }
@@ -798,7 +809,7 @@ export function PublicLeadForm({
       await logPublicEvent(
         "form_submit_failed",
         { error: error instanceof Error ? error.message : "network_error" },
-        attribution
+        liveAttribution
       );
     }
   }

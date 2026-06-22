@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import { MetaPixelPageView } from "@/components/alyssa/MetaPixelPageView";
 import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
@@ -35,25 +35,6 @@ const ineffableAssets = {
   hero: "/ineffable-wix/assets/hero-model.png",
 };
 
-function serializeSearchParams(
-  params: Record<string, string | string[] | undefined> | undefined
-) {
-  if (!params) return "";
-
-  const searchParams = new URLSearchParams();
-  Object.entries(params).forEach(([key, value]) => {
-    if (Array.isArray(value)) {
-      value.forEach((item) => searchParams.append(key, item));
-      return;
-    }
-
-    if (value) searchParams.set(key, value);
-  });
-
-  const query = searchParams.toString();
-  return query ? `?${query}` : "";
-}
-
 function getMetaPixelId() {
   const rawPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ?? "";
   const pixelId = rawPixelId.replace(/[^0-9]/g, "");
@@ -88,18 +69,11 @@ export async function generateMetadata({
 
 export default async function PublicLandingPage({
   params,
-  searchParams,
 }: {
   params: Promise<{ slug: string }>;
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const { slug } = await params;
-  const query = await searchParams;
   const canonicalSlug = getCanonicalLandingPageSlug(slug);
-
-  if (canonicalSlug !== slug) {
-    redirect(`/lp/${canonicalSlug}${serializeSearchParams(query)}`);
-  }
 
   const [page, config] = await Promise.all([
     getPublishedLandingPageBySlug(canonicalSlug),
