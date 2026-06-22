@@ -864,11 +864,11 @@ Default CS fields:
 - `備註` = blank
 - `最後跟進時間` = blank
 
-The sync runs only after the Supabase lead, source snapshot, booking, and lead event records are created. Invalid submissions, honeypot submissions, missing consent, rate-limited duplicates, and duplicate lead rows do not trigger the webhook. If Google Sheets append fails, public lead submission still returns success and CS can continue using LaunchHub/Supabase as the source of truth.
+The sync runs after the Supabase lead, source snapshot, and booking records are created. Invalid submissions, honeypot submissions, missing consent, rate-limited duplicates, and duplicate lead rows do not trigger the webhook. Lead event logging warnings do not prevent the Sheet sync attempt. If Google Sheets append fails, public lead submission still returns success and CS can continue using LaunchHub/Supabase as the source of truth.
 
 The CS sheet is intentionally reduced for follow-up work. Raw attribution fields such as click IDs, Meta IDs, CTWA IDs, consent proof, source type, and technical event details remain in LaunchHub/Supabase for marketing attribution and audit use.
 
-For CS readability, the sheet source label is simplified to values such as `Meta`, `Google`, `Organic`, or `直接 / 無追蹤`. This display label does not change stored attribution fields.
+For CS readability, the sheet source label follows the Lead feed format: if `utm_source` exists it writes `utm_source / utm_medium`, using `-` when medium is missing. If no tracked source exists, it writes `直接 / 無追蹤`. This display label does not change stored attribution fields.
 
 CS teammates can manually update `跟進狀態`, `CS 負責人`, `備註`, and `最後跟進時間` in the sheet. The Google Sheet can also support manual WhatsApp ad leads through an Apps Script button or custom menu before the future WhatsApp API webhook integration is ready.
 

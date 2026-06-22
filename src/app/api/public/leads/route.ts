@@ -795,13 +795,24 @@ export async function POST(request: NextRequest) {
       code: leadEventsError.code,
       message: leadEventsError.message,
     });
-  } else if (isDuplicate) {
+  }
+
+  if (isDuplicate) {
     console.warn("[LaunchHub] google_sheets_sync_skipped", {
       reason: "duplicate_lead",
       lead_id: lead.id,
     });
   } else {
     try {
+      console.info("[LaunchHub] google_sheets_sync_attempt", {
+        lead_id: lead.id,
+        payment_status: paymentStatus,
+        source_type: classification.sourceType,
+        utm_source: cleanText(submittedTouch.utm_source, 120),
+        utm_medium: cleanText(submittedTouch.utm_medium, 120),
+        utm_campaign: cleanText(submittedTouch.utm_campaign, 200),
+      });
+
       const sheetResult = await appendLeadToGoogleSheet({
         createdAt: submittedAt,
         customerName,
@@ -820,8 +831,14 @@ export async function POST(request: NextRequest) {
 
       if (sheetResult.skipped) {
         console.warn("[LaunchHub] google_sheets_sync_skipped", {
+          lead_id: lead.id,
           reason: sheetResult.reason,
           missing: sheetResult.missing,
+        });
+      } else {
+        console.info("[LaunchHub] google_sheets_sync_succeeded", {
+          lead_id: lead.id,
+          webhook_status: sheetResult.webhookStatus,
         });
       }
     } catch (error) {

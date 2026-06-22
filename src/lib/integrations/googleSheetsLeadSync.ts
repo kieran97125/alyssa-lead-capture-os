@@ -103,32 +103,11 @@ function formatTreatmentOffer(
 }
 
 function formatSource(touch: TouchPayload) {
-  const source = touch.utm_source?.trim().toLowerCase() || "";
-  const medium = touch.utm_medium?.trim().toLowerCase() || "";
+  const source = touch.utm_source?.trim() || "";
+  const medium = touch.utm_medium?.trim() || "";
 
-  if (
-    source === "meta" ||
-    source === "facebook" ||
-    source === "instagram" ||
-    Boolean(touch.fbclid)
-  ) {
-    return "Meta";
-  }
-
-  if (
-    source === "google" ||
-    Boolean(touch.gclid || touch.gbraid || touch.wbraid)
-  ) {
-    return "Google";
-  }
-
-  if (
-    source === "organic" ||
-    source === "direct" ||
-    medium === "organic" ||
-    medium === "referral"
-  ) {
-    return "Organic";
+  if (source) {
+    return `${source} / ${medium || "-"}`;
   }
 
   return "直接 / 無追蹤";
@@ -179,6 +158,7 @@ export async function appendLeadToGoogleSheet(input: LeadSheetSyncInput) {
       skipped: true,
       reason: status.status,
       missing: status.missing,
+      webhookStatus: null,
     };
   }
 
@@ -192,5 +172,11 @@ export async function appendLeadToGoogleSheet(input: LeadSheetSyncInput) {
     throw new Error(`google_sheets_webhook_failed:${response.status}`);
   }
 
-  return { ok: true, skipped: false };
+  return {
+    ok: true,
+    skipped: false,
+    reason: null,
+    missing: [],
+    webhookStatus: response.status,
+  };
 }
