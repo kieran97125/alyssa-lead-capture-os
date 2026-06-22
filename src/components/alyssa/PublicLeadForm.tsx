@@ -4,6 +4,7 @@ import {
   FormEvent,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type CSSProperties,
   type ReactNode,
@@ -62,6 +63,7 @@ type PublicFormConfig = {
   defaultTreatmentId: string;
   defaultPackageId: string;
   defaultBranchId: string;
+  allowedDomains: string[];
 };
 
 type PublicLeadFormProps = {
@@ -86,6 +88,9 @@ const ATTRIBUTION_KEYS = [
   "msclkid",
   "wbraid",
   "gbraid",
+  "campaign_id",
+  "adset_id",
+  "ad_id",
   "ctwa_id",
   "ctwa_clid",
   "meta_ad_id",
@@ -106,6 +111,50 @@ function getNumber(value: unknown) {
     return Number.isFinite(parsed) ? parsed : 0;
   }
   return 0;
+}
+
+function normalizeOrigin(value: string | null | undefined) {
+  if (!value) return null;
+  const cleaned = value.trim();
+
+  if (!cleaned) return null;
+
+  try {
+    return new URL(cleaned).origin.toLowerCase();
+  } catch {
+    try {
+      return new URL(`https://${cleaned}`).origin.toLowerCase();
+    } catch {
+      return null;
+    }
+  }
+}
+
+function isAllowedParentOrigin(
+  candidateOrigin: string | null | undefined,
+  allowedDomains: string[]
+) {
+  const candidate = normalizeOrigin(candidateOrigin);
+  if (!candidate) return false;
+
+  const allowedOrigins = allowedDomains
+    .map(normalizeOrigin)
+    .filter((item): item is string => Boolean(item));
+
+  if (allowedOrigins.includes(candidate)) return true;
+
+  try {
+    const candidateUrl = new URL(candidate);
+    return allowedDomains.some((domain) => {
+      const cleaned = domain.trim().toLowerCase();
+      return (
+        (cleaned === "localhost" || cleaned === "127.0.0.1") &&
+        candidateUrl.hostname === cleaned
+      );
+    });
+  } catch {
+    return false;
+  }
 }
 
 function safeJsonParse(value: string | null) {
@@ -205,6 +254,18 @@ function captureCurrentPageAttribution({
   const localKey = "alyssa_first_touch";
   const sessionKey = "alyssa_latest_touch";
   const searchParams = new URLSearchParams(window.location.search);
+  const parentOriginParam = normalizeOrigin(searchParams.get("parent_origin"));
+  const parentUrlParam = searchParams.get("parent_url") || "";
+  let parentPath = window.location.pathname;
+
+  if (parentUrlParam) {
+    try {
+      parentPath = new URL(parentUrlParam).pathname;
+    } catch {
+      parentPath = window.location.pathname;
+    }
+  }
+
   const visitorId =
     readStorage("alyssa_visitor_id", window.localStorage) || createId("vis");
   const sessionId =
@@ -227,14 +288,14 @@ function captureCurrentPageAttribution({
     brand: brandSlug,
     form_id: formId,
     form_token: formToken,
-    parent_origin: window.location.origin,
+    parent_origin: parentOriginParam || window.location.origin,
     referrer: document.referrer || "",
     landing_page_url:
       firstStored && firstStored.landing_page_url
         ? firstStored.landing_page_url
-        : window.location.href,
-    current_page_url: window.location.href,
-    page_path: window.location.pathname,
+        : parentUrlParam || window.location.href,
+    current_page_url: parentUrlParam || window.location.href,
+    page_path: parentPath,
     page_title: document.title || "",
     captured_at: new Date().toISOString(),
   };
@@ -271,6 +332,8 @@ function captureCurrentPageAttribution({
 }
 
 function normalizeForm(raw: Record<string, unknown>): PublicFormConfig {
+  const allowedDomains = raw.allowedDomains ?? raw.allowed_domains;
+
   return {
     id: getString(raw.id) || alyssaDefaultForm.id,
     defaultTreatmentId:
@@ -285,6 +348,9 @@ function normalizeForm(raw: Record<string, unknown>): PublicFormConfig {
       getString(raw.defaultBranchId) ||
       getString(raw.default_branch_id) ||
       alyssaDefaultForm.defaultBranchId,
+    allowedDomains: Array.isArray(allowedDomains)
+      ? allowedDomains.filter((item): item is string => typeof item === "string")
+      : [],
   };
 }
 
@@ -384,6 +450,7 @@ export function PublicLeadForm({
   mode = "inline",
   className = "",
 }: PublicLeadFormProps) {
+  const conversionEventSentRef = useRef(false);
   const [attribution, setAttribution] = useState<AttributionEnvelope>({});
   const [state, setState] = useState<SubmitState>("idle");
   const [message, setMessage] = useState("");
@@ -463,6 +530,66 @@ export function PublicLeadForm({
   );
   const isEmbed = mode === "embed";
 
+  function buildCompleteRegistrationPayload() {
+    return {
+      value: selectedPackage?.promoPrice ?? 0,
+      currency: "HKD",
+      content_name: `${brand.name || "LaunchHub"} registration`,
+      content_category: "registration",
+    };
+  }
+
+  function logSkippedConversion(reason: string) {
+    if (process.env.NODE_ENV === "development") {
+      console.info("[LaunchHub] CompleteRegistration skipped", { reason });
+    }
+  }
+
+  function handleSuccessfulRegistrationEvent() {
+    if (conversionEventSentRef.current) return;
+    conversionEventSentRef.current = true;
+
+    const payload = buildCompleteRegistrationPayload();
+
+    if (isEmbed) {
+      const targetOrigin = normalizeOrigin(expectedParentOrigin);
+
+      if (
+        !window.parent ||
+        window.parent === window ||
+        !targetOrigin ||
+        !isAllowedParentOrigin(targetOrigin, publicForm.allowedDomains)
+      ) {
+        logSkippedConversion("parent_origin_missing_or_not_allowed");
+        return;
+      }
+
+      window.parent.postMessage(
+        {
+          type: "launchhub:form-submitted",
+          event: "CompleteRegistration",
+          formToken,
+          brandSlug: brand.slug || brandSlug || "",
+          value: payload.value,
+          currency: payload.currency,
+        },
+        targetOrigin
+      );
+      return;
+    }
+
+    const fbq = (window as typeof window & {
+      fbq?: (...args: unknown[]) => void;
+    }).fbq;
+
+    if (typeof fbq !== "function") {
+      logSkippedConversion("fbq_not_found");
+      return;
+    }
+
+    fbq("track", "CompleteRegistration", payload);
+  }
+
   useEffect(() => {
     async function loadConfig() {
       try {
@@ -525,7 +652,12 @@ export function PublicLeadForm({
     void logPublicEvent("form_view", { form_token: formToken }, initialAttribution);
 
     function onMessage(event: MessageEvent) {
-      if (expectedParentOrigin && event.origin !== expectedParentOrigin) return;
+      if (
+        expectedParentOrigin &&
+        normalizeOrigin(event.origin) !== normalizeOrigin(expectedParentOrigin)
+      ) {
+        return;
+      }
       if (event.data?.type !== "alyssa_attribution_payload") return;
       const nextAttribution = event.data.payload || {};
       setAttribution(nextAttribution);
@@ -622,6 +754,7 @@ export function PublicLeadForm({
       }
 
       setState("success");
+      handleSuccessfulRegistrationEvent();
       setMessage("已收到你的登記，我們會盡快透過 WhatsApp 跟進。");
     } catch (error) {
       setState("error");

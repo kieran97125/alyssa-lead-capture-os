@@ -12,6 +12,9 @@
     "msclkid",
     "wbraid",
     "gbraid",
+    "campaign_id",
+    "adset_id",
+    "ad_id",
     "ctwa_id",
     "ctwa_clid",
     "meta_ad_id",
@@ -201,6 +204,10 @@
     var iframeUrl = new URL(embedOrigin + "/embed/" + encodeURIComponent(formToken));
     iframeUrl.searchParams.set("brand", brand);
     iframeUrl.searchParams.set("form_id", formId);
+    Object.keys(paramPayload).forEach(function (key) {
+      iframeUrl.searchParams.set(key, paramPayload[key]);
+    });
+    iframeUrl.searchParams.set("parent_url", window.location.href);
     iframeUrl.searchParams.set("parent_origin", parentOrigin);
 
     var iframe = document.createElement("iframe");

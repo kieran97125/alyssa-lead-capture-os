@@ -583,18 +583,73 @@ http://localhost:3010/embed/alyssa-main-form-dev-token
 
 This tests the iframe form itself. It does not simulate parent-page attribution unless the parent embed script sends a payload, so `/embed-preview` is the preferred attribution test.
 
-## Wix Embed Code
+## Wix Iframe Embed And Meta CompleteRegistration
 
-In local development, use:
+Recommended Wix setup:
+
+- Wix installs Meta Pixel and owns `PageView`.
+- Wix creates the LaunchHub iframe and appends the Wix page UTM/click IDs into the iframe URL.
+- LaunchHub saves the lead first.
+- After successful save, the iframe posts `launchhub:form-submitted` to Wix.
+- Wix fires Meta Pixel `CompleteRegistration` from the parent page.
+
+Use this structure on the Wix page:
 
 ```html
-<script
-  src="http://localhost:3010/embed/alyssa-form.js"
-  data-form-token="alyssa-main-form-dev-token"
-  data-brand="alyssa"
-  data-form-id="alyssa-main-form">
+<div id="launchhub-form"></div>
+
+<script>
+(function () {
+  const launchhubBaseUrl = "https://go.beautytrialhk.com/embed/YOUR_FORM_TOKEN_OR_PATH";
+  const params = new URLSearchParams(window.location.search);
+
+  params.set("parent_url", window.location.href);
+  params.set("parent_origin", window.location.origin);
+
+  const iframe = document.createElement("iframe");
+  iframe.src = launchhubBaseUrl + "?" + params.toString();
+  iframe.width = "100%";
+  iframe.height = "760";
+  iframe.style.border = "0";
+  iframe.loading = "lazy";
+  iframe.title = "Registration Form";
+
+  document.getElementById("launchhub-form").appendChild(iframe);
+
+  window.addEventListener("message", function (event) {
+    const allowedOrigins = ["https://go.beautytrialhk.com"];
+
+    if (!allowedOrigins.includes(event.origin)) return;
+
+    if (
+      event.data &&
+      event.data.type === "launchhub:form-submitted" &&
+      event.data.event === "CompleteRegistration"
+    ) {
+      if (typeof fbq === "function") {
+        fbq("track", "CompleteRegistration", {
+          value: event.data.value || 0,
+          currency: event.data.currency || "HKD",
+          content_category: "registration"
+        });
+      }
+    }
+  });
+})();
 </script>
 ```
+
+Preserved iframe query/source parameters include `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `fbclid`, `gclid`, `wbraid`, `gbraid`, `campaign_id`, `adset_id`, `ad_id`, `parent_url`, and `parent_origin`.
+
+Allowed origins for the LaunchHub form should include the Wix campaign hosts and the public LaunchHub host, for example:
+
+```text
+https://ineffablebeautyhk.com
+https://www.ineffablebeautyhk.com
+https://go.beautytrialhk.com
+```
+
+Do not use `app.beautytrialhk.com` for public embeds. Meta Events Manager is used for Pixel/Dataset setup and Test Events, not per-form button-click setup. `CompleteRegistration` is triggered only after LaunchHub confirms the lead was saved.
 
 In production, set:
 
@@ -617,7 +672,7 @@ Internal navigation uses relative admin paths such as `/dashboard`, `/landing-pa
 
 Public campaign slugs should use the active brand name. The Ineffable $388 campaign canonical URL is `/lp/ineffable-388-488b24`; the older `/lp/alyssa-388-488b24` URL is kept as a redirect/alias so existing ad links can continue to resolve without showing Alyssa branding.
 
-## Public Meta Pixel PageView
+## Public Meta Pixel PageView And CompleteRegistration
 
 Public Landing Pages can fire a Meta Pixel `PageView` event for campaign traffic. This is public-page only and is not loaded on admin pages such as `/dashboard`, `/landing-pages`, `/leads`, `/settings`, or `/system-audit`.
 
@@ -625,7 +680,24 @@ Public Landing Pages can fire a Meta Pixel `PageView` event for campaign traffic
 NEXT_PUBLIC_META_PIXEL_ID=
 ```
 
-If `NEXT_PUBLIC_META_PIXEL_ID` is not set, no Pixel script is rendered. Lead/CompleteRegistration events are not fired in this pass; they should be added later only after event naming and consent requirements are confirmed.
+If `NEXT_PUBLIC_META_PIXEL_ID` is not set, no Pixel script is rendered. Public lead submission still works.
+
+Direct public landing pages on `go.beautytrialhk.com/lp/...` fire `CompleteRegistration` only after `/api/public/leads` returns success. If `fbq` is unavailable, the form still succeeds and the event is skipped safely.
+
+Wix iframe embeds do not fire Pixel inside the iframe. After successful save, the iframe sends this safe parent message once:
+
+```js
+{
+  type: "launchhub:form-submitted",
+  event: "CompleteRegistration",
+  formToken: "FORM_TOKEN",
+  brandSlug: "brand-slug",
+  value: 388,
+  currency: "HKD"
+}
+```
+
+No customer name, phone, email, appointment time, free-text notes, raw lead ID, or sensitive treatment details are sent to Meta.
 
 ## Supabase Connection
 
