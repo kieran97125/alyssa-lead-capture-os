@@ -1,6 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import {
+  PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  decodePublicAttributionCookie,
+  hasPublicAttributionTracking,
+  publicAttributionTrackingKeys,
+} from "@/lib/attribution/publicAttributionCookie";
 
 const attributionKeys = [
   "utm_source",
@@ -65,7 +71,8 @@ type AttributionDebugState = {
   currentPageUrl: string;
   landingPageUrl: string;
   restoredUrl: string;
-  sourceUsed: "live" | "initialSearch" | "none";
+  sourceUsed: "live" | "initialSearch" | "proxy_cookie" | "none";
+  proxyCookieStatus: "present" | "absent";
   pageViewDlUrl: string;
   completeRegistrationDlUrl: string;
   captured: Record<string, string>;
@@ -101,6 +108,32 @@ function pickSourceParams(searchParams: URLSearchParams) {
     if (value) output[key] = value;
   });
   return output;
+}
+
+function pickCookieSourceParams(value: Record<string, unknown>) {
+  const output: Record<string, string> = {};
+  publicAttributionTrackingKeys.forEach((key) => {
+    const item = value[key];
+    if (typeof item === "string" && item.trim()) output[key] = item;
+  });
+  return output;
+}
+
+function readCookie(name: string) {
+  const prefix = `${name}=`;
+  return (
+    document.cookie
+      .split(";")
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(prefix))
+      ?.slice(prefix.length) ?? null
+  );
+}
+
+function readProxyAttributionCookie() {
+  return decodePublicAttributionCookie(
+    readCookie(PUBLIC_ATTRIBUTION_COOKIE_NAME)
+  );
 }
 
 function createEffectiveUrl(initialQueryString: string) {
@@ -167,15 +200,29 @@ export function PublicLpAttributionCapture({
     const restoredUrl = restoreMissingPublicLpQueryParams(initialQueryString);
     const effectiveUrl = createEffectiveUrl(initialQueryString);
     const searchParams = new URLSearchParams(effectiveUrl.search);
-    const paramPayload = pickSourceParams(searchParams);
+    const proxyCookie = readProxyAttributionCookie();
+    const liveOrInitialPayload = pickSourceParams(searchParams);
+    const hasLiveOrInitialParams = Object.keys(liveOrInitialPayload).length > 0;
+    const useProxyCookie =
+      !hasLiveOrInitialParams &&
+      proxyCookie &&
+      hasPublicAttributionTracking(proxyCookie);
+    const paramPayload = useProxyCookie
+      ? pickCookieSourceParams(proxyCookie)
+      : liveOrInitialPayload;
+    const capturedPageUrl = useProxyCookie
+      ? proxyCookie.current_page_url
+      : effectiveUrl.href;
     const debugEnabled = searchParams.get("attribution_debug") === "1";
-    const sourceUsed = restoredUrl
-      ? "initialSearch"
-      : window.location.search
-      ? "live"
-      : initialQueryString
+    const sourceUsed = useProxyCookie
+      ? "proxy_cookie"
+      : restoredUrl
         ? "initialSearch"
-        : "none";
+        : window.location.search
+          ? "live"
+          : initialQueryString
+            ? "initialSearch"
+            : "none";
 
     if (debugEnabled) {
       queueMicrotask(() =>
@@ -183,12 +230,13 @@ export function PublicLpAttributionCapture({
           href: window.location.href,
           search: window.location.search,
           initialSearch: initialQueryString,
-          currentPageUrl: effectiveUrl.href,
-          landingPageUrl: effectiveUrl.href,
+          currentPageUrl: capturedPageUrl,
+          landingPageUrl: capturedPageUrl,
           restoredUrl,
           sourceUsed,
-          pageViewDlUrl: effectiveUrl.href,
-          completeRegistrationDlUrl: effectiveUrl.href,
+          proxyCookieStatus: proxyCookie ? "present" : "absent",
+          pageViewDlUrl: capturedPageUrl,
+          completeRegistrationDlUrl: capturedPageUrl,
           captured: paramPayload,
           hasAttributionParams: Object.keys(paramPayload).length > 0,
         })
@@ -210,9 +258,9 @@ export function PublicLpAttributionCapture({
       form_token: formToken,
       parent_origin: window.location.origin,
       referrer: document.referrer || "",
-      landing_page_url: effectiveUrl.href,
-      current_page_url: effectiveUrl.href,
-      page_path: window.location.pathname,
+      landing_page_url: capturedPageUrl,
+      current_page_url: capturedPageUrl,
+      page_path: proxyCookie?.page_path || window.location.pathname,
       page_title: document.title || "",
       captured_at: new Date().toISOString(),
       ...paramPayload,
@@ -260,6 +308,10 @@ export function PublicLpAttributionCapture({
         />
         <DebugRow label="restored URL" value={debugState.restoredUrl || "-"} />
         <DebugRow label="source used" value={debugState.sourceUsed} />
+        <DebugRow
+          label="proxy cookie"
+          value={debugState.proxyCookieStatus}
+        />
         <DebugRow label="PageView dl URL" value={debugState.pageViewDlUrl} />
         <DebugRow
           label="CompleteRegistration dl URL"

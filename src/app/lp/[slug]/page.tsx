@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cookies, headers } from "next/headers";
 import { notFound } from "next/navigation";
 import type { CSSProperties } from "react";
 import { MetaPixelPageView } from "@/components/alyssa/MetaPixelPageView";
@@ -10,6 +11,14 @@ import {
   resolvePublicBrandTheme,
 } from "@/lib/brandThemes";
 import { getConfigurationData } from "@/lib/data/configuration";
+import {
+  PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
+  PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  createPublicAttributionCookiePayload,
+  decodePublicAttributionCookie,
+  encodePublicAttributionCookie,
+  hasPublicAttributionTracking,
+} from "@/lib/attribution/publicAttributionCookie";
 import {
   getLandingPageContext,
   getResolvedLandingPageContentSections,
@@ -90,13 +99,55 @@ function getMetaPixelIdForBrand(brandSlug: string) {
   return envName ? cleanMetaPixelEnv(process.env[envName]) : null;
 }
 
-function getPublicLandingPageUrl(slug: string, search: string) {
+function getPublicLandingPageUrl(
+  slug: string,
+  search: string,
+  requestOrigin: string | null
+) {
   const baseUrl =
     process.env.NEXT_PUBLIC_PUBLIC_BASE_URL?.trim().replace(/\/+$/, "") ||
     process.env.NEXT_PUBLIC_APP_URL?.trim().replace(/\/+$/, "") ||
+    requestOrigin ||
     "";
 
   return baseUrl ? `${baseUrl}/lp/${slug}${search}` : undefined;
+}
+
+async function getRequestOrigin() {
+  const headerStore = await headers();
+  const host =
+    headerStore.get("x-forwarded-host") ??
+    headerStore.get("host") ??
+    "";
+  if (!host) return null;
+
+  const proto =
+    headerStore.get("x-forwarded-proto")?.split(",")[0]?.trim() || "http";
+  return `${proto}://${host.split(",")[0]?.trim()}`;
+}
+
+function getInitialAttributionCookieValue(pageUrl: string | undefined) {
+  if (!pageUrl) return null;
+
+  try {
+    const payload = createPublicAttributionCookiePayload(new URL(pageUrl));
+    return payload ? encodePublicAttributionCookie(payload) : null;
+  } catch {
+    return null;
+  }
+}
+
+async function getProxyAttributionPageUrl(initialQueryString: string) {
+  if (hasPublicAttributionTracking(Object.fromEntries(new URLSearchParams(initialQueryString)))) {
+    return undefined;
+  }
+
+  const cookieStore = await cookies();
+  const proxyAttribution = decodePublicAttributionCookie(
+    cookieStore.get(PUBLIC_ATTRIBUTION_COOKIE_NAME)?.value
+  );
+
+  return proxyAttribution?.current_page_url;
 }
 
 export async function generateMetadata({
@@ -136,10 +187,15 @@ export default async function PublicLandingPage({
   const query = await searchParams;
   const canonicalSlug = getCanonicalLandingPageSlug(slug);
   const initialQueryString = serializeSearchParams(query);
-  const preservedPageUrl = getPublicLandingPageUrl(
-    canonicalSlug,
-    initialQueryString
-  );
+  const [proxyAttributionPageUrl, requestOrigin] = await Promise.all([
+    getProxyAttributionPageUrl(initialQueryString),
+    getRequestOrigin(),
+  ]);
+  const preservedPageUrl =
+    proxyAttributionPageUrl ??
+    getPublicLandingPageUrl(canonicalSlug, initialQueryString, requestOrigin);
+  const initialAttributionCookieValue =
+    getInitialAttributionCookieValue(preservedPageUrl);
 
   const [page, config] = await Promise.all([
     getPublishedLandingPageBySlug(canonicalSlug),
@@ -220,6 +276,7 @@ export default async function PublicLandingPage({
       className="min-h-screen overflow-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
       style={themeStyle}
     >
+      <PublicAttributionCookieScript cookieValue={initialAttributionCookieValue} />
       <PublicLpAttributionCapture
         formToken={connectedForm.publicFormToken}
         formId={connectedForm.id}
@@ -420,6 +477,27 @@ export default async function PublicLandingPage({
       />
     </main>
   );
+}
+
+function PublicAttributionCookieScript({
+  cookieValue,
+}: {
+  cookieValue: string | null;
+}) {
+  if (!cookieValue) return null;
+
+  const script = `
+(function () {
+  try {
+    var cookieValue = ${JSON.stringify(cookieValue)};
+    if (!cookieValue) return;
+    var secure = window.location.protocol === "https:" ? "; Secure" : "";
+    document.cookie = ${JSON.stringify(PUBLIC_ATTRIBUTION_COOKIE_NAME)} + "=" + cookieValue + "; Path=/; Max-Age=${PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax" + secure;
+  } catch (error) {}
+})();
+`;
+
+  return <script dangerouslySetInnerHTML={{ __html: script }} />;
 }
 
 function SectionHeading({

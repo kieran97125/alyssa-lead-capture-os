@@ -5,6 +5,11 @@ import {
   cleanText,
   normalizePhone,
 } from "@/lib/attribution/classify";
+import {
+  PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  decodePublicAttributionCookie,
+  hasPublicAttributionTracking,
+} from "@/lib/attribution/publicAttributionCookie";
 import { TouchPayload } from "@/lib/attribution/types";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
 import {
@@ -67,10 +72,103 @@ function getStorageRecoverySource(touch: TouchPayload) {
 }
 
 function classifySubmittedTouch(touch: TouchPayload) {
-  return classifyAttribution(touch, {
+  const classification = classifyAttribution(touch, {
     parentPayloadMissing: Object.keys(touch).length === 0,
     recoveredFromStorage: getStorageRecoverySource(touch),
   });
+
+  if (
+    touch.source_capture_method === "proxy_public_lp_first_touch" &&
+    hasPublicAttributionTracking(touch)
+  ) {
+    return {
+      ...classification,
+      auditReason: "utm_recovered_from_proxy_cookie",
+    };
+  }
+
+  return classification;
+}
+
+function getSafeTouch(value: TouchPayload | undefined) {
+  return value && typeof value === "object" ? value : {};
+}
+
+function mergeTouch(base: TouchPayload, source: TouchPayload): TouchPayload {
+  return {
+    ...base,
+    ...source,
+    current_page_url: source.current_page_url || base.current_page_url,
+    landing_page_url: source.landing_page_url || base.landing_page_url,
+  };
+}
+
+function resolveSubmittedAttribution(
+  request: NextRequest,
+  payload: LeadSubmitPayload
+) {
+  const bodyFirstTouch = getSafeTouch(payload.first_touch_json);
+  const bodyLatestTouch = getSafeTouch(payload.latest_touch_json);
+  const bodySubmittedTouch = getSafeTouch(payload.submitted_touch_json);
+  const proxyCookieTouch =
+    decodePublicAttributionCookie(
+      request.cookies.get(PUBLIC_ATTRIBUTION_COOKIE_NAME)?.value
+    ) ?? null;
+
+  const bodyPreservedTouch = hasPublicAttributionTracking(bodyFirstTouch)
+    ? bodyFirstTouch
+    : hasPublicAttributionTracking(bodyLatestTouch)
+      ? bodyLatestTouch
+      : null;
+  const submittedHasTracking = hasPublicAttributionTracking(bodySubmittedTouch);
+
+  if (submittedHasTracking) {
+    return {
+      firstTouch: bodyFirstTouch,
+      latestTouch: bodyLatestTouch,
+      submittedTouch: bodySubmittedTouch,
+      sourceUsed: "submitted_body",
+      proxyCookiePresent: Boolean(proxyCookieTouch),
+    };
+  }
+
+  if (bodyPreservedTouch) {
+    const submittedTouch = mergeTouch(bodySubmittedTouch, bodyPreservedTouch);
+
+    return {
+      firstTouch: bodyFirstTouch,
+      latestTouch: bodyLatestTouch,
+      submittedTouch,
+      sourceUsed: "body_preserved",
+      proxyCookiePresent: Boolean(proxyCookieTouch),
+    };
+  }
+
+  if (proxyCookieTouch) {
+    const submittedTouch = mergeTouch(bodySubmittedTouch, proxyCookieTouch);
+    const firstTouch = hasPublicAttributionTracking(bodyFirstTouch)
+      ? bodyFirstTouch
+      : mergeTouch(bodyFirstTouch, proxyCookieTouch);
+    const latestTouch = hasPublicAttributionTracking(bodyLatestTouch)
+      ? bodyLatestTouch
+      : mergeTouch(bodyLatestTouch, proxyCookieTouch);
+
+    return {
+      firstTouch,
+      latestTouch,
+      submittedTouch,
+      sourceUsed: "proxy_cookie",
+      proxyCookiePresent: true,
+    };
+  }
+
+  return {
+    firstTouch: bodyFirstTouch,
+    latestTouch: bodyLatestTouch,
+    submittedTouch: bodySubmittedTouch,
+    sourceUsed: "direct",
+    proxyCookiePresent: false,
+  };
 }
 
 function normalizeOrigin(value: string | null | undefined) {
@@ -228,8 +326,12 @@ function isReasonableTime(value: string | null) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
-async function createLocalResponse(payload: LeadSubmitPayload) {
-  const submittedTouch = payload.submitted_touch_json ?? {};
+async function createLocalResponse(
+  payload: LeadSubmitPayload,
+  submittedTouchOverride?: TouchPayload
+) {
+  const submittedTouch =
+    submittedTouchOverride ?? payload.submitted_touch_json ?? {};
   const classification = classifySubmittedTouch(submittedTouch);
 
   return NextResponse.json(
@@ -341,7 +443,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const submittedTouch = payload.submitted_touch_json ?? {};
+  const resolvedAttribution = resolveSubmittedAttribution(request, payload);
+  const submittedTouch = resolvedAttribution.submittedTouch;
   const classification = classifySubmittedTouch(submittedTouch);
 
   if (!hasSupabaseAdminEnv()) {
@@ -355,7 +458,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return createLocalResponse(payload);
+    return createLocalResponse(payload, submittedTouch);
   }
 
   const supabase = createSupabaseAdminClient();
@@ -582,8 +685,8 @@ export async function POST(request: NextRequest) {
       visitor_id: cleanText(submittedTouch.visitor_id, 120),
       session_id: cleanText(submittedTouch.session_id, 120),
       contact_id: contact.id,
-      first_touch_json: payload.first_touch_json ?? {},
-      latest_touch_json: payload.latest_touch_json ?? {},
+      first_touch_json: resolvedAttribution.firstTouch,
+      latest_touch_json: resolvedAttribution.latestTouch,
       submitted_touch_json: submittedTouch,
       raw_payload_json: payload,
       utm_source: cleanText(submittedTouch.utm_source, 300),
@@ -732,6 +835,8 @@ export async function POST(request: NextRequest) {
       event_payload_json: {
         source_type: classification.sourceType,
         is_duplicate: isDuplicate,
+        attribution_source_used: resolvedAttribution.sourceUsed,
+        proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
       },
       page_url: currentPageUrl,
       referrer: cleanText(submittedTouch.referrer, 2000),
@@ -811,6 +916,8 @@ export async function POST(request: NextRequest) {
         utm_source: cleanText(submittedTouch.utm_source, 120),
         utm_medium: cleanText(submittedTouch.utm_medium, 120),
         utm_campaign: cleanText(submittedTouch.utm_campaign, 200),
+        attribution_source_used: resolvedAttribution.sourceUsed,
+        proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
       });
 
       const sheetResult = await appendLeadToGoogleSheet({

@@ -1,4 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
+import {
+  PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
+  PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  encodePublicAttributionCookie,
+  publicAttributionTrackingKeys,
+} from "@/lib/attribution/publicAttributionCookie";
 import { isInternalRoute } from "@/lib/security/routeBoundary";
 import {
   adminSessionCookieName,
@@ -103,6 +109,54 @@ function redirectLegacyPublicLandingPageSlug(request: NextRequest) {
   return NextResponse.redirect(targetUrl);
 }
 
+function getPublicLpAttributionCookieValue(request: NextRequest) {
+  if (!request.nextUrl.pathname.startsWith("/lp/")) return null;
+
+  const searchParams = new URLSearchParams(request.nextUrl.search);
+  const tracking = Object.fromEntries(
+    publicAttributionTrackingKeys
+      .map((key) => [key, searchParams.get(key)] as const)
+      .filter(([, value]) => Boolean(value))
+  );
+
+  if (Object.keys(tracking).length === 0) return null;
+
+  const fullUrl = `${request.nextUrl.origin}${request.nextUrl.pathname}${request.nextUrl.search}`;
+  const payload = {
+    captured_at: new Date().toISOString(),
+    source_capture_method: "proxy_public_lp_first_touch" as const,
+    current_page_url: fullUrl,
+    landing_page_url: fullUrl,
+    page_path: request.nextUrl.pathname,
+    ...tracking,
+  };
+
+  return payload ? encodePublicAttributionCookie(payload) : null;
+}
+
+function attachPublicAttributionCookie(
+  response: NextResponse,
+  cookieValue: string | null
+) {
+  if (!cookieValue) return response;
+  const secure = process.env.NODE_ENV === "production";
+
+  response.headers.append(
+    "Set-Cookie",
+    [
+      `${PUBLIC_ATTRIBUTION_COOKIE_NAME}=${cookieValue}`,
+      "Path=/",
+      `Max-Age=${PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS}`,
+      "SameSite=Lax",
+      secure ? "Secure" : "",
+    ]
+      .filter(Boolean)
+      .join("; ")
+  );
+
+  return response;
+}
+
 function isAdminBackendPath(pathname: string) {
   return pathname === "/login" || pathname === "/logout" || isInternalRoute(pathname);
 }
@@ -120,8 +174,14 @@ function redirectToLogin(request: NextRequest) {
 }
 
 export async function proxy(request: NextRequest) {
+  const publicAttributionCookieValue = getPublicLpAttributionCookieValue(request);
   const publicLpRedirect = redirectLegacyPublicLandingPageSlug(request);
-  if (publicLpRedirect) return publicLpRedirect;
+  if (publicLpRedirect) {
+    return attachPublicAttributionCookie(
+      publicLpRedirect,
+      publicAttributionCookieValue
+    );
+  }
 
   if (isAdminBackendPath(request.nextUrl.pathname)) {
     const adminOrigin = shouldUseAdminOrigin(request);
@@ -143,7 +203,10 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  return NextResponse.next();
+  return attachPublicAttributionCookie(
+    NextResponse.next(),
+    publicAttributionCookieValue
+  );
 }
 
 export const config = {

@@ -718,6 +718,19 @@ Direct public landing pages on `go.beautytrialhk.com/lp/...` install the standar
 
 Attribution QA note: open a public LP with tracking parameters such as `/lp/ineffable-388-13e933?utm_source=meta&utm_medium=paid_social&utm_campaign=test_campaign&utm_content=test_hook&fbclid=test123&pixel_debug=1&attribution_debug=1&v=1001`. The attribution debug panel should show the live URL, initial search, preserved page URL, and captured `utm_source`, `utm_campaign`, `utm_content`, and `fbclid`. If browser-side behavior strips tracking parameters after the first document request, LaunchHub restores missing tracking/debug parameters where possible and still uses the server-provided initial search for lead attribution and Meta beacon `dl`. A manual QA check can strip the address bar after load, submit a test lead, and confirm `lead_source_snapshots` keeps the original UTM/fbclid values and full page URL.
 
+Public LP attribution also has a server/proxy first-touch fallback. On `/lp/*` requests that include tracking parameters, the proxy writes a same-site cookie named `launchhub_public_attribution` before client-side code runs. The cookie stores no PII; it only stores `captured_at`, `source_capture_method = "proxy_public_lp_first_touch"`, full `current_page_url`, full `landing_page_url`, `page_path`, and present tracking parameters such as UTM fields, click IDs, CTWA IDs, and Meta campaign/ad IDs. The cookie uses `SameSite=Lax`, `path=/`, `secure` in production, and a 3-day max age. Clean or debug-only page loads do not erase an existing tracking cookie.
+
+`/api/public/leads` merges attribution in this order: submitted body tracking, preserved body first/latest tracking, proxy cookie tracking, existing storage-derived body data, then direct/no tracking. This prevents a later clean or debug-only URL from downgrading a tracked lead to `直接 / 無追蹤`. When proxy cookie fallback is used, saved source snapshots keep the full UTM URL and use audit reason `utm_recovered_from_proxy_cookie`.
+
+Quick route checks:
+
+```bash
+curl.exe -I "https://go.beautytrialhk.com/lp/ineffable-388-13e933?utm_source=meta&utm_medium=paid_social&utm_campaign=test&utm_content=hook01&fbclid=test123&pixel_debug=1&attribution_debug=1"
+curl.exe -I "https://go.beautytrialhk.com/lp/alyssa-388-13e933?utm_source=meta&utm_campaign=legacy_test&fbclid=legacy123"
+```
+
+Expected: the canonical URL returns `200 OK` with `Set-Cookie: launchhub_public_attribution=...`; the legacy URL returns a redirect preserving the query and also sets the attribution cookie.
+
 Wix iframe embeds do not fire Pixel inside the iframe. After successful save, the iframe sends this safe parent message once:
 
 ```js

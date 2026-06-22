@@ -14,6 +14,11 @@ import {
   resolvePublicBrandTheme,
 } from "@/lib/brandThemes";
 import {
+  PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  decodePublicAttributionCookie,
+  hasPublicAttributionTracking,
+} from "@/lib/attribution/publicAttributionCookie";
+import {
   alyssaBranches,
   alyssaDefaultForm,
   alyssaPackages,
@@ -213,6 +218,23 @@ function createUrlFromSearch(search: string) {
   return `${window.location.origin}${window.location.pathname}${search}${window.location.hash}`;
 }
 
+function readCookie(name: string) {
+  const prefix = `${name}=`;
+  return (
+    document.cookie
+      .split(";")
+      .map((item) => item.trim())
+      .find((item) => item.startsWith(prefix))
+      ?.slice(prefix.length) ?? null
+  );
+}
+
+function readProxyAttributionCookie() {
+  return decodePublicAttributionCookie(
+    readCookie(PUBLIC_ATTRIBUTION_COOKIE_NAME)
+  );
+}
+
 function getEffectiveAttributionUrl(initialQueryString = "") {
   const liveParams = new URLSearchParams(window.location.search);
   const livePayload = pickParams(liveParams);
@@ -234,6 +256,26 @@ function getEffectiveAttributionUrl(initialQueryString = "") {
       search: initialSearch,
       sourceUsed: "initialSearch",
     };
+  }
+
+  const proxyCookie = readProxyAttributionCookie();
+
+  if (proxyCookie && hasPublicAttributionTracking(proxyCookie)) {
+    try {
+      const proxyUrl = new URL(proxyCookie.current_page_url);
+
+      return {
+        href: proxyCookie.current_page_url,
+        search: proxyUrl.search,
+        sourceUsed: "proxy_cookie",
+      };
+    } catch {
+      return {
+        href: proxyCookie.current_page_url,
+        search: "",
+        sourceUsed: "proxy_cookie",
+      };
+    }
   }
 
   return {
