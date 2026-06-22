@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import Script from "next/script";
 import { notFound, redirect } from "next/navigation";
 import type { CSSProperties } from "react";
+import { MetaPixelPageView } from "@/components/alyssa/MetaPixelPageView";
 import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
 import { PublicLeadForm } from "@/components/alyssa/PublicLeadForm";
 import {
@@ -178,7 +178,7 @@ export default async function PublicLandingPage({
       className="min-h-screen overflow-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
       style={themeStyle}
     >
-      <PublicMetaPixel pixelId={metaPixelId} />
+      <MetaPixelPageView pixelId={metaPixelId} />
       <section id="hero" className="relative scroll-mt-6 bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <MotionReveal>
@@ -366,42 +366,6 @@ export default async function PublicLandingPage({
         disclaimerUrl={legalProfile.disclaimerUrl}
       />
     </main>
-  );
-}
-
-function PublicMetaPixel({ pixelId }: { pixelId: string | null }) {
-  if (!pixelId) return null;
-
-  return (
-    <>
-      <Script
-        id="meta-pixel-pageview"
-        strategy="afterInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `
-!function(f,b,e,v,n,t,s)
-{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
-n.callMethod.apply(n,arguments):n.queue.push(arguments)};
-if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
-n.queue=[];t=b.createElement(e);t.async=!0;
-t.src=v;s=b.getElementsByTagName(e)[0];
-s.parentNode.insertBefore(t,s)}(window, document,'script',
-'https://connect.facebook.net/en_US/fbevents.js');
-fbq('init', '${pixelId}');
-fbq('track', 'PageView');
-          `.trim(),
-        }}
-      />
-      <noscript>
-        <img
-          height="1"
-          width="1"
-          style={{ display: "none" }}
-          src={`https://www.facebook.com/tr?id=${pixelId}&ev=PageView&noscript=1`}
-          alt=""
-        />
-      </noscript>
-    </>
   );
 }
 

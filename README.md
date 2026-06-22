@@ -682,7 +682,7 @@ NEXT_PUBLIC_META_PIXEL_ID=
 
 If `NEXT_PUBLIC_META_PIXEL_ID` is not set, no Pixel script is rendered. Public lead submission still works.
 
-Direct public landing pages on `go.beautytrialhk.com/lp/...` fire `CompleteRegistration` only after `/api/public/leads` returns success. If `fbq` is unavailable, the form still succeeds and the event is skipped safely.
+Direct public landing pages on `go.beautytrialhk.com/lp/...` install the standard Meta Pixel base loader in the browser, call `fbq("init", pixelId)`, and fire `fbq("track", "PageView")` after the page becomes interactive. Add `?pixel_debug=1` to a public LP URL to log whether the Pixel ID exists, `fbq` is defined, and PageView was fired. Direct public landing pages fire `CompleteRegistration` only after `/api/public/leads` returns success. If `fbq` is unavailable, the form still succeeds and the event is skipped safely.
 
 Wix iframe embeds do not fire Pixel inside the iframe. After successful save, the iframe sends this safe parent message once:
 
