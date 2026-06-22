@@ -310,7 +310,9 @@ function captureCurrentPageAttribution({
     ...paramPayload,
     source_capture_method: sourceCaptureMethod,
   };
-  const firstTouch = firstStored || { ...basePayload, ...paramPayload };
+  const firstTouch = hasCurrentParams
+    ? { ...basePayload, ...paramPayload }
+    : firstStored || { ...basePayload, ...paramPayload };
   const localSaved = writeStorage(localKey, firstTouch, window.localStorage);
   const sessionSaved = writeStorage(sessionKey, latestTouch, window.sessionStorage);
   writeStorage("alyssa_visitor_id", visitorId, window.localStorage);

@@ -4,6 +4,7 @@ import type { CSSProperties } from "react";
 import { MetaPixelPageView } from "@/components/alyssa/MetaPixelPageView";
 import { MotionAnchor, MotionReveal } from "@/components/alyssa/MotionReveal";
 import { PublicLeadForm } from "@/components/alyssa/PublicLeadForm";
+import { PublicLpAttributionCapture } from "@/components/alyssa/PublicLpAttributionCapture";
 import {
   publicThemeStyle,
   resolvePublicBrandTheme,
@@ -178,6 +179,11 @@ export default async function PublicLandingPage({
       className="min-h-screen overflow-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
       style={themeStyle}
     >
+      <PublicLpAttributionCapture
+        formToken={connectedForm.publicFormToken}
+        formId={connectedForm.id}
+        brandSlug={isIneffable ? "ineffable" : publicBrand.slug}
+      />
       <MetaPixelPageView pixelId={metaPixelId} />
       <section id="hero" className="relative scroll-mt-6 bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
         <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
