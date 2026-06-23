@@ -43,12 +43,15 @@ type AttributionEnvelope = {
   first_touch_json?: Record<string, unknown>;
   latest_touch_json?: Record<string, unknown>;
   submitted_touch_json?: Record<string, unknown>;
+  server_touch_json?: Record<string, unknown>;
 };
 
 type SubmitState = "idle" | "loading" | "success" | "error";
 
 type AttributionDebugResponse = {
   attribution_debug: true;
+  server_body_present: boolean;
+  server_body_has_tracking: boolean;
   proxy_cookie_present: boolean;
   proxy_cookie_parse_ok: boolean;
   body_has_tracking: boolean;
@@ -57,6 +60,7 @@ type AttributionDebugResponse = {
   final_attribution_source_used:
     | "body"
     | "preserved_body"
+    | "server_initial"
     | "proxy_cookie"
     | "direct";
   final_utm_source: string;
@@ -104,6 +108,7 @@ type PublicLeadFormProps = {
   formId?: string;
   brandSlug?: string;
   initialQueryString?: string;
+  serverInitialAttribution?: Record<string, unknown> | null;
   expectedParentOrigin?: string;
   mode?: "inline" | "embed";
   className?: string;
@@ -266,7 +271,25 @@ function readProxyAttributionCookie() {
   );
 }
 
-function getEffectiveAttributionUrl(initialQueryString = "") {
+function getServerInitialAttribution(
+  value: Record<string, unknown> | null | undefined
+) {
+  return value && hasPublicAttributionTracking(value) ? value : null;
+}
+
+function pickTouchParams(value: Record<string, unknown>) {
+  const output: Record<string, string> = {};
+  ATTRIBUTION_KEYS.forEach((key) => {
+    const item = value[key];
+    if (typeof item === "string" && item.trim()) output[key] = item.trim();
+  });
+  return output;
+}
+
+function getEffectiveAttributionUrl(
+  initialQueryString = "",
+  serverInitialAttribution?: Record<string, unknown> | null
+) {
   const liveParams = new URLSearchParams(window.location.search);
   const livePayload = pickParams(liveParams);
 
@@ -276,6 +299,28 @@ function getEffectiveAttributionUrl(initialQueryString = "") {
       search: window.location.search,
       sourceUsed: "live",
     };
+  }
+
+  const serverAttribution = getServerInitialAttribution(serverInitialAttribution);
+
+  if (serverAttribution) {
+    const serverUrl = getString(serverAttribution.current_page_url);
+
+    try {
+      const parsed = new URL(serverUrl);
+
+      return {
+        href: serverUrl,
+        search: parsed.search,
+        sourceUsed: "server_initial",
+      };
+    } catch {
+      return {
+        href: serverUrl,
+        search: "",
+        sourceUsed: "server_initial",
+      };
+    }
   }
 
   const initialSearch = normalizeQueryString(initialQueryString);
@@ -366,15 +411,21 @@ function captureCurrentPageAttribution({
   formId,
   brandSlug,
   initialQueryString = "",
+  serverInitialAttribution,
 }: {
   formToken: string;
   formId: string;
   brandSlug: string;
   initialQueryString?: string;
+  serverInitialAttribution?: Record<string, unknown> | null;
 }): AttributionEnvelope {
   const localKey = "alyssa_first_touch";
   const sessionKey = "alyssa_latest_touch";
-  const effectiveUrl = getEffectiveAttributionUrl(initialQueryString);
+  const serverTouch = getServerInitialAttribution(serverInitialAttribution);
+  const effectiveUrl = getEffectiveAttributionUrl(
+    initialQueryString,
+    serverInitialAttribution
+  );
   const searchParams = new URLSearchParams(effectiveUrl.search);
   const parentOriginParam = normalizeOrigin(searchParams.get("parent_origin"));
   const parentUrlParam = searchParams.get("parent_url") || "";
@@ -392,17 +443,23 @@ function captureCurrentPageAttribution({
     readStorage("alyssa_visitor_id", window.localStorage) || createId("vis");
   const sessionId =
     readStorage("alyssa_session_id", window.sessionStorage) || createId("ses");
-  const paramPayload = pickParams(searchParams);
+  const paramPayload =
+    effectiveUrl.sourceUsed === "server_initial" && serverTouch
+      ? pickTouchParams(serverTouch)
+      : pickParams(searchParams);
   const firstStored = readStorage(localKey, window.localStorage);
   const latestStored = readStorage(sessionKey, window.sessionStorage);
   const hasCurrentParams = Object.keys(paramPayload).length > 0;
-  const sourceCaptureMethod = hasCurrentParams
-    ? "public_landing_page"
-    : latestStored
-      ? "public_landing_page_session_storage_recovered"
-      : firstStored
-        ? "public_landing_page_local_storage_recovered"
-        : "public_landing_page_no_tracking_signal";
+  const sourceCaptureMethod =
+    effectiveUrl.sourceUsed === "server_initial"
+      ? "server_public_lp_initial_search"
+      : hasCurrentParams
+        ? "public_landing_page"
+        : latestStored
+          ? "public_landing_page_session_storage_recovered"
+          : firstStored
+            ? "public_landing_page_local_storage_recovered"
+            : "public_landing_page_no_tracking_signal";
   const recoveredCurrentPageUrl =
     getString(latestStored?.current_page_url) ||
     getString(firstStored?.current_page_url);
@@ -465,6 +522,7 @@ function captureCurrentPageAttribution({
     first_touch_json: firstTouch,
     latest_touch_json: latestTouch,
     submitted_touch_json: submittedTouch,
+    server_touch_json: serverTouch || undefined,
   };
 }
 
@@ -584,6 +642,7 @@ export function PublicLeadForm({
   formId,
   brandSlug,
   initialQueryString = "",
+  serverInitialAttribution,
   expectedParentOrigin,
   mode = "inline",
   className = "",
@@ -835,6 +894,7 @@ export function PublicLeadForm({
       formId: formId || publicForm.id,
       brandSlug: brand.slug || brandSlug || "alyssa",
       initialQueryString,
+      serverInitialAttribution,
     });
     queueMicrotask(() => setAttribution(initialAttribution));
     void logPublicEvent("form_view", { form_token: formToken }, initialAttribution);
@@ -873,6 +933,7 @@ export function PublicLeadForm({
     formId,
     formToken,
     initialQueryString,
+    serverInitialAttribution,
     publicForm.id,
   ]);
 
@@ -908,6 +969,7 @@ export function PublicLeadForm({
       formId: formId || publicForm.id,
       brandSlug: brand.slug || brandSlug || "alyssa",
       initialQueryString,
+      serverInitialAttribution,
     });
     queueMicrotask(() => setAttribution(liveAttribution));
 
@@ -948,10 +1010,14 @@ export function PublicLeadForm({
           first_touch_json: liveAttribution.first_touch_json || {},
           latest_touch_json: liveAttribution.latest_touch_json || {},
           submitted_touch_json: liveAttribution.submitted_touch_json || {},
+          server_touch_json: liveAttribution.server_touch_json || {},
         }),
       });
       const result = await response.json();
-      setAttributionDebug(getAttributionDebugResponse(result.attribution_debug));
+      const nextAttributionDebug = getAttributionDebugResponse(
+        result.attribution_debug
+      );
+      setAttributionDebug(nextAttributionDebug);
 
       if (!response.ok || !result.ok) {
         setState("error");
@@ -965,7 +1031,20 @@ export function PublicLeadForm({
       }
 
       setState("success");
-      handleSuccessfulRegistrationEvent(liveAttribution);
+      handleSuccessfulRegistrationEvent(
+        nextAttributionDebug?.final_current_page_url
+          ? {
+              ...liveAttribution,
+              submitted_touch_json: {
+                ...(liveAttribution.submitted_touch_json || {}),
+                current_page_url: nextAttributionDebug.final_current_page_url,
+                landing_page_url:
+                  nextAttributionDebug.final_landing_page_url ||
+                  nextAttributionDebug.final_current_page_url,
+              },
+            }
+          : liveAttribution
+      );
       setMessage("已收到你的登記，我們會盡快透過 WhatsApp 跟進。");
     } catch (error) {
       setState("error");
@@ -1305,6 +1384,8 @@ function AttributionDebugPanel({
 }) {
   const rows = [
     ["proxy cookie present", String(debug.proxy_cookie_present)],
+    ["server body present", String(debug.server_body_present)],
+    ["server body has tracking", String(debug.server_body_has_tracking)],
     ["proxy cookie parse ok", String(debug.proxy_cookie_parse_ok)],
     ["body has tracking", String(debug.body_has_tracking)],
     ["preserved body has tracking", String(debug.preserved_body_has_tracking)],

@@ -71,7 +71,12 @@ type AttributionDebugState = {
   currentPageUrl: string;
   landingPageUrl: string;
   restoredUrl: string;
-  sourceUsed: "live" | "initialSearch" | "proxy_cookie" | "none";
+  sourceUsed:
+    | "live"
+    | "initialSearch"
+    | "server_initial"
+    | "proxy_cookie"
+    | "none";
   proxyCookieStatus: "present" | "absent";
   pageViewDlUrl: string;
   completeRegistrationDlUrl: string;
@@ -117,6 +122,16 @@ function pickCookieSourceParams(value: Record<string, unknown>) {
     if (typeof item === "string" && item.trim()) output[key] = item;
   });
   return output;
+}
+
+function getString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function getServerInitialAttribution(
+  value: Record<string, unknown> | null | undefined
+) {
+  return value && hasPublicAttributionTracking(value) ? value : null;
 }
 
 function readCookie(name: string) {
@@ -186,11 +201,13 @@ export function PublicLpAttributionCapture({
   formId,
   brandSlug,
   initialQueryString = "",
+  serverInitialAttribution,
 }: {
   formToken: string;
   formId: string;
   brandSlug: string;
   initialQueryString?: string;
+  serverInitialAttribution?: Record<string, unknown> | null;
 }) {
   const [debugState, setDebugState] = useState<AttributionDebugState | null>(
     null
@@ -201,20 +218,31 @@ export function PublicLpAttributionCapture({
     const effectiveUrl = createEffectiveUrl(initialQueryString);
     const searchParams = new URLSearchParams(effectiveUrl.search);
     const proxyCookie = readProxyAttributionCookie();
+    const serverAttribution = getServerInitialAttribution(
+      serverInitialAttribution
+    );
     const liveOrInitialPayload = pickSourceParams(searchParams);
     const hasLiveOrInitialParams = Object.keys(liveOrInitialPayload).length > 0;
+    const useServerAttribution = !hasLiveOrInitialParams && serverAttribution;
     const useProxyCookie =
       !hasLiveOrInitialParams &&
+      !useServerAttribution &&
       proxyCookie &&
       hasPublicAttributionTracking(proxyCookie);
-    const paramPayload = useProxyCookie
-      ? pickCookieSourceParams(proxyCookie)
-      : liveOrInitialPayload;
-    const capturedPageUrl = useProxyCookie
-      ? proxyCookie.current_page_url
-      : effectiveUrl.href;
+    const paramPayload = useServerAttribution
+      ? pickCookieSourceParams(serverAttribution)
+      : useProxyCookie
+        ? pickCookieSourceParams(proxyCookie)
+        : liveOrInitialPayload;
+    const capturedPageUrl = useServerAttribution
+      ? getString(serverAttribution.current_page_url) || effectiveUrl.href
+      : useProxyCookie
+        ? proxyCookie.current_page_url
+        : effectiveUrl.href;
     const debugEnabled = searchParams.get("attribution_debug") === "1";
-    const sourceUsed = useProxyCookie
+    const sourceUsed = useServerAttribution
+      ? "server_initial"
+      : useProxyCookie
       ? "proxy_cookie"
       : restoredUrl
         ? "initialSearch"
@@ -250,7 +278,10 @@ export function PublicLpAttributionCapture({
     const sessionId =
       readStorage("alyssa_session_id", window.sessionStorage) || createId("ses");
     const payload = {
-      source_capture_method: "public_landing_page",
+      source_capture_method: useServerAttribution
+        ? "server_public_lp_initial_search"
+        : "public_landing_page",
+      attribution_source_used: sourceUsed,
       visitor_id: visitorId,
       session_id: sessionId,
       brand: brandSlug,
@@ -260,7 +291,10 @@ export function PublicLpAttributionCapture({
       referrer: document.referrer || "",
       landing_page_url: capturedPageUrl,
       current_page_url: capturedPageUrl,
-      page_path: proxyCookie?.page_path || window.location.pathname,
+      page_path:
+        getString(serverAttribution?.page_path) ||
+        proxyCookie?.page_path ||
+        window.location.pathname,
       page_title: document.title || "",
       captured_at: new Date().toISOString(),
       ...paramPayload,
@@ -280,7 +314,7 @@ export function PublicLpAttributionCapture({
     return () => {
       restoreTimers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [brandSlug, formId, formToken, initialQueryString]);
+  }, [brandSlug, formId, formToken, initialQueryString, serverInitialAttribution]);
 
   if (!debugState) return null;
 

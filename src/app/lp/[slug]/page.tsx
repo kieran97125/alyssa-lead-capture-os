@@ -18,6 +18,7 @@ import {
   decodePublicAttributionCookie,
   encodePublicAttributionCookie,
   hasPublicAttributionTracking,
+  publicAttributionTrackingKeys,
 } from "@/lib/attribution/publicAttributionCookie";
 import {
   getLandingPageContext,
@@ -137,6 +138,33 @@ function getInitialAttributionCookieValue(pageUrl: string | undefined) {
   }
 }
 
+function getServerInitialAttribution(pageUrl: string | undefined) {
+  if (!pageUrl) return null;
+
+  try {
+    const url = new URL(pageUrl);
+    const tracking = Object.fromEntries(
+      publicAttributionTrackingKeys
+        .map((key) => [key, url.searchParams.get(key)] as const)
+        .filter(([, value]) => Boolean(value))
+    );
+
+    if (!hasPublicAttributionTracking(tracking)) return null;
+
+    return {
+      source_capture_method: "server_public_lp_initial_search",
+      attribution_source_used: "server_initial",
+      captured_at: new Date().toISOString(),
+      current_page_url: pageUrl,
+      landing_page_url: pageUrl,
+      page_path: url.pathname,
+      ...tracking,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function getProxyAttributionPageUrl(initialQueryString: string) {
   if (hasPublicAttributionTracking(Object.fromEntries(new URLSearchParams(initialQueryString)))) {
     return undefined;
@@ -194,6 +222,8 @@ export default async function PublicLandingPage({
   const preservedPageUrl =
     proxyAttributionPageUrl ??
     getPublicLandingPageUrl(canonicalSlug, initialQueryString, requestOrigin);
+  const serverInitialAttribution =
+    getServerInitialAttribution(preservedPageUrl);
   const initialAttributionCookieValue =
     getInitialAttributionCookieValue(preservedPageUrl);
 
@@ -282,6 +312,7 @@ export default async function PublicLandingPage({
         formId={connectedForm.id}
         brandSlug={publicBrandSlug}
         initialQueryString={initialQueryString}
+        serverInitialAttribution={serverInitialAttribution}
       />
       <MetaPixelPageView
         pixelId={metaPixelId}
@@ -463,6 +494,7 @@ export default async function PublicLandingPage({
                 formId={connectedForm.id}
                 brandSlug={publicBrandSlug}
                 initialQueryString={initialQueryString}
+                serverInitialAttribution={serverInitialAttribution}
               />
             </div>
           </div>

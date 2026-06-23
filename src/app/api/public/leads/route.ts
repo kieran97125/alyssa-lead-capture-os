@@ -39,6 +39,7 @@ type LeadSubmitPayload = {
   first_touch_json?: TouchPayload;
   latest_touch_json?: TouchPayload;
   submitted_touch_json?: TouchPayload;
+  server_touch_json?: TouchPayload;
   honeypot?: string;
   legalConsentAccepted?: boolean | string;
 };
@@ -46,6 +47,7 @@ type LeadSubmitPayload = {
 type AttributionSourceUsed =
   | "body"
   | "preserved_body"
+  | "server_initial"
   | "proxy_cookie"
   | "direct";
 
@@ -84,6 +86,16 @@ function classifySubmittedTouch(touch: TouchPayload) {
   });
 
   if (
+    touch.source_capture_method === "server_public_lp_initial_search" &&
+    hasPublicAttributionTracking(touch)
+  ) {
+    return {
+      ...classification,
+      auditReason: "utm_recovered_from_server_initial_search",
+    };
+  }
+
+  if (
     touch.source_capture_method === "proxy_public_lp_first_touch" &&
     hasPublicAttributionTracking(touch)
   ) {
@@ -116,6 +128,7 @@ function resolveSubmittedAttribution(
   const bodyFirstTouch = getSafeTouch(payload.first_touch_json);
   const bodyLatestTouch = getSafeTouch(payload.latest_touch_json);
   const bodySubmittedTouch = getSafeTouch(payload.submitted_touch_json);
+  const bodyServerTouch = getSafeTouch(payload.server_touch_json);
   const proxyCookieValue = request.cookies.get(PUBLIC_ATTRIBUTION_COOKIE_NAME)
     ?.value;
   const proxyCookieTouch =
@@ -127,12 +140,18 @@ function resolveSubmittedAttribution(
       ? bodyLatestTouch
       : null;
   const submittedHasTracking = hasPublicAttributionTracking(bodySubmittedTouch);
+  const bodySubmittedRecord = bodySubmittedTouch as Record<string, unknown>;
+  const submittedIsServerInitial =
+    bodySubmittedTouch.source_capture_method ===
+      "server_public_lp_initial_search" ||
+    bodySubmittedRecord.attribution_source_used === "server_initial";
+  const serverBodyHasTracking = hasPublicAttributionTracking(bodyServerTouch);
   const preservedBodyHasTracking = Boolean(bodyPreservedTouch);
   const proxyCookiePresent = Boolean(proxyCookieValue);
   const proxyCookieParseOk = Boolean(proxyCookieTouch);
   const proxyCookieHasTracking = hasPublicAttributionTracking(proxyCookieTouch);
 
-  if (submittedHasTracking) {
+  if (submittedHasTracking && !submittedIsServerInitial) {
     return {
       firstTouch: bodyFirstTouch,
       latestTouch: bodyLatestTouch,
@@ -141,6 +160,37 @@ function resolveSubmittedAttribution(
       proxyCookiePresent,
       proxyCookieParseOk,
       bodyHasTracking: submittedHasTracking,
+      serverBodyPresent: Boolean(payload.server_touch_json),
+      serverBodyHasTracking,
+      preservedBodyHasTracking,
+      proxyCookieHasTracking,
+    };
+  }
+
+  if (serverBodyHasTracking || (submittedHasTracking && submittedIsServerInitial)) {
+    const serverTouch = serverBodyHasTracking ? bodyServerTouch : bodySubmittedTouch;
+    const submittedTouch = mergeTouch(bodySubmittedTouch, serverTouch);
+    const firstTouch = hasPublicAttributionTracking(bodyFirstTouch)
+      ? bodyFirstTouch
+      : mergeTouch(bodyFirstTouch, serverTouch);
+    const latestTouch = hasPublicAttributionTracking(bodyLatestTouch)
+      ? bodyLatestTouch
+      : mergeTouch(bodyLatestTouch, serverTouch);
+
+    return {
+      firstTouch,
+      latestTouch,
+      submittedTouch: {
+        ...submittedTouch,
+        source_capture_method: "server_public_lp_initial_search",
+        attribution_source_used: "server_initial",
+      },
+      sourceUsed: "server_initial" as AttributionSourceUsed,
+      proxyCookiePresent,
+      proxyCookieParseOk,
+      bodyHasTracking: submittedHasTracking,
+      serverBodyPresent: Boolean(payload.server_touch_json),
+      serverBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
     };
@@ -157,6 +207,8 @@ function resolveSubmittedAttribution(
       proxyCookiePresent,
       proxyCookieParseOk,
       bodyHasTracking: submittedHasTracking,
+      serverBodyPresent: Boolean(payload.server_touch_json),
+      serverBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
     };
@@ -179,6 +231,8 @@ function resolveSubmittedAttribution(
       proxyCookiePresent: true,
       proxyCookieParseOk,
       bodyHasTracking: submittedHasTracking,
+      serverBodyPresent: Boolean(payload.server_touch_json),
+      serverBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
     };
@@ -192,6 +246,8 @@ function resolveSubmittedAttribution(
     proxyCookiePresent,
     proxyCookieParseOk,
     bodyHasTracking: submittedHasTracking,
+    serverBodyPresent: Boolean(payload.server_touch_json),
+    serverBodyHasTracking,
     preservedBodyHasTracking,
     proxyCookieHasTracking,
   };
@@ -230,6 +286,7 @@ function shouldReturnAttributionDebug(
       touchHasAttributionDebug(getSafeTouch(payload.first_touch_json)) ||
       touchHasAttributionDebug(getSafeTouch(payload.latest_touch_json)) ||
       touchHasAttributionDebug(getSafeTouch(payload.submitted_touch_json)) ||
+      touchHasAttributionDebug(getSafeTouch(payload.server_touch_json)) ||
       touchHasAttributionDebug(submittedTouch)
   );
 }
@@ -245,6 +302,8 @@ function createAttributionDebugPayload({
 }) {
   return {
     attribution_debug: true,
+    server_body_present: resolvedAttribution.serverBodyPresent,
+    server_body_has_tracking: resolvedAttribution.serverBodyHasTracking,
     proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
     proxy_cookie_parse_ok: resolvedAttribution.proxyCookieParseOk,
     body_has_tracking: resolvedAttribution.bodyHasTracking,
