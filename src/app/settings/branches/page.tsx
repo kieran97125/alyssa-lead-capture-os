@@ -1,5 +1,6 @@
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
+import Link from "next/link";
 import {
   createBranchAction,
   deleteBranchAction,
@@ -19,6 +20,7 @@ export default async function BranchSettingsPage({
   searchParams?: Promise<{
     settings_status?: string | string[];
     message?: string | string[];
+    brand?: string | string[];
   }>;
 }) {
   const [config, query] = await Promise.all([
@@ -28,6 +30,15 @@ export default async function BranchSettingsPage({
   const message = typeof query?.message === "string" ? query.message : null;
   const status =
     query?.settings_status === "success" ? "success" : query?.settings_status;
+  const selectedBrandParam =
+    typeof query?.brand === "string" ? query.brand : "";
+  const selectedBrand =
+    config.brands.find(
+      (brand) => brand.slug === selectedBrandParam || brand.id === selectedBrandParam
+    ) ?? null;
+  const visibleBranches = selectedBrand
+    ? config.branches.filter((branch) => branch.brandId === selectedBrand.id)
+    : config.branches;
   const brandOptions = config.brands.map((brand) => ({
     value: brand.id,
     label: brand.name,
@@ -46,6 +57,31 @@ export default async function BranchSettingsPage({
             管理登記表格和 Campaign 可選用的分店。
           </p>
           <SettingsNav />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/settings/branches"
+              className={`rounded-full border px-4 py-2 text-sm font-bold ${
+                !selectedBrand
+                  ? "border-[#e46f64] bg-[#e46f64] text-white"
+                  : "border-[#ead9cf] bg-white text-[#5a2348]"
+              }`}
+            >
+              All brands
+            </Link>
+            {config.brands.map((brand) => (
+              <Link
+                key={brand.id}
+                href={`/settings/branches?brand=${brand.slug}`}
+                className={`rounded-full border px-4 py-2 text-sm font-bold ${
+                  selectedBrand?.id === brand.id
+                    ? "border-[#e46f64] bg-[#e46f64] text-white"
+                    : "border-[#ead9cf] bg-white text-[#5a2348]"
+                }`}
+              >
+                {brand.name}
+              </Link>
+            ))}
+          </div>
         </section>
 
         {message && <StatusMessage tone={status}>{message}</StatusMessage>}
@@ -67,7 +103,7 @@ export default async function BranchSettingsPage({
         </section>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-2">
-          {config.branches.map((branch) => {
+          {visibleBranches.map((branch) => {
             const brand = getBrand(config, branch.brandId);
             const linkedForms = getLinkedForms(
               config,
@@ -112,6 +148,12 @@ export default async function BranchSettingsPage({
                   <p className="text-sm font-bold text-[#321428]">
                     已連接表格：{linkedForms.length > 0 ? linkedForms.map((form) => form.formName).join(", ") : "未連接"}
                   </p>
+                  <Link
+                    href={`/forms/new?brand=${brand?.slug || ""}`}
+                    className="mt-3 inline-flex rounded-full bg-[#e46f64] px-4 py-2 text-sm font-bold text-white"
+                  >
+                    Create form for this brand
+                  </Link>
                   <form action={deleteBranchAction} className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <input type="hidden" name="id" value={branch.id} />
                     <label className="flex items-center gap-2 text-sm font-semibold text-[#6d4a5c]">

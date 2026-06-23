@@ -18,6 +18,19 @@ It is designed for multi-brand campaign operations as:
 - Alyssa, Ineffable, Skin Light, and future names remain brand records or campaign clients inside the system.
 - Do not use public customer-facing pages to define developer/company IP ownership. System IP, ownership, and company licence terms should be handled by a separate written agreement between the developer and the company.
 
+## Brand-first Form Launch OS
+
+LaunchHub admin is organized around brand-first form operations for real Alyssa and Ineffable Beauty launches.
+
+- `/brands` is the Brand Workspace. Select Alyssa or Ineffable Beauty first, then manage that brand's forms, Landing Pages, treatments, branches, leads, Pixel status, allowed domains, and launch shortcuts.
+- `/forms` is a brand-scoped Wix form operations table with filters for brand, treatment, branch, status, and search by form name/token.
+- `/forms/new` uses a sectioned creation flow: choose brand, treatment/offer, branch, allowed domains, tracking/Pixel status, then create the form.
+- `/forms/[formId]` shows a ready-to-copy Wix embed snippet, the exact form token, test form URL, Meta URL Parameters, allowed domains, and brand safety warnings.
+- Wix embed snippets are generated from the selected form's brand. Alyssa forms should use Alyssa tokens and Alyssa Pixel config; Ineffable forms should use Ineffable tokens and Ineffable Pixel config.
+- If a brand Pixel is missing, LaunchHub still allows form creation but omits `data-pixel-id` from the embed snippet and shows a warning.
+- Current form records support one default branch per form. For multi-branch campaign testing, create or duplicate separate forms per branch until a future multi-branch schema is intentionally added.
+- Meta Ads URL Parameters are copyable from Brand Workspace and form detail pages. Do not use `pixel_debug=1` or `attribution_debug=1` in real ads.
+
 ## Architecture Boundary
 
 LaunchHub owns the lead capture and source attribution layer. It is responsible for Wix-embeddable registration forms, parent-page UTM and click ID capture, public lead submission, immutable `lead_source_snapshots`, lead event logging, thank-you tracking, and attribution-ready dashboard views.

@@ -74,6 +74,7 @@ export default async function DashboardPage() {
               <SecondaryAction href="/landing-pages">
                 管理 Landing Pages
               </SecondaryAction>
+              <SecondaryAction href="/brands">Brand Workspace</SecondaryAction>
               <SecondaryAction href="/crm">開啟 LeadOps CRM</SecondaryAction>
             </div>
           </div>
@@ -115,7 +116,7 @@ export default async function DashboardPage() {
               </p>
               <div className="mt-5 grid gap-3">
                 <SecondaryAction href="/performance">查看成效</SecondaryAction>
-                <SecondaryAction href="/settings#brand-library">
+                <SecondaryAction href="/brands">
                   管理 Brand Library
                 </SecondaryAction>
               </div>

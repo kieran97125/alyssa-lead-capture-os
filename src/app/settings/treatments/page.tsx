@@ -1,5 +1,6 @@
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import {
   createTreatmentAction,
@@ -20,6 +21,7 @@ export default async function TreatmentSettingsPage({
   searchParams?: Promise<{
     settings_status?: string | string[];
     message?: string | string[];
+    brand?: string | string[];
   }>;
 }) {
   const [config, query] = await Promise.all([
@@ -29,6 +31,15 @@ export default async function TreatmentSettingsPage({
   const message = typeof query?.message === "string" ? query.message : null;
   const status =
     query?.settings_status === "success" ? "success" : query?.settings_status;
+  const selectedBrandParam =
+    typeof query?.brand === "string" ? query.brand : "";
+  const selectedBrand =
+    config.brands.find(
+      (brand) => brand.slug === selectedBrandParam || brand.id === selectedBrandParam
+    ) ?? null;
+  const visibleTreatments = selectedBrand
+    ? config.treatments.filter((treatment) => treatment.brandId === selectedBrand.id)
+    : config.treatments;
 
   return (
     <main className="alyssa-shell">
@@ -43,6 +54,31 @@ export default async function TreatmentSettingsPage({
             管理表格和 Landing Page 可選用的療程。
           </p>
           <SettingsNav />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Link
+              href="/settings/treatments"
+              className={`rounded-full border px-4 py-2 text-sm font-bold ${
+                !selectedBrand
+                  ? "border-[#e46f64] bg-[#e46f64] text-white"
+                  : "border-[#ead9cf] bg-white text-[#5a2348]"
+              }`}
+            >
+              All brands
+            </Link>
+            {config.brands.map((brand) => (
+              <Link
+                key={brand.id}
+                href={`/settings/treatments?brand=${brand.slug}`}
+                className={`rounded-full border px-4 py-2 text-sm font-bold ${
+                  selectedBrand?.id === brand.id
+                    ? "border-[#e46f64] bg-[#e46f64] text-white"
+                    : "border-[#ead9cf] bg-white text-[#5a2348]"
+                }`}
+              >
+                {brand.name}
+              </Link>
+            ))}
+          </div>
         </section>
 
         {message && <StatusMessage tone={status}>{message}</StatusMessage>}
@@ -63,7 +99,7 @@ export default async function TreatmentSettingsPage({
         </section>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-2">
-          {config.treatments.map((treatment) => {
+          {visibleTreatments.map((treatment) => {
             const brand = getBrand(config, treatment.brandId);
             const linkedPackages = config.packages.filter(
               (item) => item.treatmentId === treatment.id
@@ -112,6 +148,12 @@ export default async function TreatmentSettingsPage({
                   <p className="text-sm font-bold text-[#321428]">
                     已連接：{linkedForms.length} 張表格、{linkedPackages.length} 個套餐
                   </p>
+                  <Link
+                    href={`/forms/new?brand=${brand?.slug || ""}`}
+                    className="mt-3 inline-flex rounded-full bg-[#e46f64] px-4 py-2 text-sm font-bold text-white"
+                  >
+                    Create form for this brand
+                  </Link>
                   <form action={deleteTreatmentAction} className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <input type="hidden" name="id" value={treatment.id} />
                     <label className="flex items-center gap-2 text-sm font-semibold text-[#6d4a5c]">
