@@ -46,6 +46,7 @@ type LeadSubmitPayload = {
 
 type AttributionSourceUsed =
   | "body"
+  | "locked_attribution"
   | "preserved_body"
   | "server_initial"
   | "proxy_cookie"
@@ -84,6 +85,18 @@ function classifySubmittedTouch(touch: TouchPayload) {
     parentPayloadMissing: Object.keys(touch).length === 0,
     recoveredFromStorage: getStorageRecoverySource(touch),
   });
+
+  if (
+    (touch.source_capture_method === "public_landing_page_locked_first_touch" ||
+      (touch as Record<string, unknown>).attribution_source_used ===
+        "locked_attribution") &&
+    hasPublicAttributionTracking(touch)
+  ) {
+    return {
+      ...classification,
+      auditReason: "utm_preserved_from_first_tracking_touch",
+    };
+  }
 
   if (
     touch.source_capture_method === "server_public_lp_initial_search" &&
@@ -145,13 +158,32 @@ function resolveSubmittedAttribution(
     bodySubmittedTouch.source_capture_method ===
       "server_public_lp_initial_search" ||
     bodySubmittedRecord.attribution_source_used === "server_initial";
+  const submittedIsLocked =
+    bodySubmittedTouch.source_capture_method ===
+      "public_landing_page_locked_first_touch" ||
+    bodySubmittedRecord.attribution_source_used === "locked_attribution";
+  const bodyServerRecord = bodyServerTouch as Record<string, unknown>;
+  const serverTouchIsLocked =
+    bodyServerTouch.source_capture_method ===
+      "public_landing_page_locked_first_touch" ||
+    bodyServerRecord.attribution_source_used === "locked_attribution";
   const serverBodyHasTracking = hasPublicAttributionTracking(bodyServerTouch);
+  const lockedBodyPresent =
+    Boolean(payload.server_touch_json) && serverTouchIsLocked;
+  const lockedBodyHasTracking = serverBodyHasTracking && serverTouchIsLocked;
   const preservedBodyHasTracking = Boolean(bodyPreservedTouch);
   const proxyCookiePresent = Boolean(proxyCookieValue);
   const proxyCookieParseOk = Boolean(proxyCookieTouch);
   const proxyCookieHasTracking = hasPublicAttributionTracking(proxyCookieTouch);
+  const downgradeBlocked =
+    Boolean(bodySubmittedTouch.current_page_url || bodySubmittedTouch.landing_page_url) &&
+    !submittedHasTracking &&
+    (lockedBodyHasTracking ||
+      serverBodyHasTracking ||
+      preservedBodyHasTracking ||
+      proxyCookieHasTracking);
 
-  if (submittedHasTracking && !submittedIsServerInitial) {
+  if (submittedHasTracking && !submittedIsServerInitial && !submittedIsLocked) {
     return {
       firstTouch: bodyFirstTouch,
       latestTouch: bodyLatestTouch,
@@ -162,8 +194,43 @@ function resolveSubmittedAttribution(
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      lockedBodyPresent,
+      lockedBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      downgradeBlocked,
+    };
+  }
+
+  if (lockedBodyHasTracking || (submittedHasTracking && submittedIsLocked)) {
+    const lockedTouch = lockedBodyHasTracking ? bodyServerTouch : bodySubmittedTouch;
+    const submittedTouch = mergeTouch(bodySubmittedTouch, lockedTouch);
+    const firstTouch = hasPublicAttributionTracking(bodyFirstTouch)
+      ? bodyFirstTouch
+      : mergeTouch(bodyFirstTouch, lockedTouch);
+    const latestTouch = hasPublicAttributionTracking(bodyLatestTouch)
+      ? bodyLatestTouch
+      : mergeTouch(bodyLatestTouch, lockedTouch);
+
+    return {
+      firstTouch,
+      latestTouch,
+      submittedTouch: {
+        ...submittedTouch,
+        source_capture_method: "public_landing_page_locked_first_touch",
+        attribution_source_used: "locked_attribution",
+      },
+      sourceUsed: "locked_attribution" as AttributionSourceUsed,
+      proxyCookiePresent,
+      proxyCookieParseOk,
+      bodyHasTracking: submittedHasTracking,
+      serverBodyPresent: Boolean(payload.server_touch_json),
+      serverBodyHasTracking,
+      lockedBodyPresent: true,
+      lockedBodyHasTracking: true,
+      preservedBodyHasTracking,
+      proxyCookieHasTracking,
+      downgradeBlocked,
     };
   }
 
@@ -191,8 +258,11 @@ function resolveSubmittedAttribution(
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      lockedBodyPresent,
+      lockedBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      downgradeBlocked,
     };
   }
 
@@ -209,8 +279,11 @@ function resolveSubmittedAttribution(
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      lockedBodyPresent,
+      lockedBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      downgradeBlocked,
     };
   }
 
@@ -233,8 +306,11 @@ function resolveSubmittedAttribution(
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      lockedBodyPresent,
+      lockedBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      downgradeBlocked,
     };
   }
 
@@ -248,8 +324,11 @@ function resolveSubmittedAttribution(
     bodyHasTracking: submittedHasTracking,
     serverBodyPresent: Boolean(payload.server_touch_json),
     serverBodyHasTracking,
+    lockedBodyPresent,
+    lockedBodyHasTracking,
     preservedBodyHasTracking,
     proxyCookieHasTracking,
+    downgradeBlocked: false,
   };
 }
 
@@ -304,11 +383,14 @@ function createAttributionDebugPayload({
     attribution_debug: true,
     server_body_present: resolvedAttribution.serverBodyPresent,
     server_body_has_tracking: resolvedAttribution.serverBodyHasTracking,
+    locked_body_present: resolvedAttribution.lockedBodyPresent,
+    locked_body_has_tracking: resolvedAttribution.lockedBodyHasTracking,
     proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
     proxy_cookie_parse_ok: resolvedAttribution.proxyCookieParseOk,
     body_has_tracking: resolvedAttribution.bodyHasTracking,
     preserved_body_has_tracking: resolvedAttribution.preservedBodyHasTracking,
     proxy_cookie_has_tracking: resolvedAttribution.proxyCookieHasTracking,
+    downgrade_blocked: resolvedAttribution.downgradeBlocked,
     final_attribution_source_used: resolvedAttribution.sourceUsed,
     final_utm_source: cleanText(submittedTouch.utm_source, 300),
     final_utm_medium: cleanText(submittedTouch.utm_medium, 300),

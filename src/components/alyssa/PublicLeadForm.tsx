@@ -14,7 +14,9 @@ import {
   resolvePublicBrandTheme,
 } from "@/lib/brandThemes";
 import {
+  LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
   PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  chooseBestPublicAttribution,
   decodePublicAttributionCookie,
   hasPublicAttributionTracking,
 } from "@/lib/attribution/publicAttributionCookie";
@@ -52,13 +54,17 @@ type AttributionDebugResponse = {
   attribution_debug: true;
   server_body_present: boolean;
   server_body_has_tracking: boolean;
+  locked_body_present: boolean;
+  locked_body_has_tracking: boolean;
   proxy_cookie_present: boolean;
   proxy_cookie_parse_ok: boolean;
   body_has_tracking: boolean;
   preserved_body_has_tracking: boolean;
   proxy_cookie_has_tracking: boolean;
+  downgrade_blocked: boolean;
   final_attribution_source_used:
     | "body"
+    | "locked_attribution"
     | "preserved_body"
     | "server_initial"
     | "proxy_cookie"
@@ -277,6 +283,20 @@ function getServerInitialAttribution(
   return value && hasPublicAttributionTracking(value) ? value : null;
 }
 
+function getTrackingTouch(value: unknown) {
+  return value && typeof value === "object" && hasPublicAttributionTracking(value)
+    ? (value as Record<string, unknown>)
+    : null;
+}
+
+function readLockedAttribution() {
+  if (typeof window === "undefined") return null;
+
+  return getTrackingTouch(
+    readStorage(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY, window.localStorage)
+  );
+}
+
 function pickTouchParams(value: Record<string, unknown>) {
   const output: Record<string, string> = {};
   ATTRIBUTION_KEYS.forEach((key) => {
@@ -299,6 +319,30 @@ function getEffectiveAttributionUrl(
       search: window.location.search,
       sourceUsed: "live",
     };
+  }
+
+  const lockedAttribution = readLockedAttribution();
+
+  if (lockedAttribution) {
+    const lockedUrl =
+      getString(lockedAttribution.current_page_url) ||
+      getString(lockedAttribution.landing_page_url);
+
+    try {
+      const parsed = new URL(lockedUrl);
+
+      return {
+        href: lockedUrl,
+        search: parsed.search,
+        sourceUsed: "locked_attribution",
+      };
+    } catch {
+      return {
+        href: lockedUrl,
+        search: "",
+        sourceUsed: "locked_attribution",
+      };
+    }
   }
 
   const serverAttribution = getServerInitialAttribution(serverInitialAttribution);
@@ -422,6 +466,7 @@ function captureCurrentPageAttribution({
   const localKey = "alyssa_first_touch";
   const sessionKey = "alyssa_latest_touch";
   const serverTouch = getServerInitialAttribution(serverInitialAttribution);
+  const lockedTouch = readLockedAttribution();
   const effectiveUrl = getEffectiveAttributionUrl(
     initialQueryString,
     serverInitialAttribution
@@ -449,9 +494,28 @@ function captureCurrentPageAttribution({
       : pickParams(searchParams);
   const firstStored = readStorage(localKey, window.localStorage);
   const latestStored = readStorage(sessionKey, window.sessionStorage);
+  const firstTrackingStored = getTrackingTouch(firstStored);
+  const latestTrackingStored = getTrackingTouch(latestStored);
   const hasCurrentParams = Object.keys(paramPayload).length > 0;
+  const selectedTrackingTouch = chooseBestPublicAttribution([
+    effectiveUrl.sourceUsed === "live"
+      ? {
+          current_page_url: effectiveUrl.href,
+          landing_page_url: effectiveUrl.href,
+          ...paramPayload,
+        }
+      : null,
+    lockedTouch,
+    serverTouch,
+    latestTrackingStored,
+    firstTrackingStored,
+  ]);
+  const authoritativeTrackingTouch =
+    getTrackingTouch(selectedTrackingTouch) || null;
   const sourceCaptureMethod =
-    effectiveUrl.sourceUsed === "server_initial"
+    effectiveUrl.sourceUsed === "locked_attribution"
+      ? "public_landing_page_locked_first_touch"
+      : effectiveUrl.sourceUsed === "server_initial"
       ? "server_public_lp_initial_search"
       : hasCurrentParams
         ? "public_landing_page"
@@ -461,9 +525,11 @@ function captureCurrentPageAttribution({
             ? "public_landing_page_local_storage_recovered"
             : "public_landing_page_no_tracking_signal";
   const recoveredCurrentPageUrl =
+    getString(authoritativeTrackingTouch?.current_page_url) ||
     getString(latestStored?.current_page_url) ||
     getString(firstStored?.current_page_url);
   const recoveredLandingPageUrl =
+    getString(authoritativeTrackingTouch?.landing_page_url) ||
     getString(firstStored?.landing_page_url) ||
     getString(latestStored?.landing_page_url);
   const livePageUrl = parentUrlParam || effectiveUrl.href;
@@ -494,12 +560,25 @@ function captureCurrentPageAttribution({
   const latestTouch = {
     ...(latestStored || {}),
     ...basePayload,
+    ...(authoritativeTrackingTouch || {}),
     ...paramPayload,
     source_capture_method: sourceCaptureMethod,
   };
   const firstTouch = hasCurrentParams
     ? { ...basePayload, ...paramPayload }
-    : firstStored || { ...basePayload, ...paramPayload };
+    : firstTrackingStored ||
+      authoritativeTrackingTouch ||
+      firstStored || { ...basePayload, ...paramPayload };
+  if (!lockedTouch && hasPublicAttributionTracking(latestTouch)) {
+    writeStorage(
+      LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
+      {
+        ...latestTouch,
+        attribution_source_used: "locked_attribution",
+      },
+      window.localStorage
+    );
+  }
   const localSaved = writeStorage(localKey, firstTouch, window.localStorage);
   const sessionSaved = writeStorage(sessionKey, latestTouch, window.sessionStorage);
   writeStorage("alyssa_visitor_id", visitorId, window.localStorage);
@@ -522,7 +601,8 @@ function captureCurrentPageAttribution({
     first_touch_json: firstTouch,
     latest_touch_json: latestTouch,
     submitted_touch_json: submittedTouch,
-    server_touch_json: serverTouch || undefined,
+    server_touch_json:
+      authoritativeTrackingTouch || serverTouch || undefined,
   };
 }
 
@@ -1386,10 +1466,13 @@ function AttributionDebugPanel({
     ["proxy cookie present", String(debug.proxy_cookie_present)],
     ["server body present", String(debug.server_body_present)],
     ["server body has tracking", String(debug.server_body_has_tracking)],
+    ["locked body present", String(debug.locked_body_present)],
+    ["locked body has tracking", String(debug.locked_body_has_tracking)],
     ["proxy cookie parse ok", String(debug.proxy_cookie_parse_ok)],
     ["body has tracking", String(debug.body_has_tracking)],
     ["preserved body has tracking", String(debug.preserved_body_has_tracking)],
     ["proxy cookie has tracking", String(debug.proxy_cookie_has_tracking)],
+    ["downgrade blocked", String(debug.downgrade_blocked)],
     ["final source used", debug.final_attribution_source_used],
     ["final utm_source", debug.final_utm_source || "-"],
     ["final utm_medium", debug.final_utm_medium || "-"],

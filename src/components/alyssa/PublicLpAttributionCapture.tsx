@@ -2,7 +2,9 @@
 
 import { useEffect, useState } from "react";
 import {
+  LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
   PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  chooseBestPublicAttribution,
   decodePublicAttributionCookie,
   hasPublicAttributionTracking,
   publicAttributionTrackingKeys,
@@ -74,6 +76,7 @@ type AttributionDebugState = {
   sourceUsed:
     | "live"
     | "initialSearch"
+    | "locked_attribution"
     | "server_initial"
     | "proxy_cookie"
     | "none";
@@ -82,6 +85,10 @@ type AttributionDebugState = {
   completeRegistrationDlUrl: string;
   captured: Record<string, string>;
   hasAttributionParams: boolean;
+  lockedAttributionPresent: boolean;
+  lockedAttributionHasTracking: boolean;
+  lockedCaptured: Record<string, string>;
+  downgradeBlocked: boolean;
 };
 
 function readStorage(key: string, storage: Storage) {
@@ -167,6 +174,58 @@ function createEffectiveUrl(initialQueryString: string) {
   };
 }
 
+function getTrackingTouch(
+  value: Record<string, unknown> | null | undefined
+) {
+  return value && hasPublicAttributionTracking(value) ? value : null;
+}
+
+function createLockedPayload({
+  source,
+  sourceUsed,
+  formToken,
+  formId,
+  brandSlug,
+  visitorId,
+  sessionId,
+  capturedPageUrl,
+  pagePath,
+  paramPayload,
+}: {
+  source: Record<string, unknown> | null;
+  sourceUsed: string;
+  formToken: string;
+  formId: string;
+  brandSlug: string;
+  visitorId: string;
+  sessionId: string;
+  capturedPageUrl: string;
+  pagePath: string;
+  paramPayload: Record<string, string>;
+}) {
+  return {
+    ...(source || {}),
+    source_capture_method:
+      sourceUsed === "server_initial"
+        ? "server_public_lp_initial_search"
+        : "public_landing_page_locked_first_touch",
+    attribution_source_used: "locked_attribution",
+    visitor_id: visitorId,
+    session_id: sessionId,
+    brand: brandSlug,
+    form_id: formId,
+    form_token: formToken,
+    parent_origin: window.location.origin,
+    referrer: document.referrer || "",
+    landing_page_url: capturedPageUrl,
+    current_page_url: capturedPageUrl,
+    page_path: pagePath,
+    page_title: document.title || "",
+    captured_at: getString(source?.captured_at) || new Date().toISOString(),
+    ...paramPayload,
+  };
+}
+
 function restoreMissingPublicLpQueryParams(initialQueryString: string) {
   if (!window.location.pathname.startsWith("/lp/")) return "";
 
@@ -221,36 +280,75 @@ export function PublicLpAttributionCapture({
     const serverAttribution = getServerInitialAttribution(
       serverInitialAttribution
     );
+    const lockedStored = getTrackingTouch(
+      readStorage(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY, window.localStorage)
+    );
+    const firstStored = getTrackingTouch(
+      readStorage("alyssa_first_touch", window.localStorage)
+    );
+    const latestStored = getTrackingTouch(
+      readStorage("alyssa_latest_touch", window.sessionStorage)
+    );
     const liveOrInitialPayload = pickSourceParams(searchParams);
     const hasLiveOrInitialParams = Object.keys(liveOrInitialPayload).length > 0;
-    const useServerAttribution = !hasLiveOrInitialParams && serverAttribution;
+    const liveAttribution = hasLiveOrInitialParams
+      ? {
+          current_page_url: effectiveUrl.href,
+          landing_page_url: effectiveUrl.href,
+          page_path: window.location.pathname,
+          ...liveOrInitialPayload,
+        }
+      : null;
+    const selectedTrackingAttribution = chooseBestPublicAttribution([
+      lockedStored,
+      liveAttribution,
+      serverAttribution,
+      latestStored,
+      firstStored,
+      proxyCookie,
+    ]);
+    const downgradeBlocked = Boolean(
+      selectedTrackingAttribution &&
+        !hasLiveOrInitialParams &&
+        (window.location.search || initialQueryString)
+    );
+    const useLockedAttribution =
+      selectedTrackingAttribution && selectedTrackingAttribution === lockedStored;
+    const useServerAttribution =
+      selectedTrackingAttribution && selectedTrackingAttribution === serverAttribution;
     const useProxyCookie =
-      !hasLiveOrInitialParams &&
+      selectedTrackingAttribution &&
       !useServerAttribution &&
+      !useLockedAttribution &&
+      selectedTrackingAttribution === proxyCookie &&
       proxyCookie &&
       hasPublicAttributionTracking(proxyCookie);
-    const paramPayload = useServerAttribution
-      ? pickCookieSourceParams(serverAttribution)
-      : useProxyCookie
-        ? pickCookieSourceParams(proxyCookie)
-        : liveOrInitialPayload;
-    const capturedPageUrl = useServerAttribution
-      ? getString(serverAttribution.current_page_url) || effectiveUrl.href
-      : useProxyCookie
-        ? proxyCookie.current_page_url
-        : effectiveUrl.href;
-    const debugEnabled = searchParams.get("attribution_debug") === "1";
-    const sourceUsed = useServerAttribution
-      ? "server_initial"
-      : useProxyCookie
-      ? "proxy_cookie"
-      : restoredUrl
-        ? "initialSearch"
-        : window.location.search
-          ? "live"
-          : initialQueryString
+    const paramPayload = selectedTrackingAttribution
+      ? pickCookieSourceParams(selectedTrackingAttribution)
+      : liveOrInitialPayload;
+    const capturedPageUrl = selectedTrackingAttribution
+      ? getString(selectedTrackingAttribution.current_page_url) ||
+        getString(selectedTrackingAttribution.landing_page_url) ||
+        effectiveUrl.href
+      : effectiveUrl.href;
+    const sourceUsed = useLockedAttribution
+      ? "locked_attribution"
+      : useServerAttribution
+        ? "server_initial"
+        : useProxyCookie
+          ? "proxy_cookie"
+          : restoredUrl
             ? "initialSearch"
-            : "none";
+            : hasLiveOrInitialParams
+              ? "live"
+              : initialQueryString
+                ? "initialSearch"
+                : "none";
+    const pagePath =
+      getString(selectedTrackingAttribution?.page_path) ||
+      proxyCookie?.page_path ||
+      window.location.pathname;
+    const debugEnabled = searchParams.get("attribution_debug") === "1";
 
     if (debugEnabled) {
       queueMicrotask(() =>
@@ -267,6 +365,13 @@ export function PublicLpAttributionCapture({
           completeRegistrationDlUrl: capturedPageUrl,
           captured: paramPayload,
           hasAttributionParams: Object.keys(paramPayload).length > 0,
+          lockedAttributionPresent: Boolean(selectedTrackingAttribution),
+          lockedAttributionHasTracking:
+            hasPublicAttributionTracking(selectedTrackingAttribution),
+          lockedCaptured: selectedTrackingAttribution
+            ? pickCookieSourceParams(selectedTrackingAttribution)
+            : {},
+          downgradeBlocked,
         })
       );
     }
@@ -277,29 +382,29 @@ export function PublicLpAttributionCapture({
       readStorage("alyssa_visitor_id", window.localStorage) || createId("vis");
     const sessionId =
       readStorage("alyssa_session_id", window.sessionStorage) || createId("ses");
-    const payload = {
-      source_capture_method: useServerAttribution
-        ? "server_public_lp_initial_search"
-        : "public_landing_page",
-      attribution_source_used: sourceUsed,
-      visitor_id: visitorId,
-      session_id: sessionId,
-      brand: brandSlug,
-      form_id: formId,
-      form_token: formToken,
-      parent_origin: window.location.origin,
-      referrer: document.referrer || "",
-      landing_page_url: capturedPageUrl,
-      current_page_url: capturedPageUrl,
-      page_path:
-        getString(serverAttribution?.page_path) ||
-        proxyCookie?.page_path ||
-        window.location.pathname,
-      page_title: document.title || "",
-      captured_at: new Date().toISOString(),
-      ...paramPayload,
-    };
+    const payload =
+      useLockedAttribution && lockedStored
+        ? lockedStored
+        : createLockedPayload({
+            source: selectedTrackingAttribution,
+            sourceUsed,
+            formToken,
+            formId,
+            brandSlug,
+            visitorId,
+            sessionId,
+            capturedPageUrl,
+            pagePath,
+            paramPayload,
+          });
 
+    if (!lockedStored) {
+      writeStorage(
+        LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
+        payload,
+        window.localStorage
+      );
+    }
     writeStorage("alyssa_first_touch", payload, window.localStorage);
     writeStorage("alyssa_latest_touch", payload, window.sessionStorage);
     writeStorage("alyssa_visitor_id", visitorId, window.localStorage);
@@ -333,6 +438,18 @@ export function PublicLpAttributionCapture({
           value={debugState.hasAttributionParams ? "yes" : "no"}
         />
         <DebugRow
+          label="locked attribution present"
+          value={debugState.lockedAttributionPresent ? "yes" : "no"}
+        />
+        <DebugRow
+          label="locked attribution has tracking"
+          value={debugState.lockedAttributionHasTracking ? "yes" : "no"}
+        />
+        <DebugRow
+          label="downgrade blocked"
+          value={debugState.downgradeBlocked ? "yes" : "no"}
+        />
+        <DebugRow
           label="current_page_url"
           value={debugState.currentPageUrl}
         />
@@ -354,6 +471,22 @@ export function PublicLpAttributionCapture({
         {attributionKeys.map((key) => (
           <DebugRow key={key} label={key} value={debugState.captured[key] || ""} />
         ))}
+        <DebugRow
+          label="locked utm_source"
+          value={debugState.lockedCaptured.utm_source || ""}
+        />
+        <DebugRow
+          label="locked utm_campaign"
+          value={debugState.lockedCaptured.utm_campaign || ""}
+        />
+        <DebugRow
+          label="locked utm_content"
+          value={debugState.lockedCaptured.utm_content || ""}
+        />
+        <DebugRow
+          label="locked fbclid"
+          value={debugState.lockedCaptured.fbclid || ""}
+        />
       </dl>
     </aside>
   );

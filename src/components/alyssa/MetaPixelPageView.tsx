@@ -2,6 +2,11 @@
 
 import { useEffect, useState } from "react";
 import {
+  LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
+  hasPublicAttributionTracking,
+  publicAttributionTrackingKeys,
+} from "@/lib/attribution/publicAttributionCookie";
+import {
   cleanMetaPixelId,
   isMetaPixelDebugEnabled,
   sendMetaPixelBeacon,
@@ -88,6 +93,48 @@ function isPixelDebugEnabled(initialQueryString = "") {
 function debugPixel(message: string, state: PixelDebugState) {
   if (state.debugEnabled) {
     console.info("[LaunchHub] Meta Pixel", message, state);
+  }
+}
+
+function safeJsonParse(value: string | null) {
+  try {
+    return value ? JSON.parse(value) : null;
+  } catch {
+    return null;
+  }
+}
+
+function getString(value: unknown) {
+  return typeof value === "string" ? value : "";
+}
+
+function getLockedAttributionPageUrl() {
+  try {
+    const locked = safeJsonParse(
+      window.localStorage.getItem(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY)
+    ) as Record<string, unknown> | null;
+
+    if (!hasPublicAttributionTracking(locked)) return "";
+
+    return (
+      getString(locked?.current_page_url) ||
+      getString(locked?.landing_page_url)
+    );
+  } catch {
+    return "";
+  }
+}
+
+function urlHasTracking(value: string | undefined) {
+  if (!value) return false;
+
+  try {
+    const parsed = new URL(value);
+    return publicAttributionTrackingKeys.some((key) =>
+      Boolean(parsed.searchParams.get(key))
+    );
+  } catch {
+    return false;
   }
 }
 
@@ -231,8 +278,10 @@ export function MetaPixelPageView({
         ? cleanedInitialQuery
         : `?${cleanedInitialQuery}`
       : "";
+    const lockedPageUrl = getLockedAttributionPageUrl();
     const pageViewUrl =
-      preservedPageUrl ||
+      (urlHasTracking(preservedPageUrl) ? preservedPageUrl : "") ||
+      lockedPageUrl ||
       `${window.location.origin}${window.location.pathname}${initialSearch}${window.location.hash}`;
 
     function publishDebug(message: string) {

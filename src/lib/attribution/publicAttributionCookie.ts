@@ -1,5 +1,7 @@
 export const PUBLIC_ATTRIBUTION_COOKIE_NAME = "launchhub_public_attribution";
 export const PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS = 3 * 24 * 60 * 60;
+export const LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY =
+  "launchhub_locked_attribution";
 
 export const publicAttributionTrackingKeys = [
   "utm_source",
@@ -49,6 +51,30 @@ export function hasPublicAttributionTracking(
 
   return publicAttributionTrackingKeys.some((key) =>
     Boolean(stringValue(record[key]))
+  );
+}
+
+export function isDebugOnlyUrl(value: string | null | undefined) {
+  if (!value) return false;
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.searchParams.size === 0) return false;
+
+    return Array.from(parsed.searchParams.keys()).every((key) =>
+      ["attribution_debug", "pixel_debug", "v"].includes(key)
+    );
+  } catch {
+    return false;
+  }
+}
+
+export function chooseBestPublicAttribution<T extends object>(
+  candidates: Array<T | null | undefined>
+) {
+  return (
+    candidates.find((candidate) => hasPublicAttributionTracking(candidate)) ??
+    null
   );
 }
 
