@@ -745,6 +745,47 @@ function isReasonableTime(value: string | null) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
+async function getAllowedFormBranchIds(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  form: Record<string, unknown>
+) {
+  const defaultBranchId =
+    typeof form.default_branch_id === "string" ? form.default_branch_id : "";
+  const { data, error } = await supabase
+    .from("form_branches")
+    .select("branch_id,is_default,is_active,display_order")
+    .eq("form_id", form.id)
+    .eq("is_active", true)
+    .order("display_order", { ascending: true });
+
+  if (error) {
+    console.warn("[LaunchHub] submit_form_branches_read_failed", {
+      form_id: form.id,
+      code: error.code,
+      message: error.message,
+    });
+    return {
+      branchIds: defaultBranchId ? [defaultBranchId] : [],
+      defaultBranchId,
+      source: "default_branch_id",
+    };
+  }
+
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  const branchIds = rows
+    .map((row) => (typeof row.branch_id === "string" ? row.branch_id : ""))
+    .filter(Boolean);
+  const selectedDefault =
+    rows.find((row) => row.is_default === true)?.branch_id || defaultBranchId;
+
+  return {
+    branchIds,
+    defaultBranchId:
+      typeof selectedDefault === "string" ? selectedDefault : defaultBranchId,
+    source: rows.length > 0 ? "form_branches" : "default_branch_id",
+  };
+}
+
 async function createLocalResponse(
   payload: LeadSubmitPayload,
   submittedTouchOverride?: TouchPayload,
@@ -954,8 +995,43 @@ export async function POST(request: NextRequest) {
   }
 
   const treatmentId = cleanText(payload.treatment_id, 80) || form.default_treatment_id;
-  const branchId = cleanText(payload.branch_id, 80) || form.default_branch_id;
+  const allowedBranches = await getAllowedFormBranchIds(supabase, form);
+  const submittedBranchId = cleanText(payload.branch_id, 80);
+  const branchId =
+    submittedBranchId ||
+    (allowedBranches.branchIds.length === 1
+      ? allowedBranches.branchIds[0]
+      : allowedBranches.defaultBranchId);
   const packageId = cleanText(payload.package_id, 80) || form.default_package_id;
+
+  if (!branchId) {
+    return rejectPublicSubmit(
+      request,
+      400,
+      "branch_required",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
+  }
+
+  if (
+    allowedBranches.branchIds.length > 0 &&
+    !allowedBranches.branchIds.includes(branchId)
+  ) {
+    console.warn("[LaunchHub] branch_not_allowed_for_form", {
+      form_token: formToken,
+      form_id: form.id,
+      branch_id: branchId,
+      branch_source: allowedBranches.source,
+    });
+    return rejectPublicSubmit(
+      request,
+      400,
+      "branch_not_allowed",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
+  }
 
   const [
     { data: packageRecord },

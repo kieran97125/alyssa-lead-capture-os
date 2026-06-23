@@ -24,11 +24,11 @@ LaunchHub admin is organized around brand-first form operations for real Alyssa 
 
 - `/brands` is the Brand Workspace. Select Alyssa or Ineffable Beauty first, then manage that brand's forms, Landing Pages, treatments, branches, leads, Pixel status, allowed domains, and launch shortcuts.
 - `/forms` is a brand-scoped Wix form operations table with filters for brand, treatment, branch, status, and search by form name/token.
-- `/forms/new` uses a sectioned creation flow: choose brand, treatment/offer, branch, allowed domains, tracking/Pixel status, then create the form.
+- `/forms/new` uses a sectioned creation flow: choose brand, treatment/offer, one or more branches, allowed domains, tracking/Pixel status, then create the form.
 - `/forms/[formId]` shows a ready-to-copy Wix embed snippet, the exact form token, test form URL, Meta URL Parameters, allowed domains, and brand safety warnings.
 - Wix embed snippets are generated from the selected form's brand. Alyssa forms should use Alyssa tokens and Alyssa Pixel config; Ineffable forms should use Ineffable tokens and Ineffable Pixel config.
 - If a brand Pixel is missing, LaunchHub still allows form creation but omits `data-pixel-id` from the embed snippet and shows a warning.
-- Current form records support one default branch per form. For multi-branch campaign testing, create or duplicate separate forms per branch until a future multi-branch schema is intentionally added.
+- Forms can expose one or more branches to visitors. `forms.default_branch_id` remains as the compatibility/default branch, while `form_branches` stores the selectable branch list after `docs/FORM_MULTI_BRANCHES_APPLY.sql` is applied.
 - Meta Ads URL Parameters are copyable from Brand Workspace and form detail pages. Do not use `pixel_debug=1` or `attribution_debug=1` in real ads.
 
 ## Architecture Boundary
@@ -289,14 +289,26 @@ LaunchHub supports multiple reusable registration forms per brand.
 - Forms share one unified visual style in `/embed/[formToken]`.
 - Each form has its own `public_form_token` and Wix embed code.
 - A form can be embedded directly in Wix or connected to a Landing Page campaign.
-- Forms differ by business configuration: brand, treatment, package, branch, allowed domains, and status.
+- Forms differ by business configuration: brand, treatment, package, selectable branches, allowed domains, and status.
 - Creating or duplicating a form generates a new safe token from the selected brand slug, for example `ineffable-beauty-388-form-[shortid]` or `alyssa-main-form-[shortid]`.
 - Duplicate form copies configuration only, creates a new form token, and does not copy leads or submissions.
+- Multi-branch forms show the selected branches on the public form. The visitor chooses one branch, and that selected branch is saved on the lead, booking, CS Sheet row, and CRM-facing records.
 - Unused forms can simply be left unused for now.
 - Archive, delete, and re-enable workflows are not part of V1.
 - Existing leads remain unchanged when form settings are edited.
 
 This keeps form management flexible without creating per-form style systems or a visual form builder.
+
+## Enquiry Records And Test Data
+
+`/leads` is positioned as an enquiry / registration record page. It shows submitted form enquiries, brand, treatment, selected branch, appointment preference, source, campaign/content, and page URL. Confirmed booking, show, paid, no-show, and lost outcomes belong to CRM / CS follow-up and should not be inferred from a LaunchHub form submission.
+
+LaunchHub hides obvious internal test submissions from `/leads`, `/dashboard`, `/performance`, and brand overview reporting by default. The Leads page includes a `顯示內部測試資料` toggle for review. Raw records remain in Supabase unless an operator manually reviews and runs a cleanup script.
+
+Test-data review scripts:
+
+- `docs/REVIEW_TEST_LEADS.sql` - read-only review of obvious internal test submissions.
+- `docs/CLEAN_TEST_LEADS_DELETE.sql` - destructive cleanup template, fully commented out and intended only after manual review/export.
 
 ## Create Campaign Flow
 

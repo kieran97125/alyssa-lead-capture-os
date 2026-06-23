@@ -29,7 +29,7 @@ export default async function BrandWorkspacePage({
   const [config, landingPages, monthLeads] = await Promise.all([
     getConfigurationData(),
     getLandingPageList(),
-    getLeadRows("month", 5000),
+    getLeadRows("month", 5000, { includeTestData: false }),
   ]);
   const query = await searchParams;
   const requestedBrand = pickBrandSlug(query?.brand);

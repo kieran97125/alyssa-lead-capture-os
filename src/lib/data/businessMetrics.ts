@@ -116,6 +116,17 @@ export type LeadRowsResult = {
   range: ReturnType<typeof getDateRange>;
   leads: LeadRow[];
   error: Error | null;
+  warnings?: string[];
+};
+
+export type LeadRowsOptions = {
+  brandId?: string;
+  source?: string;
+  campaign?: string;
+  treatmentId?: string;
+  branchId?: string;
+  query?: string;
+  includeTestData?: boolean;
 };
 
 export const dateRangeOptions: Array<{ key: DateRangeKey; label: string }> = [
@@ -261,6 +272,38 @@ export function displayPhone(lead: LeadRow) {
   return lead.phone || lead.contact?.phone || lead.normalized_phone || "未填寫";
 }
 
+const testNamePatterns = [
+  "TEST",
+  "FINAL TEST",
+  "COOKIE TEST",
+  "SERVER ATTR TEST",
+  "LOCKED ATTR TEST",
+  "INLINE BOOTSTRAP TEST",
+  "LH BACKUP TEST",
+  "LH MIXED TEST",
+  "ALYSSA WIX TEST",
+  "DIRECT TEST",
+  "UTM TEST",
+];
+
+export function isLikelyTestLead(lead: LeadRow) {
+  const name = displayCustomerName(lead).toUpperCase();
+  const phoneDigits = displayPhone(lead).replace(/\D/g, "");
+  const hasTestName = testNamePatterns.some((pattern) => name.includes(pattern));
+  const hasTestPhone =
+    /^912345(6[7-9]|[7-8]\d|9\d)$/.test(phoneDigits) ||
+    phoneDigits === "91234599";
+
+  return hasTestName || hasTestPhone;
+}
+
+export function intakeStatus(lead: LeadRow) {
+  if (lead.lead_status === "duplicate") return "重複登記";
+  if (lead.lead_status === "invalid") return "無效登記";
+  if (lead.lead_status === "submitted") return "已收到";
+  return lead.lead_status || "已收到";
+}
+
 export function isBooking(lead: LeadRow) {
   const bookingStatus = lead.booking?.booking_status || lead.booking_status;
   return ["requested", "confirmed", "rescheduled", "show", "no_show"].includes(
@@ -391,7 +434,14 @@ async function fetchByIds<T extends { id: string }>(
     .select(columns)
     .in("id", idsToFetch);
 
-  if (error) throw error;
+  if (error) {
+    console.warn("business_metrics_lookup_failed", {
+      table,
+      code: error.code,
+      message: error.message,
+    });
+    return new Map<string, T>();
+  }
   const rows = (data ?? []) as unknown as T[];
   return new Map(rows.map((item) => [item.id, item]));
 }
@@ -406,7 +456,13 @@ async function fetchBookingsByLeadIds(leadIds: string[]) {
     .in("lead_id", leadIds)
     .order("created_at", { ascending: false });
 
-  if (error) throw error;
+  if (error) {
+    console.warn("business_metrics_bookings_lookup_failed", {
+      code: error.code,
+      message: error.message,
+    });
+    return new Map<string, BookingRecord>();
+  }
 
   const bookings = new Map<string, BookingRecord>();
   (data ?? []).forEach((booking) => {
@@ -419,7 +475,8 @@ async function fetchBookingsByLeadIds(leadIds: string[]) {
 
 export async function getLeadRows(
   rangeKey: DateRangeKey,
-  limit = 5000
+  limit = 5000,
+  options: LeadRowsOptions = {}
 ): Promise<LeadRowsResult> {
   const range = getDateRange(rangeKey);
 
@@ -429,7 +486,7 @@ export async function getLeadRows(
 
   try {
     const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase
+    let query = supabase
       .from("leads")
       .select(
         [
@@ -457,7 +514,13 @@ export async function getLeadRows(
         ].join(",")
       )
       .gte("created_at", range.start)
-      .lt("created_at", range.end)
+      .lt("created_at", range.end);
+
+    if (options.brandId) query = query.eq("brand_id", options.brandId);
+    if (options.treatmentId) query = query.eq("treatment_id", options.treatmentId);
+    if (options.branchId) query = query.eq("branch_id", options.branchId);
+
+    const { data, error } = await query
       .order("created_at", { ascending: false })
       .limit(limit);
 
@@ -547,7 +610,48 @@ export async function getLeadRows(
       };
     });
 
-    return { range, leads, error: null };
+    const search = options.query?.trim().toLowerCase() || "";
+    const sourceFilter = options.source?.trim().toLowerCase() || "";
+    const campaignFilter = options.campaign?.trim().toLowerCase() || "";
+    const filteredLeads = leads.filter((lead) => {
+      if (!options.includeTestData && isLikelyTestLead(lead)) return false;
+
+      if (sourceFilter) {
+        const source = sourceLabel(lead).toLowerCase();
+        const sourceType = (lead.source_type || "").toLowerCase();
+        if (!source.includes(sourceFilter) && sourceType !== sourceFilter) {
+          return false;
+        }
+      }
+
+      if (campaignFilter) {
+        const campaign = campaignLabel(lead).toLowerCase();
+        const content = contentLabel(lead).toLowerCase();
+        if (!campaign.includes(campaignFilter) && !content.includes(campaignFilter)) {
+          return false;
+        }
+      }
+
+      if (search) {
+        const haystack = [
+          displayCustomerName(lead),
+          displayPhone(lead),
+          lead.normalized_phone || "",
+          lead.form?.form_name || "",
+          lead.form?.public_form_token || "",
+          campaignLabel(lead),
+          contentLabel(lead),
+        ]
+          .join(" ")
+          .toLowerCase();
+
+        if (!haystack.includes(search)) return false;
+      }
+
+      return true;
+    });
+
+    return { range, leads: filteredLeads, error: null };
   } catch (error) {
     console.error("business_metrics_query_failed", error);
     return {

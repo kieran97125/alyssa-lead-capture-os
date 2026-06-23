@@ -1,6 +1,8 @@
 import {
   getBranch,
   getBrand,
+  getFormBranches,
+  getFormBranchSettings,
   getPackage,
   getTreatment,
   packagePriceLabel,
@@ -112,7 +114,18 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
   const brand = getBrand(config, form.brandId);
   const treatment = getTreatment(config, form.defaultTreatmentId);
   const selectedPackage = getPackage(config, form.defaultPackageId);
-  const branch = getBranch(config, form.defaultBranchId);
+  const branches = getFormBranches(config, form);
+  const branchSettings = getFormBranchSettings(config, form);
+  const defaultBranchId =
+    branchSettings.find((item) => item.isDefault)?.branchId ||
+    form.defaultBranchId ||
+    branches[0]?.id ||
+    null;
+  const branch = getBranch(config, defaultBranchId);
+  const branchLabel =
+    branches.length > 1
+      ? `多分店（${branches.length}）`
+      : branch?.name || "未設定";
   const brandSlug = brand?.slug || "brand";
   const pixelId = getBrandPixelId(brandSlug);
   const embedCode = buildWixEmbedCode({
@@ -127,6 +140,9 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
     treatment,
     package: selectedPackage,
     branch,
+    branches,
+    branchSettings,
+    branchLabel,
     brandSlug,
     pixelId,
     pixelConfigured: Boolean(pixelId),
@@ -136,4 +152,3 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
     suggestedDomains: getBrandSuggestedDomains(brandSlug),
   };
 }
-

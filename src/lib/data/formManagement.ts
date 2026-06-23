@@ -4,6 +4,7 @@ import {
   getBranch,
   getBrand,
   getConfigurationData,
+  getFormBranchSettings,
   getPackage,
   getTreatment,
   type ConfigurationData,
@@ -20,6 +21,7 @@ export type ManagedFormInput = {
   defaultTreatmentId: string;
   defaultPackageId: string;
   defaultBranchId: string;
+  branchIds: string[];
   allowedDomains: string[];
   status: string;
 };
@@ -133,6 +135,10 @@ function asForm(row: Record<string, unknown>): FormSetting {
   };
 }
 
+function uniqueBranchIds(branchIds: string[]) {
+  return Array.from(new Set(branchIds.map((item) => item.trim()).filter(Boolean)));
+}
+
 async function createUniqueToken(formName: string, brandSlug: string) {
   const base = buildPublicFormTokenBase(formName, brandSlug);
 
@@ -160,21 +166,30 @@ function validateInput(config: ConfigurationData, input: ManagedFormInput) {
   const formName = input.formName.trim();
   const treatment = getTreatment(config, input.defaultTreatmentId);
   const selectedPackage = getPackage(config, input.defaultPackageId);
-  const branch = getBranch(config, input.defaultBranchId);
+  const branchIds = uniqueBranchIds(
+    input.branchIds.length > 0 ? input.branchIds : [input.defaultBranchId]
+  );
+  const defaultBranchId =
+    input.defaultBranchId && branchIds.includes(input.defaultBranchId)
+      ? input.defaultBranchId
+      : branchIds[0] || "";
+  const branches = branchIds.map((branchId) => getBranch(config, branchId));
 
-  if (!formName) return { ok: false as const, message: "請輸入表格名稱" };
-  if (!input.brandId) return { ok: false as const, message: "請選擇品牌" };
-  if (!treatment) return { ok: false as const, message: "請選擇療程" };
-  if (!selectedPackage) return { ok: false as const, message: "請選擇套餐" };
-  if (!branch) return { ok: false as const, message: "請選擇分店" };
+  if (!formName) return { ok: false as const, message: "請輸入表格名稱。" };
+  if (!input.brandId) return { ok: false as const, message: "請選擇品牌。" };
+  if (!treatment) return { ok: false as const, message: "請選擇療程。" };
+  if (!selectedPackage) return { ok: false as const, message: "請選擇套餐。" };
+  if (branchIds.length === 0 || branches.some((branch) => !branch)) {
+    return { ok: false as const, message: "請選擇至少一間分店。" };
+  }
   if (treatment.brandId !== input.brandId) {
-    return { ok: false as const, message: "療程必須屬於所選品牌" };
+    return { ok: false as const, message: "療程與品牌不相符。" };
   }
   if (selectedPackage.treatmentId !== treatment.id) {
-    return { ok: false as const, message: "套餐必須屬於所選療程" };
+    return { ok: false as const, message: "套餐與療程不相符。" };
   }
-  if (branch.brandId !== input.brandId) {
-    return { ok: false as const, message: "分店必須屬於所選品牌" };
+  if (branches.some((branch) => branch && branch.brandId !== input.brandId)) {
+    return { ok: false as const, message: "分店與品牌不相符。" };
   }
 
   return {
@@ -183,8 +198,60 @@ function validateInput(config: ConfigurationData, input: ManagedFormInput) {
       ...input,
       formName,
       status: "active",
+      defaultBranchId,
+      branchIds,
     },
   };
+}
+
+async function syncFormBranches(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  formId: string,
+  branchIds: string[],
+  defaultBranchId: string
+) {
+  const branchRows = uniqueBranchIds(branchIds).map((branchId, index) => ({
+    form_id: formId,
+    branch_id: branchId,
+    is_default: branchId === defaultBranchId,
+    is_active: true,
+    display_order: index,
+  }));
+
+  if (branchRows.length === 0) return { ok: true };
+
+  const deleteResult = await supabase
+    .from("form_branches")
+    .delete()
+    .eq("form_id", formId);
+
+  if (deleteResult.error) {
+    console.warn("form_branches_delete_failed", {
+      code: deleteResult.error.code,
+      message: deleteResult.error.message,
+      form_id: formId,
+    });
+    return { ok: false };
+  }
+
+  const insertResult = await supabase.from("form_branches").insert(branchRows);
+
+  if (insertResult.error) {
+    console.warn("form_branches_insert_failed", {
+      code: insertResult.error.code,
+      message: insertResult.error.message,
+      form_id: formId,
+    });
+    return { ok: false };
+  }
+
+  return { ok: true };
+}
+
+function branchSyncMessage(message: string, synced: boolean) {
+  return synced
+    ? message
+    : `${message}（多分店設定未能寫入，請確認 form_branches migration 已套用。）`;
 }
 
 export async function listForms() {
@@ -241,7 +308,18 @@ export async function createForm(
     return { ok: false, message: "新增表格失敗，請稍後再試。" };
   }
 
-  return { ok: true, message: "表格已建立。", form: asForm(data) };
+  const branchSync = await syncFormBranches(
+    supabase,
+    data.id,
+    validation.input.branchIds,
+    validation.input.defaultBranchId
+  );
+
+  return {
+    ok: true,
+    message: branchSyncMessage("表格已建立。", branchSync.ok),
+    form: asForm(data),
+  };
 }
 
 export async function updateForm(
@@ -281,7 +359,18 @@ export async function updateForm(
     return { ok: false, message: "儲存表格設定失敗，請稍後再試。" };
   }
 
-  return { ok: true, message: "表格設定已儲存。", form: asForm(data) };
+  const branchSync = await syncFormBranches(
+    supabase,
+    form.id,
+    validation.input.branchIds,
+    validation.input.defaultBranchId
+  );
+
+  return {
+    ok: true,
+    message: branchSyncMessage("表格設定已儲存。", branchSync.ok),
+    form: asForm(data),
+  };
 }
 
 export async function duplicateForm(formId: string): Promise<FormMutationResult> {
@@ -317,5 +406,23 @@ export async function duplicateForm(formId: string): Promise<FormMutationResult>
     return { ok: false, message: "複製表格失敗，請稍後再試。" };
   }
 
-  return { ok: true, message: "已複製成新的啟用中表格。", form: asForm(data) };
+  const sourceBranchSettings = getFormBranchSettings(config, form);
+  const branchIds =
+    sourceBranchSettings.length > 0
+      ? sourceBranchSettings.map((item) => item.branchId)
+      : form.defaultBranchId
+        ? [form.defaultBranchId]
+        : [];
+  const branchSync = await syncFormBranches(
+    supabase,
+    data.id,
+    branchIds,
+    form.defaultBranchId || branchIds[0] || ""
+  );
+
+  return {
+    ok: true,
+    message: branchSyncMessage("Form duplicated.", branchSync.ok),
+    form: asForm(data),
+  };
 }

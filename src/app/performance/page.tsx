@@ -23,7 +23,9 @@ export default async function PerformancePage({
 }) {
   const params = await searchParams;
   const activeRange = parseRange(params?.range);
-  const { range, leads, error } = await getLeadRows(activeRange, 5000);
+  const { range, leads, error } = await getLeadRows(activeRange, 5000, {
+    includeTestData: false,
+  });
   const performance = buildPerformance(leads);
 
   return (

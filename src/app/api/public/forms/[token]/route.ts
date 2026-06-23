@@ -11,6 +11,18 @@ import {
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
 
+type BranchRow = Record<string, unknown>;
+
+function withDefaultBranchFlag(
+  branch: BranchRow,
+  isDefault: boolean
+): BranchRow {
+  return {
+    ...branch,
+    is_default: isDefault,
+  };
+}
+
 export async function GET(
   _request: NextRequest,
   context: { params: Promise<{ token: string }> }
@@ -28,7 +40,12 @@ export async function GET(
       brand: alyssaBrand,
       treatments: alyssaTreatments,
       packages: alyssaPackages,
-      branches: alyssaBranches,
+      branches: alyssaBranches.map((branch) =>
+        withDefaultBranchFlag(
+          branch as unknown as BranchRow,
+          branch.id === alyssaDefaultForm.defaultBranchId
+        )
+      ),
       mode: "local_seed",
     });
   }
@@ -71,6 +88,41 @@ export async function GET(
           .eq("status", "active")
           .order("created_at", { ascending: true })
       : { data: [] };
+  const { data: formBranches, error: formBranchesError } = await supabase
+    .from("form_branches")
+    .select("branch_id,is_default,is_active,display_order")
+    .eq("form_id", form.id)
+    .eq("is_active", true)
+    .order("display_order", { ascending: true });
+  const branchRows = (branches ?? []) as BranchRow[];
+  const selectedBranchRows =
+    !formBranchesError && (formBranches ?? []).length > 0
+      ? (formBranches ?? [])
+          .map((item) => {
+            const row = item as Record<string, unknown>;
+            const branch = branchRows.find(
+              (branchItem) => branchItem.id === row.branch_id
+            );
+            return branch
+              ? withDefaultBranchFlag(branch, Boolean(row.is_default))
+              : null;
+          })
+          .filter((item): item is BranchRow => Boolean(item))
+      : form.default_branch_id
+        ? branchRows
+            .filter((branch) => branch.id === form.default_branch_id)
+            .map((branch) => withDefaultBranchFlag(branch, true))
+        : branchRows.map((branch, index) =>
+            withDefaultBranchFlag(branch, index === 0)
+          );
+
+  if (formBranchesError) {
+    console.warn("[LaunchHub] public_form_branches_read_failed", {
+      form_token: token,
+      code: formBranchesError.code,
+      message: formBranchesError.message,
+    });
+  }
 
   return NextResponse.json({
     ok: true,
@@ -78,6 +130,6 @@ export async function GET(
     brand,
     treatments: treatments ?? [],
     packages: packages ?? [],
-    branches: branches ?? [],
+    branches: selectedBranchRows,
   });
 }

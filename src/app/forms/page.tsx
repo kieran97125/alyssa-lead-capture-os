@@ -50,11 +50,17 @@ export default async function FormsPage({
     config.brands.find((item) => item.slug === selectedBrand || item.id === selectedBrand) ??
     null;
   const filteredForms = config.forms.filter((form) => {
+    const ops = getFormOperations(config, form);
     if (brand && form.brandId !== brand.id) return false;
     if (selectedTreatment && form.defaultTreatmentId !== selectedTreatment) {
       return false;
     }
-    if (selectedBranch && form.defaultBranchId !== selectedBranch) return false;
+    if (
+      selectedBranch &&
+      !ops.branches.some((branch) => branch.id === selectedBranch)
+    ) {
+      return false;
+    }
     if (selectedStatus && form.status !== selectedStatus) return false;
     return formMatchesSearch(form, search);
   });
@@ -201,7 +207,7 @@ export default async function FormsPage({
                         </p>
                       </td>
                       <td className="border-t border-[#f1e3dc] px-4 py-4 font-semibold text-[#5a2348]">
-                        {ops.branch?.name || "未設定"}
+                        {ops.branchLabel}
                       </td>
                       <td className="border-t border-[#f1e3dc] px-4 py-4">
                         <p className="max-w-[250px] break-all font-mono text-xs font-bold text-[#5a2348]">

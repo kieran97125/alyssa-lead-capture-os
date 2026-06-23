@@ -114,7 +114,9 @@ type PackageOption = FormOption & {
   paymentRequired: boolean;
 };
 
-type BranchOption = FormOption;
+type BranchOption = FormOption & {
+  isDefault: boolean;
+};
 
 type BrandOption = FormOption & {
   slug: string;
@@ -702,7 +704,22 @@ function normalizeBranch(raw: Record<string, unknown>): BranchOption {
   return {
     id: getString(raw.id),
     name: getString(raw.name),
+    isDefault: Boolean(raw.isDefault ?? raw.is_default),
   };
+}
+
+function resolveDefaultBranchId(
+  form: PublicFormConfig,
+  branchOptions: BranchOption[]
+) {
+  if (branchOptions.length === 1) return branchOptions[0].id;
+
+  return (
+    branchOptions.find((item) => item.isDefault)?.id ||
+    (branchOptions.some((item) => item.id === form.defaultBranchId)
+      ? form.defaultBranchId
+      : "")
+  );
 }
 
 function normalizeBrand(raw: Record<string, unknown>): BrandOption {
@@ -1002,6 +1019,10 @@ export function PublicLeadForm({
         const nextBranches = (result.branches ?? [])
           .map(normalizeBranch)
           .filter((item: BranchOption) => item.id && item.name);
+        const activeBranches =
+          nextBranches.length > 0
+            ? nextBranches
+            : alyssaBranches.map(normalizeBranch);
 
         setPublicForm(nextForm);
         setBrand(nextBrand);
@@ -1019,7 +1040,7 @@ export function PublicLeadForm({
           ...current,
           treatment_id: primaryPackage?.treatmentId || nextForm.defaultTreatmentId,
           package_id: primaryPackage?.id || nextForm.defaultPackageId,
-          branch_id: nextForm.defaultBranchId,
+          branch_id: resolveDefaultBranchId(nextForm, activeBranches),
         }));
       } catch {
         setConfigMessage("這張表格暫時未能讀取，請稍後再試。");
@@ -1120,6 +1141,17 @@ export function PublicLeadForm({
       await logPublicEvent(
         "form_submit_failed",
         { error: "legal_consent_missing" },
+        liveAttribution
+      );
+      return;
+    }
+
+    if (branches.length > 1 && !formData.branch_id) {
+      setState("error");
+      setMessage("請先選擇分店。");
+      await logPublicEvent(
+        "form_submit_failed",
+        { error: "branch_required" },
         liveAttribution
       );
       return;
@@ -1381,19 +1413,27 @@ export function PublicLeadForm({
                 <FormSection title="預約安排">
                   <div className="grid gap-4 sm:grid-cols-3">
                     <Field label="分店">
-                      <select
-                        className="mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
-                        value={formData.branch_id}
-                        onChange={(event) =>
-                          updateField("branch_id", event.target.value)
-                        }
-                      >
-                        {branches.map((item) => (
-                          <option key={item.id} value={item.id}>
-                            {item.name}
-                          </option>
-                        ))}
-                      </select>
+                      {branches.length > 1 ? (
+                        <select
+                          required
+                          className="mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                          value={formData.branch_id}
+                          onChange={(event) =>
+                            updateField("branch_id", event.target.value)
+                          }
+                        >
+                          <option value="">請選擇分店</option>
+                          {branches.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {item.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="mt-2 rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--public-heading)]">
+                          {branches[0]?.name || "分店稍後確認"}
+                        </div>
+                      )}
                     </Field>
                     <Field label="預約日期">
                       <input

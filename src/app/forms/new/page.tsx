@@ -157,14 +157,10 @@ export default async function NewFormPage({
                 目前每張表格連接一個主分店；如同一療程要多分店測試，可複製表格再改分店。
               </p>
             </div>
-            <SelectField
-              label="Branch"
-              name="defaultBranchId"
-              defaultValue={firstBranch?.id}
-              options={brandBranches.map((branch) => ({
-                value: branch.id,
-                label: branch.name,
-              }))}
+            <BranchSelection
+              branches={brandBranches}
+              selectedBranchIds={firstBranch ? [firstBranch.id] : []}
+              defaultBranchId={firstBranch?.id || ""}
             />
           </section>
 
@@ -305,6 +301,60 @@ function SelectField({
   );
 }
 
+function BranchSelection({
+  branches,
+  selectedBranchIds,
+  defaultBranchId,
+}: {
+  branches: Array<{ id: string; name: string }>;
+  selectedBranchIds: string[];
+  defaultBranchId: string;
+}) {
+  return (
+    <div className="block min-w-0 md:col-span-2">
+      <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
+        Branches shown on this form
+      </p>
+      <div className="mt-2 grid gap-3 sm:grid-cols-2">
+        {branches.map((branch) => {
+          const selected = selectedBranchIds.includes(branch.id);
+          const isDefault = branch.id === defaultBranchId;
+
+          return (
+            <div
+              key={branch.id}
+              className="rounded-2xl border border-[#ead9cf] bg-[#fff6f0] p-4"
+            >
+              <label className="flex items-start gap-3 text-sm font-bold text-[#5a2348]">
+                <input
+                  type="checkbox"
+                  name="branchIds"
+                  value={branch.id}
+                  defaultChecked={selected}
+                  className="mt-1"
+                />
+                <span>{branch.name}</span>
+              </label>
+              <label className="mt-3 flex items-center gap-2 text-xs font-semibold text-[#7b5a6a]">
+                <input
+                  type="radio"
+                  name="defaultBranchId"
+                  value={branch.id}
+                  defaultChecked={isDefault}
+                />
+                <span>Default selected branch</span>
+              </label>
+            </div>
+          );
+        })}
+      </div>
+      <p className="mt-2 text-xs font-semibold leading-5 text-[#7b5a6a]">
+        Customers will choose one of the selected branches before submitting.
+      </p>
+    </div>
+  );
+}
+
 function ReadonlyInfo({
   label,
   value,
@@ -329,4 +379,3 @@ function ReadonlyInfo({
     </div>
   );
 }
-

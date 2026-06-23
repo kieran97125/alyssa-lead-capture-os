@@ -65,6 +65,16 @@ export type FormSetting = {
   updatedAt?: string | null;
 };
 
+export type FormBranchSetting = {
+  id: string;
+  formId: string;
+  branchId: string;
+  isDefault: boolean;
+  isActive: boolean;
+  displayOrder: number;
+  createdAt?: string | null;
+};
+
 export type LandingPageTemplate = {
   id: string;
   name: string;
@@ -81,6 +91,7 @@ export type ConfigurationData = {
   packages: PackageSetting[];
   branches: BranchSetting[];
   forms: FormSetting[];
+  formBranches: FormBranchSetting[];
   templates: LandingPageTemplate[];
   landingPages: typeof alyssaLandingPages;
 };
@@ -176,6 +187,19 @@ function localConfiguration(): ConfigurationData {
         updatedAt: null,
       },
     ],
+    formBranches: alyssaDefaultForm.defaultBranchId
+      ? [
+          {
+            id: `${alyssaDefaultForm.id}:${alyssaDefaultForm.defaultBranchId}`,
+            formId: alyssaDefaultForm.id,
+            branchId: alyssaDefaultForm.defaultBranchId,
+            isDefault: true,
+            isActive: true,
+            displayOrder: 0,
+            createdAt: null,
+          },
+        ]
+      : [],
     templates: landingPageTemplates,
     landingPages: alyssaLandingPages,
   };
@@ -215,6 +239,48 @@ export function getPackage(data: ConfigurationData, id: string | null | undefine
 
 export function getBranch(data: ConfigurationData, id: string | null | undefined) {
   return data.branches.find((item) => item.id === id) ?? null;
+}
+
+export function getFormBranchSettings(data: ConfigurationData, form: FormSetting) {
+  const settings = data.formBranches
+    .filter((item) => item.formId === form.id && item.isActive)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  if (settings.length > 0) return settings;
+
+  return form.defaultBranchId
+    ? [
+        {
+          id: `${form.id}:${form.defaultBranchId}`,
+          formId: form.id,
+          branchId: form.defaultBranchId,
+          isDefault: true,
+          isActive: true,
+          displayOrder: 0,
+          createdAt: null,
+        },
+      ]
+    : [];
+}
+
+export function getFormBranches(data: ConfigurationData, form: FormSetting) {
+  return getFormBranchSettings(data, form)
+    .map((item) => getBranch(data, item.branchId))
+    .filter((item): item is BranchSetting => Boolean(item));
+}
+
+function fallbackFormBranches(forms: FormSetting[]): FormBranchSetting[] {
+  return forms
+    .filter((form) => Boolean(form.defaultBranchId))
+    .map((form) => ({
+      id: `${form.id}:${form.defaultBranchId}`,
+      formId: form.id,
+      branchId: form.defaultBranchId as string,
+      isDefault: true,
+      isActive: true,
+      displayOrder: 0,
+      createdAt: null,
+    }));
 }
 
 export function getLinkedForms(data: ConfigurationData, predicate: (form: FormSetting) => boolean) {
@@ -261,6 +327,53 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
     if (packages.error) throw packages.error;
     if (branches.error) throw branches.error;
     if (forms.error) throw forms.error;
+
+    const mappedForms = ((forms.data ?? []) as unknown[]).map((item) => {
+      const row = item as Record<string, unknown>;
+      return {
+        id: String(row.id ?? ""),
+        publicFormToken: String(row.public_form_token ?? ""),
+        brandId: String(row.brand_id ?? ""),
+        formName: String(row.form_name ?? "Untitled form"),
+        status: String(row.status ?? "active"),
+        allowedDomains: asTextArray(row.allowed_domains),
+        defaultTreatmentId:
+          typeof row.default_treatment_id === "string" ? row.default_treatment_id : null,
+        defaultPackageId:
+          typeof row.default_package_id === "string" ? row.default_package_id : null,
+        defaultBranchId:
+          typeof row.default_branch_id === "string" ? row.default_branch_id : null,
+        createdAt: typeof row.created_at === "string" ? row.created_at : null,
+        updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
+      };
+    });
+    const formBranches = await supabase
+      .from("form_branches")
+      .select("id,form_id,branch_id,is_default,is_active,display_order,created_at")
+      .order("display_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    const mappedFormBranches = formBranches.error
+      ? fallbackFormBranches(mappedForms)
+      : ((formBranches.data ?? []) as unknown[]).map((item) => {
+          const row = item as Record<string, unknown>;
+          return {
+            id: String(row.id ?? ""),
+            formId: String(row.form_id ?? ""),
+            branchId: String(row.branch_id ?? ""),
+            isDefault: Boolean(row.is_default),
+            isActive: row.is_active !== false,
+            displayOrder:
+              typeof row.display_order === "number" ? row.display_order : 0,
+            createdAt: typeof row.created_at === "string" ? row.created_at : null,
+          };
+        });
+
+    if (formBranches.error) {
+      console.warn("form_branches_read_failed", {
+        code: formBranches.error.code,
+        message: formBranches.error.message,
+      });
+    }
 
     return {
       sourceLabel: "正式設定",
@@ -337,6 +450,7 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
           updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
         };
       }),
+      formBranches: mappedFormBranches,
       templates: landingPageTemplates,
       landingPages: alyssaLandingPages,
     };

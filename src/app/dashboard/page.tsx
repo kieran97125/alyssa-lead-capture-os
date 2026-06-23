@@ -16,8 +16,8 @@ export const dynamic = "force-dynamic";
 
 async function getDashboardOverview() {
   const [today, week, config, landingPages] = await Promise.all([
-    getLeadRows("today", 5000),
-    getLeadRows("last7", 5000),
+    getLeadRows("today", 5000, { includeTestData: false }),
+    getLeadRows("last7", 5000, { includeTestData: false }),
     getConfigurationData(),
     getLandingPageList(),
   ]);

@@ -16,6 +16,13 @@ function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
 }
 
+function readStringArray(formData: FormData, key: string) {
+  return formData
+    .getAll(key)
+    .map((value) => String(value).trim())
+    .filter(Boolean);
+}
+
 function redirectWithMessage(path: string, key: string, message: string): never {
   redirect(`${path}?${key}=${encodeURIComponent(message)}`);
 }
@@ -40,6 +47,7 @@ function parseNewFormInput(formData: FormData): ManagedFormInput | string {
     defaultTreatmentId: readString(formData, "defaultTreatmentId"),
     defaultPackageId: readString(formData, "defaultPackageId"),
     defaultBranchId: readString(formData, "defaultBranchId"),
+    branchIds: readStringArray(formData, "branchIds"),
     allowedDomains: parsedDomains.domains,
     status: "active",
   };
