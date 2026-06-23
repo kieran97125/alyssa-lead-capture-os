@@ -20,7 +20,8 @@ import {
   decodePublicAttributionCookie,
   encodePublicAttributionCookie,
   hasPublicAttributionTracking,
-  publicAttributionTrackingKeys,
+  normalizePublicAttributionFields,
+  publicAttributionParamKeys,
 } from "@/lib/attribution/publicAttributionCookie";
 import {
   getLandingPageContext,
@@ -145,10 +146,12 @@ function getServerInitialAttribution(pageUrl: string | undefined) {
 
   try {
     const url = new URL(pageUrl);
-    const tracking = Object.fromEntries(
-      publicAttributionTrackingKeys
-        .map((key) => [key, url.searchParams.get(key)] as const)
-        .filter(([, value]) => Boolean(value))
+    const tracking = normalizePublicAttributionFields(
+      Object.fromEntries(
+        publicAttributionParamKeys
+          .map((key) => [key, url.searchParams.get(key)] as const)
+          .filter(([, value]) => Boolean(value))
+      )
     );
 
     if (!hasPublicAttributionTracking(tracking)) return null;
@@ -172,10 +175,12 @@ function getInlineBootstrapAttribution(pageUrl: string | undefined) {
 
   try {
     const url = new URL(pageUrl);
-    const tracking = Object.fromEntries(
-      publicAttributionTrackingKeys
+    const tracking = normalizePublicAttributionFields(
+      Object.fromEntries(
+        publicAttributionParamKeys
         .map((key) => [key, url.searchParams.get(key)] as const)
         .filter(([, value]) => Boolean(value))
+      )
     );
 
     if (!hasPublicAttributionTracking(tracking)) return null;
@@ -195,7 +200,13 @@ function getInlineBootstrapAttribution(pageUrl: string | undefined) {
 }
 
 async function getProxyAttributionPageUrl(initialQueryString: string) {
-  if (hasPublicAttributionTracking(Object.fromEntries(new URLSearchParams(initialQueryString)))) {
+  if (
+    hasPublicAttributionTracking(
+      normalizePublicAttributionFields(
+        Object.fromEntries(new URLSearchParams(initialQueryString))
+      )
+    )
+  ) {
     return undefined;
   }
 
@@ -564,7 +575,7 @@ function PublicAttributionCookieScript({
   try {
     var cookieValue = ${JSON.stringify(cookieValue)};
     var secure = window.location.protocol === "https:" ? "; Secure" : "";
-    var trackingKeys = ${JSON.stringify(publicAttributionTrackingKeys)};
+    var trackingKeys = ${JSON.stringify(publicAttributionParamKeys)};
     var lockedKey = ${JSON.stringify(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY)};
     var bootstrapFlagKey = "launchhub_attribution_bootstrap_ran";
     var bootstrapPayload = ${JSON.stringify(inlineBootstrapAttribution)};

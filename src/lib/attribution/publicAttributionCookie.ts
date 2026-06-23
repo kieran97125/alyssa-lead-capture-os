@@ -31,8 +31,31 @@ export const publicAttributionTrackingKeys = [
 export type PublicAttributionTrackingKey =
   (typeof publicAttributionTrackingKeys)[number];
 
+export const publicAttributionBackupParamMap = {
+  lh_source: "utm_source",
+  lh_medium: "utm_medium",
+  lh_campaign: "utm_campaign",
+  lh_content: "utm_content",
+  lh_term: "utm_term",
+  lh_campaign_id: "campaign_id",
+  lh_adset_id: "adset_id",
+  lh_ad_id: "ad_id",
+  lh_placement: "placement",
+  lh_channel: "utm_source",
+  lh_brand: "brand",
+} as const;
+
+export const publicAttributionBackupParamKeys = Object.keys(
+  publicAttributionBackupParamMap
+) as Array<keyof typeof publicAttributionBackupParamMap>;
+
+export const publicAttributionParamKeys = [
+  ...publicAttributionTrackingKeys,
+  ...publicAttributionBackupParamKeys,
+] as const;
+
 export type PublicAttributionCookiePayload = Partial<
-  Record<PublicAttributionTrackingKey, string>
+  Record<(typeof publicAttributionParamKeys)[number], string>
 > & {
   captured_at: string;
   source_capture_method:
@@ -49,11 +72,50 @@ function stringValue(value: unknown) {
   return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
+export function normalizePublicAttributionFields<
+  T extends Record<string, unknown>,
+>(value: T | null | undefined) {
+  const normalized: Record<string, unknown> = { ...(value || {}) };
+
+  publicAttributionBackupParamKeys.forEach((backupKey) => {
+    const canonicalKey = publicAttributionBackupParamMap[backupKey];
+    const backupValue = stringValue(normalized[backupKey]);
+    if (!backupValue) return;
+
+    if (!stringValue(normalized[canonicalKey])) {
+      normalized[canonicalKey] = backupValue;
+    }
+  });
+
+  if (!stringValue(normalized.meta_campaign_id)) {
+    normalized.meta_campaign_id =
+      stringValue(normalized.campaign_id) ||
+      stringValue(normalized.lh_campaign_id) ||
+      normalized.meta_campaign_id;
+  }
+  if (!stringValue(normalized.meta_adset_id)) {
+    normalized.meta_adset_id =
+      stringValue(normalized.adset_id) ||
+      stringValue(normalized.lh_adset_id) ||
+      normalized.meta_adset_id;
+  }
+  if (!stringValue(normalized.meta_ad_id)) {
+    normalized.meta_ad_id =
+      stringValue(normalized.ad_id) ||
+      stringValue(normalized.lh_ad_id) ||
+      normalized.meta_ad_id;
+  }
+
+  return normalized as T & Record<string, unknown>;
+}
+
 export function hasPublicAttributionTracking(
   value: object | null | undefined
 ) {
   if (!value) return false;
-  const record = value as Record<string, unknown>;
+  const record = normalizePublicAttributionFields(
+    value as Record<string, unknown>
+  );
 
   return publicAttributionTrackingKeys.some((key) =>
     Boolean(stringValue(record[key]))
@@ -88,14 +150,17 @@ export function createPublicAttributionCookiePayload(
   url: URL,
   capturedAt = new Date().toISOString()
 ): PublicAttributionCookiePayload | null {
-  const tracking: Partial<Record<PublicAttributionTrackingKey, string>> = {};
+  const tracking: Partial<Record<(typeof publicAttributionParamKeys)[number], string>> =
+    {};
 
-  publicAttributionTrackingKeys.forEach((key) => {
+  publicAttributionParamKeys.forEach((key) => {
     const value = url.searchParams.get(key);
     if (value) tracking[key] = value;
   });
 
-  if (!hasPublicAttributionTracking(tracking)) return null;
+  const normalizedTracking = normalizePublicAttributionFields(tracking);
+
+  if (!hasPublicAttributionTracking(normalizedTracking)) return null;
 
   const fullUrl = url.toString();
 
@@ -105,7 +170,7 @@ export function createPublicAttributionCookiePayload(
     current_page_url: fullUrl,
     landing_page_url: fullUrl,
     page_path: url.pathname,
-    ...tracking,
+    ...normalizedTracking,
   };
 }
 
@@ -137,7 +202,7 @@ export function decodePublicAttributionCookie(
       landing_page_url: stringValue(parsed.landing_page_url) || "",
       page_path: stringValue(parsed.page_path) || "",
       ...Object.fromEntries(
-        publicAttributionTrackingKeys
+        publicAttributionParamKeys
           .map((key) => [key, stringValue(parsed[key])] as const)
           .filter(([, item]) => Boolean(item))
       ),

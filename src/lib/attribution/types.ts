@@ -76,6 +76,9 @@ export type TouchPayload = {
   msclkid?: string | null;
   wbraid?: string | null;
   gbraid?: string | null;
+  campaign_id?: string | null;
+  adset_id?: string | null;
+  ad_id?: string | null;
   ctwa_id?: string | null;
   ctwa_clid?: string | null;
   whatsapp_message_id?: string | null;
@@ -86,6 +89,17 @@ export type TouchPayload = {
   meta_campaign_id?: string | null;
   placement?: string | null;
   meta_source_url?: string | null;
+  lh_source?: string | null;
+  lh_medium?: string | null;
+  lh_campaign?: string | null;
+  lh_content?: string | null;
+  lh_term?: string | null;
+  lh_campaign_id?: string | null;
+  lh_adset_id?: string | null;
+  lh_ad_id?: string | null;
+  lh_placement?: string | null;
+  lh_channel?: string | null;
+  lh_brand?: string | null;
   whatsapp_referral_headline?: string | null;
   whatsapp_referral_body?: string | null;
   whatsapp_referral_source_type?: string | null;

@@ -11,6 +11,7 @@ import {
   chooseBestPublicAttribution,
   decodePublicAttributionCookie,
   hasPublicAttributionTracking,
+  normalizePublicAttributionFields,
 } from "@/lib/attribution/publicAttributionCookie";
 import { TouchPayload } from "@/lib/attribution/types";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
@@ -87,8 +88,11 @@ function getStorageRecoverySource(touch: TouchPayload) {
 }
 
 function classifySubmittedTouch(touch: TouchPayload) {
-  const classification = classifyAttribution(touch, {
-    parentPayloadMissing: Object.keys(touch).length === 0,
+  const normalizedTouch = normalizePublicAttributionFields(
+    touch as Record<string, unknown>
+  ) as TouchPayload;
+  const classification = classifyAttribution(normalizedTouch, {
+    parentPayloadMissing: Object.keys(normalizedTouch).length === 0,
     recoveredFromStorage: getStorageRecoverySource(touch),
   });
 
@@ -96,7 +100,7 @@ function classifySubmittedTouch(touch: TouchPayload) {
     (touch.source_capture_method === "server_inline_bootstrap_first_touch" ||
       (touch as Record<string, unknown>).attribution_source_used ===
         "inline_bootstrap") &&
-    hasPublicAttributionTracking(touch)
+    hasPublicAttributionTracking(normalizedTouch)
   ) {
     return {
       ...classification,
@@ -108,7 +112,7 @@ function classifySubmittedTouch(touch: TouchPayload) {
     (touch.source_capture_method === "public_landing_page_locked_first_touch" ||
       (touch as Record<string, unknown>).attribution_source_used ===
         "locked_attribution") &&
-    hasPublicAttributionTracking(touch)
+    hasPublicAttributionTracking(normalizedTouch)
   ) {
     return {
       ...classification,
@@ -118,7 +122,7 @@ function classifySubmittedTouch(touch: TouchPayload) {
 
   if (
     touch.source_capture_method === "server_public_lp_initial_search" &&
-    hasPublicAttributionTracking(touch)
+    hasPublicAttributionTracking(normalizedTouch)
   ) {
     return {
       ...classification,
@@ -140,7 +144,11 @@ function classifySubmittedTouch(touch: TouchPayload) {
 }
 
 function getSafeTouch(value: TouchPayload | undefined) {
-  return value && typeof value === "object" ? value : {};
+  return value && typeof value === "object"
+    ? (normalizePublicAttributionFields(
+        value as Record<string, unknown>
+      ) as TouchPayload)
+    : {};
 }
 
 function mergeTouch(base: TouchPayload, source: TouchPayload): TouchPayload {
@@ -567,6 +575,13 @@ function createAttributionDebugPayload({
     final_utm_medium: cleanText(submittedTouch.utm_medium, 300),
     final_utm_campaign: cleanText(submittedTouch.utm_campaign, 300),
     final_utm_content: cleanText(submittedTouch.utm_content, 300),
+    final_campaign_id: cleanText(submittedTouch.campaign_id, 300),
+    final_adset_id: cleanText(submittedTouch.adset_id, 300),
+    final_ad_id: cleanText(submittedTouch.ad_id, 300),
+    final_placement: cleanText(submittedTouch.placement, 300),
+    final_meta_campaign_id: cleanText(submittedTouch.meta_campaign_id, 300),
+    final_meta_adset_id: cleanText(submittedTouch.meta_adset_id, 300),
+    final_meta_ad_id: cleanText(submittedTouch.meta_ad_id, 300),
     final_fbclid: cleanText(submittedTouch.fbclid, 500),
     final_current_page_url: cleanText(submittedTouch.current_page_url, 2000),
     final_landing_page_url: cleanText(submittedTouch.landing_page_url, 2000),

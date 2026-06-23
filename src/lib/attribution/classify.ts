@@ -52,21 +52,21 @@ export function classifyAttribution(
     hasValue(touch.landing_page_url) ||
     hasValue(touch.current_page_url);
 
-  if (hasCtwa) {
-    return {
-      sourceType: "whatsapp_ctwa",
-      attributionQuality: "ctwa_detected",
-      trackingStatus: "ctwa_detected",
-      auditReason: "ctwa_id_detected_from_whatsapp_payload",
-    };
-  }
-
   if (utmCount >= 3) {
     return {
       sourceType: "reg_form_utm",
       attributionQuality: "complete_utm",
       trackingStatus: "complete_utm",
       auditReason: "utm_found_on_parent_url",
+    };
+  }
+
+  if (hasCtwa) {
+    return {
+      sourceType: "whatsapp_ctwa",
+      attributionQuality: "ctwa_detected",
+      trackingStatus: "ctwa_detected",
+      auditReason: "ctwa_id_detected_from_whatsapp_payload",
     };
   }
 

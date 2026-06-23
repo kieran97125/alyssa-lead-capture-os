@@ -7,56 +7,15 @@ import {
   chooseBestPublicAttribution,
   decodePublicAttributionCookie,
   hasPublicAttributionTracking,
-  publicAttributionTrackingKeys,
+  normalizePublicAttributionFields,
+  publicAttributionParamKeys,
 } from "@/lib/attribution/publicAttributionCookie";
 
-const attributionKeys = [
-  "utm_source",
-  "utm_medium",
-  "utm_campaign",
-  "utm_id",
-  "utm_content",
-  "utm_term",
-  "fbclid",
-  "gclid",
-  "ttclid",
-  "msclkid",
-  "wbraid",
-  "gbraid",
-  "campaign_id",
-  "adset_id",
-  "ad_id",
-  "ctwa_id",
-  "ctwa_clid",
-  "meta_ad_id",
-  "meta_adset_id",
-  "meta_campaign_id",
-  "placement",
-  "whatsapp_referral_source_id",
-] as const;
+const attributionKeys = [...publicAttributionParamKeys, "utm_id"] as const;
 
 const trackingRestoreKeys = [
-  "utm_source",
-  "utm_medium",
-  "utm_campaign",
-  "utm_content",
-  "utm_term",
-  "fbclid",
-  "gclid",
-  "ttclid",
-  "msclkid",
-  "wbraid",
-  "gbraid",
-  "campaign_id",
-  "adset_id",
-  "ad_id",
-  "ctwa_id",
-  "ctwa_clid",
-  "meta_ad_id",
-  "meta_adset_id",
-  "meta_campaign_id",
-  "placement",
-  "whatsapp_referral_source_id",
+  ...publicAttributionParamKeys,
+  "utm_id",
 ] as const;
 
 const queryRestoreKeys = [
@@ -119,16 +78,16 @@ function pickSourceParams(searchParams: URLSearchParams) {
     const value = searchParams.get(key);
     if (value) output[key] = value;
   });
-  return output;
+  return normalizePublicAttributionFields(output);
 }
 
 function pickCookieSourceParams(value: Record<string, unknown>) {
   const output: Record<string, string> = {};
-  publicAttributionTrackingKeys.forEach((key) => {
+  publicAttributionParamKeys.forEach((key) => {
     const item = value[key];
     if (typeof item === "string" && item.trim()) output[key] = item;
   });
-  return output;
+  return normalizePublicAttributionFields(output);
 }
 
 function getString(value: unknown) {
@@ -138,7 +97,10 @@ function getString(value: unknown) {
 function getServerInitialAttribution(
   value: Record<string, unknown> | null | undefined
 ) {
-  return value && hasPublicAttributionTracking(value) ? value : null;
+  const normalized = normalizePublicAttributionFields(value);
+  return normalized && hasPublicAttributionTracking(normalized)
+    ? normalized
+    : null;
 }
 
 function readCookie(name: string) {
@@ -177,7 +139,10 @@ function createEffectiveUrl(initialQueryString: string) {
 function getTrackingTouch(
   value: Record<string, unknown> | null | undefined
 ) {
-  return value && hasPublicAttributionTracking(value) ? value : null;
+  const normalized = normalizePublicAttributionFields(value);
+  return normalized && hasPublicAttributionTracking(normalized)
+    ? normalized
+    : null;
 }
 
 function createLockedPayload({

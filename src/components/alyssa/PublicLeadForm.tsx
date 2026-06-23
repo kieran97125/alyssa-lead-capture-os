@@ -19,6 +19,8 @@ import {
   chooseBestPublicAttribution,
   decodePublicAttributionCookie,
   hasPublicAttributionTracking,
+  normalizePublicAttributionFields,
+  publicAttributionParamKeys,
 } from "@/lib/attribution/publicAttributionCookie";
 import {
   alyssaBranches,
@@ -83,6 +85,13 @@ type AttributionDebugResponse = {
   final_utm_medium: string;
   final_utm_campaign: string;
   final_utm_content: string;
+  final_campaign_id: string;
+  final_adset_id: string;
+  final_ad_id: string;
+  final_placement: string;
+  final_meta_campaign_id: string;
+  final_meta_adset_id: string;
+  final_meta_ad_id: string;
   final_fbclid: string;
   final_current_page_url: string;
   final_landing_page_url: string;
@@ -130,30 +139,7 @@ type PublicLeadFormProps = {
   className?: string;
 };
 
-const ATTRIBUTION_KEYS = [
-  "utm_source",
-  "utm_medium",
-  "utm_campaign",
-  "utm_id",
-  "utm_content",
-  "utm_term",
-  "fbclid",
-  "gclid",
-  "ttclid",
-  "msclkid",
-  "wbraid",
-  "gbraid",
-  "campaign_id",
-  "adset_id",
-  "ad_id",
-  "ctwa_id",
-  "ctwa_clid",
-  "meta_ad_id",
-  "meta_adset_id",
-  "meta_campaign_id",
-  "placement",
-  "whatsapp_referral_source_id",
-];
+const ATTRIBUTION_KEYS = [...publicAttributionParamKeys, "utm_id"] as const;
 
 function getString(value: unknown) {
   return typeof value === "string" ? value : "";
@@ -257,7 +243,7 @@ function pickParams(searchParams: URLSearchParams) {
     const value = searchParams.get(key);
     if (value) output[key] = value;
   });
-  return output;
+  return normalizePublicAttributionFields(output);
 }
 
 function normalizeQueryString(value: string) {
@@ -290,12 +276,19 @@ function readProxyAttributionCookie() {
 function getServerInitialAttribution(
   value: Record<string, unknown> | null | undefined
 ) {
-  return value && hasPublicAttributionTracking(value) ? value : null;
+  const normalized = normalizePublicAttributionFields(value);
+  return normalized && hasPublicAttributionTracking(normalized)
+    ? normalized
+    : null;
 }
 
 function getTrackingTouch(value: unknown) {
-  return value && typeof value === "object" && hasPublicAttributionTracking(value)
-    ? (value as Record<string, unknown>)
+  const normalized =
+    value && typeof value === "object"
+      ? normalizePublicAttributionFields(value as Record<string, unknown>)
+      : null;
+  return normalized && hasPublicAttributionTracking(normalized)
+    ? normalized
     : null;
 }
 
@@ -341,7 +334,7 @@ function pickTouchParams(value: Record<string, unknown>) {
     const item = value[key];
     if (typeof item === "string" && item.trim()) output[key] = item.trim();
   });
-  return output;
+  return normalizePublicAttributionFields(output);
 }
 
 function getEffectiveAttributionUrl(
@@ -460,6 +453,12 @@ function classifyTracking(payload: Record<string, unknown>) {
       payload.wbraid ||
       payload.gbraid
   );
+  const normalizedPayload = normalizePublicAttributionFields(payload);
+  const hasMetaIds = Boolean(
+    normalizedPayload.meta_campaign_id ||
+      normalizedPayload.meta_adset_id ||
+      normalizedPayload.meta_ad_id
+  );
 
   if (utmCount >= 3) {
     return {
@@ -475,7 +474,7 @@ function classifyTracking(payload: Record<string, unknown>) {
     };
   }
 
-  if (hasClickId) {
+  if (hasClickId || hasMetaIds) {
     return {
       tracking_status: "click_id_only",
       audit_reason: "fbclid_found_without_utm",
@@ -1541,6 +1540,13 @@ function AttributionDebugPanel({
     ["final utm_medium", debug.final_utm_medium || "-"],
     ["final utm_campaign", debug.final_utm_campaign || "-"],
     ["final utm_content", debug.final_utm_content || "-"],
+    ["final campaign_id", debug.final_campaign_id || "-"],
+    ["final adset_id", debug.final_adset_id || "-"],
+    ["final ad_id", debug.final_ad_id || "-"],
+    ["final placement", debug.final_placement || "-"],
+    ["final meta_campaign_id", debug.final_meta_campaign_id || "-"],
+    ["final meta_adset_id", debug.final_meta_adset_id || "-"],
+    ["final meta_ad_id", debug.final_meta_ad_id || "-"],
     ["final fbclid", debug.final_fbclid || "-"],
     ["final tracking_status", debug.final_tracking_status || "-"],
     ["final audit_reason", debug.final_audit_reason || "-"],

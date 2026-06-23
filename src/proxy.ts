@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import {
   PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
   PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  createPublicAttributionCookiePayload,
   encodePublicAttributionCookie,
-  publicAttributionTrackingKeys,
 } from "@/lib/attribution/publicAttributionCookie";
 import { isInternalRoute } from "@/lib/security/routeBoundary";
 import {
@@ -112,24 +112,7 @@ function redirectLegacyPublicLandingPageSlug(request: NextRequest) {
 function getPublicLpAttributionCookieValue(request: NextRequest) {
   if (!request.nextUrl.pathname.startsWith("/lp/")) return null;
 
-  const searchParams = new URLSearchParams(request.nextUrl.search);
-  const tracking = Object.fromEntries(
-    publicAttributionTrackingKeys
-      .map((key) => [key, searchParams.get(key)] as const)
-      .filter(([, value]) => Boolean(value))
-  );
-
-  if (Object.keys(tracking).length === 0) return null;
-
-  const fullUrl = `${request.nextUrl.origin}${request.nextUrl.pathname}${request.nextUrl.search}`;
-  const payload = {
-    captured_at: new Date().toISOString(),
-    source_capture_method: "proxy_public_lp_first_touch" as const,
-    current_page_url: fullUrl,
-    landing_page_url: fullUrl,
-    page_path: request.nextUrl.pathname,
-    ...tracking,
-  };
+  const payload = createPublicAttributionCookiePayload(request.nextUrl);
 
   return payload ? encodePublicAttributionCookie(payload) : null;
 }

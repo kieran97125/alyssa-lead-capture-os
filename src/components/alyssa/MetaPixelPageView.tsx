@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import {
   LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
   hasPublicAttributionTracking,
-  publicAttributionTrackingKeys,
+  publicAttributionParamKeys,
 } from "@/lib/attribution/publicAttributionCookie";
 import {
   cleanMetaPixelId,
@@ -130,7 +130,7 @@ function urlHasTracking(value: string | undefined) {
 
   try {
     const parsed = new URL(value);
-    return publicAttributionTrackingKeys.some((key) =>
+    return publicAttributionParamKeys.some((key) =>
       Boolean(parsed.searchParams.get(key))
     );
   } catch {

@@ -23,6 +23,20 @@
     "placement",
     "whatsapp_referral_source_id"
   ];
+  var BACKUP_PARAM_MAP = {
+    lh_source: "utm_source",
+    lh_medium: "utm_medium",
+    lh_campaign: "utm_campaign",
+    lh_content: "utm_content",
+    lh_term: "utm_term",
+    lh_campaign_id: "campaign_id",
+    lh_adset_id: "adset_id",
+    lh_ad_id: "ad_id",
+    lh_placement: "placement",
+    lh_channel: "utm_source",
+    lh_brand: "brand"
+  };
+  var ALL_ATTRIBUTION_KEYS = ATTRIBUTION_KEYS.concat(Object.keys(BACKUP_PARAM_MAP));
 
   function safeJsonParse(value) {
     try {
@@ -56,10 +70,33 @@
 
   function pickParams(searchParams) {
     var output = {};
-    ATTRIBUTION_KEYS.forEach(function (key) {
+    ALL_ATTRIBUTION_KEYS.forEach(function (key) {
       var value = searchParams.get(key);
       if (value) output[key] = value;
     });
+    return normalizeAttributionFields(output);
+  }
+
+  function normalizeAttributionFields(input) {
+    var output = Object.assign({}, input || {});
+
+    Object.keys(BACKUP_PARAM_MAP).forEach(function (backupKey) {
+      var canonicalKey = BACKUP_PARAM_MAP[backupKey];
+      var value = output[backupKey];
+      if (!value) return;
+      if (!output[canonicalKey]) output[canonicalKey] = value;
+    });
+
+    if (!output.meta_campaign_id) {
+      output.meta_campaign_id = output.campaign_id || output.lh_campaign_id || output.meta_campaign_id;
+    }
+    if (!output.meta_adset_id) {
+      output.meta_adset_id = output.adset_id || output.lh_adset_id || output.meta_adset_id;
+    }
+    if (!output.meta_ad_id) {
+      output.meta_ad_id = output.ad_id || output.lh_ad_id || output.meta_ad_id;
+    }
+
     return output;
   }
 
@@ -93,6 +130,11 @@
       payload.wbraid ||
       payload.gbraid
     );
+    var hasMetaIds = Boolean(
+      payload.meta_campaign_id ||
+      payload.meta_adset_id ||
+      payload.meta_ad_id
+    );
     var hasReferrer = Boolean(payload.referrer || payload.current_page_url || payload.landing_page_url);
 
     if (utmCount >= 3) {
@@ -103,7 +145,7 @@
       return { tracking_status: "partial_utm", audit_reason: "iframe_received_parent_payload" };
     }
 
-    if (hasClickId) {
+    if (hasClickId || hasMetaIds) {
       return { tracking_status: "click_id_only", audit_reason: "fbclid_found_without_utm" };
     }
 
@@ -126,9 +168,13 @@
     var script = document.currentScript;
     if (!script) return;
 
-    var formToken = script.getAttribute("data-form-token") || "alyssa-main-form-dev-token";
-    var brand = script.getAttribute("data-brand") || "alyssa";
-    var formId = script.getAttribute("data-form-id") || "alyssa-main-form";
+    var formToken = script.getAttribute("data-form-token") || "";
+    var brand = script.getAttribute("data-brand") || "";
+    var formId = script.getAttribute("data-form-id") || "";
+    if (!formToken) {
+      console.error("[LaunchHub] Missing required data-form-token on embed script.");
+      return;
+    }
     var targetId = script.getAttribute("data-target-id") || "";
     var height = script.getAttribute("data-height") || "820";
     var scriptOrigin = new URL(script.src).origin;
@@ -202,8 +248,8 @@
     }
 
     var iframeUrl = new URL(embedOrigin + "/embed/" + encodeURIComponent(formToken));
-    iframeUrl.searchParams.set("brand", brand);
-    iframeUrl.searchParams.set("form_id", formId);
+    if (brand) iframeUrl.searchParams.set("brand", brand);
+    if (formId) iframeUrl.searchParams.set("form_id", formId);
     Object.keys(paramPayload).forEach(function (key) {
       iframeUrl.searchParams.set(key, paramPayload[key]);
     });

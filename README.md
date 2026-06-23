@@ -593,7 +593,7 @@ Recommended Wix setup:
 - After successful save, the iframe posts `launchhub:form-submitted` to Wix.
 - Wix fires Meta Pixel `CompleteRegistration` from the parent page.
 
-Use this structure on the Wix page:
+Use this structure on the Wix page when manually creating the iframe:
 
 ```html
 <div id="launchhub-form"></div>
@@ -639,7 +639,9 @@ Use this structure on the Wix page:
 </script>
 ```
 
-Preserved iframe query/source parameters include `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `fbclid`, `gclid`, `ttclid`, `msclkid`, `wbraid`, `gbraid`, `campaign_id`, `adset_id`, `ad_id`, `placement`, `ctwa_id`, `ctwa_clid`, `meta_campaign_id`, `meta_adset_id`, `meta_ad_id`, `parent_url`, and `parent_origin`.
+Preserved iframe query/source parameters include `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `fbclid`, `gclid`, `ttclid`, `msclkid`, `wbraid`, `gbraid`, `campaign_id`, `adset_id`, `ad_id`, `placement`, `lh_source`, `lh_medium`, `lh_campaign`, `lh_content`, `lh_term`, `lh_campaign_id`, `lh_adset_id`, `lh_ad_id`, `lh_placement`, `ctwa_id`, `ctwa_clid`, `meta_campaign_id`, `meta_adset_id`, `meta_ad_id`, `parent_url`, and `parent_origin`.
+
+For normal Wix deployment, use the LaunchHub embed script. It reads the Wix page URL query string, passes standard UTM and `lh_*` backup tracking into the iframe, and sends a parent-page `CompleteRegistration` message only after LaunchHub confirms the lead was saved. The script requires `data-form-token`; it does not silently fall back to the Alyssa demo token.
 
 Brand examples:
 
@@ -648,9 +650,9 @@ Brand examples:
 <div id="ineffable-launchhub-form"></div>
 <script
   src="https://go.beautytrialhk.com/embed/alyssa-form.js"
-  data-form-token="INEFFABLE_FORM_TOKEN"
+  data-form-token="INEFFABLE_FORM_TOKEN_FROM_LAUNCHHUB"
   data-brand="ineffable"
-  data-form-id="INEFFABLE_FORM_ID"
+  data-form-id="INEFFABLE_FORM_ID_OPTIONAL"
   data-target-id="ineffable-launchhub-form"
   async
 ></script>
@@ -661,15 +663,38 @@ Brand examples:
 <div id="alyssa-launchhub-form"></div>
 <script
   src="https://go.beautytrialhk.com/embed/alyssa-form.js"
-  data-form-token="ALYSSA_FORM_TOKEN"
+  data-form-token="ALYSSA_FORM_TOKEN_FROM_LAUNCHHUB"
   data-brand="alyssa"
-  data-form-id="ALYSSA_FORM_ID"
+  data-form-id="ALYSSA_FORM_ID_OPTIONAL"
   data-target-id="alyssa-launchhub-form"
   async
 ></script>
 ```
 
-Each brand should use its own form token. Parent Wix URL query parameters are passed into the iframe so UTM/click attribution is saved with the lead.
+Each brand must use its own form token. Ineffable Beauty should use an Ineffable form token, and Alyssa should use an Alyssa form token. The token resolves the backend form, brand, treatment, package, branch, and allowed domains, so the same public embed script can be reused without mixing brands.
+
+Do not use the Ineffable Pixel for Alyssa. Configure Pixels separately:
+
+```bash
+NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE=1020143980486592
+NEXT_PUBLIC_META_PIXEL_ID_ALYSSA=
+```
+
+If `NEXT_PUBLIC_META_PIXEL_ID_ALYSSA` is blank, Alyssa public pages/forms skip Pixel instead of firing to Ineffable. Wix parent pages may still run their own brand Pixel and listen for the post-submit message.
+
+Final recommended Meta URL Parameters for ads:
+
+```text
+utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&utm_term={{adset.name}}&campaign_id={{campaign.id}}&adset_id={{adset.id}}&ad_id={{ad.id}}&placement={{placement}}&lh_source=meta&lh_medium=paid_social&lh_campaign={{campaign.name}}&lh_content={{ad.name}}&lh_term={{adset.name}}&lh_campaign_id={{campaign.id}}&lh_adset_id={{adset.id}}&lh_ad_id={{ad.id}}&lh_placement={{placement}}
+```
+
+Use clean public URLs in live ads, for example:
+
+```text
+https://go.beautytrialhk.com/lp/ineffable-388-13e933
+```
+
+Do not include debug parameters in real ads: `pixel_debug=1` and `attribution_debug=1` are for testing only.
 
 Allowed origins for the LaunchHub form should include the Wix campaign hosts and the public LaunchHub host, for example:
 
@@ -680,6 +705,14 @@ https://go.beautytrialhk.com
 ```
 
 Do not use `app.beautytrialhk.com` for public embeds. Meta Events Manager is used for Pixel/Dataset setup and Test Events, not per-form button-click setup. `CompleteRegistration` is triggered only after LaunchHub confirms the lead was saved.
+
+Launch behavior is save-first, filter-later:
+
+- Real-looking public submissions are not rejected because UTM/cookie/Pixel tracking is missing.
+- Pixel failure does not block form submission.
+- Google Sheets sync failure does not block form submission.
+- Bot, test, spam, duplicate review, and lead quality filtering should happen later from saved registration/source data in LaunchHub, Google Sheets, or CRM.
+- Required field, phone/email format, consent, honeypot, duplicate/rate-limit, allowed-domain, and form-token checks remain active for basic safety.
 
 In production, set:
 
@@ -716,11 +749,31 @@ Pixel IDs are brand-scoped. Ineffable public landing pages use `NEXT_PUBLIC_META
 
 Direct public landing pages on `go.beautytrialhk.com/lp/...` install the standard Meta Pixel base loader in the browser, load `https://connect.facebook.net/en_US/fbevents.js`, call `fbq("init", pixelId)`, and fire `fbq("track", "PageView")` after the Meta script loads. They also create a direct safe image beacon fallback to `https://www.facebook.com/tr` for PageView. Add `?pixel_debug=1` to a public LP URL to show a small debug panel and console logs for Pixel ID, script injection, script load, `fbq` availability, `fbq.loaded`, `fbq.version`, PageView request state, fallback beacon state, and the last load/error state. Direct public landing pages fire `CompleteRegistration` only after `/api/public/leads` returns success; they attempt `fbq("track", "CompleteRegistration")` and create a direct safe image beacon fallback. If `fbq` is unavailable, the form still succeeds and the fallback can still run.
 
-Attribution QA note: open a public LP with tracking parameters such as `/lp/ineffable-388-13e933?utm_source=meta&utm_medium=paid_social&utm_campaign=test_campaign&utm_content=test_hook&fbclid=test123&pixel_debug=1&attribution_debug=1&v=1001`. The attribution debug panel should show the live URL, initial search, preserved page URL, and captured `utm_source`, `utm_campaign`, `utm_content`, and `fbclid`. If browser-side behavior strips tracking parameters after the first document request, LaunchHub restores missing tracking/debug parameters where possible and still uses the server-provided initial search for lead attribution and Meta beacon `dl`. A manual QA check can strip the address bar after load, submit a test lead, and confirm `lead_source_snapshots` keeps the original UTM/fbclid values and full page URL.
+Attribution QA note: open a public LP with tracking parameters such as `/lp/ineffable-388-13e933?utm_source=meta&utm_medium=paid_social&utm_campaign=test_campaign&utm_content=test_hook&fbclid=test123&pixel_debug=1&attribution_debug=1&v=1001`. The attribution debug panel should show the live URL, initial search, preserved page URL, and captured `utm_source`, `utm_campaign`, `utm_content`, and `fbclid`. If browser-side behavior strips tracking parameters after the first document request, LaunchHub restores missing tracking/debug parameters where possible and still uses the server-provided initial search or locked first touch for lead attribution and Meta beacon `dl`. A manual QA check can strip the address bar after load, submit a test lead, and confirm `lead_source_snapshots` keeps the original UTM/fbclid values and full page URL.
 
-Public LP attribution also has a server/proxy first-touch fallback. On `/lp/*` requests that include tracking parameters, the proxy writes a same-site cookie named `launchhub_public_attribution` before client-side code runs. The cookie stores no PII; it only stores `captured_at`, `source_capture_method = "proxy_public_lp_first_touch"`, full `current_page_url`, full `landing_page_url`, `page_path`, and present tracking parameters such as UTM fields, click IDs, CTWA IDs, and Meta campaign/ad IDs. The cookie uses `SameSite=Lax`, `path=/`, `secure` in production, and a 3-day max age. Clean or debug-only page loads do not erase an existing tracking cookie.
+Public LP attribution also has server/proxy and inline first-touch fallbacks. On `/lp/*` requests that include tracking parameters, the proxy writes a same-site cookie named `launchhub_public_attribution` before client-side code runs. The LP HTML also renders a small inline bootstrap script when the first request contains real tracking parameters; it writes the first tracked touch into `sessionStorage`, `localStorage`, and a client-readable backup cookie named `launchhub_public_attribution_client`. These stores contain no PII; they only store `captured_at`, capture method, full `current_page_url`, full `landing_page_url`, `page_path`, and present tracking parameters. Clean or debug-only page loads do not erase an existing tracked first touch.
 
-`/api/public/leads` merges attribution in this order: submitted body tracking, preserved body first/latest tracking, proxy cookie tracking, existing storage-derived body data, then direct/no tracking. This prevents a later clean or debug-only URL from downgrading a tracked lead to `直接 / 無追蹤`. When proxy cookie fallback is used, saved source snapshots keep the full UTM URL and use audit reason `utm_recovered_from_proxy_cookie`.
+LaunchHub supports standard URL parameters and LaunchHub-owned backup aliases. Standard params win when present; backup params fill missing canonical fields:
+
+- `lh_source` -> `utm_source`
+- `lh_medium` -> `utm_medium`
+- `lh_campaign` -> `utm_campaign`
+- `lh_content` -> `utm_content`
+- `lh_term` -> `utm_term`
+- `lh_campaign_id` -> `campaign_id` and `meta_campaign_id`
+- `lh_adset_id` -> `adset_id` and `meta_adset_id`
+- `lh_ad_id` -> `ad_id` and `meta_ad_id`
+- `lh_placement` -> `placement`
+- `lh_channel` -> `utm_source` when `utm_source` / `lh_source` is missing
+- `lh_brand` is kept in raw/debug attribution only
+
+Recommended Meta URL Parameters:
+
+```text
+utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&utm_term={{adset.name}}&campaign_id={{campaign.id}}&adset_id={{adset.id}}&ad_id={{ad.id}}&placement={{placement}}&lh_source=meta&lh_medium=paid_social&lh_campaign={{campaign.name}}&lh_content={{ad.name}}&lh_term={{adset.name}}&lh_campaign_id={{campaign.id}}&lh_adset_id={{adset.id}}&lh_ad_id={{ad.id}}&lh_placement={{placement}}
+```
+
+`/api/public/leads` merges attribution in this order: submitted body tracking, locked/inline bootstrap tracking, server tracking, preserved body first/latest tracking, proxy/client cookie tracking, then direct/no tracking. Objects that only contain debug parameters are ignored for tracking decisions. This prevents a later clean or debug-only URL from downgrading a tracked lead to `直接 / 無追蹤`.
 
 Quick route checks:
 
