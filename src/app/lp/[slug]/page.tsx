@@ -12,6 +12,8 @@ import {
 } from "@/lib/brandThemes";
 import { getConfigurationData } from "@/lib/data/configuration";
 import {
+  LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
+  PUBLIC_ATTRIBUTION_CLIENT_COOKIE_NAME,
   PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS,
   PUBLIC_ATTRIBUTION_COOKIE_NAME,
   createPublicAttributionCookiePayload,
@@ -165,6 +167,33 @@ function getServerInitialAttribution(pageUrl: string | undefined) {
   }
 }
 
+function getInlineBootstrapAttribution(pageUrl: string | undefined) {
+  if (!pageUrl) return null;
+
+  try {
+    const url = new URL(pageUrl);
+    const tracking = Object.fromEntries(
+      publicAttributionTrackingKeys
+        .map((key) => [key, url.searchParams.get(key)] as const)
+        .filter(([, value]) => Boolean(value))
+    );
+
+    if (!hasPublicAttributionTracking(tracking)) return null;
+
+    return {
+      source_capture_method: "server_inline_bootstrap_first_touch",
+      attribution_source_used: "inline_bootstrap",
+      captured_at: new Date().toISOString(),
+      current_page_url: pageUrl,
+      landing_page_url: pageUrl,
+      page_path: url.pathname,
+      ...tracking,
+    };
+  } catch {
+    return null;
+  }
+}
+
 async function getProxyAttributionPageUrl(initialQueryString: string) {
   if (hasPublicAttributionTracking(Object.fromEntries(new URLSearchParams(initialQueryString)))) {
     return undefined;
@@ -219,11 +248,18 @@ export default async function PublicLandingPage({
     getProxyAttributionPageUrl(initialQueryString),
     getRequestOrigin(),
   ]);
+  const requestPageUrl = getPublicLandingPageUrl(
+    canonicalSlug,
+    initialQueryString,
+    requestOrigin
+  );
   const preservedPageUrl =
     proxyAttributionPageUrl ??
-    getPublicLandingPageUrl(canonicalSlug, initialQueryString, requestOrigin);
+    requestPageUrl;
+  const inlineBootstrapAttribution =
+    getInlineBootstrapAttribution(requestPageUrl);
   const serverInitialAttribution =
-    getServerInitialAttribution(preservedPageUrl);
+    inlineBootstrapAttribution ?? getServerInitialAttribution(preservedPageUrl);
   const initialAttributionCookieValue =
     getInitialAttributionCookieValue(preservedPageUrl);
 
@@ -306,7 +342,10 @@ export default async function PublicLandingPage({
       className="min-h-screen overflow-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
       style={themeStyle}
     >
-      <PublicAttributionCookieScript cookieValue={initialAttributionCookieValue} />
+      <PublicAttributionCookieScript
+        cookieValue={initialAttributionCookieValue}
+        inlineBootstrapAttribution={inlineBootstrapAttribution}
+      />
       <PublicLpAttributionCapture
         formToken={connectedForm.publicFormToken}
         formId={connectedForm.id}
@@ -513,18 +552,60 @@ export default async function PublicLandingPage({
 
 function PublicAttributionCookieScript({
   cookieValue,
+  inlineBootstrapAttribution,
 }: {
   cookieValue: string | null;
+  inlineBootstrapAttribution: Record<string, unknown> | null;
 }) {
-  if (!cookieValue) return null;
+  if (!cookieValue && !inlineBootstrapAttribution) return null;
 
   const script = `
 (function () {
   try {
     var cookieValue = ${JSON.stringify(cookieValue)};
-    if (!cookieValue) return;
     var secure = window.location.protocol === "https:" ? "; Secure" : "";
-    document.cookie = ${JSON.stringify(PUBLIC_ATTRIBUTION_COOKIE_NAME)} + "=" + cookieValue + "; Path=/; Max-Age=${PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax" + secure;
+    var trackingKeys = ${JSON.stringify(publicAttributionTrackingKeys)};
+    var lockedKey = ${JSON.stringify(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY)};
+    var bootstrapFlagKey = "launchhub_attribution_bootstrap_ran";
+    var bootstrapPayload = ${JSON.stringify(inlineBootstrapAttribution)};
+    function hasTracking(value) {
+      if (!value || typeof value !== "object") return false;
+      return trackingKeys.some(function (key) {
+        return typeof value[key] === "string" && value[key].trim();
+      });
+    }
+    function readStorage(storage, key) {
+      try {
+        var value = storage.getItem(key);
+        return value ? JSON.parse(value) : null;
+      } catch (error) {
+        return null;
+      }
+    }
+    function writeStorage(storage, key, value) {
+      try {
+        storage.setItem(key, JSON.stringify(value));
+      } catch (error) {}
+    }
+    if (cookieValue) {
+      document.cookie = ${JSON.stringify(PUBLIC_ATTRIBUTION_COOKIE_NAME)} + "=" + cookieValue + "; Path=/; Max-Age=${PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax" + secure;
+    }
+    if (!hasTracking(bootstrapPayload)) return;
+    var existingSession = readStorage(window.sessionStorage, lockedKey);
+    var existingLocal = readStorage(window.localStorage, lockedKey);
+    if (!hasTracking(existingSession)) {
+      writeStorage(window.sessionStorage, lockedKey, bootstrapPayload);
+    }
+    if (!hasTracking(existingLocal)) {
+      writeStorage(window.localStorage, lockedKey, bootstrapPayload);
+    }
+    writeStorage(window.sessionStorage, bootstrapFlagKey, {
+      ran: true,
+      captured_at: bootstrapPayload.captured_at || new Date().toISOString(),
+      source_capture_method: bootstrapPayload.source_capture_method
+    });
+    var clientCookieValue = encodeURIComponent(JSON.stringify(bootstrapPayload));
+    document.cookie = ${JSON.stringify(PUBLIC_ATTRIBUTION_CLIENT_COOKIE_NAME)} + "=" + clientCookieValue + "; Path=/; Max-Age=${PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS}; SameSite=Lax" + secure;
   } catch (error) {}
 })();
 `;

@@ -6,7 +6,9 @@ import {
   normalizePhone,
 } from "@/lib/attribution/classify";
 import {
+  PUBLIC_ATTRIBUTION_CLIENT_COOKIE_NAME,
   PUBLIC_ATTRIBUTION_COOKIE_NAME,
+  chooseBestPublicAttribution,
   decodePublicAttributionCookie,
   hasPublicAttributionTracking,
 } from "@/lib/attribution/publicAttributionCookie";
@@ -40,12 +42,16 @@ type LeadSubmitPayload = {
   latest_touch_json?: TouchPayload;
   submitted_touch_json?: TouchPayload;
   server_touch_json?: TouchPayload;
+  locked_touch_json?: TouchPayload;
+  locked_session_touch_json?: TouchPayload;
+  locked_local_touch_json?: TouchPayload;
   honeypot?: string;
   legalConsentAccepted?: boolean | string;
 };
 
 type AttributionSourceUsed =
   | "body"
+  | "inline_bootstrap"
   | "locked_attribution"
   | "preserved_body"
   | "server_initial"
@@ -85,6 +91,18 @@ function classifySubmittedTouch(touch: TouchPayload) {
     parentPayloadMissing: Object.keys(touch).length === 0,
     recoveredFromStorage: getStorageRecoverySource(touch),
   });
+
+  if (
+    (touch.source_capture_method === "server_inline_bootstrap_first_touch" ||
+      (touch as Record<string, unknown>).attribution_source_used ===
+        "inline_bootstrap") &&
+    hasPublicAttributionTracking(touch)
+  ) {
+    return {
+      ...classification,
+      auditReason: "utm_preserved_from_inline_bootstrap_first_touch",
+    };
+  }
 
   if (
     (touch.source_capture_method === "public_landing_page_locked_first_touch" ||
@@ -142,10 +160,18 @@ function resolveSubmittedAttribution(
   const bodyLatestTouch = getSafeTouch(payload.latest_touch_json);
   const bodySubmittedTouch = getSafeTouch(payload.submitted_touch_json);
   const bodyServerTouch = getSafeTouch(payload.server_touch_json);
+  const bodyLockedTouch = getSafeTouch(payload.locked_touch_json);
+  const bodyLockedSessionTouch = getSafeTouch(payload.locked_session_touch_json);
+  const bodyLockedLocalTouch = getSafeTouch(payload.locked_local_touch_json);
   const proxyCookieValue = request.cookies.get(PUBLIC_ATTRIBUTION_COOKIE_NAME)
     ?.value;
+  const clientCookieValue = request.cookies.get(
+    PUBLIC_ATTRIBUTION_CLIENT_COOKIE_NAME
+  )?.value;
   const proxyCookieTouch =
     decodePublicAttributionCookie(proxyCookieValue) ?? null;
+  const clientCookieTouch =
+    decodePublicAttributionCookie(clientCookieValue) ?? null;
 
   const bodyPreservedTouch = hasPublicAttributionTracking(bodyFirstTouch)
     ? bodyFirstTouch
@@ -162,19 +188,79 @@ function resolveSubmittedAttribution(
     bodySubmittedTouch.source_capture_method ===
       "public_landing_page_locked_first_touch" ||
     bodySubmittedRecord.attribution_source_used === "locked_attribution";
+  const submittedIsInlineBootstrap =
+    bodySubmittedTouch.source_capture_method ===
+      "server_inline_bootstrap_first_touch" ||
+    bodySubmittedRecord.attribution_source_used === "inline_bootstrap";
   const bodyServerRecord = bodyServerTouch as Record<string, unknown>;
   const serverTouchIsLocked =
     bodyServerTouch.source_capture_method ===
       "public_landing_page_locked_first_touch" ||
     bodyServerRecord.attribution_source_used === "locked_attribution";
+  const serverTouchIsInlineBootstrap =
+    bodyServerTouch.source_capture_method ===
+      "server_inline_bootstrap_first_touch" ||
+    bodyServerRecord.attribution_source_used === "inline_bootstrap";
+  const bodyLockedRecord = bodyLockedTouch as Record<string, unknown>;
+  const lockedTouchIsInlineBootstrap =
+    bodyLockedTouch.source_capture_method ===
+      "server_inline_bootstrap_first_touch" ||
+    bodyLockedRecord.attribution_source_used === "inline_bootstrap";
   const serverBodyHasTracking = hasPublicAttributionTracking(bodyServerTouch);
-  const lockedBodyPresent =
-    Boolean(payload.server_touch_json) && serverTouchIsLocked;
-  const lockedBodyHasTracking = serverBodyHasTracking && serverTouchIsLocked;
+  const lockedSessionPresent = Boolean(payload.locked_session_touch_json);
+  const lockedSessionHasTracking = hasPublicAttributionTracking(
+    bodyLockedSessionTouch
+  );
+  const lockedLocalPresent = Boolean(payload.locked_local_touch_json);
+  const lockedLocalHasTracking = hasPublicAttributionTracking(
+    bodyLockedLocalTouch
+  );
+  const selectedLockedTouch = chooseBestPublicAttribution([
+    bodyLockedTouch,
+    bodyLockedSessionTouch,
+    bodyLockedLocalTouch,
+    serverTouchIsLocked || serverTouchIsInlineBootstrap ? bodyServerTouch : null,
+  ]) as TouchPayload | null;
+  const lockedBodyPresent = Boolean(
+    payload.locked_touch_json ||
+      payload.locked_session_touch_json ||
+      payload.locked_local_touch_json ||
+      ((serverTouchIsLocked || serverTouchIsInlineBootstrap) &&
+        payload.server_touch_json)
+  );
+  const lockedBodyHasTracking = hasPublicAttributionTracking(selectedLockedTouch);
+  const inlineBootstrapPresent = Boolean(
+    submittedIsInlineBootstrap ||
+      serverTouchIsInlineBootstrap ||
+      lockedTouchIsInlineBootstrap ||
+      bodyLockedSessionTouch.source_capture_method ===
+        "server_inline_bootstrap_first_touch" ||
+      bodyLockedLocalTouch.source_capture_method ===
+        "server_inline_bootstrap_first_touch" ||
+      clientCookieTouch?.source_capture_method ===
+        "server_inline_bootstrap_first_touch"
+  );
+  const inlineBootstrapHasTracking = Boolean(
+    inlineBootstrapPresent &&
+      hasPublicAttributionTracking(
+        chooseBestPublicAttribution([
+          submittedIsInlineBootstrap ? bodySubmittedTouch : null,
+          serverTouchIsInlineBootstrap ? bodyServerTouch : null,
+          lockedTouchIsInlineBootstrap ? bodyLockedTouch : null,
+          bodyLockedSessionTouch,
+          bodyLockedLocalTouch,
+          clientCookieTouch,
+        ])
+      )
+  );
   const preservedBodyHasTracking = Boolean(bodyPreservedTouch);
   const proxyCookiePresent = Boolean(proxyCookieValue);
   const proxyCookieParseOk = Boolean(proxyCookieTouch);
-  const proxyCookieHasTracking = hasPublicAttributionTracking(proxyCookieTouch);
+  const clientCookiePresent = Boolean(clientCookieValue);
+  const clientCookieParseOk = Boolean(clientCookieTouch);
+  const proxyCookieHasTracking =
+    hasPublicAttributionTracking(proxyCookieTouch) ||
+    hasPublicAttributionTracking(clientCookieTouch);
   const downgradeBlocked =
     Boolean(bodySubmittedTouch.current_page_url || bodySubmittedTouch.landing_page_url) &&
     !submittedHasTracking &&
@@ -183,7 +269,12 @@ function resolveSubmittedAttribution(
       preservedBodyHasTracking ||
       proxyCookieHasTracking);
 
-  if (submittedHasTracking && !submittedIsServerInitial && !submittedIsLocked) {
+  if (
+    submittedHasTracking &&
+    !submittedIsServerInitial &&
+    !submittedIsLocked &&
+    !submittedIsInlineBootstrap
+  ) {
     return {
       firstTouch: bodyFirstTouch,
       latestTouch: bodyLatestTouch,
@@ -194,16 +285,37 @@ function resolveSubmittedAttribution(
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      inlineBootstrapPresent,
+      inlineBootstrapHasTracking,
+      lockedSessionPresent,
+      lockedSessionHasTracking,
+      lockedLocalPresent,
+      lockedLocalHasTracking,
       lockedBodyPresent,
       lockedBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      clientCookiePresent,
+      clientCookieParseOk,
       downgradeBlocked,
     };
   }
 
-  if (lockedBodyHasTracking || (submittedHasTracking && submittedIsLocked)) {
-    const lockedTouch = lockedBodyHasTracking ? bodyServerTouch : bodySubmittedTouch;
+  if (
+    lockedBodyHasTracking ||
+    (submittedHasTracking && (submittedIsLocked || submittedIsInlineBootstrap))
+  ) {
+    const lockedTouch =
+      selectedLockedTouch ||
+      (submittedHasTracking ? bodySubmittedTouch : bodyLockedTouch);
+    const sourceUsed =
+      hasPublicAttributionTracking(lockedTouch) &&
+      (lockedTouch.source_capture_method ===
+        "server_inline_bootstrap_first_touch" ||
+        (lockedTouch as Record<string, unknown>).attribution_source_used ===
+          "inline_bootstrap")
+        ? "inline_bootstrap"
+        : "locked_attribution";
     const submittedTouch = mergeTouch(bodySubmittedTouch, lockedTouch);
     const firstTouch = hasPublicAttributionTracking(bodyFirstTouch)
       ? bodyFirstTouch
@@ -217,19 +329,30 @@ function resolveSubmittedAttribution(
       latestTouch,
       submittedTouch: {
         ...submittedTouch,
-        source_capture_method: "public_landing_page_locked_first_touch",
-        attribution_source_used: "locked_attribution",
+        source_capture_method:
+          sourceUsed === "inline_bootstrap"
+            ? "server_inline_bootstrap_first_touch"
+            : "public_landing_page_locked_first_touch",
+        attribution_source_used: sourceUsed,
       },
-      sourceUsed: "locked_attribution" as AttributionSourceUsed,
+      sourceUsed: sourceUsed as AttributionSourceUsed,
       proxyCookiePresent,
       proxyCookieParseOk,
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      inlineBootstrapPresent,
+      inlineBootstrapHasTracking,
+      lockedSessionPresent,
+      lockedSessionHasTracking,
+      lockedLocalPresent,
+      lockedLocalHasTracking,
       lockedBodyPresent: true,
       lockedBodyHasTracking: true,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      clientCookiePresent,
+      clientCookieParseOk,
       downgradeBlocked,
     };
   }
@@ -258,10 +381,18 @@ function resolveSubmittedAttribution(
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      inlineBootstrapPresent,
+      inlineBootstrapHasTracking,
+      lockedSessionPresent,
+      lockedSessionHasTracking,
+      lockedLocalPresent,
+      lockedLocalHasTracking,
       lockedBodyPresent,
       lockedBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      clientCookiePresent,
+      clientCookieParseOk,
       downgradeBlocked,
     };
   }
@@ -279,37 +410,59 @@ function resolveSubmittedAttribution(
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      inlineBootstrapPresent,
+      inlineBootstrapHasTracking,
+      lockedSessionPresent,
+      lockedSessionHasTracking,
+      lockedLocalPresent,
+      lockedLocalHasTracking,
       lockedBodyPresent,
       lockedBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      clientCookiePresent,
+      clientCookieParseOk,
       downgradeBlocked,
     };
   }
 
-  if (proxyCookieTouch) {
-    const submittedTouch = mergeTouch(bodySubmittedTouch, proxyCookieTouch);
+  const cookieTouch = proxyCookieTouch || clientCookieTouch;
+
+  if (cookieTouch) {
+    const sourceUsed =
+      cookieTouch.source_capture_method === "server_inline_bootstrap_first_touch"
+        ? "inline_bootstrap"
+        : "proxy_cookie";
+    const submittedTouch = mergeTouch(bodySubmittedTouch, cookieTouch);
     const firstTouch = hasPublicAttributionTracking(bodyFirstTouch)
       ? bodyFirstTouch
-      : mergeTouch(bodyFirstTouch, proxyCookieTouch);
+      : mergeTouch(bodyFirstTouch, cookieTouch);
     const latestTouch = hasPublicAttributionTracking(bodyLatestTouch)
       ? bodyLatestTouch
-      : mergeTouch(bodyLatestTouch, proxyCookieTouch);
+      : mergeTouch(bodyLatestTouch, cookieTouch);
 
     return {
       firstTouch,
       latestTouch,
       submittedTouch,
-      sourceUsed: "proxy_cookie" as AttributionSourceUsed,
+      sourceUsed: sourceUsed as AttributionSourceUsed,
       proxyCookiePresent: true,
       proxyCookieParseOk,
       bodyHasTracking: submittedHasTracking,
       serverBodyPresent: Boolean(payload.server_touch_json),
       serverBodyHasTracking,
+      inlineBootstrapPresent,
+      inlineBootstrapHasTracking,
+      lockedSessionPresent,
+      lockedSessionHasTracking,
+      lockedLocalPresent,
+      lockedLocalHasTracking,
       lockedBodyPresent,
       lockedBodyHasTracking,
       preservedBodyHasTracking,
       proxyCookieHasTracking,
+      clientCookiePresent,
+      clientCookieParseOk,
       downgradeBlocked,
     };
   }
@@ -324,10 +477,18 @@ function resolveSubmittedAttribution(
     bodyHasTracking: submittedHasTracking,
     serverBodyPresent: Boolean(payload.server_touch_json),
     serverBodyHasTracking,
+    inlineBootstrapPresent,
+    inlineBootstrapHasTracking,
+    lockedSessionPresent,
+    lockedSessionHasTracking,
+    lockedLocalPresent,
+    lockedLocalHasTracking,
     lockedBodyPresent,
     lockedBodyHasTracking,
     preservedBodyHasTracking,
     proxyCookieHasTracking,
+    clientCookiePresent,
+    clientCookieParseOk,
     downgradeBlocked: false,
   };
 }
@@ -381,12 +542,22 @@ function createAttributionDebugPayload({
 }) {
   return {
     attribution_debug: true,
+    inline_bootstrap_present: resolvedAttribution.inlineBootstrapPresent,
+    inline_bootstrap_has_tracking:
+      resolvedAttribution.inlineBootstrapHasTracking,
+    locked_session_present: resolvedAttribution.lockedSessionPresent,
+    locked_session_has_tracking:
+      resolvedAttribution.lockedSessionHasTracking,
+    locked_local_present: resolvedAttribution.lockedLocalPresent,
+    locked_local_has_tracking: resolvedAttribution.lockedLocalHasTracking,
     server_body_present: resolvedAttribution.serverBodyPresent,
     server_body_has_tracking: resolvedAttribution.serverBodyHasTracking,
     locked_body_present: resolvedAttribution.lockedBodyPresent,
     locked_body_has_tracking: resolvedAttribution.lockedBodyHasTracking,
     proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
     proxy_cookie_parse_ok: resolvedAttribution.proxyCookieParseOk,
+    client_cookie_present: resolvedAttribution.clientCookiePresent,
+    client_cookie_parse_ok: resolvedAttribution.clientCookieParseOk,
     body_has_tracking: resolvedAttribution.bodyHasTracking,
     preserved_body_has_tracking: resolvedAttribution.preservedBodyHasTracking,
     proxy_cookie_has_tracking: resolvedAttribution.proxyCookieHasTracking,

@@ -46,12 +46,21 @@ type AttributionEnvelope = {
   latest_touch_json?: Record<string, unknown>;
   submitted_touch_json?: Record<string, unknown>;
   server_touch_json?: Record<string, unknown>;
+  locked_touch_json?: Record<string, unknown>;
+  locked_session_touch_json?: Record<string, unknown>;
+  locked_local_touch_json?: Record<string, unknown>;
 };
 
 type SubmitState = "idle" | "loading" | "success" | "error";
 
 type AttributionDebugResponse = {
   attribution_debug: true;
+  inline_bootstrap_present: boolean;
+  inline_bootstrap_has_tracking: boolean;
+  locked_session_present: boolean;
+  locked_session_has_tracking: boolean;
+  locked_local_present: boolean;
+  locked_local_has_tracking: boolean;
   server_body_present: boolean;
   server_body_has_tracking: boolean;
   locked_body_present: boolean;
@@ -64,6 +73,7 @@ type AttributionDebugResponse = {
   downgrade_blocked: boolean;
   final_attribution_source_used:
     | "body"
+    | "inline_bootstrap"
     | "locked_attribution"
     | "preserved_body"
     | "server_initial"
@@ -292,9 +302,37 @@ function getTrackingTouch(value: unknown) {
 function readLockedAttribution() {
   if (typeof window === "undefined") return null;
 
-  return getTrackingTouch(
+  return chooseBestPublicAttribution([
+    getTrackingTouch(
+      readStorage(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY, window.sessionStorage)
+    ),
+    getTrackingTouch(
+      readStorage(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY, window.localStorage)
+    ),
+  ]);
+}
+
+function readLockedAttributionDetails() {
+  if (typeof window === "undefined") {
+    return {
+      session: null,
+      local: null,
+      selected: null,
+    };
+  }
+
+  const session = getTrackingTouch(
+    readStorage(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY, window.sessionStorage)
+  );
+  const local = getTrackingTouch(
     readStorage(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY, window.localStorage)
   );
+
+  return {
+    session,
+    local,
+    selected: chooseBestPublicAttribution([session, local]),
+  };
 }
 
 function pickTouchParams(value: Record<string, unknown>) {
@@ -466,7 +504,8 @@ function captureCurrentPageAttribution({
   const localKey = "alyssa_first_touch";
   const sessionKey = "alyssa_latest_touch";
   const serverTouch = getServerInitialAttribution(serverInitialAttribution);
-  const lockedTouch = readLockedAttribution();
+  const lockedDetails = readLockedAttributionDetails();
+  const lockedTouch = lockedDetails.selected;
   const effectiveUrl = getEffectiveAttributionUrl(
     initialQueryString,
     serverInitialAttribution
@@ -489,7 +528,9 @@ function captureCurrentPageAttribution({
   const sessionId =
     readStorage("alyssa_session_id", window.sessionStorage) || createId("ses");
   const paramPayload =
-    effectiveUrl.sourceUsed === "server_initial" && serverTouch
+    effectiveUrl.sourceUsed === "locked_attribution" && lockedTouch
+      ? pickTouchParams(lockedTouch)
+      : effectiveUrl.sourceUsed === "server_initial" && serverTouch
       ? pickTouchParams(serverTouch)
       : pickParams(searchParams);
   const firstStored = readStorage(localKey, window.localStorage);
@@ -576,6 +617,14 @@ function captureCurrentPageAttribution({
         ...latestTouch,
         attribution_source_used: "locked_attribution",
       },
+      window.sessionStorage
+    );
+    writeStorage(
+      LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
+      {
+        ...latestTouch,
+        attribution_source_used: "locked_attribution",
+      },
       window.localStorage
     );
   }
@@ -603,6 +652,9 @@ function captureCurrentPageAttribution({
     submitted_touch_json: submittedTouch,
     server_touch_json:
       authoritativeTrackingTouch || serverTouch || undefined,
+    locked_touch_json: lockedTouch || undefined,
+    locked_session_touch_json: lockedDetails.session || undefined,
+    locked_local_touch_json: lockedDetails.local || undefined,
   };
 }
 
@@ -1091,6 +1143,11 @@ export function PublicLeadForm({
           latest_touch_json: liveAttribution.latest_touch_json || {},
           submitted_touch_json: liveAttribution.submitted_touch_json || {},
           server_touch_json: liveAttribution.server_touch_json || {},
+          locked_touch_json: liveAttribution.locked_touch_json || {},
+          locked_session_touch_json:
+            liveAttribution.locked_session_touch_json || {},
+          locked_local_touch_json:
+            liveAttribution.locked_local_touch_json || {},
         }),
       });
       const result = await response.json();
@@ -1463,6 +1520,12 @@ function AttributionDebugPanel({
   debug: AttributionDebugResponse;
 }) {
   const rows = [
+    ["inline bootstrap present", String(debug.inline_bootstrap_present)],
+    ["inline bootstrap has tracking", String(debug.inline_bootstrap_has_tracking)],
+    ["locked session present", String(debug.locked_session_present)],
+    ["locked session has tracking", String(debug.locked_session_has_tracking)],
+    ["locked local present", String(debug.locked_local_present)],
+    ["locked local has tracking", String(debug.locked_local_has_tracking)],
     ["proxy cookie present", String(debug.proxy_cookie_present)],
     ["server body present", String(debug.server_body_present)],
     ["server body has tracking", String(debug.server_body_has_tracking)],

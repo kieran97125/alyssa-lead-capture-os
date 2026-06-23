@@ -280,9 +280,16 @@ export function PublicLpAttributionCapture({
     const serverAttribution = getServerInitialAttribution(
       serverInitialAttribution
     );
-    const lockedStored = getTrackingTouch(
+    const lockedSessionStored = getTrackingTouch(
+      readStorage(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY, window.sessionStorage)
+    );
+    const lockedLocalStored = getTrackingTouch(
       readStorage(LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY, window.localStorage)
     );
+    const lockedStored = chooseBestPublicAttribution([
+      lockedSessionStored,
+      lockedLocalStored,
+    ]);
     const firstStored = getTrackingTouch(
       readStorage("alyssa_first_touch", window.localStorage)
     );
@@ -399,6 +406,11 @@ export function PublicLpAttributionCapture({
           });
 
     if (!lockedStored) {
+      writeStorage(
+        LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
+        payload,
+        window.sessionStorage
+      );
       writeStorage(
         LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
         payload,

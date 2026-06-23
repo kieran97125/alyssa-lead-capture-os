@@ -1,4 +1,6 @@
 export const PUBLIC_ATTRIBUTION_COOKIE_NAME = "launchhub_public_attribution";
+export const PUBLIC_ATTRIBUTION_CLIENT_COOKIE_NAME =
+  "launchhub_public_attribution_client";
 export const PUBLIC_ATTRIBUTION_COOKIE_MAX_AGE_SECONDS = 3 * 24 * 60 * 60;
 export const LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY =
   "launchhub_locked_attribution";
@@ -33,7 +35,11 @@ export type PublicAttributionCookiePayload = Partial<
   Record<PublicAttributionTrackingKey, string>
 > & {
   captured_at: string;
-  source_capture_method: "proxy_public_lp_first_touch";
+  source_capture_method:
+    | "proxy_public_lp_first_touch"
+    | "server_inline_bootstrap_first_touch"
+    | "public_landing_page_locked_first_touch";
+  attribution_source_used?: string;
   current_page_url: string;
   landing_page_url: string;
   page_path: string;
@@ -119,18 +125,14 @@ export function decodePublicAttributionCookie(
       PublicAttributionCookiePayload
     >;
 
-    if (
-      parsed.source_capture_method !== "proxy_public_lp_first_touch" ||
-      !stringValue(parsed.current_page_url) ||
-      !stringValue(parsed.landing_page_url) ||
-      !hasPublicAttributionTracking(parsed)
-    ) {
+    if (!isValidPublicAttributionCookiePayload(parsed)) {
       return null;
     }
 
     return {
       captured_at: stringValue(parsed.captured_at) || new Date().toISOString(),
-      source_capture_method: "proxy_public_lp_first_touch",
+      source_capture_method: parsed.source_capture_method,
+      attribution_source_used: stringValue(parsed.attribution_source_used) || undefined,
       current_page_url: stringValue(parsed.current_page_url) || "",
       landing_page_url: stringValue(parsed.landing_page_url) || "",
       page_path: stringValue(parsed.page_path) || "",
@@ -143,4 +145,17 @@ export function decodePublicAttributionCookie(
   } catch {
     return null;
   }
+}
+
+function isValidPublicAttributionCookiePayload(
+  parsed: Partial<PublicAttributionCookiePayload>
+): parsed is PublicAttributionCookiePayload {
+  return Boolean(
+    (parsed.source_capture_method === "proxy_public_lp_first_touch" ||
+      parsed.source_capture_method === "server_inline_bootstrap_first_touch" ||
+      parsed.source_capture_method === "public_landing_page_locked_first_touch") &&
+      stringValue(parsed.current_page_url) &&
+      stringValue(parsed.landing_page_url) &&
+      hasPublicAttributionTracking(parsed)
+  );
 }
