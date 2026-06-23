@@ -617,14 +617,18 @@ Use this structure on the Wix page when manually creating the iframe:
   document.getElementById("launchhub-form").appendChild(iframe);
 
   window.addEventListener("message", function (event) {
-    const allowedOrigins = ["https://go.beautytrialhk.com"];
+    const isAllowedOrigin =
+      event.origin === "https://go.beautytrialhk.com" ||
+      event.origin.endsWith(".filesusr.com");
 
-    if (!allowedOrigins.includes(event.origin)) return;
+    if (!isAllowedOrigin) return;
 
     if (
       event.data &&
       event.data.type === "launchhub:form-submitted" &&
-      event.data.event === "CompleteRegistration"
+      event.data.event === "CompleteRegistration" &&
+      event.data.formToken === "YOUR_FORM_TOKEN_OR_PATH" &&
+      event.data.brandSlug === "alyssa"
     ) {
       if (typeof fbq === "function") {
         fbq("track", "CompleteRegistration", {
@@ -641,7 +645,9 @@ Use this structure on the Wix page when manually creating the iframe:
 
 Preserved iframe query/source parameters include `utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `utm_term`, `fbclid`, `gclid`, `ttclid`, `msclkid`, `wbraid`, `gbraid`, `campaign_id`, `adset_id`, `ad_id`, `placement`, `lh_source`, `lh_medium`, `lh_campaign`, `lh_content`, `lh_term`, `lh_campaign_id`, `lh_adset_id`, `lh_ad_id`, `lh_placement`, `ctwa_id`, `ctwa_clid`, `meta_campaign_id`, `meta_adset_id`, `meta_ad_id`, `parent_url`, and `parent_origin`.
 
-For normal Wix deployment, use the LaunchHub embed script. It reads the Wix page URL query string, passes standard UTM and `lh_*` backup tracking into the iframe, and sends a parent-page `CompleteRegistration` message only after LaunchHub confirms the lead was saved. The script requires `data-form-token`; it does not silently fall back to the Alyssa demo token.
+For normal Wix deployment, use the LaunchHub embed script. It reads the Wix page URL query string, passes standard UTM and `lh_*` backup tracking into the iframe, and sends a parent-page `CompleteRegistration` message only after LaunchHub confirms the lead was saved. When Wix runs the embed inside a `filesusr.com` HTML component iframe, the script recovers the real Wix page URL from `document.referrer`, uses that URL for `parent_url` / `parent_origin`, passes the real page tracking params into the LaunchHub iframe, and relays the safe `launchhub:form-submitted` message upward. The script requires `data-form-token`; it does not silently fall back to the Alyssa demo token.
+
+The Wix top-page listener may receive the conversion message directly from `https://go.beautytrialhk.com` or relayed through a Wix `.filesusr.com` HTML iframe. Always verify `data.type`, `data.event`, the exact `data.formToken`, and `data.brandSlug` before firing Meta Pixel so random iframe messages cannot trigger `CompleteRegistration`.
 
 Brand examples:
 

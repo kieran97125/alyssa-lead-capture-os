@@ -899,6 +899,7 @@ export function PublicLeadForm({
 
     if (isEmbed) {
       const targetOrigin = normalizeOrigin(expectedParentOrigin);
+      const referrerOrigin = normalizeOrigin(document.referrer);
 
       if (
         !window.parent ||
@@ -910,21 +911,30 @@ export function PublicLeadForm({
         return;
       }
 
+      const conversionMessage = {
+        type: "launchhub:form-submitted",
+        event: "CompleteRegistration",
+        formToken,
+        brandSlug: brand.slug || brandSlug || "",
+        value: payload.value,
+        currency: payload.currency,
+      };
+      const shouldRelayViaImmediateParent =
+        Boolean(referrerOrigin && referrerOrigin !== targetOrigin) ||
+        Boolean(document.referrer.includes("filesusr.com"));
+
       logConversionDebug("iframe mode uses parent postMessage", {
         formToken,
         brandSlug: brand.slug || brandSlug || "",
+        targetOrigin,
+        referrerOrigin,
+        relayViaImmediateParent: shouldRelayViaImmediateParent,
       });
-      window.parent.postMessage(
-        {
-          type: "launchhub:form-submitted",
-          event: "CompleteRegistration",
-          formToken,
-          brandSlug: brand.slug || brandSlug || "",
-          value: payload.value,
-          currency: payload.currency,
-        },
-        targetOrigin
-      );
+      window.parent.postMessage(conversionMessage, targetOrigin);
+
+      if (shouldRelayViaImmediateParent) {
+        window.parent.postMessage(conversionMessage, "*");
+      }
       return;
     }
 

@@ -104,6 +104,66 @@
     return value && Object.keys(value).length > 0;
   }
 
+  function getOrigin(value) {
+    try {
+      return value ? new URL(value).origin : "";
+    } catch {
+      return "";
+    }
+  }
+
+  function getPathname(value) {
+    try {
+      return value ? new URL(value).pathname : window.location.pathname;
+    } catch {
+      return window.location.pathname;
+    }
+  }
+
+  function isWixHtmlIframe() {
+    return (window.location.hostname || "").indexOf("filesusr.com") !== -1;
+  }
+
+  function getRealParentPageUrl() {
+    var referrer = document.referrer || "";
+
+    if (isWixHtmlIframe() && referrer) {
+      try {
+        var referrerUrl = new URL(referrer);
+
+        if (
+          referrerUrl.protocol === "https:" &&
+          referrerUrl.hostname.indexOf("filesusr.com") === -1
+        ) {
+          return referrerUrl.toString();
+        }
+      } catch {
+      }
+    }
+
+    return window.location.href;
+  }
+
+  function mergeSearchParams(primaryUrl, fallbackSearch) {
+    var output = new URLSearchParams();
+
+    try {
+      new URL(primaryUrl).searchParams.forEach(function (value, key) {
+        if (value) output.set(key, value);
+      });
+    } catch {
+    }
+
+    try {
+      new URLSearchParams(fallbackSearch || "").forEach(function (value, key) {
+        if (value && !output.has(key)) output.set(key, value);
+      });
+    } catch {
+    }
+
+    return output;
+  }
+
   function classifyStorageStatus(localSaved, sessionSaved) {
     if (localSaved && sessionSaved) return "storage_available";
     if (localSaved) return "session_storage_blocked";
@@ -179,10 +239,11 @@
     var height = script.getAttribute("data-height") || "820";
     var scriptOrigin = new URL(script.src).origin;
     var embedOrigin = scriptOrigin;
-    var parentOrigin = window.location.origin;
+    var parentPageUrl = getRealParentPageUrl();
+    var parentOrigin = getOrigin(parentPageUrl) || window.location.origin;
     var localKey = "alyssa_first_touch";
     var sessionKey = "alyssa_latest_touch";
-    var searchParams = new URLSearchParams(window.location.search);
+    var searchParams = mergeSearchParams(parentPageUrl, window.location.search);
     var visitorId =
       readStorage("alyssa_visitor_id", window.localStorage) ||
       createId("vis");
@@ -210,9 +271,9 @@
       form_id: formId,
       parent_origin: parentOrigin,
       referrer: document.referrer || "",
-      landing_page_url: firstStored && firstStored.landing_page_url ? firstStored.landing_page_url : window.location.href,
-      current_page_url: window.location.href,
-      page_path: window.location.pathname,
+      landing_page_url: firstStored && firstStored.landing_page_url ? firstStored.landing_page_url : parentPageUrl,
+      current_page_url: parentPageUrl,
+      page_path: getPathname(parentPageUrl),
       page_title: document.title || "",
       captured_at: new Date().toISOString()
     };
@@ -253,7 +314,7 @@
     Object.keys(paramPayload).forEach(function (key) {
       iframeUrl.searchParams.set(key, paramPayload[key]);
     });
-    iframeUrl.searchParams.set("parent_url", window.location.href);
+    iframeUrl.searchParams.set("parent_url", parentPageUrl);
     iframeUrl.searchParams.set("parent_origin", parentOrigin);
 
     var iframe = document.createElement("iframe");
@@ -287,6 +348,22 @@
       if (event.origin !== embedOrigin) return;
       if (event.data && event.data.type === "alyssa_iframe_ready") {
         sendAttribution();
+      }
+      if (
+        event.data &&
+        event.data.type === "launchhub:form-submitted" &&
+        event.data.event === "CompleteRegistration"
+      ) {
+        if (window.parent && window.parent !== window) {
+          window.parent.postMessage(event.data, "*");
+        }
+        if (
+          window.top &&
+          window.top !== window &&
+          window.top !== window.parent
+        ) {
+          window.top.postMessage(event.data, "*");
+        }
       }
     });
 
