@@ -164,6 +164,35 @@
     return output;
   }
 
+  function getPixelValue(value, fallback) {
+    var parsed = Number(value);
+    return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+  }
+
+  function getPixelCurrency(value) {
+    var cleaned = typeof value === "string" ? value.trim().toUpperCase() : "";
+    return cleaned || "HKD";
+  }
+
+  function getPixelLandingUrl(parentPageUrl) {
+    if (parentPageUrl) return parentPageUrl;
+    if (document.referrer) return document.referrer;
+    return window.location.href;
+  }
+
+  function createCompleteRegistrationBeaconUrl(options) {
+    var params = new URLSearchParams();
+    params.set("id", options.pixelId);
+    params.set("ev", "CompleteRegistration");
+    params.set("noscript", "1");
+    params.set("dl", options.pageUrl);
+    params.set("cd[value]", String(options.value));
+    params.set("cd[currency]", options.currency);
+    params.set("cd[content_category]", "registration");
+
+    return "https://www.facebook.com/tr?" + params.toString();
+  }
+
   function classifyStorageStatus(localSaved, sessionSaved) {
     if (localSaved && sessionSaved) return "storage_available";
     if (localSaved) return "session_storage_blocked";
@@ -236,6 +265,16 @@
       return;
     }
     var targetId = script.getAttribute("data-target-id") || "";
+    var targetSelector = script.getAttribute("data-target") || "";
+    var pixelId = (script.getAttribute("data-pixel-id") || "").trim();
+    var pixelEventValue = getPixelValue(
+      script.getAttribute("data-pixel-event-value"),
+      388
+    );
+    var pixelCurrency = getPixelCurrency(
+      script.getAttribute("data-pixel-currency")
+    );
+    var conversionBeaconSent = false;
     var height = script.getAttribute("data-height") || "820";
     var scriptOrigin = new URL(script.src).origin;
     var embedOrigin = scriptOrigin;
@@ -343,6 +382,23 @@
       );
     }
 
+    function fireCompleteRegistrationBeacon(message) {
+      if (!pixelId || conversionBeaconSent) return;
+
+      conversionBeaconSent = true;
+
+      var beaconUrl = createCompleteRegistrationBeaconUrl({
+        pixelId: pixelId,
+        pageUrl: getPixelLandingUrl(parentPageUrl),
+        value: getPixelValue(message && message.value, pixelEventValue),
+        currency: getPixelCurrency(
+          (message && message.currency) || pixelCurrency
+        )
+      });
+      var beacon = new Image();
+      beacon.src = beaconUrl;
+    }
+
     iframe.addEventListener("load", sendAttribution);
     window.addEventListener("message", function (event) {
       if (event.origin !== embedOrigin) return;
@@ -354,6 +410,8 @@
         event.data.type === "launchhub:form-submitted" &&
         event.data.event === "CompleteRegistration"
       ) {
+        fireCompleteRegistrationBeacon(event.data);
+
         if (window.parent && window.parent !== window) {
           window.parent.postMessage(event.data, "*");
         }
@@ -368,6 +426,13 @@
     });
 
     var target = targetId ? document.getElementById(targetId) : null;
+    if (!target && targetSelector) {
+      try {
+        target = document.querySelector(targetSelector);
+      } catch {
+        target = null;
+      }
+    }
     if (target) {
       target.innerHTML = "";
       target.appendChild(iframe);

@@ -590,8 +590,9 @@ Recommended Wix setup:
 - Wix installs Meta Pixel and owns `PageView`.
 - Wix creates the LaunchHub iframe and appends the Wix page UTM/click IDs into the iframe URL.
 - LaunchHub saves the lead first.
-- After successful save, the iframe posts `launchhub:form-submitted` to Wix.
-- Wix fires Meta Pixel `CompleteRegistration` from the parent page.
+- After successful save, the LaunchHub embed script fires a direct Meta `CompleteRegistration` image beacon when `data-pixel-id` is configured.
+- Keep the Alyssa Pixel base code in Wix Head for `PageView`.
+- Disable/remove any separate Wix `CompleteRegistration` listener when using `data-pixel-id`, otherwise the conversion may fire twice.
 
 Use this structure on the Wix page when manually creating the iframe:
 
@@ -647,6 +648,8 @@ Preserved iframe query/source parameters include `utm_source`, `utm_medium`, `ut
 
 For normal Wix deployment, use the LaunchHub embed script. It reads the Wix page URL query string, passes standard UTM and `lh_*` backup tracking into the iframe, and sends a parent-page `CompleteRegistration` message only after LaunchHub confirms the lead was saved. When Wix runs the embed inside a `filesusr.com` HTML component iframe, the script recovers the real Wix page URL from `document.referrer`, uses that URL for `parent_url` / `parent_origin`, passes the real page tracking params into the LaunchHub iframe, and relays the safe `launchhub:form-submitted` message upward. The script requires `data-form-token`; it does not silently fall back to the Alyssa demo token.
 
+For Wix HTML component embeds, add `data-pixel-id` so the embed script itself can send the save-confirmed `CompleteRegistration` beacon without depending on a top-level Wix custom-code listener. Optional overrides are `data-pixel-event-value` and `data-pixel-currency`; defaults are `388` and `HKD`.
+
 The Wix top-page listener may receive the conversion message directly from `https://go.beautytrialhk.com` or relayed through a Wix `.filesusr.com` HTML iframe. Always verify `data.type`, `data.event`, the exact `data.formToken`, and `data.brandSlug` before firing Meta Pixel so random iframe messages cannot trigger `CompleteRegistration`.
 
 Brand examples:
@@ -672,6 +675,9 @@ Brand examples:
   data-form-token="ALYSSA_FORM_TOKEN_FROM_LAUNCHHUB"
   data-brand="alyssa"
   data-form-id="ALYSSA_FORM_ID_OPTIONAL"
+  data-pixel-id="1076420440840443"
+  data-pixel-event-value="388"
+  data-pixel-currency="HKD"
   data-target-id="alyssa-launchhub-form"
   async
 ></script>
