@@ -1435,7 +1435,8 @@ export function PublicLeadForm({
 
   return (
     <section
-      className={`${className} ${isEmbed ? "mx-auto max-w-xl px-4 py-5" : ""}`}
+      data-launchhub-form-root
+      className={`${className} ${isEmbed ? "mx-auto max-w-xl px-3 py-3" : ""}`}
       style={themeStyle}
     >
       <div className="overflow-hidden rounded-[30px] border border-[var(--public-border)] bg-[var(--public-card)] shadow-[0_24px_70px_rgba(216,91,163,0.14)]">

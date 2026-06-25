@@ -673,7 +673,7 @@ Preserved iframe query/source parameters include `utm_source`, `utm_medium`, `ut
 
 For normal Wix deployment, use the LaunchHub embed script. It reads the Wix page URL query string, passes standard UTM and `lh_*` backup tracking into the iframe, and sends a parent-page `CompleteRegistration` message only after LaunchHub confirms the lead was saved. When Wix runs the embed inside a `filesusr.com` HTML component iframe, the script recovers the real Wix page URL from `document.referrer`, uses that URL for `parent_url` / `parent_origin`, passes the real page tracking params into the LaunchHub iframe, and relays the safe `launchhub:form-submitted` message upward. The script requires `data-form-token`; it does not silently fall back to the Alyssa demo token.
 
-For Wix HTML component embeds, add `data-pixel-id` so the embed script itself can send the save-confirmed `CompleteRegistration` beacon without depending on a top-level Wix custom-code listener. Optional overrides are `data-pixel-event-value` and `data-pixel-currency`; defaults are `388` and `HKD`.
+For Wix HTML component embeds in `form_submit_pixel` mode, add `data-pixel-id` so the embed script itself can send the save-confirmed `CompleteRegistration` beacon without depending on a top-level Wix custom-code listener. Optional overrides are `data-pixel-event-value` and `data-pixel-currency`; defaults are `388` and `HKD`.
 
 LaunchHub supports two conversion modes for embedded forms:
 
@@ -686,17 +686,61 @@ For Ineffable thank-you redirect mode, use HTTPS and the approved thank-you path
 <div id="launchhub-ineffable-form-form-4f4a18"></div>
 
 <script
-  src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou"
+  src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-fit"
   data-form-token="ineffable-beauty-388-3-form-4f4a18"
   data-brand="ineffable"
   data-form-id="19df814b-a47e-4c56-878d-d58198ada82c"
+  data-pixel-event-value="388"
+  data-pixel-currency="HKD"
   data-conversion-mode="thank_you_redirect"
-  data-success-redirect-url="https://www.ineffablebeautyhk.com/thank-you?submitted=1&treatment=gentle-pore-care&value=388"
+  data-success-redirect-url="https://www.ineffablebeautyhk.com/thank-you?submitted=1&amp;treatment=gentle-pore-care&amp;value=388"
   data-target="#launchhub-ineffable-form-form-4f4a18">
 </script>
 ```
 
 Do not add `data-pixel-id` to a `thank_you_redirect` snippet. The redirect URL is validated before use and must be `https://www.ineffablebeautyhk.com/thank-you` or `https://ineffablebeautyhk.com/thank-you`. LaunchHub appends safe tracking/query data to the thank-you URL after a successful save, including `submitted=1`, `form_id`, `lead_id`, `event_id`, UTM/click IDs, campaign/ad IDs, placement, and `lh_*` backup params. `event_id` matches `lead_id` for Wix/Meta deduplication.
+
+Wix HTML Embed elements can still reserve the manual box height set in Wix Editor. LaunchHub now starts embedded iframes with a compact fallback height and resizes the internal iframe to the measured form content, but the outer Wix HTML component should still be set close to the form content height and should not sit inside an oversized empty Wix section.
+
+Ineffable generated embed examples:
+
+```html
+<div class="ib-launchhub-form-card">
+  <div id="launchhub-ineffable-form-form-4f4a18"></div>
+
+  <script
+    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-fit"
+    data-form-token="ineffable-beauty-388-3-form-4f4a18"
+    data-brand="ineffable"
+    data-form-id="19df814b-a47e-4c56-878d-d58198ada82c"
+    data-pixel-event-value="388"
+    data-pixel-currency="HKD"
+    data-conversion-mode="thank_you_redirect"
+    data-success-redirect-url="https://www.ineffablebeautyhk.com/thank-you?submitted=1&amp;treatment=gentle-pore-care&amp;value=388"
+    data-target="#launchhub-ineffable-form-form-4f4a18">
+  </script>
+
+</div>
+```
+
+```html
+<div class="ib-launchhub-form-card">
+  <div id="launchhub-ineffable-form-form-f50cfb"></div>
+
+  <script
+    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-fit"
+    data-form-token="ineffable-588-dep-combo-form-f50cfb"
+    data-brand="ineffable"
+    data-form-id="22bc6034-6d2b-4e55-8da6-a29be086756b"
+    data-pixel-event-value="588"
+    data-pixel-currency="HKD"
+    data-conversion-mode="thank_you_redirect"
+    data-success-redirect-url="https://www.ineffablebeautyhk.com/thank-you?submitted=1&amp;treatment=dep-hydration-combo&amp;value=588"
+    data-target="#launchhub-ineffable-form-form-f50cfb">
+  </script>
+
+</div>
+```
 
 The Wix top-page listener may receive the conversion message directly from `https://go.beautytrialhk.com` or relayed through a Wix `.filesusr.com` HTML iframe. Always verify `data.type`, `data.event`, the exact `data.formToken`, and `data.brandSlug` before firing Meta Pixel so random iframe messages cannot trigger `CompleteRegistration`.
 

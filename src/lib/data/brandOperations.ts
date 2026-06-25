@@ -92,6 +92,14 @@ function shortToken(value: string) {
   return slugSafe(parts.slice(-2).join("-") || value).slice(0, 18) || "form";
 }
 
+function escapeHtmlAttr(value: string | number | null | undefined) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
 export function buildWixEmbedCode({
   form,
   brandSlug,
@@ -113,29 +121,62 @@ export function buildWixEmbedCode({
   const targetId = `launchhub-${safeBrandSlug}-form-${shortToken(
     form.publicFormToken
   )}`;
-  const lines = [
-    `<div id="${targetId}"></div>`,
-    "",
-    `<script`,
-    `  src="${getPublicPathUrl(`/embed/alyssa-form.js?v=${version}`)}"`,
-    `  data-form-token="${form.publicFormToken}"`,
-    `  data-brand="${safeBrandSlug}"`,
-    `  data-form-id="${form.id}"`,
-  ];
+  const isThankYouRedirect =
+    conversionMode === "thank_you_redirect" && Boolean(successRedirectUrl);
+  const scriptVersion = isThankYouRedirect
+    ? "20260625-thankyou-fit"
+    : version;
+  const lines = isThankYouRedirect
+    ? [
+        `<div class="ib-launchhub-form-card">`,
+        `  <div id="${escapeHtmlAttr(targetId)}"></div>`,
+        "",
+        `  <script`,
+      ]
+    : [`<div id="${escapeHtmlAttr(targetId)}"></div>`, "", `<script`];
+  const scriptIndent = isThankYouRedirect ? "    " : "  ";
+  const closingScript = isThankYouRedirect ? `  </script>` : `</script>`;
+
+  lines.push(
+    `${scriptIndent}src="${escapeHtmlAttr(
+      getPublicPathUrl(`/embed/alyssa-form.js?v=${scriptVersion}`)
+    )}"`,
+    `${scriptIndent}data-form-token="${escapeHtmlAttr(form.publicFormToken)}"`,
+    `${scriptIndent}data-brand="${escapeHtmlAttr(safeBrandSlug)}"`,
+    `${scriptIndent}data-form-id="${escapeHtmlAttr(form.id)}"`
+  );
 
   if (pixelId && conversionMode !== "thank_you_redirect") {
-    lines.push(`  data-pixel-id="${pixelId}"`);
-    lines.push(`  data-pixel-event-value="${eventValue || 388}"`);
-    lines.push(`  data-pixel-currency="HKD"`);
+    lines.push(`${scriptIndent}data-pixel-id="${escapeHtmlAttr(pixelId)}"`);
+    lines.push(
+      `${scriptIndent}data-pixel-event-value="${escapeHtmlAttr(
+        eventValue || 388
+      )}"`
+    );
+    lines.push(`${scriptIndent}data-pixel-currency="HKD"`);
   }
 
-  if (conversionMode === "thank_you_redirect" && successRedirectUrl) {
-    lines.push(`  data-conversion-mode="thank_you_redirect"`);
-    lines.push(`  data-success-redirect-url="${successRedirectUrl}"`);
+  if (isThankYouRedirect) {
+    lines.push(
+      `${scriptIndent}data-pixel-event-value="${escapeHtmlAttr(
+        eventValue || 388
+      )}"`
+    );
+    lines.push(`${scriptIndent}data-pixel-currency="HKD"`);
+    lines.push(`${scriptIndent}data-conversion-mode="thank_you_redirect"`);
+    lines.push(
+      `${scriptIndent}data-success-redirect-url="${escapeHtmlAttr(
+        successRedirectUrl
+      )}"`
+    );
   }
 
-  lines.push(`  data-target="#${targetId}">`);
-  lines.push(`</script>`);
+  lines.push(`${scriptIndent}data-target="#${escapeHtmlAttr(targetId)}">`);
+  lines.push(closingScript);
+
+  if (isThankYouRedirect) {
+    lines.push("", `</div>`);
+  }
 
   return lines.join("\n");
 }

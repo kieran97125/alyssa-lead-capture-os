@@ -182,8 +182,8 @@
 
   function clampEmbedHeight(value) {
     var parsed = Number(value);
-    if (!Number.isFinite(parsed)) return 820;
-    return Math.max(520, Math.min(Math.ceil(parsed), 3000));
+    if (!Number.isFinite(parsed)) return 500;
+    return Math.max(480, Math.min(Math.ceil(parsed), 2200));
   }
 
   function getPixelLandingUrl(parentPageUrl) {
@@ -339,7 +339,7 @@
     ).trim();
     var conversionBeaconSent = false;
     var successRedirectStarted = false;
-    var height = clampEmbedHeight(script.getAttribute("data-height") || "820");
+    var height = clampEmbedHeight(script.getAttribute("data-height") || "500");
     var scriptOrigin = new URL(script.src).origin;
     var embedOrigin = scriptOrigin;
     var parentPageUrl = getRealParentPageUrl();
@@ -431,10 +431,12 @@
     iframe.style.border = "0";
     iframe.style.width = "100%";
     iframe.style.maxWidth = "100%";
-    iframe.style.minHeight = "520px";
+    iframe.style.minHeight = "480px";
     iframe.style.height = height + "px";
     iframe.style.overflow = "hidden";
     iframe.style.display = "block";
+    iframe.style.margin = "0";
+    iframe.style.padding = "0";
     iframe.setAttribute("loading", "lazy");
     iframe.setAttribute("scrolling", "no");
     iframe.setAttribute("title", "Campaign registration form");

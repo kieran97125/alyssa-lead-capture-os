@@ -32,18 +32,26 @@ export default function EmbedFormPage() {
     let lastHeight = 0;
 
     const measureHeight = () => {
+      const formRoot = document.querySelector<HTMLElement>(
+        "[data-launchhub-form-root]"
+      );
       const body = document.body;
       const root = document.documentElement;
-      const height = Math.max(
-        body?.scrollHeight ?? 0,
-        body?.offsetHeight ?? 0,
+      const formRootHeight = formRoot?.getBoundingClientRect().height ?? 0;
+      const bodyRectHeight = body?.getBoundingClientRect().height ?? 0;
+      const contentHeight =
+        formRootHeight ||
+        bodyRectHeight ||
+        body?.offsetHeight ||
+        body?.scrollHeight ||
+        0;
+      const fallbackHeight = Math.max(
         root?.scrollHeight ?? 0,
-        root?.offsetHeight ?? 0,
-        root?.clientHeight ?? 0,
-        640
+        root?.offsetHeight ?? 0
       );
+      const height = contentHeight || fallbackHeight;
 
-      return Math.ceil(height + 24);
+      return Math.ceil(Math.max(height, 480) + 20);
     };
 
     const postHeight = () => {
@@ -70,7 +78,7 @@ export default function EmbedFormPage() {
     };
 
     scheduleResize();
-    const timers = [120, 400, 900, 1600].map((delay) =>
+    const timers = [60, 160, 400, 900, 1600, 2400].map((delay) =>
       window.setTimeout(scheduleResize, delay)
     );
     const observer = new MutationObserver(scheduleResize);
