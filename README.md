@@ -686,7 +686,7 @@ For Ineffable thank-you redirect mode, use HTTPS and the approved thank-you path
 <div id="launchhub-ineffable-form-form-4f4a18"></div>
 
 <script
-  src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-fit"
+  src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-lazy"
   data-form-token="ineffable-beauty-388-3-form-4f4a18"
   data-brand="ineffable"
   data-form-id="19df814b-a47e-4c56-878d-d58198ada82c"
@@ -694,13 +694,15 @@ For Ineffable thank-you redirect mode, use HTTPS and the approved thank-you path
   data-pixel-currency="HKD"
   data-conversion-mode="thank_you_redirect"
   data-success-redirect-url="https://www.ineffablebeautyhk.com/thank-you?submitted=1&amp;treatment=gentle-pore-care&amp;value=388"
+  data-lazy-load="true"
+  data-lazy-root-margin="600px"
   data-target="#launchhub-ineffable-form-form-4f4a18">
 </script>
 ```
 
 Do not add `data-pixel-id` to a `thank_you_redirect` snippet. The redirect URL is validated before use and must be `https://www.ineffablebeautyhk.com/thank-you` or `https://ineffablebeautyhk.com/thank-you`. LaunchHub appends safe tracking/query data to the thank-you URL after a successful save, including `submitted=1`, `form_id`, `lead_id`, `event_id`, UTM/click IDs, campaign/ad IDs, placement, and `lh_*` backup params. `event_id` matches `lead_id` for Wix/Meta deduplication.
 
-Wix HTML Embed elements can still reserve the manual box height set in Wix Editor. LaunchHub now starts embedded iframes with a compact fallback height and resizes the internal iframe to the measured form content, but the outer Wix HTML component should still be set close to the form content height and should not sit inside an oversized empty Wix section.
+Wix HTML Embed elements can still reserve the manual box height set in Wix Editor. LaunchHub now starts embedded iframes with a compact fallback height and resizes the internal iframe to the measured form content, but the outer Wix HTML component should still be set close to the form content height and should not sit inside an oversized empty Wix section. For Wix pages where the form is not visible in the first screen, use `data-lazy-load="true"` so the iframe loads only when the user scrolls near the form. If the form is immediately above the fold, lazy loading can be disabled by omitting that attribute.
 
 Ineffable generated embed examples:
 
@@ -709,7 +711,7 @@ Ineffable generated embed examples:
   <div id="launchhub-ineffable-form-form-4f4a18"></div>
 
   <script
-    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-fit"
+    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-lazy"
     data-form-token="ineffable-beauty-388-3-form-4f4a18"
     data-brand="ineffable"
     data-form-id="19df814b-a47e-4c56-878d-d58198ada82c"
@@ -717,6 +719,8 @@ Ineffable generated embed examples:
     data-pixel-currency="HKD"
     data-conversion-mode="thank_you_redirect"
     data-success-redirect-url="https://www.ineffablebeautyhk.com/thank-you?submitted=1&amp;treatment=gentle-pore-care&amp;value=388"
+    data-lazy-load="true"
+    data-lazy-root-margin="600px"
     data-target="#launchhub-ineffable-form-form-4f4a18">
   </script>
 
@@ -728,7 +732,7 @@ Ineffable generated embed examples:
   <div id="launchhub-ineffable-form-form-f50cfb"></div>
 
   <script
-    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-fit"
+    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou-lazy"
     data-form-token="ineffable-588-dep-combo-form-f50cfb"
     data-brand="ineffable"
     data-form-id="22bc6034-6d2b-4e55-8da6-a29be086756b"
@@ -736,6 +740,8 @@ Ineffable generated embed examples:
     data-pixel-currency="HKD"
     data-conversion-mode="thank_you_redirect"
     data-success-redirect-url="https://www.ineffablebeautyhk.com/thank-you?submitted=1&amp;treatment=dep-hydration-combo&amp;value=588"
+    data-lazy-load="true"
+    data-lazy-root-margin="600px"
     data-target="#launchhub-ineffable-form-form-f50cfb">
   </script>
 

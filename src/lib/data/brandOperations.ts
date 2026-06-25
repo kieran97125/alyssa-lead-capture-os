@@ -124,7 +124,7 @@ export function buildWixEmbedCode({
   const isThankYouRedirect =
     conversionMode === "thank_you_redirect" && Boolean(successRedirectUrl);
   const scriptVersion = isThankYouRedirect
-    ? "20260625-thankyou-fit"
+    ? "20260625-thankyou-lazy"
     : version;
   const lines = isThankYouRedirect
     ? [
@@ -169,6 +169,8 @@ export function buildWixEmbedCode({
         successRedirectUrl
       )}"`
     );
+    lines.push(`${scriptIndent}data-lazy-load="true"`);
+    lines.push(`${scriptIndent}data-lazy-root-margin="600px"`);
   }
 
   lines.push(`${scriptIndent}data-target="#${escapeHtmlAttr(targetId)}">`);

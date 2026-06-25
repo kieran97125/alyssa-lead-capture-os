@@ -180,6 +180,15 @@
       : "form_submit_pixel";
   }
 
+  function isLazyLoadEnabled(value) {
+    return value === "true" || value === "1";
+  }
+
+  function getLazyRootMargin(value) {
+    var cleaned = typeof value === "string" ? value.trim() : "";
+    return cleaned || "600px";
+  }
+
   function clampEmbedHeight(value) {
     var parsed = Number(value);
     if (!Number.isFinite(parsed)) return 500;
@@ -203,6 +212,26 @@
     params.set("cd[content_category]", "registration");
 
     return "https://www.facebook.com/tr?" + params.toString();
+  }
+
+  function createPlaceholder() {
+    var placeholder = document.createElement("div");
+    placeholder.setAttribute("aria-live", "polite");
+    placeholder.style.boxSizing = "border-box";
+    placeholder.style.width = "100%";
+    placeholder.style.minHeight = "96px";
+    placeholder.style.display = "flex";
+    placeholder.style.alignItems = "center";
+    placeholder.style.justifyContent = "center";
+    placeholder.style.border = "1px solid rgba(216, 91, 163, 0.18)";
+    placeholder.style.borderRadius = "18px";
+    placeholder.style.background = "rgba(255, 248, 252, 0.78)";
+    placeholder.style.color = "#7b5a6a";
+    placeholder.style.font = "600 13px/1.5 system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif";
+    placeholder.style.margin = "0";
+    placeholder.style.padding = "16px";
+    placeholder.textContent = "表格載入中...";
+    return placeholder;
   }
 
   function isAllowedSuccessRedirectUrl(value, brand) {
@@ -337,8 +366,13 @@
     var successRedirectUrl = (
       script.getAttribute("data-success-redirect-url") || ""
     ).trim();
+    var lazyLoad = isLazyLoadEnabled(script.getAttribute("data-lazy-load"));
+    var lazyRootMargin = getLazyRootMargin(
+      script.getAttribute("data-lazy-root-margin")
+    );
     var conversionBeaconSent = false;
     var successRedirectStarted = false;
+    var iframeLoaded = false;
     var height = clampEmbedHeight(script.getAttribute("data-height") || "500");
     var scriptOrigin = new URL(script.src).origin;
     var embedOrigin = scriptOrigin;
@@ -425,7 +459,6 @@
     iframeUrl.searchParams.set("parent_origin", parentOrigin);
 
     var iframe = document.createElement("iframe");
-    iframe.src = iframeUrl.toString();
     iframe.width = "100%";
     iframe.height = String(height);
     iframe.style.border = "0";
@@ -440,6 +473,40 @@
     iframe.setAttribute("loading", "lazy");
     iframe.setAttribute("scrolling", "no");
     iframe.setAttribute("title", "Campaign registration form");
+
+    function loadIframe(container, placeholder) {
+      if (iframeLoaded) return;
+      iframeLoaded = true;
+      iframe.src = iframeUrl.toString();
+
+      if (placeholder && placeholder.parentNode) {
+        placeholder.parentNode.replaceChild(iframe, placeholder);
+      } else if (container && !iframe.parentNode) {
+        container.appendChild(iframe);
+      } else if (script.parentNode && !iframe.parentNode) {
+        script.parentNode.insertBefore(iframe, script.nextSibling);
+      }
+    }
+
+    function setupLazyLoad(container, placeholder) {
+      if (!("IntersectionObserver" in window)) {
+        loadIframe(container, placeholder);
+        return;
+      }
+
+      var observer = new IntersectionObserver(
+        function (entries) {
+          entries.forEach(function (entry) {
+            if (!entry.isIntersecting) return;
+            observer.disconnect();
+            loadIframe(container, placeholder);
+          });
+        },
+        { rootMargin: lazyRootMargin }
+      );
+
+      observer.observe(placeholder || container);
+    }
 
     function sendAttribution() {
       if (!iframe.contentWindow) return;
@@ -545,9 +612,23 @@
     }
     if (target) {
       target.innerHTML = "";
-      target.appendChild(iframe);
+      if (lazyLoad) {
+        var targetPlaceholder = createPlaceholder();
+        target.appendChild(targetPlaceholder);
+        setupLazyLoad(target, targetPlaceholder);
+      } else {
+        target.appendChild(iframe);
+        loadIframe(target);
+      }
     } else if (script.parentNode) {
-      script.parentNode.insertBefore(iframe, script.nextSibling);
+      if (lazyLoad) {
+        var inlinePlaceholder = createPlaceholder();
+        script.parentNode.insertBefore(inlinePlaceholder, script.nextSibling);
+        setupLazyLoad(null, inlinePlaceholder);
+      } else {
+        script.parentNode.insertBefore(iframe, script.nextSibling);
+        loadIframe(null);
+      }
     }
   } catch (error) {
     console.error("[LaunchHub] Embed failed:", error);
