@@ -274,6 +274,7 @@ export function displayPhone(lead: LeadRow) {
 
 const testNamePatterns = [
   "TEST",
+  "CODEX",
   "FINAL TEST",
   "COOKIE TEST",
   "SERVER ATTR TEST",
@@ -288,13 +289,17 @@ const testNamePatterns = [
 
 export function isLikelyTestLead(lead: LeadRow) {
   const name = displayCustomerName(lead).toUpperCase();
+  const brandName = (lead.brand?.name || "").toUpperCase();
   const phoneDigits = displayPhone(lead).replace(/\D/g, "");
   const hasTestName = testNamePatterns.some((pattern) => name.includes(pattern));
+  const hasTestBrand =
+    brandName.includes("CODEX USED BRAND 50969") ||
+    brandName.includes("TEST BRAND");
   const hasTestPhone =
     /^912345(6[7-9]|[7-8]\d|9\d)$/.test(phoneDigits) ||
     phoneDigits === "91234599";
 
-  return hasTestName || hasTestPhone;
+  return hasTestName || hasTestBrand || hasTestPhone;
 }
 
 export function intakeStatus(lead: LeadRow) {

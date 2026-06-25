@@ -12,6 +12,7 @@ import {
   formatDateTime,
   getLeadRows,
   intakeStatus,
+  isLikelyTestLead,
   isTrackable,
   money,
   parseRange,
@@ -100,8 +101,9 @@ export default async function LeadsPage({
     query,
     includeTestData: includeTests,
   });
-  const trackedCount = leads.filter(isTrackable).length;
-  const brandCount = new Set(leads.map((lead) => lead.brand_id).filter(Boolean)).size;
+  const realLeads = leads.filter((lead) => !isLikelyTestLead(lead));
+  const trackedCount = realLeads.filter(isTrackable).length;
+  const brandCount = new Set(realLeads.map((lead) => lead.brand_id).filter(Boolean)).size;
   const currentFilters = {
     brandId: selectedBrandId,
     source: selectedSource,
@@ -155,7 +157,7 @@ export default async function LeadsPage({
             </div>
 
             <div className="mt-5 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <SummaryCard label="登記紀錄" value={`${leads.length}`} />
+              <SummaryCard label="真實登記紀錄" value={`${realLeads.length}`} />
               <SummaryCard label="可追蹤來源" value={`${trackedCount}`} />
               <SummaryCard label="涉及品牌" value={`${brandCount}`} />
               <SummaryCard label="日期範圍" value={range.label} />
@@ -234,6 +236,9 @@ export default async function LeadsPage({
                   defaultChecked={includeTests}
                 />
                 <span>顯示內部測試資料</span>
+                <span className="font-semibold text-[#9a5d76]">
+                  測試資料只供檢查，不會計入上方真實數字。
+                </span>
               </label>
             </form>
           </section>
@@ -272,7 +277,10 @@ export default async function LeadsPage({
                 </thead>
                 <tbody>
                   {leads.length > 0 ? (
-                    leads.map((lead) => (
+                    leads.map((lead) => {
+                      const isTestLead = isLikelyTestLead(lead);
+
+                      return (
                       <tr key={lead.id} className="align-top text-[#5a2348] transition hover:bg-[#fff6f0]/70">
                         <td className="border-b border-[#f1e3dc] px-3 py-3">
                           {formatDateTime(lead.created_at)}
@@ -282,6 +290,11 @@ export default async function LeadsPage({
                         </td>
                         <td className="border-b border-[#f1e3dc] px-3 py-3 font-bold text-[#321428]">
                           {displayCustomerName(lead)}
+                          {isTestLead && (
+                            <span className="ml-2 inline-flex rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700">
+                              內部測試
+                            </span>
+                          )}
                         </td>
                         <td className="border-b border-[#f1e3dc] px-3 py-3">
                           {displayPhone(lead)}
@@ -323,7 +336,8 @@ export default async function LeadsPage({
                           </span>
                         </td>
                       </tr>
-                    ))
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan={11} className="px-3 py-10 text-center text-sm font-semibold text-[#7b5a6a]">

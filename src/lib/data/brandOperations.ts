@@ -18,6 +18,27 @@ export function normalizeBrandSlug(value: string | null | undefined) {
   return (value || "").trim().toLowerCase();
 }
 
+export function isLikelyTestBrand(
+  brand: { name?: string | null; slug?: string | null } | null | undefined
+) {
+  const name = normalizeBrandSlug(brand?.name);
+  const slug = normalizeBrandSlug(brand?.slug);
+  const combined = `${name} ${slug}`;
+
+  return (
+    combined.includes("codex used brand 50969") ||
+    combined.includes("codex-used-brand-50969") ||
+    combined.includes("test brand") ||
+    combined.includes("seed brand")
+  );
+}
+
+export function getVisibleBrands<T extends { name?: string | null; slug?: string | null }>(
+  brands: T[]
+) {
+  return brands.filter((brand) => !isLikelyTestBrand(brand));
+}
+
 export function getBrandPixelId(brandSlug: string | null | undefined) {
   const slug = normalizeBrandSlug(brandSlug);
 
