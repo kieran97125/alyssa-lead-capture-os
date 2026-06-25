@@ -16,7 +16,7 @@ import {
 import { TouchPayload } from "@/lib/attribution/types";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
 import {
-  getLegalLinks,
+  getBrandLegalProfile,
   LEGAL_CONSENT_REQUIRED_MESSAGE,
   LEGAL_CONSENT_TEXT,
 } from "@/lib/legal/consent";
@@ -1317,14 +1317,23 @@ export async function POST(request: NextRequest) {
     created_by_source: classification.sourceType,
   });
 
-  const legalLinks = getLegalLinks(cleanText(brandRecord?.slug, 120) || "brand");
+  const legalBrandRecord = (brandRecord ?? {}) as Record<string, unknown>;
+  const legalProfile = getBrandLegalProfile({
+    brandSlug: cleanText(legalBrandRecord.slug, 120) || "brand",
+    brandName: cleanText(legalBrandRecord.name, 200) || "brand",
+    legalPageUrl: cleanText(legalBrandRecord.legal_page_url, 2000),
+    legalLinkLabel: cleanText(legalBrandRecord.legal_link_label, 120),
+    operatorName: cleanText(legalBrandRecord.operator_name, 200),
+  });
   const legalConsentPayload = {
     consent_event: "legal_consent_accepted",
     accepted_at: new Date().toISOString(),
     consent_text: LEGAL_CONSENT_TEXT,
-    privacy_policy_url: legalLinks.privacyPolicyUrl,
-    terms_url: legalLinks.termsUrl,
-    disclaimer_url: legalLinks.disclaimerUrl,
+    legal_page_url: legalProfile.legalPageUrl,
+    legal_link_label: legalProfile.legalLinkLabel,
+    privacy_policy_url: legalProfile.privacyPolicyUrl,
+    terms_url: legalProfile.termsUrl,
+    disclaimer_url: legalProfile.disclaimerUrl,
     form_token: formToken,
     landing_page_url: cleanText(submittedTouch.landing_page_url, 2000),
     current_page_url: currentPageUrl,

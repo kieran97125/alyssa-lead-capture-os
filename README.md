@@ -946,11 +946,16 @@ Do not deploy yet. Before deployment:
 
 ## Public Form Legal Consent
 
-All public lead forms require visitors to tick a legal consent checkbox before submitting. The checkbox confirms the visitor has read and agreed to the Privacy Policy, Terms & Conditions, and Disclaimer, and agrees that submitted data may be used for appointment, customer service, and related follow-up.
+All public lead forms require visitors to tick a legal consent checkbox before submitting. The checkbox confirms the visitor has read and agreed to the relevant legal terms, and agrees that submitted data may be used for appointment, customer service, and related follow-up. The checkbox label is plain text only; legal links are shown in the form / landing page footer.
 
-- Public legal pages now contain first-pass Traditional Chinese placeholder content for Privacy Policy, Terms & Conditions, and Disclaimer.
+- Brand-level legal settings are the source of truth for public legal links.
+- If a brand has `legal_page_url`, public forms and public Landing Pages show one legal footer link using `legal_link_label`.
+- Ineffable Beauty should use one single legal page: `https://www.ineffablebeautyhk.com/legal`, with link label `法律條款`.
+- If a brand does not have `legal_page_url`, LaunchHub keeps the existing fallback links for Privacy Policy, Terms & Conditions, and Disclaimer.
+- Apply `docs/BRAND_LEGAL_SETTINGS_APPLY.sql` in Supabase before expecting Legal / Operator edits to persist in the database.
+- Public legal pages now contain first-pass Traditional Chinese placeholder content for Privacy Policy, Terms & Conditions, and Disclaimer for brands that still use fallback internal legal pages.
 - Company and legal review is required before official launch or larger paid campaign use.
-- Current placeholder legal routes are `/legal/alyssa/privacy`, `/legal/alyssa/terms`, and `/legal/alyssa/disclaimer`.
+- Current fallback placeholder legal routes are `/legal/alyssa/privacy`, `/legal/alyssa/terms`, and `/legal/alyssa/disclaimer`.
 - Replace placeholder legal content with brand-approved legal documents before running larger paid campaigns.
 - `/api/public/leads` also validates `legalConsentAccepted` server-side, so consent is not only a browser UI check.
 - Consent proof is recorded in `lead_events` using the existing allowed `form_submit_success` event type with `consent_event = "legal_consent_accepted"` in `event_payload_json`.
@@ -958,16 +963,11 @@ All public lead forms require visitors to tick a legal consent checkbox before s
 - Public Privacy Policy, Terms & Conditions, and Disclaimer should identify the brand/operator and explain customer data use, offer rules, booking rules, and treatment-effect limitations.
 - Public customer-facing terms must not say customer data belongs to the developer, the system belongs to the developer, or source code ownership belongs to the developer.
 
-Future brand legal profile fields to add when settings become editable:
+Current brand legal profile fields:
 
-- `operating_company_name`
-- `company_registered_name`
-- `contact_phone`
-- `contact_email`
-- `privacy_policy_url`
-- `terms_url`
-- `disclaimer_url`
-- `footer_disclosure`
+- `legal_page_url`
+- `legal_link_label`
+- `operator_name`
 
 ## Google Sheets Lead Sync V1
 

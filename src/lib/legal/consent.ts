@@ -1,5 +1,5 @@
 export const LEGAL_CONSENT_TEXT =
-  "我已閱讀並同意《私隱政策》、《條款及細則》及《免責聲明》，並同意你們使用我提交的資料作預約、客戶服務及相關跟進用途。";
+  "我已閱讀並同意相關條款，並同意你們使用我提交的資料作預約、客戶服務及相關跟進用途。";
 
 export const LEGAL_CONSENT_HELPER_TEXT =
   "提交資料前，請確認你已閱讀並同意相關條款。";
@@ -12,6 +12,19 @@ export const IMAGE_REFERENCE_DISCLAIMER_FULL =
 export const IMAGE_REFERENCE_FOOTER_NOTE =
   "圖片只供示意及參考，實際療程效果因個人情況而異。";
 
+export const DEFAULT_SINGLE_LEGAL_LINK_LABEL = "法律條款";
+export const INEFFABLE_LEGAL_PAGE_URL =
+  "https://www.ineffablebeautyhk.com/legal";
+
+export type BrandLegalSettingsInput = {
+  slug?: string | null;
+  name?: string | null;
+  legalPageUrl?: string | null;
+  legalLinkLabel?: string | null;
+  operatorName?: string | null;
+  operatingCompanyName?: string | null;
+};
+
 export type BrandLegalProfile = {
   brandSlug: string;
   brandName: string;
@@ -21,40 +34,83 @@ export type BrandLegalProfile = {
   privacyPolicyUrl: string;
   termsUrl: string;
   disclaimerUrl: string;
+  legalPageUrl: string | null;
+  legalLinkLabel: string;
+};
+
+export type LegalFooterLink = {
+  label: string;
+  href: string;
 };
 
 const brandLegalProfiles: Record<
   string,
   Pick<
     BrandLegalProfile,
-    "brandName" | "operatingCompanyName" | "contactLabel" | "lastUpdated"
+    | "brandName"
+    | "operatingCompanyName"
+    | "contactLabel"
+    | "lastUpdated"
+    | "legalPageUrl"
+    | "legalLinkLabel"
   >
 > = {
   alyssa: {
     brandName: "Alyssa",
     operatingCompanyName: "YISSA GROUP LIMITED",
-    contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
+    contactLabel:
+      "如有查詢，請透過品牌官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: "2026年6月",
+    legalPageUrl: null,
+    legalLinkLabel: DEFAULT_SINGLE_LEGAL_LINK_LABEL,
   },
   ineffable: {
     brandName: "Ineffable Beauty",
     operatingCompanyName: "YISSA GROUP LIMITED",
-    contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
+    contactLabel:
+      "如有查詢，請透過 Ineffable Beauty 官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: "2026年6月",
+    legalPageUrl: INEFFABLE_LEGAL_PAGE_URL,
+    legalLinkLabel: DEFAULT_SINGLE_LEGAL_LINK_LABEL,
   },
   "ineffable-beauty": {
     brandName: "Ineffable Beauty",
     operatingCompanyName: "YISSA GROUP LIMITED",
-    contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
+    contactLabel:
+      "如有查詢，請透過 Ineffable Beauty 官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: "2026年6月",
+    legalPageUrl: INEFFABLE_LEGAL_PAGE_URL,
+    legalLinkLabel: DEFAULT_SINGLE_LEGAL_LINK_LABEL,
   },
   "skin-light": {
     brandName: "Skin Light",
     operatingCompanyName: "YISSA GROUP LIMITED",
-    contactLabel: "如有查詢，請透過登記表格或 WhatsApp 聯絡我們。",
+    contactLabel:
+      "如有查詢，請透過品牌官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: "2026年6月",
+    legalPageUrl: null,
+    legalLinkLabel: DEFAULT_SINGLE_LEGAL_LINK_LABEL,
   },
 };
+
+function clean(value: string | null | undefined) {
+  return String(value ?? "").trim();
+}
+
+function normalizeSlug(value: string | null | undefined) {
+  return clean(value).toLowerCase() || "alyssa";
+}
+
+function normalizeUrl(value: string | null | undefined) {
+  const cleaned = clean(value);
+  if (!cleaned) return null;
+
+  try {
+    return new URL(cleaned).toString();
+  } catch {
+    return cleaned;
+  }
+}
 
 export function getLegalLinks(brandSlug = "alyssa") {
   return {
@@ -67,23 +123,75 @@ export function getLegalLinks(brandSlug = "alyssa") {
 export function getBrandLegalProfile({
   brandSlug = "alyssa",
   brandName = "Alyssa",
+  legalPageUrl,
+  legalLinkLabel,
+  operatorName,
+  operatingCompanyName,
 }: {
   brandSlug?: string | null;
   brandName?: string | null;
+  legalPageUrl?: string | null;
+  legalLinkLabel?: string | null;
+  operatorName?: string | null;
+  operatingCompanyName?: string | null;
 } = {}): BrandLegalProfile {
-  const normalizedSlug = brandSlug || "alyssa";
+  const normalizedSlug = normalizeSlug(brandSlug);
   const profile = brandLegalProfiles[normalizedSlug];
-  const displayName = profile?.brandName || brandName || "品牌";
+  const displayName = profile?.brandName || clean(brandName) || "品牌";
   const legalLinks = getLegalLinks(normalizedSlug);
+  const singleLegalPageUrl =
+    normalizeUrl(legalPageUrl) ?? normalizeUrl(profile?.legalPageUrl);
+  const singleLegalLinkLabel =
+    clean(legalLinkLabel) ||
+    clean(profile?.legalLinkLabel) ||
+    DEFAULT_SINGLE_LEGAL_LINK_LABEL;
 
   return {
     brandSlug: normalizedSlug,
     brandName: displayName,
-    operatingCompanyName: profile?.operatingCompanyName || null,
-    contactLabel: profile?.contactLabel || "如有查詢，請透過登記表格聯絡我們。",
+    operatingCompanyName:
+      clean(operatorName) ||
+      clean(operatingCompanyName) ||
+      profile?.operatingCompanyName ||
+      null,
+    contactLabel:
+      profile?.contactLabel ||
+      "如有查詢，請透過品牌官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: profile?.lastUpdated || "2026年6月",
+    legalPageUrl: singleLegalPageUrl,
+    legalLinkLabel: singleLegalLinkLabel,
     ...legalLinks,
   };
+}
+
+export function getBrandLegalProfileFromSettings(
+  brand: BrandLegalSettingsInput | null | undefined
+) {
+  return getBrandLegalProfile({
+    brandSlug: brand?.slug,
+    brandName: brand?.name,
+    legalPageUrl: brand?.legalPageUrl,
+    legalLinkLabel: brand?.legalLinkLabel,
+    operatorName: brand?.operatorName,
+    operatingCompanyName: brand?.operatingCompanyName,
+  });
+}
+
+export function getLegalFooterLinks(profile: BrandLegalProfile): LegalFooterLink[] {
+  if (profile.legalPageUrl) {
+    return [
+      {
+        label: profile.legalLinkLabel || DEFAULT_SINGLE_LEGAL_LINK_LABEL,
+        href: profile.legalPageUrl,
+      },
+    ];
+  }
+
+  return [
+    { label: "私隱政策", href: profile.privacyPolicyUrl },
+    { label: "條款及細則", href: profile.termsUrl },
+    { label: "免責聲明", href: profile.disclaimerUrl },
+  ];
 }
 
 export function getLegalFooterText(profile: BrandLegalProfile) {
@@ -91,7 +199,7 @@ export function getLegalFooterText(profile: BrandLegalProfile) {
     return `© 2026 ${profile.brandName}，由 ${profile.operatingCompanyName} 營運。`;
   }
 
-  return `© 2026 ${profile.brandName}。`;
+  return `© 2026 ${profile.brandName}`;
 }
 
 export function resolveLegalBrandDisplay(brandSlug: string) {

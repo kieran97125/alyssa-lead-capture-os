@@ -37,6 +37,7 @@ import {
 import {
   IMAGE_REFERENCE_FOOTER_NOTE,
   getBrandLegalProfile,
+  getLegalFooterLinks,
   getLegalFooterText,
 } from "@/lib/legal/consent";
 
@@ -338,9 +339,17 @@ export default async function PublicLandingPage({
   const formSideImageUrl = page.treatmentImageUrl || page.offerImageUrl;
   const heroImageUrl =
     page.heroImageUrl || (isIneffable ? ineffableAssets.hero : "");
+  const publicBrandLegalSettings = publicBrand as typeof publicBrand & {
+    legalPageUrl?: string | null;
+    legalLinkLabel?: string | null;
+    operatorName?: string | null;
+  };
   const legalProfile = getBrandLegalProfile({
     brandSlug: isIneffable ? "ineffable" : publicBrand.slug,
     brandName: brandDisplayName,
+    legalPageUrl: publicBrandLegalSettings.legalPageUrl,
+    legalLinkLabel: publicBrandLegalSettings.legalLinkLabel,
+    operatorName: publicBrandLegalSettings.operatorName,
   });
   const contentSections = getResolvedLandingPageContentSections(page).filter(
     hasVisibleSectionContent
@@ -553,9 +562,7 @@ export default async function PublicLandingPage({
 
       <PublicLegalFooter
         footerText={getLegalFooterText(legalProfile)}
-        privacyPolicyUrl={legalProfile.privacyPolicyUrl}
-        termsUrl={legalProfile.termsUrl}
-        disclaimerUrl={legalProfile.disclaimerUrl}
+        links={getLegalFooterLinks(legalProfile)}
       />
     </main>
   );
@@ -898,14 +905,10 @@ function InfoCard({ label, value }: { label: string; value: string }) {
 
 function PublicLegalFooter({
   footerText,
-  privacyPolicyUrl,
-  termsUrl,
-  disclaimerUrl,
+  links,
 }: {
   footerText: string;
-  privacyPolicyUrl: string;
-  termsUrl: string;
-  disclaimerUrl: string;
+  links: Array<{ label: string; href: string }>;
 }) {
   return (
     <footer id="legal-footer" className="scroll-mt-6 border-t border-[var(--public-border)] bg-white px-5 py-6">
@@ -915,15 +918,17 @@ function PublicLegalFooter({
           <p>{IMAGE_REFERENCE_FOOTER_NOTE}</p>
         </div>
         <nav className="flex flex-wrap gap-x-4 gap-y-2">
-          <a className="underline underline-offset-4" href={privacyPolicyUrl}>
-            私隱政策
-          </a>
-          <a className="underline underline-offset-4" href={termsUrl}>
-            條款及細則
-          </a>
-          <a className="underline underline-offset-4" href={disclaimerUrl}>
-            免責聲明
-          </a>
+          {links.map((link) => (
+            <a
+              key={`${link.label}:${link.href}`}
+              className="underline underline-offset-4"
+              href={link.href}
+              target={link.href.startsWith("http") ? "_blank" : undefined}
+              rel={link.href.startsWith("http") ? "noreferrer" : undefined}
+            >
+              {link.label}
+            </a>
+          ))}
           <a className="underline underline-offset-4" href="#lead-form">
             預約表格
           </a>

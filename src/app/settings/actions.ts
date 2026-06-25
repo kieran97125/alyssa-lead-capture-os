@@ -75,6 +75,9 @@ function brandInput(formData: FormData): BrandInput {
     secondaryColor: readString(formData, "secondaryColor"),
     whatsappNumber: readString(formData, "whatsappNumber"),
     defaultThankYouUrl: readString(formData, "defaultThankYouUrl"),
+    legalPageUrl: readString(formData, "legalPageUrl"),
+    legalLinkLabel: readString(formData, "legalLinkLabel"),
+    operatorName: readString(formData, "operatorName"),
   };
 }
 

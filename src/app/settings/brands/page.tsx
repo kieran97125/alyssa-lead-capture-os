@@ -49,6 +49,9 @@ export default async function BrandSettingsPage({
             <TextInput label="品牌代號" name="slug" placeholder="alyssa" />
             <TextInput label="WhatsApp 電話" name="whatsappNumber" placeholder="+852..." required={false} />
             <TextInput label="Thank You Page" name="defaultThankYouUrl" placeholder="/thank-you" required={false} />
+            <TextInput label="Legal page URL" name="legalPageUrl" placeholder="https://www.ineffablebeautyhk.com/legal" required={false} />
+            <TextInput label="Legal link label" name="legalLinkLabel" placeholder="法律條款" required={false} />
+            <TextInput label="Operator / company" name="operatorName" placeholder="YISSA GROUP LIMITED" required={false} />
             <TextInput label="Logo URL" name="logoUrl" required={false} />
             <TextInput label="主色" name="primaryColor" placeholder="#5a2348" required={false} />
             <TextInput label="副色" name="secondaryColor" placeholder="#c9828e" required={false} />
@@ -98,7 +101,33 @@ export default async function BrandSettingsPage({
                     defaultValue={brand.defaultThankYouUrl ?? ""}
                     required={false}
                   />
-                  <TextInput label="Logo URL" name="logoUrl" required={false} />
+                  <TextInput
+                    label="Legal page URL"
+                    name="legalPageUrl"
+                    defaultValue={brand.legalPageUrl ?? ""}
+                    placeholder="https://www.ineffablebeautyhk.com/legal"
+                    required={false}
+                  />
+                  <TextInput
+                    label="Legal link label"
+                    name="legalLinkLabel"
+                    defaultValue={brand.legalLinkLabel ?? ""}
+                    placeholder="法律條款"
+                    required={false}
+                  />
+                  <TextInput
+                    label="Operator / company"
+                    name="operatorName"
+                    defaultValue={brand.operatorName ?? ""}
+                    placeholder="YISSA GROUP LIMITED"
+                    required={false}
+                  />
+                  <TextInput
+                    label="Logo URL"
+                    name="logoUrl"
+                    defaultValue={brand.logoUrl ?? ""}
+                    required={false}
+                  />
                   <TextInput
                     label="主色"
                     name="primaryColor"

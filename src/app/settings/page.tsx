@@ -1,9 +1,14 @@
 import Link from "next/link";
+import { updateBrandAction } from "@/app/settings/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { MotionReveal } from "@/components/alyssa/MotionReveal";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
 import { getVisibleBrands } from "@/lib/data/brandOperations";
 import { getConfigurationData } from "@/lib/data/configuration";
+import {
+  DEFAULT_SINGLE_LEGAL_LINK_LABEL,
+  getBrandLegalProfileFromSettings,
+} from "@/lib/legal/consent";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +47,7 @@ export default async function SettingsPage({
   );
   const forms = config.forms.filter((form) => form.brandId === selectedBrand?.id);
   const brandSlug = selectedBrand?.slug || "";
+  const legalProfile = getBrandLegalProfileFromSettings(selectedBrand);
   const libraryLinks = [
     {
       href: "/settings/brands",
@@ -179,8 +185,132 @@ export default async function SettingsPage({
               </MotionReveal>
             ))}
           </div>
+
+          {selectedBrand && (
+            <MotionReveal>
+              <section className="mt-6 rounded-[28px] border border-[#ead9cf] bg-white/90 p-5 shadow-[0_18px_50px_rgba(90,35,72,0.08)]">
+                <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="alyssa-kicker">Legal / Operator</p>
+                    <h3 className="mt-2 text-2xl font-bold text-[#321428]">
+                      法律及營運方
+                    </h3>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-[#6d4a5c]">
+                      此設定會套用到同一品牌所有表格及 Landing Page 頁尾法律連結。
+                    </p>
+                  </div>
+                  <a
+                    href={legalProfile.legalPageUrl || legalProfile.termsUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-full border border-[#ead9cf] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
+                  >
+                    開啟目前法律頁
+                  </a>
+                </div>
+
+                <form
+                  action={updateBrandAction}
+                  className="mt-5 grid gap-4 lg:grid-cols-3"
+                >
+                  <input type="hidden" name="id" value={selectedBrand.id} />
+                  <input type="hidden" name="name" value={selectedBrand.name} />
+                  <input type="hidden" name="slug" value={selectedBrand.slug} />
+                  <input
+                    type="hidden"
+                    name="whatsappNumber"
+                    value={selectedBrand.whatsappNumber ?? ""}
+                  />
+                  <input
+                    type="hidden"
+                    name="defaultThankYouUrl"
+                    value={selectedBrand.defaultThankYouUrl ?? ""}
+                  />
+                  <input
+                    type="hidden"
+                    name="primaryColor"
+                    value={selectedBrand.primaryColor ?? ""}
+                  />
+                  <input
+                    type="hidden"
+                    name="secondaryColor"
+                    value={selectedBrand.secondaryColor ?? ""}
+                  />
+                  <input
+                    type="hidden"
+                    name="logoUrl"
+                    value={selectedBrand.logoUrl ?? ""}
+                  />
+
+                  <TextInput
+                    label="Legal page URL"
+                    name="legalPageUrl"
+                    defaultValue={legalProfile.legalPageUrl ?? ""}
+                    placeholder="https://www.ineffablebeautyhk.com/legal"
+                    required={false}
+                  />
+                  <TextInput
+                    label="Legal link label"
+                    name="legalLinkLabel"
+                    defaultValue={
+                      selectedBrand.legalLinkLabel ||
+                      legalProfile.legalLinkLabel ||
+                      DEFAULT_SINGLE_LEGAL_LINK_LABEL
+                    }
+                    placeholder={DEFAULT_SINGLE_LEGAL_LINK_LABEL}
+                    required={false}
+                  />
+                  <TextInput
+                    label="Operator / company"
+                    name="operatorName"
+                    defaultValue={
+                      selectedBrand.operatorName ||
+                      legalProfile.operatingCompanyName ||
+                      ""
+                    }
+                    placeholder="YISSA GROUP LIMITED"
+                    required={false}
+                  />
+                  <div className="flex items-end lg:col-span-3">
+                    <button className="rounded-full bg-[#5a2348] px-6 py-3 text-sm font-bold text-white">
+                      儲存法律設定
+                    </button>
+                  </div>
+                </form>
+              </section>
+            </MotionReveal>
+          )}
         </section>
       </div>
     </main>
+  );
+}
+
+function TextInput({
+  label,
+  name,
+  defaultValue = "",
+  placeholder,
+  required = true,
+}: {
+  label: string;
+  name: string;
+  defaultValue?: string;
+  placeholder?: string;
+  required?: boolean;
+}) {
+  return (
+    <label className="block min-w-0">
+      <span className="text-xs font-bold uppercase tracking-[0.14em] text-[#9a5d76]">
+        {label}
+      </span>
+      <input
+        name={name}
+        required={required}
+        defaultValue={defaultValue}
+        placeholder={placeholder}
+        className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
+      />
+    </label>
   );
 }

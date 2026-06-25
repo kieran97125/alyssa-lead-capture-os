@@ -31,7 +31,7 @@ import {
 import {
   IMAGE_REFERENCE_FOOTER_NOTE,
   getBrandLegalProfile,
-  getLegalLinks,
+  getLegalFooterLinks,
   getLegalFooterText,
   LEGAL_CONSENT_HELPER_TEXT,
   LEGAL_CONSENT_REQUIRED_MESSAGE,
@@ -120,6 +120,9 @@ type BranchOption = FormOption & {
 
 type BrandOption = FormOption & {
   slug: string;
+  legalPageUrl?: string | null;
+  legalLinkLabel?: string | null;
+  operatorName?: string | null;
 };
 
 type PublicFormConfig = {
@@ -727,6 +730,10 @@ function normalizeBrand(raw: Record<string, unknown>): BrandOption {
     id: getString(raw.id),
     name: getString(raw.name) || "Alyssa",
     slug: getString(raw.slug) || "alyssa",
+    legalPageUrl: getString(raw.legalPageUrl) || getString(raw.legal_page_url) || null,
+    legalLinkLabel:
+      getString(raw.legalLinkLabel) || getString(raw.legal_link_label) || null,
+    operatorName: getString(raw.operatorName) || getString(raw.operator_name) || null,
   };
 }
 
@@ -857,12 +864,18 @@ export function PublicLeadForm({
     return getBrandLegalProfile({
       brandSlug: resolvedSlug,
       brandName: brand.name || resolvedSlug,
+      legalPageUrl: brand.legalPageUrl,
+      legalLinkLabel: brand.legalLinkLabel,
+      operatorName: brand.operatorName,
     });
-  }, [brand.name, brand.slug, brandSlug]);
-  const legalLinks = useMemo(
-    () => getLegalLinks(legalProfile.brandSlug),
-    [legalProfile.brandSlug]
-  );
+  }, [
+    brand.legalLinkLabel,
+    brand.legalPageUrl,
+    brand.name,
+    brand.operatorName,
+    brand.slug,
+    brandSlug,
+  ]);
   const publicTheme = useMemo(
     () =>
       resolvePublicBrandTheme({
@@ -1008,8 +1021,16 @@ export function PublicLeadForm({
         setConfigMessage("");
 
         const nextForm = normalizeForm(result.form ?? {});
-        const nextBrand =
-          getBrandDisplayOverride(brandSlug) ?? normalizeBrand(result.brand ?? {});
+        const apiBrand = normalizeBrand(result.brand ?? {});
+        const displayOverride = getBrandDisplayOverride(brandSlug);
+        const nextBrand = displayOverride
+          ? {
+              ...apiBrand,
+              id: displayOverride.id,
+              name: displayOverride.name,
+              slug: displayOverride.slug,
+            }
+          : apiBrand;
         const nextTreatments = (result.treatments ?? [])
           .map(normalizeTreatment)
           .filter((item: TreatmentOption) => item.id && item.name);
@@ -1497,36 +1518,7 @@ export function PublicLeadForm({
                       }}
                       className="mt-1 h-4 w-4 shrink-0 rounded border-[var(--public-border)] text-[var(--public-cta)]"
                     />
-                    <span>
-                      我已閱讀並同意
-                      <a
-                        href={legalLinks.privacyPolicyUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-bold text-[var(--public-accent)] underline underline-offset-4"
-                      >
-                        《私隱政策》
-                      </a>
-                      、
-                      <a
-                        href={legalLinks.termsUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-bold text-[var(--public-accent)] underline underline-offset-4"
-                      >
-                        《條款及細則》
-                      </a>
-                      及
-                      <a
-                        href={legalLinks.disclaimerUrl}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="font-bold text-[var(--public-accent)] underline underline-offset-4"
-                      >
-                        《免責聲明》
-                      </a>
-                      ，並同意你們使用我提交的資料作預約、客戶服務及相關跟進用途。
-                    </span>
+                    <span>{LEGAL_CONSENT_TEXT}</span>
                   </label>
                 </section>
 
@@ -1550,9 +1542,7 @@ export function PublicLeadForm({
               {isEmbed && (
                 <PublicLegalFooter
                   footerText={getLegalFooterText(legalProfile)}
-                  privacyPolicyUrl={legalProfile.privacyPolicyUrl}
-                  termsUrl={legalProfile.termsUrl}
-                  disclaimerUrl={legalProfile.disclaimerUrl}
+                  links={getLegalFooterLinks(legalProfile)}
                 />
               )}
             </>
@@ -1668,29 +1658,27 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 
 function PublicLegalFooter({
   footerText,
-  privacyPolicyUrl,
-  termsUrl,
-  disclaimerUrl,
+  links,
 }: {
   footerText: string;
-  privacyPolicyUrl: string;
-  termsUrl: string;
-  disclaimerUrl: string;
+  links: Array<{ label: string; href: string }>;
 }) {
   return (
     <footer className="mt-5 border-t border-[var(--public-border)] pt-4 text-center text-xs font-semibold leading-5 text-[var(--public-muted)]">
       <p>{footerText}</p>
       <p className="mt-1">{IMAGE_REFERENCE_FOOTER_NOTE}</p>
       <nav className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
-        <a className="underline underline-offset-4" href={privacyPolicyUrl}>
-          私隱政策
-        </a>
-        <a className="underline underline-offset-4" href={termsUrl}>
-          條款及細則
-        </a>
-        <a className="underline underline-offset-4" href={disclaimerUrl}>
-          免責聲明
-        </a>
+        {links.map((link) => (
+          <a
+            key={`${link.label}:${link.href}`}
+            className="underline underline-offset-4"
+            href={link.href}
+            target={link.href.startsWith("http") ? "_blank" : undefined}
+            rel={link.href.startsWith("http") ? "noreferrer" : undefined}
+          >
+            {link.label}
+          </a>
+        ))}
       </nav>
     </footer>
   );

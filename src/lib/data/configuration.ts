@@ -15,10 +15,14 @@ export type BrandSetting = {
   id: string;
   name: string;
   slug: string;
+  logoUrl?: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
   whatsappNumber: string | null;
   defaultThankYouUrl: string | null;
+  legalPageUrl?: string | null;
+  legalLinkLabel?: string | null;
+  operatorName?: string | null;
 };
 
 export type TreatmentSetting = {
@@ -139,10 +143,14 @@ function localConfiguration(): ConfigurationData {
         id: alyssaBrand.id,
         name: alyssaBrand.name,
         slug: alyssaBrand.slug,
+        logoUrl: alyssaBrand.logoUrl,
         primaryColor: alyssaBrand.primaryColor,
         secondaryColor: alyssaBrand.secondaryColor,
         whatsappNumber: alyssaBrand.whatsappNumber,
         defaultThankYouUrl: alyssaBrand.defaultThankYouUrl,
+        legalPageUrl: null,
+        legalLinkLabel: null,
+        operatorName: "YISSA GROUP LIMITED",
       },
     ],
     treatments: alyssaTreatments.map((treatment) => ({
@@ -300,10 +308,7 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
   try {
     const supabase = createSupabaseAdminClient();
     const [brands, treatments, packages, branches, forms] = await Promise.all([
-      supabase
-        .from("brands")
-        .select("id,name,slug,primary_color,secondary_color,whatsapp_number,default_thank_you_url")
-        .order("name", { ascending: true }),
+      supabase.from("brands").select("*").order("name", { ascending: true }),
       supabase
         .from("treatments")
         .select("id,brand_id,name,slug,description,status")
@@ -383,10 +388,14 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
           id: row.id ?? "",
           name: row.name ?? "未命名品牌",
           slug: row.slug ?? "",
+          logoUrl: row.logo_url ?? null,
           primaryColor: row.primary_color ?? null,
           secondaryColor: row.secondary_color ?? null,
           whatsappNumber: row.whatsapp_number ?? null,
           defaultThankYouUrl: row.default_thank_you_url ?? null,
+          legalPageUrl: row.legal_page_url ?? null,
+          legalLinkLabel: row.legal_link_label ?? null,
+          operatorName: row.operator_name ?? null,
         };
       }),
       treatments: ((treatments.data ?? []) as unknown[]).map((item) => {

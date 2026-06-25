@@ -18,6 +18,9 @@ export type BrandInput = {
   secondaryColor: string;
   whatsappNumber: string;
   defaultThankYouUrl: string;
+  legalPageUrl?: string;
+  legalLinkLabel?: string;
+  operatorName?: string;
 };
 
 export type TreatmentInput = {
@@ -91,6 +94,44 @@ function clean(value: string | undefined | null, max = 500) {
 function nullableText(value: string) {
   const cleaned = clean(value);
   return cleaned || null;
+}
+
+function hasLegalInput(input: BrandInput) {
+  return Boolean(
+    clean(input.legalPageUrl) ||
+      clean(input.legalLinkLabel) ||
+      clean(input.operatorName)
+  );
+}
+
+function isMissingBrandLegalColumnError(error: { code?: string; message?: string }) {
+  const message = error.message ?? "";
+  return (
+    error.code === "42703" ||
+    error.code === "PGRST204" ||
+    message.includes("legal_page_url") ||
+    message.includes("legal_link_label") ||
+    message.includes("operator_name")
+  );
+}
+
+function brandPayload(input: BrandInput, includeLegal: boolean) {
+  return {
+    name: clean(input.name, 160),
+    slug: slugify(input.slug || input.name),
+    logo_url: nullableText(input.logoUrl),
+    primary_color: validateHexColor(input.primaryColor),
+    secondary_color: validateHexColor(input.secondaryColor),
+    whatsapp_number: nullableText(input.whatsappNumber),
+    default_thank_you_url: nullableText(input.defaultThankYouUrl),
+    ...(includeLegal
+      ? {
+          legal_page_url: nullableText(input.legalPageUrl ?? ""),
+          legal_link_label: nullableText(input.legalLinkLabel ?? ""),
+          operator_name: nullableText(input.operatorName ?? ""),
+        }
+      : {}),
+  };
 }
 
 function validateHexColor(value: string) {
@@ -189,15 +230,20 @@ export async function createBrand(input: BrandInput): Promise<SettingsMutationRe
     return { ok: false, message: "品牌代號已經存在，請使用另一個代號。" };
   }
 
-  const { error } = await supabase.from("brands").insert({
-    name,
-    slug,
-    logo_url: nullableText(input.logoUrl),
-    primary_color: validateHexColor(input.primaryColor),
-    secondary_color: validateHexColor(input.secondaryColor),
-    whatsapp_number: nullableText(input.whatsappNumber),
-    default_thank_you_url: nullableText(input.defaultThankYouUrl),
-  });
+  let { error } = await supabase.from("brands").insert(brandPayload(input, true));
+
+  if (error && isMissingBrandLegalColumnError(error)) {
+    if (hasLegalInput(input)) {
+      return {
+        ok: false,
+        message:
+          "請先在 Supabase 執行 docs/BRAND_LEGAL_SETTINGS_APPLY.sql，然後再儲存法律設定。",
+      };
+    }
+
+    const retry = await supabase.from("brands").insert(brandPayload(input, false));
+    error = retry.error;
+  }
 
   if (error) {
     console.warn("brand_create_failed", error);
@@ -220,19 +266,32 @@ export async function updateBrand(input: BrandInput): Promise<SettingsMutationRe
     return { ok: false, message: "品牌代號已經存在，請使用另一個代號。" };
   }
 
-  const { error } = await supabase
+  let { error } = await supabase
     .from("brands")
     .update({
-      name,
-      slug,
-      logo_url: nullableText(input.logoUrl),
-      primary_color: validateHexColor(input.primaryColor),
-      secondary_color: validateHexColor(input.secondaryColor),
-      whatsapp_number: nullableText(input.whatsappNumber),
-      default_thank_you_url: nullableText(input.defaultThankYouUrl),
+      ...brandPayload(input, true),
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
+
+  if (error && isMissingBrandLegalColumnError(error)) {
+    if (hasLegalInput(input)) {
+      return {
+        ok: false,
+        message:
+          "請先在 Supabase 執行 docs/BRAND_LEGAL_SETTINGS_APPLY.sql，然後再儲存法律設定。",
+      };
+    }
+
+    const retry = await supabase
+      .from("brands")
+      .update({
+        ...brandPayload(input, false),
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", id);
+    error = retry.error;
+  }
 
   if (error) {
     console.warn("brand_update_failed", error);
