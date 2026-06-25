@@ -174,6 +174,12 @@
     return cleaned || "HKD";
   }
 
+  function clampEmbedHeight(value) {
+    var parsed = Number(value);
+    if (!Number.isFinite(parsed)) return 820;
+    return Math.max(520, Math.min(Math.ceil(parsed), 3000));
+  }
+
   function getPixelLandingUrl(parentPageUrl) {
     if (parentPageUrl) return parentPageUrl;
     if (document.referrer) return document.referrer;
@@ -275,7 +281,7 @@
       script.getAttribute("data-pixel-currency")
     );
     var conversionBeaconSent = false;
-    var height = script.getAttribute("data-height") || "820";
+    var height = clampEmbedHeight(script.getAttribute("data-height") || "820");
     var scriptOrigin = new URL(script.src).origin;
     var embedOrigin = scriptOrigin;
     var parentPageUrl = getRealParentPageUrl();
@@ -359,12 +365,16 @@
     var iframe = document.createElement("iframe");
     iframe.src = iframeUrl.toString();
     iframe.width = "100%";
-    iframe.height = height;
+    iframe.height = String(height);
     iframe.style.border = "0";
     iframe.style.width = "100%";
     iframe.style.maxWidth = "100%";
+    iframe.style.minHeight = "520px";
+    iframe.style.height = height + "px";
+    iframe.style.overflow = "hidden";
     iframe.style.display = "block";
     iframe.setAttribute("loading", "lazy");
+    iframe.setAttribute("scrolling", "no");
     iframe.setAttribute("title", "Campaign registration form");
 
     function sendAttribution() {
@@ -402,6 +412,16 @@
     iframe.addEventListener("load", sendAttribution);
     window.addEventListener("message", function (event) {
       if (event.origin !== embedOrigin) return;
+      if (
+        event.data &&
+        event.data.type === "launchhub:resize" &&
+        event.data.source === "launchhub-form" &&
+        (!event.data.formToken || event.data.formToken === formToken)
+      ) {
+        var nextHeight = clampEmbedHeight(event.data.height);
+        iframe.height = String(nextHeight);
+        iframe.style.height = nextHeight + "px";
+      }
       if (event.data && event.data.type === "alyssa_iframe_ready") {
         sendAttribution();
       }

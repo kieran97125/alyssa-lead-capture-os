@@ -350,7 +350,7 @@ export default async function PublicLandingPage({
 
   return (
     <main
-      className="min-h-screen overflow-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
+      className="min-h-screen overflow-x-hidden bg-[var(--public-bg)] text-[var(--public-text)]"
       style={themeStyle}
     >
       <PublicAttributionCookieScript
