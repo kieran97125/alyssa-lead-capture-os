@@ -97,12 +97,16 @@ export function buildWixEmbedCode({
   brandSlug,
   pixelId,
   eventValue,
+  conversionMode,
+  successRedirectUrl,
   version = "20260623",
 }: {
   form: FormSetting;
   brandSlug: string;
   pixelId?: string;
   eventValue?: number | string | null;
+  conversionMode?: "form_submit_pixel" | "thank_you_redirect" | null;
+  successRedirectUrl?: string | null;
   version?: string;
 }) {
   const safeBrandSlug = slugSafe(brandSlug || "brand");
@@ -119,10 +123,15 @@ export function buildWixEmbedCode({
     `  data-form-id="${form.id}"`,
   ];
 
-  if (pixelId) {
+  if (pixelId && conversionMode !== "thank_you_redirect") {
     lines.push(`  data-pixel-id="${pixelId}"`);
     lines.push(`  data-pixel-event-value="${eventValue || 388}"`);
     lines.push(`  data-pixel-currency="HKD"`);
+  }
+
+  if (conversionMode === "thank_you_redirect" && successRedirectUrl) {
+    lines.push(`  data-conversion-mode="thank_you_redirect"`);
+    lines.push(`  data-success-redirect-url="${successRedirectUrl}"`);
   }
 
   lines.push(`  data-target="#${targetId}">`);
@@ -154,6 +163,8 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
     brandSlug,
     pixelId,
     eventValue: selectedPackage?.promoPrice,
+    conversionMode: form.conversionMode,
+    successRedirectUrl: form.successRedirectUrl,
   });
 
   return {
@@ -167,6 +178,8 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
     brandSlug,
     pixelId,
     pixelConfigured: Boolean(pixelId),
+    conversionMode: form.conversionMode || "form_submit_pixel",
+    successRedirectUrl: form.successRedirectUrl || "",
     embedCode,
     previewUrl: getPublicEmbedPreviewUrl(form.publicFormToken),
     packageLabel: packagePriceLabel(selectedPackage),

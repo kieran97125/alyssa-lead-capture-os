@@ -207,7 +207,9 @@ export default async function FormConfigPage({
               code={ops.embedCode}
               title="Ready-to-paste Wix embed"
               description={
-                ops.pixelConfigured
+                ops.conversionMode === "thank_you_redirect"
+                  ? "此 snippet 會在成功儲存 lead 後轉到已設定的 Thank You Page，由 Wix Thank You Page 觸發轉換。"
+                  : ops.pixelConfigured
                   ? "此 snippet 已包含此品牌的 data-pixel-id，成功儲存 lead 後會發送 CompleteRegistration beacon。"
                   : "此品牌未設定 Pixel，snippet 會省略 data-pixel-id。"
               }

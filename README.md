@@ -675,6 +675,29 @@ For normal Wix deployment, use the LaunchHub embed script. It reads the Wix page
 
 For Wix HTML component embeds, add `data-pixel-id` so the embed script itself can send the save-confirmed `CompleteRegistration` beacon without depending on a top-level Wix custom-code listener. Optional overrides are `data-pixel-event-value` and `data-pixel-currency`; defaults are `388` and `HKD`.
 
+LaunchHub supports two conversion modes for embedded forms:
+
+- `form_submit_pixel`: default mode. The LaunchHub form saves the lead first, then sends the `CompleteRegistration` event from the embed/script path when a Pixel ID is configured.
+- `thank_you_redirect`: thank-you mode. The LaunchHub form saves the lead first, does not fire `CompleteRegistration` inside the iframe/embed, and redirects the top-level browser to the configured Wix thank-you page. The Wix thank-you page should own the Meta `CompleteRegistration` event.
+
+For Ineffable thank-you redirect mode, use HTTPS and the approved thank-you path only:
+
+```html
+<div id="launchhub-ineffable-form-form-4f4a18"></div>
+
+<script
+  src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260625-thankyou"
+  data-form-token="ineffable-beauty-388-3-form-4f4a18"
+  data-brand="ineffable"
+  data-form-id="19df814b-a47e-4c56-878d-d58198ada82c"
+  data-conversion-mode="thank_you_redirect"
+  data-success-redirect-url="https://www.ineffablebeautyhk.com/thank-you?submitted=1&treatment=gentle-pore-care&value=388"
+  data-target="#launchhub-ineffable-form-form-4f4a18">
+</script>
+```
+
+Do not add `data-pixel-id` to a `thank_you_redirect` snippet. The redirect URL is validated before use and must be `https://www.ineffablebeautyhk.com/thank-you` or `https://ineffablebeautyhk.com/thank-you`. LaunchHub appends safe tracking/query data to the thank-you URL after a successful save, including `submitted=1`, `form_id`, `lead_id`, `event_id`, UTM/click IDs, campaign/ad IDs, placement, and `lh_*` backup params. `event_id` matches `lead_id` for Wix/Meta deduplication.
+
 The Wix top-page listener may receive the conversion message directly from `https://go.beautytrialhk.com` or relayed through a Wix `.filesusr.com` HTML iframe. Always verify `data.type`, `data.event`, the exact `data.formToken`, and `data.brandSlug` before firing Meta Pixel so random iframe messages cannot trigger `CompleteRegistration`.
 
 Brand examples:

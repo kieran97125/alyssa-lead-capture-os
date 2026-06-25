@@ -174,6 +174,12 @@
     return cleaned || "HKD";
   }
 
+  function getConversionMode(value) {
+    return value === "thank_you_redirect"
+      ? "thank_you_redirect"
+      : "form_submit_pixel";
+  }
+
   function clampEmbedHeight(value) {
     var parsed = Number(value);
     if (!Number.isFinite(parsed)) return 820;
@@ -197,6 +203,51 @@
     params.set("cd[content_category]", "registration");
 
     return "https://www.facebook.com/tr?" + params.toString();
+  }
+
+  function isAllowedSuccessRedirectUrl(value, brand) {
+    var cleaned = typeof value === "string" ? value.trim() : "";
+    var safeBrand = (brand || "").trim().toLowerCase();
+    if (!cleaned) return false;
+
+    try {
+      var url = new URL(cleaned);
+      var path = url.pathname.replace(/\/+$/, "");
+      var allowedOrigin =
+        safeBrand === "ineffable" || safeBrand === "ineffable-beauty"
+          ? url.origin === "https://www.ineffablebeautyhk.com" ||
+            url.origin === "https://ineffablebeautyhk.com"
+          : false;
+
+      return url.protocol === "https:" && allowedOrigin && path === "/thank-you";
+    } catch {
+      return false;
+    }
+  }
+
+  function navigateTopToSuccessUrl(value, brand) {
+    if (!isAllowedSuccessRedirectUrl(value, brand)) return false;
+
+    try {
+      if (window.top) {
+        window.top.location.href = value;
+        return true;
+      }
+    } catch {
+    }
+
+    try {
+      window.open(value, "_top");
+      return true;
+    } catch {
+    }
+
+    try {
+      window.location.href = value;
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   function classifyStorageStatus(localSaved, sessionSaved) {
@@ -280,7 +331,14 @@
     var pixelCurrency = getPixelCurrency(
       script.getAttribute("data-pixel-currency")
     );
+    var conversionMode = getConversionMode(
+      script.getAttribute("data-conversion-mode")
+    );
+    var successRedirectUrl = (
+      script.getAttribute("data-success-redirect-url") || ""
+    ).trim();
     var conversionBeaconSent = false;
+    var successRedirectStarted = false;
     var height = clampEmbedHeight(script.getAttribute("data-height") || "820");
     var scriptOrigin = new URL(script.src).origin;
     var embedOrigin = scriptOrigin;
@@ -356,6 +414,10 @@
     var iframeUrl = new URL(embedOrigin + "/embed/" + encodeURIComponent(formToken));
     if (brand) iframeUrl.searchParams.set("brand", brand);
     if (formId) iframeUrl.searchParams.set("form_id", formId);
+    if (conversionMode) iframeUrl.searchParams.set("conversion_mode", conversionMode);
+    if (successRedirectUrl) {
+      iframeUrl.searchParams.set("success_redirect_url", successRedirectUrl);
+    }
     Object.keys(paramPayload).forEach(function (key) {
       iframeUrl.searchParams.set(key, paramPayload[key]);
     });
@@ -393,6 +455,7 @@
     }
 
     function fireCompleteRegistrationBeacon(message) {
+      if (conversionMode === "thank_you_redirect") return;
       if (!pixelId || conversionBeaconSent) return;
 
       conversionBeaconSent = true;
@@ -424,6 +487,31 @@
       }
       if (event.data && event.data.type === "alyssa_iframe_ready") {
         sendAttribution();
+      }
+      if (
+        event.data &&
+        event.data.type === "launchhub:success-redirect" &&
+        event.data.source === "launchhub-form" &&
+        event.data.formToken === formToken
+      ) {
+        if (successRedirectStarted) return;
+        successRedirectStarted = true;
+
+        var finalRedirectUrl = event.data.redirectUrl || successRedirectUrl;
+        var redirected = navigateTopToSuccessUrl(finalRedirectUrl, brand);
+
+        if (!redirected && iframe.contentWindow) {
+          iframe.contentWindow.postMessage(
+            {
+              type: "launchhub:redirect-blocked",
+              source: "launchhub-embed",
+              redirectUrl: isAllowedSuccessRedirectUrl(finalRedirectUrl, brand)
+                ? finalRedirectUrl
+                : ""
+            },
+            embedOrigin
+          );
+        }
       }
       if (
         event.data &&

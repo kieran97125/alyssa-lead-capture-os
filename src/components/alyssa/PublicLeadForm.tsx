@@ -54,6 +54,7 @@ type AttributionEnvelope = {
 };
 
 type SubmitState = "idle" | "loading" | "success" | "error";
+type ConversionMode = "form_submit_pixel" | "thank_you_redirect";
 
 type AttributionDebugResponse = {
   attribution_debug: true;
@@ -131,6 +132,8 @@ type PublicFormConfig = {
   defaultPackageId: string;
   defaultBranchId: string;
   allowedDomains: string[];
+  successRedirectUrl?: string | null;
+  conversionMode?: ConversionMode | null;
 };
 
 type PublicLeadFormProps = {
@@ -141,13 +144,42 @@ type PublicLeadFormProps = {
   serverInitialAttribution?: Record<string, unknown> | null;
   expectedParentOrigin?: string;
   mode?: "inline" | "embed";
+  conversionMode?: ConversionMode;
+  successRedirectUrl?: string;
   className?: string;
 };
 
 const ATTRIBUTION_KEYS = [...publicAttributionParamKeys, "utm_id"] as const;
+const THANK_YOU_REDIRECT_KEYS = [
+  "utm_source",
+  "utm_medium",
+  "utm_campaign",
+  "utm_content",
+  "utm_term",
+  "fbclid",
+  "campaign_id",
+  "adset_id",
+  "ad_id",
+  "placement",
+  "lh_source",
+  "lh_medium",
+  "lh_campaign",
+  "lh_content",
+  "lh_term",
+  "lh_campaign_id",
+  "lh_adset_id",
+  "lh_ad_id",
+  "lh_placement",
+] as const;
 
 function getString(value: unknown) {
   return typeof value === "string" ? value : "";
+}
+
+function normalizeConversionMode(value: unknown): ConversionMode {
+  return value === "thank_you_redirect"
+    ? "thank_you_redirect"
+    : "form_submit_pixel";
 }
 
 function getNumber(value: unknown) {
@@ -181,6 +213,36 @@ function normalizeOrigin(value: string | null | undefined) {
     } catch {
       return null;
     }
+  }
+}
+
+function getAllowedRedirectOrigins(brandSlug: string | null | undefined) {
+  const slug = (brandSlug || "").trim().toLowerCase();
+  const origins = new Set<string>();
+
+  if (slug === "ineffable" || slug === "ineffable-beauty") {
+    origins.add("https://www.ineffablebeautyhk.com");
+    origins.add("https://ineffablebeautyhk.com");
+  }
+
+  return origins;
+}
+
+function sanitizeSuccessRedirectUrl(
+  value: string | null | undefined,
+  brandSlug: string | null | undefined
+) {
+  const cleaned = (value || "").trim();
+  if (!cleaned) return null;
+
+  try {
+    const url = new URL(cleaned);
+    if (url.protocol !== "https:") return null;
+    if (!getAllowedRedirectOrigins(brandSlug).has(url.origin)) return null;
+    if (url.pathname.replace(/\/+$/, "") !== "/thank-you") return null;
+    return url;
+  } catch {
+    return null;
   }
 }
 
@@ -679,6 +741,13 @@ function normalizeForm(raw: Record<string, unknown>): PublicFormConfig {
       getString(raw.defaultBranchId) ||
       getString(raw.default_branch_id) ||
       alyssaDefaultForm.defaultBranchId,
+    successRedirectUrl:
+      getString(raw.successRedirectUrl) ||
+      getString(raw.success_redirect_url) ||
+      null,
+    conversionMode: normalizeConversionMode(
+      raw.conversionMode ?? raw.conversion_mode
+    ),
     allowedDomains: Array.isArray(allowedDomains)
       ? allowedDomains.filter((item): item is string => typeof item === "string")
       : [],
@@ -800,12 +869,15 @@ export function PublicLeadForm({
   serverInitialAttribution,
   expectedParentOrigin,
   mode = "inline",
+  conversionMode,
+  successRedirectUrl,
   className = "",
 }: PublicLeadFormProps) {
   const conversionEventSentRef = useRef(false);
   const [attribution, setAttribution] = useState<AttributionEnvelope>({});
   const [state, setState] = useState<SubmitState>("idle");
   const [message, setMessage] = useState("");
+  const [redirectFallbackUrl, setRedirectFallbackUrl] = useState("");
   const [configMessage, setConfigMessage] = useState("");
   const [formStarted, setFormStarted] = useState(false);
   const [attributionDebug, setAttributionDebug] =
@@ -889,6 +961,51 @@ export function PublicLeadForm({
     [publicTheme]
   );
   const isEmbed = mode === "embed";
+  const effectiveConversionMode =
+    conversionMode ?? publicForm.conversionMode ?? "form_submit_pixel";
+  const effectiveSuccessRedirectUrl =
+    successRedirectUrl || publicForm.successRedirectUrl || "";
+
+  function buildThankYouRedirectUrl({
+    leadId,
+    eventAttribution,
+  }: {
+    leadId: string;
+    eventAttribution: AttributionEnvelope;
+  }) {
+    const baseUrl = sanitizeSuccessRedirectUrl(
+      effectiveSuccessRedirectUrl,
+      brand.slug || brandSlug
+    );
+    if (!baseUrl || !leadId) return null;
+
+    const submittedTouch = eventAttribution.submitted_touch_json ?? {};
+    baseUrl.searchParams.set("submitted", "1");
+    if (!baseUrl.searchParams.get("treatment")) {
+      baseUrl.searchParams.set(
+        "treatment",
+        selectedTreatment?.id || formData.treatment_id || ""
+      );
+    }
+    if (!baseUrl.searchParams.get("value")) {
+      baseUrl.searchParams.set(
+        "value",
+        String(selectedPackage?.promoPrice ?? 0)
+      );
+    }
+    baseUrl.searchParams.set("form_id", formId || publicForm.id);
+    baseUrl.searchParams.set("lead_id", leadId);
+    baseUrl.searchParams.set("event_id", leadId);
+
+    THANK_YOU_REDIRECT_KEYS.forEach((key) => {
+      const value = getString(submittedTouch[key]);
+      if (value && !baseUrl.searchParams.has(key)) {
+        baseUrl.searchParams.set(key, value);
+      }
+    });
+
+    return baseUrl.toString();
+  }
 
   function buildCompleteRegistrationPayload() {
     return {
@@ -921,9 +1038,57 @@ export function PublicLeadForm({
     }
   }
 
-  function handleSuccessfulRegistrationEvent(eventAttribution: AttributionEnvelope) {
+  function startSuccessRedirect(
+    finalRedirectUrl: string,
+    eventAttribution: AttributionEnvelope
+  ) {
+    setRedirectFallbackUrl(finalRedirectUrl);
+    void logPublicEvent(
+      "form_submit_success",
+      {
+        conversion_mode: "thank_you_redirect",
+        success_redirect_url_resolved: true,
+        success_redirect_started: true,
+      },
+      eventAttribution
+    );
+
+    if (isEmbed && window.parent && window.parent !== window) {
+      window.parent.postMessage(
+        {
+          type: "launchhub:success-redirect",
+          source: "launchhub-form",
+          formToken,
+          brandSlug: brand.slug || brandSlug || "",
+          redirectUrl: finalRedirectUrl,
+        },
+        "*"
+      );
+      return;
+    }
+
+    try {
+      window.location.assign(finalRedirectUrl);
+    } catch {
+      window.open(finalRedirectUrl, "_top");
+    }
+  }
+
+  function handleSuccessfulRegistrationEvent(
+    eventAttribution: AttributionEnvelope,
+    finalRedirectUrl: string | null
+  ) {
     if (conversionEventSentRef.current) return;
     conversionEventSentRef.current = true;
+
+    if (effectiveConversionMode === "thank_you_redirect") {
+      if (finalRedirectUrl) {
+        startSuccessRedirect(finalRedirectUrl, eventAttribution);
+      } else {
+        logSkippedConversion("thank_you_redirect_missing_or_not_allowed");
+      }
+      return;
+    }
 
     const payload = buildCompleteRegistrationPayload();
 
@@ -1229,22 +1394,34 @@ export function PublicLeadForm({
         return;
       }
 
+      const successAttribution = nextAttributionDebug?.final_current_page_url
+        ? {
+            ...liveAttribution,
+            submitted_touch_json: {
+              ...(liveAttribution.submitted_touch_json || {}),
+              current_page_url: nextAttributionDebug.final_current_page_url,
+              landing_page_url:
+                nextAttributionDebug.final_landing_page_url ||
+                nextAttributionDebug.final_current_page_url,
+            },
+          }
+        : liveAttribution;
+      const leadId = getString(result.lead_id);
+      const finalRedirectUrl =
+        effectiveConversionMode === "thank_you_redirect"
+          ? buildThankYouRedirectUrl({
+              leadId,
+              eventAttribution: successAttribution,
+            })
+          : null;
+
       setState("success");
-      handleSuccessfulRegistrationEvent(
-        nextAttributionDebug?.final_current_page_url
-          ? {
-              ...liveAttribution,
-              submitted_touch_json: {
-                ...(liveAttribution.submitted_touch_json || {}),
-                current_page_url: nextAttributionDebug.final_current_page_url,
-                landing_page_url:
-                  nextAttributionDebug.final_landing_page_url ||
-                  nextAttributionDebug.final_current_page_url,
-              },
-            }
-          : liveAttribution
+      handleSuccessfulRegistrationEvent(successAttribution, finalRedirectUrl);
+      setMessage(
+        finalRedirectUrl
+          ? "已收到你的登記，正在前往確認頁。"
+          : "已收到你的登記，我們會盡快透過 WhatsApp 跟進。"
       );
-      setMessage("已收到你的登記，我們會盡快透過 WhatsApp 跟進。");
     } catch (error) {
       setState("error");
       setMessage("網絡暫時未能連線，請稍後再試。");
@@ -1294,6 +1471,17 @@ export function PublicLeadForm({
                 <p className="mt-3">
                   {brand.name} 團隊會透過 WhatsApp 聯絡你，確認療程及預約細節。
                 </p>
+                {redirectFallbackUrl && (
+                  <p className="mt-4">
+                    <a
+                      href={redirectFallbackUrl}
+                      target="_top"
+                      className="inline-flex rounded-full bg-[var(--public-cta)] px-5 py-3 text-sm font-bold text-white"
+                    >
+                      前往確認頁
+                    </a>
+                  </p>
+                )}
               </Notice>
               {attributionDebug && (
                 <AttributionDebugPanel debug={attributionDebug} />

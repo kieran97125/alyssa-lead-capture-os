@@ -4,6 +4,8 @@ import { useEffect } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { PublicLeadForm } from "@/components/alyssa/PublicLeadForm";
 
+type ConversionMode = "form_submit_pixel" | "thank_you_redirect";
+
 function normalizeOrigin(value: string | null) {
   if (!value) return "";
 
@@ -12,6 +14,10 @@ function normalizeOrigin(value: string | null) {
   } catch {
     return "";
   }
+}
+
+function normalizeConversionMode(value: string | null): ConversionMode | undefined {
+  return value === "thank_you_redirect" ? "thank_you_redirect" : undefined;
 }
 
 export default function EmbedFormPage() {
@@ -91,6 +97,8 @@ export default function EmbedFormPage() {
         formToken={formToken}
         formId={searchParams.get("form_id") || undefined}
         brandSlug={searchParams.get("brand") || undefined}
+        conversionMode={normalizeConversionMode(searchParams.get("conversion_mode"))}
+        successRedirectUrl={searchParams.get("success_redirect_url") || undefined}
         expectedParentOrigin={normalizeOrigin(searchParams.get("parent_origin"))}
       />
     </main>

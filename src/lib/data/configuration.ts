@@ -65,6 +65,8 @@ export type FormSetting = {
   defaultTreatmentId: string | null;
   defaultPackageId: string | null;
   defaultBranchId: string | null;
+  conversionMode?: "form_submit_pixel" | "thank_you_redirect" | null;
+  successRedirectUrl?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
 };
@@ -191,6 +193,8 @@ function localConfiguration(): ConfigurationData {
         defaultTreatmentId: alyssaDefaultForm.defaultTreatmentId,
         defaultPackageId: alyssaDefaultForm.defaultPackageId,
         defaultBranchId: alyssaDefaultForm.defaultBranchId,
+        conversionMode: "form_submit_pixel",
+        successRedirectUrl: null,
         createdAt: null,
         updatedAt: null,
       },
@@ -215,6 +219,14 @@ function localConfiguration(): ConfigurationData {
 
 function asTextArray(value: unknown) {
   return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : [];
+}
+
+function normalizeFormConversionMode(
+  value: unknown
+): FormSetting["conversionMode"] {
+  return value === "thank_you_redirect"
+    ? "thank_you_redirect"
+    : "form_submit_pixel";
 }
 
 function moneyValue(value: number | string | null | undefined, currency = "HKD") {
@@ -323,7 +335,7 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
         .order("name", { ascending: true }),
       supabase
         .from("forms")
-        .select("id,public_form_token,brand_id,form_name,status,allowed_domains,default_treatment_id,default_package_id,default_branch_id,created_at,updated_at")
+        .select("*")
         .order("form_name", { ascending: true }),
     ]);
 
@@ -348,6 +360,11 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
           typeof row.default_package_id === "string" ? row.default_package_id : null,
         defaultBranchId:
           typeof row.default_branch_id === "string" ? row.default_branch_id : null,
+        conversionMode: normalizeFormConversionMode(row.conversion_mode),
+        successRedirectUrl:
+          typeof row.success_redirect_url === "string"
+            ? row.success_redirect_url
+            : null,
         createdAt: typeof row.created_at === "string" ? row.created_at : null,
         updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
       };
@@ -455,6 +472,11 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
             typeof row.default_package_id === "string" ? row.default_package_id : null,
           defaultBranchId:
             typeof row.default_branch_id === "string" ? row.default_branch_id : null,
+          conversionMode: normalizeFormConversionMode(row.conversion_mode),
+          successRedirectUrl:
+            typeof row.success_redirect_url === "string"
+              ? row.success_redirect_url
+              : null,
           createdAt: typeof row.created_at === "string" ? row.created_at : null,
           updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
         };
