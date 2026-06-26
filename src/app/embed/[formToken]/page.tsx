@@ -62,7 +62,7 @@ export default function EmbedFormPage() {
       );
       const height = contentHeight || fallbackHeight;
 
-      return Math.ceil(Math.max(height, 480) + 20);
+      return Math.ceil(Math.max(height, 420) + 20);
     };
 
     const postHeight = () => {

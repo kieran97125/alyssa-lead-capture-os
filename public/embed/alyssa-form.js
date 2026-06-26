@@ -192,7 +192,7 @@
   function clampEmbedHeight(value) {
     var parsed = Number(value);
     if (!Number.isFinite(parsed)) return 500;
-    return Math.max(480, Math.min(Math.ceil(parsed), 2200));
+    return Math.max(420, Math.min(Math.ceil(parsed), 2200));
   }
 
   function getPixelLandingUrl(parentPageUrl) {
@@ -373,7 +373,7 @@
     var conversionBeaconSent = false;
     var successRedirectStarted = false;
     var iframeLoaded = false;
-    var height = clampEmbedHeight(script.getAttribute("data-height") || "500");
+    var height = clampEmbedHeight(script.getAttribute("data-height") || "460");
     var scriptOrigin = new URL(script.src).origin;
     var embedOrigin = scriptOrigin;
     var parentPageUrl = getRealParentPageUrl();
@@ -464,7 +464,7 @@
     iframe.style.border = "0";
     iframe.style.width = "100%";
     iframe.style.maxWidth = "100%";
-    iframe.style.minHeight = "480px";
+    iframe.style.minHeight = "420px";
     iframe.style.height = height + "px";
     iframe.style.overflow = "hidden";
     iframe.style.display = "block";

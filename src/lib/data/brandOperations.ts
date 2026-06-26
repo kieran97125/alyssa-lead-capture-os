@@ -124,7 +124,7 @@ export function buildWixEmbedCode({
   const isThankYouRedirect =
     conversionMode === "thank_you_redirect" && Boolean(successRedirectUrl);
   const scriptVersion = isThankYouRedirect
-    ? "20260626-mobile-compact"
+    ? "20260626-mobile-performance"
     : version;
   const lines = isThankYouRedirect
     ? [

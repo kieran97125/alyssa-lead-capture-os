@@ -823,39 +823,41 @@ function ContentCard({
   labelPrefix?: "ITEM" | "STEP";
 }) {
   return (
-    <article className="overflow-hidden rounded-[34px] border border-[var(--public-border)] bg-white shadow-[0_24px_70px_rgba(216,91,163,0.12)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_30px_85px_rgba(216,91,163,0.18)]">
+    <article className="overflow-hidden rounded-[20px] border border-[var(--public-border)] bg-white shadow-[0_10px_30px_rgba(216,91,163,0.08)] transition duration-300 hover:-translate-y-1 hover:shadow-[0_16px_42px_rgba(216,91,163,0.14)] sm:rounded-[34px] sm:shadow-[0_24px_70px_rgba(216,91,163,0.12)] sm:hover:shadow-[0_30px_85px_rgba(216,91,163,0.18)]">
       {item.imageUrl && (
         <a
           href={item.imageUrl}
           target="_blank"
           rel="noreferrer"
-          className="group block bg-[#FFF8FC] p-3"
+          className="group block bg-[#FFF8FC] p-2 sm:p-3"
           aria-label={`${item.title || `項目 ${index + 1}`} 圖片放大`}
         >
-          <span className="relative block overflow-hidden rounded-[26px] border border-[var(--public-border)] bg-white">
+          <span className="relative block overflow-hidden rounded-[16px] border border-[var(--public-border)] bg-white sm:rounded-[26px]">
             <img
               src={item.imageUrl}
               alt={item.title || `項目 ${index + 1}`}
-              className="h-[260px] w-full object-contain transition duration-300 group-hover:scale-[1.02] sm:h-[320px]"
+              loading="lazy"
+              decoding="async"
+              className="h-[220px] w-full object-contain transition duration-300 group-hover:scale-[1.02] sm:h-[320px]"
             />
-            <span className="absolute right-4 top-4 rounded-full bg-white/90 px-3 py-1 text-xs font-bold text-[var(--public-accent)] shadow-sm">
+            <span className="absolute right-3 top-3 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-bold text-[var(--public-accent)] shadow-sm sm:right-4 sm:top-4 sm:px-3 sm:text-xs">
               點擊放大
             </span>
           </span>
         </a>
       )}
       {!imageOnly && (
-        <div className="px-6 pb-7 pt-5">
-          <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--public-accent)]">
+        <div className="px-4 pb-5 pt-4 sm:px-6 sm:pb-7 sm:pt-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[var(--public-accent)] sm:text-xs sm:tracking-[0.2em]">
             {`${labelPrefix} ${index + 1}`}
           </p>
           {item.title && (
-            <h3 className="mt-3 text-xl font-bold leading-tight text-[var(--public-heading)]">
+            <h3 className="mt-2 text-[18px] font-bold leading-tight text-[var(--public-heading)] sm:mt-3 sm:text-xl">
               {item.title}
             </h3>
           )}
           {item.body && (
-            <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+            <p className="mt-2 text-sm leading-6 text-[var(--public-muted)] sm:mt-3 sm:leading-7">
               {item.body}
             </p>
           )}
@@ -867,7 +869,7 @@ function ContentCard({
           {item.ctaText && item.ctaUrl && (
             <a
               href={item.ctaUrl}
-              className="mt-5 inline-flex rounded-full bg-[var(--public-cta)] px-5 py-3 text-sm font-bold text-white"
+              className="mt-4 inline-flex rounded-full bg-[var(--public-cta)] px-4 py-2.5 text-sm font-bold text-white sm:mt-5 sm:px-5 sm:py-3"
             >
               {item.ctaText}
             </a>
@@ -875,14 +877,14 @@ function ContentCard({
         </div>
       )}
       {imageOnly && (item.title || item.body) && (
-        <div className="px-6 pb-7 pt-5">
+        <div className="px-4 pb-5 pt-4 sm:px-6 sm:pb-7 sm:pt-5">
           {item.title && (
-            <h3 className="text-xl font-bold leading-tight text-[var(--public-heading)]">
+            <h3 className="text-[18px] font-bold leading-tight text-[var(--public-heading)] sm:text-xl">
               {item.title}
             </h3>
           )}
           {item.body && (
-          <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+          <p className="mt-2 text-sm leading-6 text-[var(--public-muted)] sm:mt-3 sm:leading-7">
             {item.body}
           </p>
           )}
@@ -899,7 +901,7 @@ function ContentCard({
 
 function InfoCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-[24px] border border-[var(--public-border)] bg-white p-5 shadow-sm">
+    <div className="rounded-[16px] border border-[var(--public-border)] bg-white p-4 shadow-sm sm:rounded-[24px] sm:p-5">
       <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
         {label}
       </p>
@@ -918,8 +920,8 @@ function PublicLegalFooter({
   links: Array<{ label: string; href: string }>;
 }) {
   return (
-    <footer id="legal-footer" className="scroll-mt-6 border-t border-[var(--public-border)] bg-white px-5 py-6">
-      <div className="mx-auto flex max-w-7xl flex-col gap-3 text-xs font-semibold leading-5 text-[var(--public-muted)] md:flex-row md:items-center md:justify-between">
+    <footer id="legal-footer" className="scroll-mt-6 border-t border-[var(--public-border)] bg-white px-4 py-5 sm:px-5 sm:py-6">
+      <div className="mx-auto flex max-w-7xl flex-col gap-2.5 text-xs font-semibold leading-5 text-[var(--public-muted)] md:flex-row md:items-center md:justify-between">
         <div className="grid gap-1">
           <p>{footerText}</p>
           <p>{IMAGE_REFERENCE_FOOTER_NOTE}</p>

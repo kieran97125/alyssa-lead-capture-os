@@ -191,3 +191,242 @@ a{text-decoration:none;color:inherit}
   .problem-panel,.why-strip,.form-section,.page-section{margin-left:16px;margin-right:16px;padding:24px}
   .section-title{font-size:24px;gap:12px;letter-spacing:3px}.section-title:before,.section-title:after{width:30px}
 }
+
+@media(max-width:640px){
+  body{
+    background:#fff;
+    overflow-x:hidden;
+  }
+  .site{
+    max-width:100%;
+    background:#fff;
+    overflow-x:hidden;
+  }
+  .header{
+    padding:14px 16px;
+    gap:10px;
+    border-bottom:1px solid #f1e5ee;
+  }
+  .logo img{width:145px}
+  .nav{
+    display:none;
+  }
+  .whatsapp{
+    padding:9px 13px;
+    font-size:13px;
+    box-shadow:none;
+  }
+  .hero{
+    min-height:auto;
+    padding:30px 16px 34px;
+    background:#fff8fc;
+  }
+  .hero:before,
+  .hero-benefits{
+    display:none;
+  }
+  .hero-copy{
+    width:100%;
+    padding-top:0;
+  }
+  .script{
+    margin-bottom:12px;
+    font-size:16px;
+  }
+  .hero h1{
+    margin-bottom:12px;
+    font-size:32px;
+    line-height:1.18;
+    letter-spacing:1px;
+  }
+  .subline{
+    margin-bottom:16px;
+    font-size:14px;
+    line-height:1.65;
+    letter-spacing:1.5px;
+  }
+  .price-row{
+    gap:12px;
+    margin-bottom:18px;
+  }
+  .badge{
+    width:58px;
+    height:58px;
+    font-size:13px;
+  }
+  .price{
+    font-size:46px;
+  }
+  .price small{
+    font-size:18px;
+    margin-left:4px;
+  }
+  .hero-actions{
+    display:grid;
+    gap:10px;
+  }
+  .btn{
+    width:100%;
+    height:44px;
+    padding:0 18px;
+    font-size:14px;
+  }
+  .hero-model{
+    display:none;
+  }
+  .problem-panel,
+  .why-strip,
+  .form-section,
+  .page-section{
+    margin:22px 12px;
+    padding:18px 16px;
+    border-radius:18px;
+    box-shadow:0 8px 24px rgba(164,153,187,.08);
+  }
+  .section-title{
+    display:block;
+    margin-bottom:14px;
+    font-size:23px;
+    line-height:1.35;
+    letter-spacing:1px;
+    text-align:left;
+  }
+  .section-title:before,
+  .section-title:after{
+    display:none;
+  }
+  .chips{
+    gap:10px;
+    margin-bottom:14px;
+  }
+  .chip{
+    min-height:38px;
+    height:auto;
+    padding:9px 12px;
+    justify-content:flex-start;
+    border-radius:14px;
+    font-size:14px;
+    line-height:1.45;
+  }
+  .cards{
+    gap:14px;
+  }
+  .card{
+    border-radius:16px;
+    box-shadow:0 8px 22px rgba(119,91,135,.08);
+  }
+  .card-img{
+    height:118px;
+  }
+  .ribbon{
+    top:8px;
+    font-size:12px;
+    padding:4px 22px;
+  }
+  .price-bubble{
+    right:14px;
+    top:66px;
+    width:64px;
+    height:64px;
+    font-size:11px;
+  }
+  .price-bubble strong{
+    font-size:22px;
+  }
+  .card-content{
+    padding:14px;
+  }
+  .card h3{
+    margin-bottom:12px;
+    font-size:20px;
+  }
+  .mini-points{
+    grid-template-columns:1fr;
+    gap:6px;
+  }
+  .mini{
+    text-align:left;
+    font-size:13px;
+  }
+  .card .cta{
+    height:44px;
+    font-size:14px;
+  }
+  .why-strip{
+    display:grid;
+    gap:12px;
+    padding:16px;
+  }
+  .why{
+    border-right:0;
+    gap:12px;
+  }
+  .why .bigicon{
+    font-size:28px;
+  }
+  .why b{
+    font-size:16px;
+  }
+  .why p{
+    margin-top:4px;
+    font-size:14px;
+    line-height:1.55;
+  }
+  .treatment-hero{
+    min-height:auto;
+    padding:30px 16px;
+    background:#fff8fc;
+  }
+  .treatment-hero h1{
+    margin-bottom:12px;
+    font-size:32px;
+    line-height:1.2;
+    letter-spacing:1px;
+  }
+  .treatment-hero p{
+    font-size:15px;
+    line-height:1.7;
+  }
+  .step-grid{
+    gap:14px;
+    margin-top:16px;
+  }
+  .step{
+    min-height:0;
+    padding:16px;
+    border-radius:16px;
+  }
+  .step h3{
+    font-size:18px;
+  }
+  .step p{
+    font-size:14px;
+    line-height:1.65;
+  }
+  .tags{
+    gap:8px;
+  }
+  .tag{
+    padding:8px 11px;
+    font-size:13px;
+  }
+  .form-section p,
+  .page-section p{
+    font-size:14px !important;
+    line-height:1.7 !important;
+    text-align:left !important;
+  }
+  .form-placeholder{
+    min-height:140px;
+    height:auto;
+    margin-top:14px;
+    padding:18px;
+    border-radius:16px;
+    font-size:14px;
+  }
+  .footer{
+    padding:20px 16px;
+    font-size:12px;
+    line-height:1.6;
+  }
+}
