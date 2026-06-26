@@ -54,6 +54,7 @@ type AttributionEnvelope = {
 };
 
 type SubmitState = "idle" | "loading" | "success" | "error";
+type ConfigStatus = "loading" | "ready" | "error";
 type ConversionMode = "form_submit_pixel" | "thank_you_redirect";
 
 type AttributionDebugResponse = {
@@ -128,6 +129,7 @@ type BrandOption = FormOption & {
 
 type PublicFormConfig = {
   id: string;
+  publicFormToken: string;
   defaultTreatmentId: string;
   defaultPackageId: string;
   defaultBranchId: string;
@@ -729,6 +731,8 @@ function normalizeForm(raw: Record<string, unknown>): PublicFormConfig {
 
   return {
     id: getString(raw.id) || alyssaDefaultForm.id,
+    publicFormToken:
+      getString(raw.publicFormToken) || getString(raw.public_form_token),
     defaultTreatmentId:
       getString(raw.defaultTreatmentId) ||
       getString(raw.default_treatment_id) ||
@@ -818,6 +822,21 @@ function getBrandDisplayOverride(brandSlug?: string | null): BrandOption | null 
   return null;
 }
 
+function normalizeBrandSlugForMatch(value?: string | null) {
+  const cleaned = (value || "").trim().toLowerCase();
+  return cleaned === "ineffable-beauty" ? "ineffable" : cleaned;
+}
+
+function isCompatibleBrandSlug(
+  requestedBrandSlug?: string | null,
+  actualBrandSlug?: string | null
+) {
+  const requested = normalizeBrandSlugForMatch(requestedBrandSlug);
+  const actual = normalizeBrandSlugForMatch(actualBrandSlug);
+  if (!requested || !actual) return true;
+  return requested === actual;
+}
+
 function isDisplayPackage(item: PackageOption) {
   return item.paymentRequired || item.promoPrice > 0;
 }
@@ -879,6 +898,7 @@ export function PublicLeadForm({
   const [message, setMessage] = useState("");
   const [redirectFallbackUrl, setRedirectFallbackUrl] = useState("");
   const [configMessage, setConfigMessage] = useState("");
+  const [configStatus, setConfigStatus] = useState<ConfigStatus>("loading");
   const [formStarted, setFormStarted] = useState(false);
   const [attributionDebug, setAttributionDebug] =
     useState<AttributionDebugResponse | null>(null);
@@ -1174,11 +1194,19 @@ export function PublicLeadForm({
 
   useEffect(() => {
     async function loadConfig() {
+      setConfigStatus("loading");
+      setConfigMessage("");
+
       try {
-        const response = await fetch(`/api/public/forms/${formToken}`);
+        const response = await fetch(
+          `/api/public/forms/${encodeURIComponent(formToken)}`,
+          { cache: "no-store" }
+        );
         const result = await response.json();
 
         if (!response.ok || !result.ok) {
+          setConfigStatus("error");
+          setConfigMessage("表格暫時未能載入，請稍後再試。");
           setConfigMessage("這張表格暫時未能使用，請稍後再試。");
           return;
         }
@@ -1186,7 +1214,17 @@ export function PublicLeadForm({
         setConfigMessage("");
 
         const nextForm = normalizeForm(result.form ?? {});
+        if (nextForm.publicFormToken && nextForm.publicFormToken !== formToken) {
+          throw new Error("form_token_mismatch");
+        }
+        if (formId && nextForm.id && nextForm.id !== formId) {
+          throw new Error("form_id_mismatch");
+        }
+
         const apiBrand = normalizeBrand(result.brand ?? {});
+        if (!isCompatibleBrandSlug(brandSlug, apiBrand.slug)) {
+          throw new Error("brand_slug_mismatch");
+        }
         const displayOverride = getBrandDisplayOverride(brandSlug);
         const nextBrand = displayOverride
           ? {
@@ -1205,38 +1243,43 @@ export function PublicLeadForm({
         const nextBranches = (result.branches ?? [])
           .map(normalizeBranch)
           .filter((item: BranchOption) => item.id && item.name);
-        const activeBranches =
-          nextBranches.length > 0
-            ? nextBranches
-            : alyssaBranches.map(normalizeBranch);
+        if (nextTreatments.length === 0 || nextPackages.length === 0) {
+          throw new Error("form_config_incomplete");
+        }
 
         setPublicForm(nextForm);
         setBrand(nextBrand);
-        if (nextTreatments.length > 0) setTreatments(nextTreatments);
-        if (nextPackages.length > 0) setPackages(nextPackages);
-        if (nextBranches.length > 0) setBranches(nextBranches);
+        setTreatments(nextTreatments);
+        setPackages(nextPackages);
+        setBranches(nextBranches);
 
-        const activePackages =
-          nextPackages.length > 0
-            ? nextPackages
-            : alyssaPackages.map(normalizePackage);
-        const primaryPackage = getPrimaryPackage(nextForm, activePackages);
+        const primaryPackage = getPrimaryPackage(nextForm, nextPackages);
 
         setFormData((current) => ({
           ...current,
           treatment_id: primaryPackage?.treatmentId || nextForm.defaultTreatmentId,
           package_id: primaryPackage?.id || nextForm.defaultPackageId,
-          branch_id: resolveDefaultBranchId(nextForm, activeBranches),
+          branch_id: resolveDefaultBranchId(nextForm, nextBranches),
         }));
-      } catch {
+        setConfigStatus("ready");
+      } catch (error) {
+        console.warn("[LaunchHub] public_form_config_load_failed", {
+          formToken,
+          formId,
+          reason: error instanceof Error ? error.message : "unknown_error",
+        });
+        setConfigStatus("error");
+        setConfigMessage("表格暫時未能載入，請稍後再試。");
         setConfigMessage("這張表格暫時未能讀取，請稍後再試。");
       }
     }
 
     void loadConfig();
-  }, [brandSlug, formToken]);
+  }, [brandSlug, formId, formToken]);
 
   useEffect(() => {
+    if (configStatus !== "ready") return;
+
     const initialAttribution = captureCurrentPageAttribution({
       formToken,
       formId: formId || publicForm.id,
@@ -1277,6 +1320,7 @@ export function PublicLeadForm({
   }, [
     brand.slug,
     brandSlug,
+    configStatus,
     expectedParentOrigin,
     formId,
     formToken,
@@ -1311,6 +1355,12 @@ export function PublicLeadForm({
 
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (configStatus !== "ready") {
+      setState("error");
+      setMessage("表格仍在載入，請稍候再試。");
+      return;
+    }
 
     const liveAttribution = captureCurrentPageAttribution({
       formToken,
@@ -1431,6 +1481,32 @@ export function PublicLeadForm({
         liveAttribution
       );
     }
+  }
+
+  if (configStatus !== "ready") {
+    return (
+      <section
+        data-launchhub-form-root
+        className={`${className} box-border w-full max-w-full min-w-0 overflow-x-hidden ${
+          isEmbed
+            ? "w-full max-w-none px-2.5 py-2 sm:mx-auto sm:max-w-[min(36rem,calc(100vw-8px))] sm:px-3 sm:py-3"
+            : ""
+        }`}
+        style={themeStyle}
+      >
+        <div className="box-border w-full max-w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none sm:rounded-[30px] sm:border sm:border-[var(--public-border)] sm:bg-[var(--public-card)] sm:shadow-[0_24px_70px_rgba(216,91,163,0.14)]">
+          <div className="p-0 sm:p-6">
+            {configStatus === "loading" ? (
+              <FormLoadingSkeleton />
+            ) : (
+              <Notice tone="warning" title="表格暫時未能載入">
+                <p>表格暫時未能載入，請稍後再試。</p>
+              </Notice>
+            )}
+          </div>
+        </div>
+      </section>
+    );
   }
 
   return (
@@ -1825,6 +1901,30 @@ function Notice({
     <section className={`box-border w-full max-w-full rounded-[14px] border p-3 text-center sm:rounded-[26px] sm:p-6 ${classes}`}>
       <h2 className="text-base font-bold sm:text-2xl">{title}</h2>
       <div className="mt-2 text-[13px] font-semibold leading-5 sm:mt-3 sm:text-sm sm:leading-6">{children}</div>
+    </section>
+  );
+}
+
+function FormLoadingSkeleton() {
+  return (
+    <section className="box-border w-full max-w-full rounded-[18px] border border-[#f3e5ec] bg-white p-4 text-left sm:rounded-[26px] sm:p-6">
+      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#d85ba3]">
+        LaunchHub
+      </p>
+      <h2 className="mt-3 text-lg font-bold text-[#5a2348]">
+        表格載入中...
+      </h2>
+      <p className="mt-2 text-sm font-semibold leading-6 text-[#8d6a82]">
+        請稍候，正在載入登記表格。
+      </p>
+      <div className="mt-5 grid gap-3">
+        {[0, 1, 2].map((item) => (
+          <div
+            key={item}
+            className="h-11 animate-pulse rounded-[14px] bg-[#f8edf4]"
+          />
+        ))}
+      </div>
     </section>
   );
 }

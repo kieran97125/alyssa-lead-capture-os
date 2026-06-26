@@ -3,7 +3,7 @@ import type { TouchPayload } from "@/lib/attribution/types";
 type SyncStatus = "enabled" | "disabled" | "missing_config";
 
 type LeadSheetSyncInput = {
-  createdAt: string;
+  createdAt: Date | string | null;
   customerName: string;
   phone: string;
   email: string | null;
@@ -78,6 +78,50 @@ function formatMoney(price: number | string) {
   return `$${price}`;
 }
 
+export function formatHongKongDateTime(value: Date | string | null | undefined) {
+  if (!value) return "";
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("zh-HK", {
+    timeZone: "Asia/Hong_Kong",
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).formatToParts(date);
+
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value || "";
+
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  const hour = part("hour");
+  const minute = part("minute");
+  const second = part("second");
+  const hongKongHour24 = Number(
+    new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Asia/Hong_Kong",
+      hour: "numeric",
+      hourCycle: "h23",
+    }).format(date)
+  );
+  const dayPeriod =
+    part("dayPeriod") ||
+    (Number.isFinite(hongKongHour24) && hongKongHour24 >= 12 ? "下午" : "上午");
+
+  if (!year || !month || !day || !hour || !minute || !second) {
+    return "";
+  }
+
+  return `${year}/${month}/${day} ${dayPeriod} ${hour}:${minute}:${second}`;
+}
+
 function formatTreatmentOffer(
   treatmentName: string,
   packageName: string,
@@ -126,7 +170,7 @@ export function buildGoogleSheetsLeadPayload(
 
   return {
     secret: env("GOOGLE_SHEETS_WEBHOOK_SECRET"),
-    createdAt: input.createdAt,
+    createdAt: formatHongKongDateTime(input.createdAt),
     followUpStatus: "待跟進",
     csOwner: "",
     brand: input.brandName,

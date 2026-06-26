@@ -13,6 +13,17 @@ import {
 
 type BranchRow = Record<string, unknown>;
 
+const PUBLIC_FORM_CONFIG_HEADERS = {
+  "Cache-Control": "no-store, max-age=0",
+};
+
+function publicFormJson(body: Record<string, unknown>, status = 200) {
+  return NextResponse.json(body, {
+    status,
+    headers: PUBLIC_FORM_CONFIG_HEADERS,
+  });
+}
+
 function withDefaultBranchFlag(
   branch: BranchRow,
   isDefault: boolean
@@ -31,10 +42,10 @@ export async function GET(
 
   if (!hasSupabaseAdminEnv()) {
     if (token !== alyssaDefaultForm.publicFormToken) {
-      return NextResponse.json({ ok: false, error: "invalid_form" }, { status: 404 });
+      return publicFormJson({ ok: false, error: "invalid_form" }, 404);
     }
 
-    return NextResponse.json({
+    return publicFormJson({
       ok: true,
       form: alyssaDefaultForm,
       brand: alyssaBrand,
@@ -58,7 +69,7 @@ export async function GET(
     .single();
 
   if (formError || !form) {
-    return NextResponse.json({ ok: false, error: "invalid_form" }, { status: 404 });
+    return publicFormJson({ ok: false, error: "invalid_form" }, 404);
   }
 
   const [{ data: brand }, { data: treatments }, { data: branches }] =
@@ -124,7 +135,7 @@ export async function GET(
     });
   }
 
-  return NextResponse.json({
+  return publicFormJson({
     ok: true,
     form,
     brand,

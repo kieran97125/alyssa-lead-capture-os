@@ -1287,7 +1287,7 @@ export async function POST(request: NextRequest) {
       booking_status: "requested",
       submitted_at: submittedAt,
     })
-    .select("id")
+    .select("id,created_at")
     .single();
 
   if (leadError || !lead) {
@@ -1438,7 +1438,7 @@ export async function POST(request: NextRequest) {
       });
 
       const sheetResult = await appendLeadToGoogleSheet({
-        createdAt: submittedAt,
+        createdAt: typeof lead.created_at === "string" ? lead.created_at : submittedAt,
         customerName,
         phone: normalizedPhone,
         email,

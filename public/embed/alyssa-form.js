@@ -343,6 +343,15 @@
     var script = document.currentScript;
     if (!script) return;
 
+    var debugEnabled = script.getAttribute("data-debug") === "1";
+    function debugLog(message, data) {
+      if (!debugEnabled) return;
+      try {
+        console.info("[LaunchHub Embed]", message, data || {});
+      } catch {
+      }
+    }
+
     var formToken = script.getAttribute("data-form-token") || "";
     var brand = script.getAttribute("data-brand") || "";
     var formId = script.getAttribute("data-form-id") || "";
@@ -458,6 +467,15 @@
     iframeUrl.searchParams.set("parent_url", parentPageUrl);
     iframeUrl.searchParams.set("parent_origin", parentOrigin);
 
+    debugLog("resolved form iframe", {
+      formToken: formToken,
+      formId: formId,
+      brand: brand,
+      target: targetSelector || targetId || "inline",
+      lazyLoad: lazyLoad,
+      parentOrigin: parentOrigin
+    });
+
     var iframe = document.createElement("iframe");
     iframe.width = "100%";
     iframe.height = String(height);
@@ -479,6 +497,7 @@
       if (iframeLoaded) return;
       iframeLoaded = true;
       iframe.src = iframeUrl.toString();
+      debugLog("loading iframe", { formToken: formToken });
 
       if (placeholder && placeholder.parentNode) {
         placeholder.parentNode.replaceChild(iframe, placeholder);
@@ -613,6 +632,10 @@
     }
     if (target) {
       target.innerHTML = "";
+      debugLog("cleared target container", {
+        formToken: formToken,
+        target: targetSelector || targetId
+      });
       if (lazyLoad) {
         var targetPlaceholder = createPlaceholder();
         target.appendChild(targetPlaceholder);
