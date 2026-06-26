@@ -1436,12 +1436,16 @@ export function PublicLeadForm({
   return (
     <section
       data-launchhub-form-root
-      className={`${className} ${isEmbed ? "mx-auto max-w-xl px-3 py-3" : ""}`}
+      className={`${className} box-border w-full max-w-full overflow-x-hidden [&_button]:box-border [&_button]:max-w-full [&_input]:box-border [&_input]:min-w-0 [&_input]:max-w-full [&_select]:box-border [&_select]:min-w-0 [&_select]:max-w-full [&_textarea]:box-border [&_textarea]:min-w-0 [&_textarea]:max-w-full ${
+        isEmbed
+          ? "mx-auto max-w-[min(36rem,calc(100vw-12px))] px-2 py-3 sm:px-3"
+          : ""
+      }`}
       style={themeStyle}
     >
-      <div className="overflow-hidden rounded-[30px] border border-[var(--public-border)] bg-[var(--public-card)] shadow-[0_24px_70px_rgba(216,91,163,0.14)]">
-        <div className="bg-gradient-to-br from-[#FFF1F7] via-white to-[#F6F2FF] px-6 py-6">
-          <div className="flex items-center justify-between gap-4">
+      <div className="box-border w-full max-w-full overflow-hidden rounded-[24px] border border-[var(--public-border)] bg-[var(--public-card)] shadow-[0_24px_70px_rgba(216,91,163,0.14)] sm:rounded-[30px]">
+        <div className="bg-gradient-to-br from-[#FFF1F7] via-white to-[#F6F2FF] px-4 py-5 sm:px-6 sm:py-6">
+          <div className="flex min-w-0 items-center justify-between gap-3 sm:gap-4">
             <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--public-accent)]">
               {brand.name}
             </p>
@@ -1457,7 +1461,7 @@ export function PublicLeadForm({
           </p>
         </div>
 
-        <div className="p-6">
+        <div className="p-4 sm:p-6">
           {configMessage ? (
             <Notice tone="warning" title="表格暫時未能使用">
               <p>{configMessage}</p>
@@ -1490,12 +1494,12 @@ export function PublicLeadForm({
             </div>
           ) : (
             <>
-              <section className="rounded-3xl border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-4">
+              <section className="box-border w-full max-w-full rounded-3xl border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-4">
                 <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
                   已選療程
                 </p>
-                <div className="mt-3 flex items-start justify-between gap-4">
-                  <div>
+                <div className="mt-3 flex min-w-0 items-start justify-between gap-3 sm:gap-4">
+                  <div className="min-w-0">
                     <p className="font-bold text-[var(--public-heading)]">
                       {selectedTreatment?.name}
                     </p>
@@ -1505,13 +1509,13 @@ export function PublicLeadForm({
                       </p>
                     )}
                   </div>
-                  <p className="shrink-0 rounded-full bg-white px-4 py-2 text-sm font-bold text-[var(--public-cta)]">
+                  <p className="shrink-0 rounded-full bg-white px-3 py-2 text-sm font-bold text-[var(--public-cta)] sm:px-4">
                     {priceLabel(selectedPackage)}
                   </p>
                 </div>
               </section>
 
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <div className="mt-4 grid min-w-0 grid-cols-1 gap-2 sm:grid-cols-3">
                 {["WhatsApp 專人跟進", "清楚預約安排", "資料只作跟進"].map(
                   (item) => (
                     <p
@@ -1524,7 +1528,7 @@ export function PublicLeadForm({
                 )}
               </div>
 
-              <form onSubmit={submitForm} className="mt-5 space-y-5">
+              <form onSubmit={submitForm} className="mt-5 w-full max-w-full space-y-5 overflow-x-hidden">
                 <input
                   name="website"
                   aria-hidden="true"
@@ -1585,7 +1589,7 @@ export function PublicLeadForm({
                 </FormSection>
 
                 <FormSection title="客人資料">
-                  <div className="grid gap-4 sm:grid-cols-2">
+                  <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
                     <Field label="姓名">
                       <input
                         required
@@ -1621,7 +1625,7 @@ export function PublicLeadForm({
                 </FormSection>
 
                 <FormSection title="預約安排">
-                  <div className="grid gap-4 sm:grid-cols-3">
+                  <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-3">
                     <Field label="分店">
                       {branches.length > 1 ? (
                         <select
@@ -1674,7 +1678,7 @@ export function PublicLeadForm({
                   </div>
                 </FormSection>
 
-                <section className="rounded-3xl border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-4">
+                <section className="box-border w-full max-w-full rounded-3xl border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-4">
                   <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
                     條款確認
                   </p>
@@ -1818,8 +1822,8 @@ function Notice({
       : "border-amber-200 bg-amber-50 text-amber-800";
 
   return (
-    <section className={`rounded-[26px] border p-6 text-center ${classes}`}>
-      <h2 className="text-2xl font-bold">{title}</h2>
+    <section className={`box-border w-full max-w-full rounded-[24px] border p-4 text-center sm:rounded-[26px] sm:p-6 ${classes}`}>
+      <h2 className="text-xl font-bold sm:text-2xl">{title}</h2>
       <div className="mt-3 text-sm font-semibold leading-6">{children}</div>
     </section>
   );
@@ -1827,18 +1831,18 @@ function Notice({
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="rounded-3xl border border-[var(--public-border)] bg-white p-4">
+    <section className="box-border w-full max-w-full min-w-0 rounded-3xl border border-[var(--public-border)] bg-white p-4">
       <p className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
         {title}
       </p>
-      <div className="space-y-4">{children}</div>
+      <div className="min-w-0 space-y-4">{children}</div>
     </section>
   );
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block text-sm font-bold text-[var(--public-heading)]">
+    <label className="block min-w-0 text-sm font-bold text-[var(--public-heading)]">
       {label}
       {children}
     </label>

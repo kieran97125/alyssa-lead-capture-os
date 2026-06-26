@@ -30,6 +30,17 @@ export default function EmbedFormPage() {
 
     let resizeFrame = 0;
     let lastHeight = 0;
+    const previousHtmlOverflowX = document.documentElement.style.overflowX;
+    const previousBodyOverflowX = document.body.style.overflowX;
+    const previousBodyWidth = document.body.style.width;
+    const previousBodyMaxWidth = document.body.style.maxWidth;
+    const previousBodyMargin = document.body.style.margin;
+
+    document.documentElement.style.overflowX = "hidden";
+    document.body.style.overflowX = "hidden";
+    document.body.style.width = "100%";
+    document.body.style.maxWidth = "100vw";
+    document.body.style.margin = "0";
 
     const measureHeight = () => {
       const formRoot = document.querySelector<HTMLElement>(
@@ -95,11 +106,16 @@ export default function EmbedFormPage() {
       timers.forEach((timer) => window.clearTimeout(timer));
       observer.disconnect();
       window.removeEventListener("resize", scheduleResize);
+      document.documentElement.style.overflowX = previousHtmlOverflowX;
+      document.body.style.overflowX = previousBodyOverflowX;
+      document.body.style.width = previousBodyWidth;
+      document.body.style.maxWidth = previousBodyMaxWidth;
+      document.body.style.margin = previousBodyMargin;
     };
   }, [formToken]);
 
   return (
-    <main className="bg-[var(--public-bg)]">
+    <main className="box-border w-full max-w-[100vw] overflow-x-hidden bg-[var(--public-bg)]">
       <PublicLeadForm
         mode="embed"
         formToken={formToken}
