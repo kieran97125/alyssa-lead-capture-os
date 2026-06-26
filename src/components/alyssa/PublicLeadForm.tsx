@@ -880,6 +880,34 @@ function priceLabel(item: PackageOption | undefined) {
   return item.promoPrice > 0 ? `HK$${item.promoPrice}` : "預約查詢";
 }
 
+function padDatePart(value: string | number) {
+  return String(value).padStart(2, "0");
+}
+
+function parseDateParts(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  return {
+    year: match?.[1] || "",
+    month: match?.[2] || "",
+    day: match?.[3] || "",
+  };
+}
+
+function getDaysInMonth(year: string, month: string) {
+  const numericYear = Number(year);
+  const numericMonth = Number(month);
+  if (!Number.isFinite(numericYear) || !Number.isFinite(numericMonth)) {
+    return 31;
+  }
+
+  return new Date(numericYear, numericMonth, 0).getDate();
+}
+
+function getDatePickerYears() {
+  const currentYear = new Date().getFullYear();
+  return [currentYear, currentYear + 1, currentYear + 2];
+}
+
 export function PublicLeadForm({
   formToken,
   formId,
@@ -1393,6 +1421,17 @@ export function PublicLeadForm({
       return;
     }
 
+    if (!formData.appointment_date) {
+      setState("error");
+      setMessage("請選擇預約日期。");
+      await logPublicEvent(
+        "form_submit_failed",
+        { error: "appointment_date_required" },
+        liveAttribution
+      );
+      return;
+    }
+
     setState("loading");
     setMessage("正在提交預約資料...");
     setAttributionDebug(null);
@@ -1726,13 +1765,10 @@ export function PublicLeadForm({
                       )}
                     </Field>
                     <Field label="預約日期">
-                      <input
-                        required
-                        type="date"
-                        className="mt-2 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                      <MobileDateField
                         value={formData.appointment_date}
-                        onChange={(event) =>
-                          updateField("appointment_date", event.target.value)
+                        onChange={(value) =>
+                          updateField("appointment_date", value)
                         }
                       />
                     </Field>
@@ -1926,6 +1962,94 @@ function FormLoadingSkeleton() {
         ))}
       </div>
     </section>
+  );
+}
+
+function MobileDateField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [parts, setParts] = useState(() => parseDateParts(value));
+  const years = useMemo(() => getDatePickerYears(), []);
+  const monthOptions = useMemo(
+    () => Array.from({ length: 12 }, (_, index) => index + 1),
+    []
+  );
+  const dayCount = getDaysInMonth(parts.year, parts.month);
+  const dayOptions = useMemo(
+    () => Array.from({ length: dayCount }, (_, index) => index + 1),
+    [dayCount]
+  );
+
+  function updatePart(key: "year" | "month" | "day", nextValue: string) {
+    const next = {
+      ...parts,
+      [key]: nextValue,
+    };
+    const maxDay = getDaysInMonth(next.year, next.month);
+    if (next.day && Number(next.day) > maxDay) {
+      next.day = padDatePart(maxDay);
+    }
+
+    setParts(next);
+    if (next.year && next.month && next.day) {
+      onChange(`${next.year}-${padDatePart(next.month)}-${padDatePart(next.day)}`);
+    } else {
+      onChange("");
+    }
+  }
+
+  const selectClass =
+    "mt-2 h-11 min-h-11 w-full rounded-[14px] border border-[var(--public-border)] bg-white px-3 py-2 text-base font-semibold text-[var(--public-heading)] outline-none focus:border-[var(--public-cta)] sm:h-12 sm:min-h-12 sm:rounded-2xl sm:text-sm";
+
+  return (
+    <div className="mt-2 grid min-w-0 grid-cols-3 gap-2" role="group" aria-label="預約日期">
+      <select
+        required
+        aria-label="預約年份"
+        className={selectClass}
+        value={parts.year}
+        onChange={(event) => updatePart("year", event.target.value)}
+      >
+        <option value="">年份</option>
+        {years.map((year) => (
+          <option key={year} value={year}>
+            {year}
+          </option>
+        ))}
+      </select>
+      <select
+        required
+        aria-label="預約月份"
+        className={selectClass}
+        value={parts.month}
+        onChange={(event) => updatePart("month", event.target.value)}
+      >
+        <option value="">月份</option>
+        {monthOptions.map((month) => (
+          <option key={month} value={padDatePart(month)}>
+            {month}月
+          </option>
+        ))}
+      </select>
+      <select
+        required
+        aria-label="預約日期"
+        className={selectClass}
+        value={parts.day}
+        onChange={(event) => updatePart("day", event.target.value)}
+      >
+        <option value="">日期</option>
+        {dayOptions.map((day) => (
+          <option key={day} value={padDatePart(day)}>
+            {day}日
+          </option>
+        ))}
+      </select>
+    </div>
   );
 }
 
