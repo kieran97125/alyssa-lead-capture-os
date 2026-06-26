@@ -1,26 +1,53 @@
 import { CrmInboxTable } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
-import { getLeadRows } from "@/lib/data/businessMetrics";
-import { summarizeCrmCases, toCrmLeadCase } from "@/lib/crm/leadOps";
+import { crmPipelineStatuses, summarizeCrmCases, toCrmLeadCase } from "@/lib/crm/leadOps";
 import {
   applyCrmRecordToLeadCase,
   getCrmCasesBySourceLeadIds,
   getCrmRuntimeStatus,
 } from "@/lib/crm/store";
+import { dateRangeOptions, getLeadRows, parseRange } from "@/lib/data/businessMetrics";
 
 export const dynamic = "force-dynamic";
 
-const tabs = ["Chats", "Orders", "Appointments", "Contacts", "Groups"];
+const tabs = ["Leads", "Bookings", "Contacts", "Follow-up", "Reports"];
 
-export default async function CrmPage() {
-  const { leads, error } = await getLeadRows("month", 500);
+export default async function CrmPage({
+  searchParams,
+}: {
+  searchParams?: Promise<Record<string, string | string[] | undefined>>;
+}) {
+  const query = await searchParams;
+  const range = parseRange(query?.range);
+  const search = firstQueryValue(query?.search)?.trim() || "";
+  const brand = firstQueryValue(query?.brand)?.trim().toLowerCase() || "";
+  const treatment = firstQueryValue(query?.treatment)?.trim().toLowerCase() || "";
+  const status = firstQueryValue(query?.status)?.trim() || "";
+  const source = firstQueryValue(query?.source)?.trim().toLowerCase() || "";
+  const { leads, error } = await getLeadRows(range, 500, { query: search });
   const [runtime, crmCasesByLeadId] = await Promise.all([
     getCrmRuntimeStatus(),
     getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id)),
   ]);
-  const cases = leads.map((lead) =>
-    applyCrmRecordToLeadCase(toCrmLeadCase(lead), crmCasesByLeadId.get(lead.id) ?? null)
-  );
+  const cases = leads
+    .map((lead) =>
+      applyCrmRecordToLeadCase(toCrmLeadCase(lead), crmCasesByLeadId.get(lead.id) ?? null)
+    )
+    .filter((item) => {
+      if (brand && !item.brandName.toLowerCase().includes(brand)) return false;
+      if (treatment && !item.treatmentOffer.toLowerCase().includes(treatment)) return false;
+      if (status && item.status !== status) return false;
+      if (
+        source &&
+        ![item.sourceLabel, item.sourceTypeRaw, item.campaignLabel, item.adLabel]
+          .join(" ")
+          .toLowerCase()
+          .includes(source)
+      ) {
+        return false;
+      }
+      return true;
+    });
   const summary = summarizeCrmCases(cases);
 
   return (
@@ -36,14 +63,15 @@ export default async function CrmPage() {
                 </span>
               </div>
               <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-                LeadOps CRM uses brand + normalized phone as the customer identity.
+                CS follow-up workbench for lead to booking to show monitoring.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold text-[#475569] sm:flex">
-              <Metric label="Open" value={summary.total} />
-              <Metric label="WhatsApp Ads" value={summary.whatsappAds} />
-              <Metric label="Forms" value={summary.formLeads} />
-              <Metric label="No next follow-up" value={summary.missingNextFollowUp} />
+              <Metric label="待跟進" value={summary.pendingFollowUp} />
+              <Metric label="有跟進時間" value={summary.nextFollowUp} />
+              <Metric label="已預約" value={summary.booked} />
+              <Metric label="已到店" value={summary.showed} />
+              <Metric label="No-show" value={summary.noShow} />
             </div>
           </div>
 
@@ -65,38 +93,65 @@ export default async function CrmPage() {
               ))}
             </nav>
 
-            <div className="flex min-w-0 flex-wrap items-center gap-2">
-              <button className="h-9 whitespace-nowrap rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]">
-                Filter
-              </button>
-              <select className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]">
-                <option>All sources</option>
-                <option>WhatsApp ads</option>
-                <option>Landing forms</option>
+            <form className="flex min-w-0 flex-wrap items-center gap-2">
+              <select
+                name="range"
+                defaultValue={range}
+                className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+              >
+                {dateRangeOptions.map((item) => (
+                  <option key={item.key} value={item.key}>
+                    {item.label}
+                  </option>
+                ))}
               </select>
-              <select className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]">
-                <option>All statuses</option>
-                <option>New</option>
-                <option>Contacting</option>
-                <option>Booked</option>
+              <input
+                name="brand"
+                defaultValue={firstQueryValue(query?.brand) || ""}
+                placeholder="Brand"
+                className="h-9 w-[120px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+              />
+              <input
+                name="treatment"
+                defaultValue={firstQueryValue(query?.treatment) || ""}
+                placeholder="Treatment"
+                className="h-9 w-[140px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+              />
+              <select
+                name="status"
+                defaultValue={status}
+                className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+              >
+                <option value="">All statuses</option>
+                {crmPipelineStatuses.map((item) => (
+                  <option key={item.value} value={item.value}>
+                    {item.label}
+                  </option>
+                ))}
               </select>
-              <label className="min-w-[240px] flex-1 xl:w-[360px] xl:flex-none">
+              <input
+                name="source"
+                defaultValue={firstQueryValue(query?.source) || ""}
+                placeholder="Source / campaign"
+                className="h-9 w-[160px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+              />
+              <label className="min-w-[220px] flex-1 xl:w-[320px] xl:flex-none">
                 <span className="sr-only">Search CRM inbox</span>
                 <input
+                  name="search"
                   type="search"
+                  defaultValue={search}
                   placeholder="Search name, phone, CTWA ID, campaign..."
                   className="h-9 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#2563eb] focus:bg-white"
                 />
               </label>
               <button
-                type="button"
-                disabled
-                title={runtime.disabledReason ?? "CRM write actions are enabled on detail pages."}
-                className="h-9 whitespace-nowrap rounded-md bg-[#e5e7eb] px-2.5 text-[12px] font-bold text-[#94a3b8]"
+                type="submit"
+                className="h-9 whitespace-nowrap rounded-md bg-[#111827] px-3 text-[12px] font-bold text-white"
               >
-                New task
+                Filter
               </button>
-            </div>
+            </form>
           </div>
 
           {!runtime.actionsEnabled && (
@@ -125,4 +180,8 @@ function Metric({ label, value }: { label: string; value: number }) {
       <span className="ml-2 text-[#111827]">{value}</span>
     </div>
   );
+}
+
+function firstQueryValue(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value;
 }

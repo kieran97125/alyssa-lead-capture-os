@@ -80,6 +80,7 @@ export type CrmBookingRecord = {
   booking_time: string | null;
   status: string;
   created_by: string | null;
+  metadata_json: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };
@@ -423,6 +424,7 @@ export function applyCrmRecordToLeadCase(
     nextFollowUpLabel: record.next_follow_up_at
       ? formatDateTime(record.next_follow_up_at)
       : leadCase.nextFollowUpLabel,
+    nextFollowUpAt: record.next_follow_up_at,
     landingPageSlug: record.landing_page_slug || leadCase.landingPageSlug,
     pageUrl: record.page_url || leadCase.pageUrl,
     sourceLabel: record.source_label || leadCase.sourceLabel,
@@ -598,6 +600,8 @@ export async function insertCrmInteraction(input: {
   body: string;
   author?: string | null;
   sourceType?: string | null;
+  direction?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   if (!hasSupabaseAdminEnv()) return;
 
@@ -616,6 +620,8 @@ export async function createCrmInteraction(input: {
   author?: string | null;
   sourceType?: string | null;
   operation?: string;
+  direction?: string | null;
+  metadata?: Record<string, unknown>;
 }) {
   if (!hasSupabaseAdminEnv()) {
     const adminEnvStatus = getSupabaseAdminEnvStatus();
@@ -637,11 +643,11 @@ export async function createCrmInteraction(input: {
       case_id: input.caseId,
       contact_id: input.contactId,
       interaction_type: input.interactionType,
-      direction: "internal",
+      direction: input.direction ?? "internal",
       body: input.body,
       author: input.author ?? "admin",
       source_type: input.sourceType ?? "crm",
-      metadata_json: {},
+      metadata_json: input.metadata ?? {},
     })
     .select("*")
     .single();

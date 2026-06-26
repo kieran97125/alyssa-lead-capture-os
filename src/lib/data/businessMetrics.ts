@@ -61,6 +61,11 @@ type SourceSnapshotRecord = {
   utm_medium: string | null;
   utm_campaign: string | null;
   utm_content: string | null;
+  utm_term: string | null;
+  fbclid: string | null;
+  gclid: string | null;
+  wbraid: string | null;
+  gbraid: string | null;
   landing_page_url: string | null;
   current_page_url: string | null;
   page_path: string | null;
@@ -578,6 +583,11 @@ export async function getLeadRows(
           "utm_medium",
           "utm_campaign",
           "utm_content",
+          "utm_term",
+          "fbclid",
+          "gclid",
+          "wbraid",
+          "gbraid",
           "landing_page_url",
           "current_page_url",
           "page_path",

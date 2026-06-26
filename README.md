@@ -99,11 +99,15 @@ CS write actions:
 - Booking: creates or updates `crm_bookings`, links `crm_lead_cases.booking_id` where possible, and writes `crm_interactions`.
 - Follow-up task: creates `crm_follow_up_tasks`, updates `crm_lead_cases.next_follow_up_at`, and writes `crm_interactions`.
 - Lost reason: updates `crm_lead_cases.lost_reason`, sets status to `lost`, writes `crm_status_history`, and writes `crm_interactions`.
+- CRM Phase 1 statuses are `pending_follow_up`, `contacted`, `booked`, `showed`, `no_show`, `cancelled`, `no_reply`, and `lost`.
+- Add Note can capture channel, direction, outcome, and next follow-up time. When next follow-up time is set, it also creates a follow-up task.
+- Booking can track booked/showed/no-show/cancelled outcomes and stores paid/unpaid display state in `crm_bookings.metadata_json`.
 
 CRM Phase 2 schema files:
 
 - `docs/CRM_PHASE2_SCHEMA.sql` is the broader planning proposal.
 - `docs/CRM_PHASE2_APPLY.sql` is the Phase 2B review/apply script for the six CS operation tables only.
+- `docs/CRM_PHASE1_APPLY.sql` is the Phase 1 status-constraint review script for the CS pipeline statuses.
 
 `docs/CRM_PHASE2_APPLY.sql` has not been executed against the live database by this code change. It uses `create table if not exists`, non-destructive indexes, and comments. It does not alter existing LaunchHub tables.
 
@@ -118,7 +122,7 @@ Safety boundaries:
 
 - Public landing pages, public embed forms, public lead APIs, UTM/source capture, payment semantics, legal consent validation, and Google Sheets sync are unchanged.
 - The original LaunchHub lead record is not modified by CRM bootstrapping.
-- CRM bootstrapping defaults normal landing form / registration leads to `new`. It must not treat `booking_only` payment status or a requested form appointment as `booked`; `booked` should come only from explicit booking evidence such as a CS booking action, booking date/time, or a reliable booked/rescheduled source state.
+- CRM bootstrapping defaults normal landing form / registration leads to `pending_follow_up`. It must not treat `booking_only` payment status as `booked`; `booked` should come only from explicit booking evidence such as a CS booking action, booking date/time, or a reliable booked/rescheduled source state.
 - WhatsApp quick replies, brand knowledge editing, and WhatsApp API sends remain future work.
 
 GrowthOS portability:
@@ -408,8 +412,8 @@ Open:
 - `/` - Public product entry page for the lead capture and shared attribution base.
 - `/dashboard` - Executive overview for lead performance, top KPIs, latest few leads, and quick links.
 - `/leads` - Latest leads feed, newest first, with business-facing lead details.
-- `/crm` - Read-only LeadOps CRM inbox using phone-first brand/customer identity.
-- `/crm/leads/[leadId]` - Read-only CRM case detail with contact, source, CTWA, and follow-up placeholders.
+- `/crm` - LeadOps CRM inbox using phone-first brand/customer identity.
+- `/crm/leads/[leadId]` - CRM case detail with contact, source, CTWA, notes, status, booking outcome, and follow-up controls when CRM writes are enabled.
 - `/crm/settings` - WhatsApp Channel Settings architecture; no API connection or raw token display.
 - `/performance` - Brand, source/campaign, treatment/package, and branch performance analysis.
 - `/forms` - Form connection layer showing selected brand, treatment, package, branch, allowed domains, embed code, and landing page relationship.

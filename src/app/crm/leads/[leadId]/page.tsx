@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
 import { formatDateTime, getLeadRows } from "@/lib/data/businessMetrics";
-import { toCrmLeadCase } from "@/lib/crm/leadOps";
+import { crmPipelineStatuses, toCrmLeadCase } from "@/lib/crm/leadOps";
 import {
   addNoteAction,
   assignCsAction,
@@ -154,6 +154,7 @@ export default async function CrmLeadDetailPage({
               <Panel title="Contact">
                 <InfoLine label="Name" value={leadCase.customerName} />
                 <InfoLine label="Phone" value={leadCase.phone} />
+                <InfoLine label="Email" value={leadCase.email} />
                 <InfoLine label="Normalized" value={leadCase.normalizedPhone} />
                 <InfoLine label="Brand" value={leadCase.brandName} />
                 <InfoLine label="Assigned to" value={leadCase.assignedCsLabel} />
@@ -181,6 +182,19 @@ export default async function CrmLeadDetailPage({
                   <InfoLine label="Campaign" value={leadCase.campaignLabel} />
                   <InfoLine label="Ad / Content" value={leadCase.adLabel} />
                   <InfoLine label="Lost reason" value={bundle.caseRecord?.lost_reason || "-"} />
+                  <details className="rounded-md bg-[#f8fafc] px-2.5 py-2">
+                    <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+                      UTM / lh debug
+                    </summary>
+                    <div className="mt-2 grid gap-2">
+                      <InfoLine label="utm_source" value={lead.sourceSnapshot?.utm_source || "-"} />
+                      <InfoLine label="utm_medium" value={lead.sourceSnapshot?.utm_medium || "-"} />
+                      <InfoLine label="utm_campaign" value={lead.sourceSnapshot?.utm_campaign || "-"} />
+                      <InfoLine label="utm_content" value={lead.sourceSnapshot?.utm_content || "-"} />
+                      <InfoLine label="fbclid" value={lead.sourceSnapshot?.fbclid || "-"} />
+                      <InfoLine label="landing URL" value={lead.sourceSnapshot?.landing_page_url || "-"} />
+                    </div>
+                  </details>
                 </Panel>
 
                 <Panel title="CTWA / WhatsApp Ad">
@@ -234,17 +248,10 @@ export default async function CrmLeadDetailPage({
                     name="status"
                     label="Current status"
                     defaultValue={leadCase.status}
-                    options={[
-                      ["new", "New"],
-                      ["contacting", "Contacting"],
-                      ["booked", "Booked"],
-                      ["confirmed", "Confirmed"],
-                      ["showed", "Showed"],
-                      ["paid", "Paid"],
-                      ["no_show", "No-show"],
-                      ["lost", "Lost"],
-                      ["invalid", "Invalid"],
-                    ]}
+                    options={crmPipelineStatuses.map((item) => [
+                      item.value,
+                      item.label,
+                    ])}
                   />
                   <TextAreaInput
                     name="status_note"
@@ -261,9 +268,40 @@ export default async function CrmLeadDetailPage({
                 >
                   <TextAreaInput
                     name="note"
-                    label="Internal note"
-                    placeholder="Write CS follow-up notes"
+                    label="Follow-up note"
+                    placeholder="例如：已 WhatsApp 客人，等待確認時間。"
                     maxLength={2000}
+                  />
+                  <SelectInput
+                    name="channel"
+                    label="Channel"
+                    defaultValue="whatsapp"
+                    options={[
+                      ["whatsapp", "WhatsApp"],
+                      ["phone", "Phone"],
+                      ["inbox", "Inbox"],
+                      ["other", "Other"],
+                    ]}
+                  />
+                  <SelectInput
+                    name="direction"
+                    label="Direction"
+                    defaultValue="outbound"
+                    options={[
+                      ["outbound", "Outbound"],
+                      ["inbound", "Inbound"],
+                      ["internal_note", "Internal note"],
+                    ]}
+                  />
+                  <TextInput
+                    name="outcome"
+                    label="Outcome"
+                    placeholder="例如：已覆 / 未覆 / 約咗時間"
+                  />
+                  <TextInput
+                    name="next_follow_up_at"
+                    type="datetime-local"
+                    label="Next follow-up"
                   />
                 </ActionPanel>
 
@@ -308,6 +346,20 @@ export default async function CrmLeadDetailPage({
                       ["showed", "Showed"],
                       ["no_show", "No-show"],
                       ["cancelled", "Cancelled"],
+                    ]}
+                  />
+                  <SelectInput
+                    name="paid_status"
+                    label="Paid status"
+                    defaultValue={
+                      typeof bundle.booking?.metadata_json?.paid_status === "string"
+                        ? bundle.booking.metadata_json.paid_status
+                        : "unknown"
+                    }
+                    options={[
+                      ["unknown", "Unknown"],
+                      ["unpaid", "Unpaid"],
+                      ["paid", "Paid"],
                     ]}
                   />
                 </ActionPanel>
@@ -392,10 +444,19 @@ function getCrmFeedback(
     hint: firstQueryValue(query?.crm_hint) || "-",
   };
 
-  if (success === "note_saved") {
+  const successMessages: Record<string, string> = {
+    assignment_saved: "Assignment saved.",
+    status_updated: "Status updated. Timeline has been refreshed.",
+    note_saved: "Note saved. Timeline has been refreshed.",
+    booking_saved: "Booking outcome saved.",
+    follow_up_saved: "Follow-up task saved.",
+    lost_reason_saved: "Lost reason saved.",
+  };
+
+  if (success && successMessages[success]) {
     return {
       kind: "success" as const,
-      message: "Note saved. Timeline has been refreshed.",
+      message: successMessages[success],
     };
   }
 
@@ -421,6 +482,14 @@ function getCrmFeedback(
     return {
       kind: "error" as const,
       message: "Note could not be saved. Please check CRM table setup and try again.",
+      debug,
+    };
+  }
+
+  if (error === "action_failed") {
+    return {
+      kind: "error" as const,
+      message: "CRM action could not be saved. Please check CRM table setup and try again.",
       debug,
     };
   }

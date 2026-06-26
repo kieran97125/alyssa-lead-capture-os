@@ -18,6 +18,11 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { CrmStatus } from "@/lib/crm/leadOps";
 
 const allowedStatuses: CrmStatus[] = [
+  "pending_follow_up",
+  "contacted",
+  "cancelled",
+  "no_reply",
+  "lost",
   "new",
   "contacting",
   "booked",
@@ -25,7 +30,6 @@ const allowedStatuses: CrmStatus[] = [
   "showed",
   "paid",
   "no_show",
-  "lost",
   "invalid",
 ];
 
@@ -51,8 +55,13 @@ async function getWritableCase(leadId: string) {
 
 async function runCrmAction(
   leadId: string,
+  success: string,
   handler: (caseRecord: CrmLeadCaseRecord) => Promise<void>
 ) {
+  let redirectKey: "crm_success" | "crm_error" = "crm_success";
+  let redirectValue = success;
+  let redirectError: unknown;
+
   try {
     const caseRecord = await getWritableCase(leadId);
     if (!caseRecord) {
@@ -60,20 +69,26 @@ async function runCrmAction(
         leadId,
         reason: "write_actions_not_enabled_or_lead_not_found",
       });
-      return;
+      redirectKey = "crm_error";
+      redirectValue = "write_disabled";
+    } else {
+      await handler(caseRecord);
     }
-
-    await handler(caseRecord);
   } catch (error) {
     console.warn("crm_action_failed", safeError(error));
+    redirectKey = "crm_error";
+    redirectValue = "action_failed";
+    redirectError = error;
   } finally {
     revalidatePath("/crm");
     revalidatePath(`/crm/leads/${leadId}`);
   }
+
+  redirect(crmLeadDetailUrl(leadId, redirectKey, redirectValue, redirectError));
 }
 
 export async function assignCsAction(leadId: string, formData: FormData) {
-  await runCrmAction(leadId, async (caseRecord) => {
+  await runCrmAction(leadId, "assignment_saved", async (caseRecord) => {
     const assignedTo = safeText(formData.get("assigned_to"), 120);
     const supabase = createSupabaseAdminClient();
     const { error } = await supabase
@@ -98,7 +113,7 @@ export async function assignCsAction(leadId: string, formData: FormData) {
 }
 
 export async function updateStatusAction(leadId: string, formData: FormData) {
-  await runCrmAction(leadId, async (caseRecord) => {
+  await runCrmAction(leadId, "status_updated", async (caseRecord) => {
     const nextStatus = safeText(formData.get("status"), 40) as CrmStatus;
     const note = safeText(formData.get("status_note"), 500);
 
@@ -134,12 +149,21 @@ export async function updateStatusAction(leadId: string, formData: FormData) {
       contactId: caseRecord.contact_id,
       interactionType: "status_change",
       body: note || `Status changed from ${previousStatus} to ${nextStatus}.`,
+      metadata: {
+        previous_status: previousStatus,
+        new_status: nextStatus,
+      },
     });
   });
 }
 
 export async function addNoteAction(leadId: string, formData: FormData) {
   const note = safeText(formData.get("note"), 2000);
+  const channel = safeText(formData.get("channel"), 40) || "whatsapp";
+  const direction = safeText(formData.get("direction"), 40) || "outbound";
+  const outcome = safeText(formData.get("outcome"), 200);
+  const nextFollowUpRaw = safeText(formData.get("next_follow_up_at"), 80);
+  const nextFollowUpAt = parseDateTimeValue(nextFollowUpRaw);
   let result: "note_saved" | "note_required" | "note_failed" | "write_disabled" =
     "note_failed";
 
@@ -172,16 +196,57 @@ export async function addNoteAction(leadId: string, formData: FormData) {
         throwOnError: true,
       });
       if (!caseRecord) throw new Error("crm_note_bootstrap_failed");
+      const supabase = createSupabaseAdminClient();
+      const interactionType =
+        channel === "phone"
+          ? "call"
+          : channel === "whatsapp"
+            ? direction === "inbound"
+              ? "whatsapp_inbound"
+              : "whatsapp_outbound"
+            : "note";
 
       await createCrmInteraction({
         caseId: caseRecord.id,
         contactId: caseRecord.contact_id,
-        interactionType: "note",
+        interactionType,
         body: note,
         author: "admin",
         sourceType: "crm",
+        direction:
+          direction === "inbound" || direction === "outbound"
+            ? direction
+            : "internal",
+        metadata: {
+          channel,
+          outcome: outcome || null,
+          next_follow_up_at: nextFollowUpAt,
+        },
         operation: "note insert failed",
       });
+
+      if (nextFollowUpAt) {
+        const now = new Date().toISOString();
+        const { error: taskError } = await supabase.from("crm_follow_up_tasks").insert({
+          case_id: caseRecord.id,
+          contact_id: caseRecord.contact_id,
+          assigned_to: caseRecord.assigned_to || null,
+          due_at: nextFollowUpAt,
+          task_type: "follow_up",
+          note: outcome || note,
+          status: "open",
+        });
+        if (taskError) throw taskError;
+
+        const { error: caseUpdateError } = await supabase
+          .from("crm_lead_cases")
+          .update({
+            next_follow_up_at: nextFollowUpAt,
+            updated_at: now,
+          })
+          .eq("id", caseRecord.id);
+        if (caseUpdateError) throw caseUpdateError;
+      }
 
       result = "note_saved";
     }
@@ -223,7 +288,7 @@ function crmLeadDetailUrl(
     if (error.debug.details) params.set("crm_details", error.debug.details);
     if (error.debug.hint) params.set("crm_hint", error.debug.hint);
   } else if (error instanceof Error) {
-    params.set("crm_operation", "add note");
+    params.set("crm_operation", "crm action");
     params.set("crm_message", error.message.slice(0, 600));
   }
 
@@ -231,18 +296,29 @@ function crmLeadDetailUrl(
 }
 
 export async function saveBookingAction(leadId: string, formData: FormData) {
-  await runCrmAction(leadId, async (caseRecord) => {
+  await runCrmAction(leadId, "booking_saved", async (caseRecord) => {
     const branchLabel = safeText(formData.get("branch_label"), 160);
     const treatmentLabel = safeText(formData.get("treatment_label"), 200);
     const bookingDate = safeText(formData.get("booking_date"), 20);
     const bookingTime = safeText(formData.get("booking_time"), 20);
     const status = safeText(formData.get("booking_status"), 40) || "tentative";
+    const paidStatus = safeText(formData.get("paid_status"), 40) || "unknown";
 
     if (!allowedBookingStatuses.includes(status)) return;
 
     const supabase = createSupabaseAdminClient();
     const bundle = await getCrmCaseBundleByCaseRecord(caseRecord);
     const now = new Date().toISOString();
+    const nextCaseStatus =
+      status === "showed"
+        ? "showed"
+        : status === "no_show"
+          ? "no_show"
+          : status === "cancelled"
+            ? "cancelled"
+            : status === "booked" || status === "confirmed"
+              ? "booked"
+              : caseRecord.status;
     const payload = {
       branch_label: branchLabel || null,
       treatment_label: treatmentLabel || null,
@@ -250,6 +326,15 @@ export async function saveBookingAction(leadId: string, formData: FormData) {
       booking_time: bookingTime || null,
       status,
       created_by: "CS",
+      metadata_json: {
+        paid_status: ["paid", "unpaid", "unknown"].includes(paidStatus)
+          ? paidStatus
+          : "unknown",
+        booking_confirmed_at:
+          status === "confirmed" || status === "booked"
+            ? now
+            : bundle.booking?.metadata_json?.booking_confirmed_at ?? null,
+      },
       updated_at: now,
     };
 
@@ -259,6 +344,15 @@ export async function saveBookingAction(leadId: string, formData: FormData) {
         .update(payload)
         .eq("id", bundle.booking.id);
       if (error) throw error;
+
+      const { error: caseUpdateError } = await supabase
+        .from("crm_lead_cases")
+        .update({
+          status: nextCaseStatus,
+          updated_at: now,
+        })
+        .eq("id", caseRecord.id);
+      if (caseUpdateError) throw caseUpdateError;
     } else {
       const { data, error } = await supabase
         .from("crm_bookings")
@@ -277,6 +371,7 @@ export async function saveBookingAction(leadId: string, formData: FormData) {
         .from("crm_lead_cases")
         .update({
           booking_id: String(data.id),
+          status: nextCaseStatus,
           updated_at: now,
         })
         .eq("id", caseRecord.id);
@@ -291,12 +386,31 @@ export async function saveBookingAction(leadId: string, formData: FormData) {
       body: `Booking saved: ${[bookingDate, bookingTime, status]
         .filter(Boolean)
         .join(" ")}`,
+      metadata: {
+        booking_date: bookingDate || null,
+        booking_time: bookingTime || null,
+        booking_status: status,
+        paid_status: paidStatus,
+      },
     });
+
+    if (nextCaseStatus !== caseRecord.status) {
+      const { error: historyError } = await supabase
+        .from("crm_status_history")
+        .insert({
+          case_id: caseRecord.id,
+          previous_status: caseRecord.status,
+          new_status: nextCaseStatus,
+          changed_by: "CS",
+          note: `Booking outcome changed to ${status}.`,
+        });
+      if (historyError) throw historyError;
+    }
   });
 }
 
 export async function createFollowUpTaskAction(leadId: string, formData: FormData) {
-  await runCrmAction(leadId, async (caseRecord) => {
+  await runCrmAction(leadId, "follow_up_saved", async (caseRecord) => {
     const assignedTo = safeText(formData.get("task_assigned_to"), 120);
     const taskType = safeText(formData.get("task_type"), 80) || "follow_up";
     const note = safeText(formData.get("task_note"), 800);
@@ -337,7 +451,7 @@ export async function createFollowUpTaskAction(leadId: string, formData: FormDat
 }
 
 export async function saveLostReasonAction(leadId: string, formData: FormData) {
-  await runCrmAction(leadId, async (caseRecord) => {
+  await runCrmAction(leadId, "lost_reason_saved", async (caseRecord) => {
     const lostReason = safeText(formData.get("lost_reason"), 800);
     if (!lostReason) return;
 

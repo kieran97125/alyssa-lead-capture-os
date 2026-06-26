@@ -1,6 +1,10 @@
 import type { CrmStatus } from "@/lib/crm/leadOps";
 
 const statusStyles: Record<CrmStatus, string> = {
+  pending_follow_up: "border-blue-200 bg-blue-50 text-blue-700",
+  contacted: "border-amber-200 bg-amber-50 text-amber-700",
+  cancelled: "border-slate-200 bg-slate-50 text-slate-600",
+  no_reply: "border-orange-200 bg-orange-50 text-orange-700",
   new: "border-blue-200 bg-blue-50 text-blue-700",
   contacting: "border-amber-200 bg-amber-50 text-amber-700",
   booked: "border-indigo-200 bg-indigo-50 text-indigo-700",
