@@ -378,47 +378,47 @@ export default async function PublicLandingPage({
         preservedPageUrl={preservedPageUrl}
         initialQueryString={initialQueryString}
       />
-      <section id="hero" className="relative scroll-mt-6 bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-5 pb-14 pt-8">
-        <div className="mx-auto grid max-w-7xl items-center gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+      <section id="hero" className="relative scroll-mt-6 bg-[radial-gradient(circle_at_18%_10%,#FFF1F7_0,#FFF8FC_34%,#F6F2FF_100%)] px-4 pb-10 pt-6 sm:px-5 sm:pb-14 sm:pt-8">
+        <div className="mx-auto grid max-w-7xl items-center gap-7 sm:gap-10 lg:grid-cols-[0.95fr_1.05fr]">
           <MotionReveal>
-            <div className="flex items-center gap-4">
+            <div className="flex items-center gap-3 sm:gap-4">
               {isIneffable && (
                 <img
                   src={ineffableAssets.logo}
                   alt="Ineffable Beauty"
-                  className="h-14 w-14 rounded-full object-cover"
+                  className="h-11 w-11 rounded-full object-cover sm:h-14 sm:w-14"
                 />
               )}
               <div>
-                <p className="text-xs font-bold uppercase tracking-[0.24em] text-[var(--public-accent)]">
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[var(--public-accent)] sm:text-xs sm:tracking-[0.24em]">
                   {brandDisplayName}
                 </p>
-                <p className="mt-1 text-sm font-semibold text-[var(--public-muted)]">
+                <p className="mt-1 text-[13px] font-semibold leading-5 text-[var(--public-muted)] sm:text-sm">
                   銅鑼灣 · 針清護理 · 首次體驗
                 </p>
               </div>
             </div>
 
-            <p className="mt-10 inline-flex rounded-full border border-[var(--public-border)] bg-white/80 px-4 py-2 text-sm font-bold text-[var(--public-accent)] shadow-sm">
+            <p className="mt-6 inline-flex rounded-full border border-[var(--public-border)] bg-white/80 px-3 py-1.5 text-xs font-bold text-[var(--public-accent)] shadow-sm sm:mt-10 sm:px-4 sm:py-2 sm:text-sm">
               {offerBadge}
             </p>
-            <h1 className="mt-5 max-w-3xl text-5xl font-bold leading-[1.05] text-[var(--public-heading)] md:text-7xl">
+            <h1 className="mt-3 max-w-3xl text-[30px] font-bold leading-[1.12] text-[var(--public-heading)] sm:mt-5 sm:text-5xl md:text-7xl">
               {heroTitle}
             </h1>
-            <p className="mt-6 max-w-2xl text-base leading-8 text-[var(--public-muted)] md:text-lg">
+            <p className="mt-4 max-w-2xl text-[15px] leading-7 text-[var(--public-muted)] sm:mt-6 sm:text-base sm:leading-8 md:text-lg">
               {heroSubtitle}
             </p>
 
-            <div className="mt-8 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:flex-wrap sm:gap-3">
               <MotionAnchor
                 href="#lead-form"
-                className="rounded-full bg-[var(--public-cta)] px-7 py-3.5 text-sm font-bold text-white shadow-[0_20px_46px_rgba(216,91,163,0.28)] transition hover:bg-[var(--public-cta-hover)]"
+                className="inline-flex justify-center rounded-full bg-[var(--public-cta)] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(216,91,163,0.2)] transition hover:bg-[var(--public-cta-hover)] sm:px-7 sm:py-3.5 sm:shadow-[0_20px_46px_rgba(216,91,163,0.28)]"
               >
                 {ctaText}
               </MotionAnchor>
               <MotionAnchor
                 href="#offer-summary"
-                className="rounded-full border border-[var(--public-border)] bg-white/80 px-7 py-3.5 text-sm font-bold text-[var(--public-accent)] transition hover:bg-white"
+                className="inline-flex justify-center rounded-full border border-[var(--public-border)] bg-white/80 px-5 py-3 text-sm font-bold text-[var(--public-accent)] transition hover:bg-white sm:px-7 sm:py-3.5"
               >
                 {secondaryCtaText}
               </MotionAnchor>
@@ -427,12 +427,13 @@ export default async function PublicLandingPage({
 
           {heroImageUrl && (
             <MotionReveal delay={0.1}>
-              <div className="relative">
+              <div className="relative hidden sm:block">
                 <div className="absolute -left-6 top-8 h-40 w-40 rounded-full bg-[#FFF1F7] blur-2xl" />
                 <div className="absolute -right-4 bottom-8 h-48 w-48 rounded-full bg-[#EDE7FF] blur-2xl" />
                 <img
                   src={heroImageUrl}
                   alt={`${brandDisplayName} campaign visual`}
+                  fetchPriority="high"
                   className="relative z-10 min-h-[520px] w-full rounded-[44px] border border-white object-cover object-center shadow-[0_34px_90px_rgba(216,91,163,0.2)]"
                 />
               </div>
@@ -442,23 +443,23 @@ export default async function PublicLandingPage({
       </section>
 
       <MotionReveal>
-        <section id="quick-cta" className="scroll-mt-6 bg-white px-5 py-8">
-          <div className="mx-auto max-w-7xl rounded-[34px] border border-[var(--public-border)] bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF1F7_52%,#F6F2FF_100%)] p-6 shadow-[0_24px_70px_rgba(216,91,163,0.12)] md:p-8">
+        <section id="quick-cta" className="scroll-mt-6 bg-white px-4 py-6 sm:px-5 sm:py-8">
+          <div className="mx-auto max-w-7xl rounded-[20px] border border-[var(--public-border)] bg-white p-4 shadow-[0_10px_30px_rgba(216,91,163,0.08)] sm:rounded-[34px] sm:bg-[linear-gradient(135deg,#FFFFFF_0%,#FFF1F7_52%,#F6F2FF_100%)] sm:p-6 sm:shadow-[0_24px_70px_rgba(216,91,163,0.12)] md:p-8">
             <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-center">
               <div>
                 <p className="text-xs font-bold uppercase tracking-[0.22em] text-[var(--public-accent)]">
                   快速登記
                 </p>
-                <h2 className="mt-3 text-3xl font-bold leading-tight text-[var(--public-heading)] md:text-4xl">
+                <h2 className="mt-2 text-[22px] font-bold leading-tight text-[var(--public-heading)] sm:mt-3 sm:text-3xl md:text-4xl">
                   立即登記 $388 首次體驗
                 </h2>
-                <p className="mt-3 max-w-2xl text-sm leading-7 text-[var(--public-muted)]">
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--public-muted)] sm:mt-3 sm:leading-7">
                   填寫簡單資料，Ineffable Beauty 團隊會透過 WhatsApp 跟進確認。
                 </p>
               </div>
               <MotionAnchor
                 href="#lead-form"
-                className="inline-flex justify-center rounded-full bg-[var(--public-cta)] px-8 py-4 text-sm font-bold text-white shadow-[0_20px_46px_rgba(216,91,163,0.28)] transition hover:bg-[var(--public-cta-hover)]"
+                className="inline-flex justify-center rounded-full bg-[var(--public-cta)] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_28px_rgba(216,91,163,0.2)] transition hover:bg-[var(--public-cta-hover)] sm:px-8 sm:py-4 sm:shadow-[0_20px_46px_rgba(216,91,163,0.28)]"
               >
                 立即登記
               </MotionAnchor>
@@ -468,13 +469,15 @@ export default async function PublicLandingPage({
       </MotionReveal>
 
       <MotionReveal>
-        <section id="offer-summary" className="scroll-mt-6 px-5 py-12">
-          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
+        <section id="offer-summary" className="scroll-mt-6 px-4 py-9 sm:px-5 sm:py-12">
+          <div className="mx-auto grid max-w-7xl gap-5 sm:gap-8 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
             {offerSummaryImageUrl && (
               <img
                 src={offerSummaryImageUrl}
                 alt={`${selectedPackage.name} offer visual`}
-                className="min-h-[320px] w-full rounded-[36px] border border-[var(--public-border)] bg-white object-contain p-3 shadow-[0_24px_70px_rgba(216,91,163,0.12)]"
+                loading="lazy"
+                decoding="async"
+                className="min-h-[220px] w-full rounded-[20px] border border-[var(--public-border)] bg-white object-contain p-2 shadow-[0_10px_30px_rgba(216,91,163,0.08)] sm:min-h-[320px] sm:rounded-[36px] sm:p-3 sm:shadow-[0_24px_70px_rgba(216,91,163,0.12)]"
               />
             )}
             <div className={offerSummaryImageUrl ? "" : "lg:col-span-2"}>
@@ -486,7 +489,7 @@ export default async function PublicLandingPage({
                   "客人預約前可以清楚了解療程、價錢、分店及跟進安排。"
                 }
               />
-              <div className="mt-7 grid gap-3 sm:grid-cols-2">
+              <div className="mt-5 grid gap-2.5 sm:mt-7 sm:grid-cols-2 sm:gap-3">
                 <InfoCard label="品牌" value={brandDisplayName} />
                 <InfoCard label="療程" value={selectedTreatment.name} />
                 <InfoCard label="套餐" value={selectedPackage.name} />
@@ -499,8 +502,8 @@ export default async function PublicLandingPage({
 
       {contentSections.length > 0 && (
         <MotionReveal>
-          <section className="px-5 py-12">
-            <div className="mx-auto grid max-w-7xl gap-8">
+          <section className="px-4 py-9 sm:px-5 sm:py-12">
+            <div className="mx-auto grid max-w-7xl gap-5 sm:gap-8">
               {contentSections.map((section) => (
                 <ContentSectionBlock key={section.id} section={section} />
               ))}
@@ -510,14 +513,14 @@ export default async function PublicLandingPage({
       )}
 
       <MotionReveal>
-        <section id="lead-form" className="scroll-mt-6 bg-[#FFF1F7] px-5 py-12">
+        <section id="lead-form" className="scroll-mt-6 bg-[#FFF1F7] px-2 py-9 sm:px-5 sm:py-12">
           <div
-            className={`mx-auto grid max-w-7xl gap-8 ${
+            className={`mx-auto grid max-w-7xl gap-5 sm:gap-8 ${
               formSideImageUrl ? "lg:grid-cols-[0.92fr_1.08fr]" : ""
             }`}
           >
             {formSideImageUrl && (
-              <div>
+              <div className="hidden sm:block">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
                   預約表格
                 </p>
@@ -530,20 +533,22 @@ export default async function PublicLandingPage({
                 <img
                   src={formSideImageUrl}
                   alt={`${selectedPackage.name} form visual`}
+                  loading="lazy"
+                  decoding="async"
                   className="mt-6 min-h-[340px] w-full rounded-[34px] border border-[var(--public-border)] bg-white object-contain p-3 shadow-[0_24px_70px_rgba(216,91,163,0.12)]"
                 />
               </div>
             )}
             <div>
               {!formSideImageUrl && (
-                <div className="mb-6">
+                <div className="mb-4 px-2 sm:mb-6 sm:px-0">
                   <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[var(--public-accent)]">
                     預約表格
                   </p>
-                  <h2 className="mt-3 text-4xl font-bold leading-tight text-[var(--public-heading)]">
+                  <h2 className="mt-2 text-[24px] font-bold leading-tight text-[var(--public-heading)] sm:mt-3 sm:text-4xl">
                     立即預約 $388 優惠
                   </h2>
-                  <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
+                  <p className="mt-3 text-sm leading-6 text-[var(--public-muted)] sm:mt-4 sm:leading-7">
                     填寫資料後，Ineffable Beauty 團隊會透過 WhatsApp 跟進確認。
                   </p>
                 </div>
@@ -642,14 +647,14 @@ function SectionHeading({
 }) {
   return (
     <div>
-      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-[var(--public-accent)]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--public-accent)] sm:text-sm sm:tracking-[0.22em]">
         {eyebrow}
       </p>
-      <h2 className="mt-3 text-3xl font-bold leading-tight text-[var(--public-heading)] md:text-4xl">
+      <h2 className="mt-2 text-[24px] font-bold leading-tight text-[var(--public-heading)] sm:mt-3 sm:text-3xl md:text-4xl">
         {title}
       </h2>
       {body && (
-        <p className="mt-4 max-w-2xl text-sm leading-7 text-[var(--public-muted)]">
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-[var(--public-muted)] sm:mt-4 sm:leading-7">
           {body}
         </p>
       )}
@@ -703,7 +708,7 @@ function ContentSectionBlock({
 
   if (section.type === "text") {
     return (
-      <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+      <section id={sectionId} className="scroll-mt-6 rounded-[20px] border border-[var(--public-border)] bg-white p-4 shadow-[0_10px_30px_rgba(216,91,163,0.08)] sm:rounded-[34px] sm:p-7 sm:shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
         <SectionHeading
           eyebrow={section.label || "內容"}
           title={section.title}
@@ -716,13 +721,15 @@ function ContentSectionBlock({
   if (section.type === "image_text") {
     const firstItem = items[0];
     return (
-      <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-5 shadow-[0_24px_70px_rgba(216,91,163,0.1)] md:p-7">
-        <div className="grid gap-7 lg:grid-cols-2 lg:items-center">
+      <section id={sectionId} className="scroll-mt-6 rounded-[20px] border border-[var(--public-border)] bg-white p-4 shadow-[0_10px_30px_rgba(216,91,163,0.08)] sm:rounded-[34px] sm:p-5 sm:shadow-[0_24px_70px_rgba(216,91,163,0.1)] md:p-7">
+        <div className="grid gap-5 sm:gap-7 lg:grid-cols-2 lg:items-center">
           {firstItem?.imageUrl && (
             <img
               src={firstItem.imageUrl}
               alt={firstItem.title || section.title}
-              className="min-h-[320px] w-full rounded-[28px] border border-[var(--public-border)] bg-[#FFF8FC] object-contain p-3"
+              loading="lazy"
+              decoding="async"
+              className="min-h-[220px] w-full rounded-[18px] border border-[var(--public-border)] bg-[#FFF8FC] object-contain p-2 sm:min-h-[320px] sm:rounded-[28px] sm:p-3"
             />
           )}
           <div className={firstItem?.imageUrl ? "" : "lg:col-span-2"}>
@@ -732,14 +739,14 @@ function ContentSectionBlock({
               body={section.subtitle || firstItem?.body || ""}
             />
             {firstItem && (firstItem.title || firstItem.body) && section.title && (
-              <div className="mt-5 rounded-[24px] bg-[#FFF8FC] p-5">
+              <div className="mt-4 rounded-[18px] bg-[#FFF8FC] p-4 sm:mt-5 sm:rounded-[24px] sm:p-5">
                 {firstItem.title && (
-                  <h3 className="text-xl font-bold text-[var(--public-heading)]">
+                  <h3 className="text-[18px] font-bold text-[var(--public-heading)] sm:text-xl">
                     {firstItem.title}
                   </h3>
                 )}
                 {firstItem.body && (
-                  <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+                  <p className="mt-2 text-sm leading-6 text-[var(--public-muted)] sm:mt-3 sm:leading-7">
                     {firstItem.body}
                   </p>
                 )}
@@ -753,23 +760,23 @@ function ContentSectionBlock({
 
   if (section.type === "faq") {
     return (
-      <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+      <section id={sectionId} className="scroll-mt-6 rounded-[20px] border border-[var(--public-border)] bg-white p-4 shadow-[0_10px_30px_rgba(216,91,163,0.08)] sm:rounded-[34px] sm:p-7 sm:shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
         <SectionHeading
           eyebrow={section.label || "FAQ"}
           title={section.title}
           body={section.subtitle}
         />
-        <div className="mt-7 grid gap-4">
+        <div className="mt-5 grid gap-3.5 sm:mt-7 sm:gap-4">
           {items.map((item, index) => (
             <article
               key={`${section.id}-${index}`}
-              className="rounded-[26px] border border-[var(--public-border)] bg-[#FFF8FC] p-6"
+              className="rounded-[18px] border border-[var(--public-border)] bg-[#FFF8FC] p-4 sm:rounded-[26px] sm:p-6"
             >
-              <h3 className="text-lg font-bold text-[var(--public-heading)]">
+              <h3 className="text-[17px] font-bold text-[var(--public-heading)] sm:text-lg">
                 {item.title || `問題 ${index + 1}`}
               </h3>
               {item.body && (
-                <p className="mt-3 text-sm leading-7 text-[var(--public-muted)]">
+                <p className="mt-2 text-sm leading-6 text-[var(--public-muted)] sm:mt-3 sm:leading-7">
                   {item.body}
                 </p>
               )}
@@ -783,13 +790,13 @@ function ContentSectionBlock({
   const gridClass = gridClassForColumns(section.columns);
 
   return (
-    <section id={sectionId} className="scroll-mt-6 rounded-[34px] border border-[var(--public-border)] bg-white p-7 shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
+    <section id={sectionId} className="scroll-mt-6 rounded-[20px] border border-[var(--public-border)] bg-white p-4 shadow-[0_10px_30px_rgba(216,91,163,0.08)] sm:rounded-[34px] sm:p-7 sm:shadow-[0_24px_70px_rgba(216,91,163,0.1)]">
       <SectionHeading
         eyebrow={section.label || "內容"}
         title={section.title}
         body={section.subtitle}
       />
-      <div className={`mt-7 grid gap-5 ${gridClass}`}>
+      <div className={`mt-5 grid gap-3.5 sm:mt-7 sm:gap-5 ${gridClass}`}>
         {items.map((item, index) => (
           <ContentCard
             key={`${section.id}-${index}`}
