@@ -115,7 +115,7 @@ export default function EmbedFormPage() {
   }, [formToken]);
 
   return (
-    <main className="box-border w-full max-w-[100vw] overflow-x-hidden bg-[var(--public-bg)]">
+    <main className="box-border w-full max-w-[100vw] overflow-x-hidden bg-transparent">
       <PublicLeadForm
         mode="embed"
         formToken={formToken}

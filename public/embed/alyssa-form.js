@@ -464,6 +464,7 @@
     iframe.style.border = "0";
     iframe.style.width = "100%";
     iframe.style.maxWidth = "100%";
+    iframe.style.minWidth = "0";
     iframe.style.minHeight = "420px";
     iframe.style.height = height + "px";
     iframe.style.overflow = "hidden";

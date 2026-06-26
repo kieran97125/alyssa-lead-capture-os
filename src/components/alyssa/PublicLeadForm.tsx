@@ -1436,32 +1436,32 @@ export function PublicLeadForm({
   return (
     <section
       data-launchhub-form-root
-      className={`${className} box-border w-full max-w-full overflow-x-hidden [&_button]:box-border [&_button]:block [&_button]:min-h-[48px] [&_button]:max-w-full [&_input]:box-border [&_input]:block [&_input]:min-h-[48px] [&_input]:min-w-0 [&_input]:max-w-full [&_input]:!text-base sm:[&_input]:!text-sm [&_select]:box-border [&_select]:block [&_select]:min-h-[48px] [&_select]:min-w-0 [&_select]:max-w-full [&_select]:!text-base sm:[&_select]:!text-sm [&_textarea]:box-border [&_textarea]:block [&_textarea]:min-w-0 [&_textarea]:max-w-full [&_textarea]:!text-base sm:[&_textarea]:!text-sm ${
+      className={`${className} box-border w-full max-w-full min-w-0 overflow-x-hidden [&_button]:box-border [&_button]:block [&_button]:min-h-[46px] [&_button]:max-w-full [&_input]:box-border [&_input]:block [&_input]:!h-[44px] [&_input]:!min-h-[44px] [&_input]:min-w-0 [&_input]:max-w-full [&_input]:!rounded-[14px] [&_input]:!px-3.5 [&_input]:!py-2 [&_input]:!text-base sm:[&_input]:!h-auto sm:[&_input]:!min-h-[48px] sm:[&_input]:!rounded-2xl sm:[&_input]:!px-4 sm:[&_input]:!py-3 sm:[&_input]:!text-sm [&_select]:box-border [&_select]:block [&_select]:!h-[44px] [&_select]:!min-h-[44px] [&_select]:min-w-0 [&_select]:max-w-full [&_select]:truncate [&_select]:!rounded-[14px] [&_select]:!px-3.5 [&_select]:!py-2 [&_select]:!text-base sm:[&_select]:!h-auto sm:[&_select]:!min-h-[48px] sm:[&_select]:!rounded-2xl sm:[&_select]:!px-4 sm:[&_select]:!py-3 sm:[&_select]:!text-sm [&_textarea]:box-border [&_textarea]:block [&_textarea]:min-w-0 [&_textarea]:max-w-full [&_textarea]:!rounded-[14px] [&_textarea]:!px-3.5 [&_textarea]:!py-2 [&_textarea]:!text-base sm:[&_textarea]:!rounded-2xl sm:[&_textarea]:!px-4 sm:[&_textarea]:!py-3 sm:[&_textarea]:!text-sm ${
         isEmbed
-          ? "mx-auto max-w-[min(36rem,calc(100vw-8px))] px-1.5 py-2 sm:px-3 sm:py-3"
+          ? "w-full max-w-none px-2.5 py-2 sm:mx-auto sm:max-w-[min(36rem,calc(100vw-8px))] sm:px-3 sm:py-3"
           : ""
       }`}
       style={themeStyle}
     >
-      <div className="box-border w-full max-w-full overflow-hidden rounded-[18px] border border-[var(--public-border)] bg-[var(--public-card)] shadow-[0_10px_28px_rgba(216,91,163,0.08)] sm:rounded-[30px] sm:shadow-[0_24px_70px_rgba(216,91,163,0.14)]">
-        <div className="bg-white px-3.5 py-4 sm:bg-gradient-to-br sm:from-[#FFF1F7] sm:via-white sm:to-[#F6F2FF] sm:px-6 sm:py-6">
-          <div className="flex min-w-0 items-center justify-between gap-3 sm:gap-4">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-[var(--public-accent)]">
+      <div className="box-border w-full max-w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none sm:rounded-[30px] sm:border sm:border-[var(--public-border)] sm:bg-[var(--public-card)] sm:shadow-[0_24px_70px_rgba(216,91,163,0.14)]">
+        <div className="bg-transparent px-0 py-2 sm:bg-gradient-to-br sm:from-[#FFF1F7] sm:via-white sm:to-[#F6F2FF] sm:px-6 sm:py-6">
+          <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-4">
+            <p className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--public-accent)] sm:text-xs sm:tracking-[0.18em]">
               {brand.name}
             </p>
-            <span className="rounded-full border border-[var(--public-border)] bg-white px-3 py-1 text-xs font-bold text-[var(--public-accent)]">
+            <span className="hidden rounded-full border border-[var(--public-border)] bg-white px-3 py-1 text-xs font-bold text-[var(--public-accent)] sm:inline-flex">
               WhatsApp 跟進
             </span>
           </div>
-          <h2 className="mt-3 text-xl font-bold text-[var(--public-heading)] sm:mt-4 sm:text-2xl">
+          <h2 className="mt-2 text-lg font-bold text-[var(--public-heading)] sm:mt-4 sm:text-2xl">
             預約療程體驗
           </h2>
-          <p className="mt-1.5 text-sm leading-6 text-[var(--public-muted)] sm:mt-2">
+          <p className="mt-1 text-[13px] leading-5 text-[var(--public-muted)] sm:mt-2 sm:text-sm sm:leading-6">
             請填寫預約資料，{brand.name} 團隊會透過 WhatsApp 跟進確認。
           </p>
         </div>
 
-        <div className="p-3.5 sm:p-6">
+        <div className="p-0 sm:p-6">
           {configMessage ? (
             <Notice tone="warning" title="表格暫時未能使用">
               <p>{configMessage}</p>
@@ -1494,22 +1494,22 @@ export function PublicLeadForm({
             </div>
           ) : (
             <>
-              <section className="box-border w-full max-w-full rounded-[18px] border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-3.5 sm:rounded-3xl sm:p-4">
-                <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
+              <section className="box-border w-full max-w-full rounded-[14px] border border-[#f3e5ec] bg-white p-3 sm:rounded-3xl sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-4">
+                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--public-accent)] sm:text-xs sm:tracking-[0.16em]">
                   已選療程
                 </p>
-                <div className="mt-3 flex min-w-0 items-start justify-between gap-2.5 sm:gap-4">
+                <div className="mt-2.5 flex min-w-0 items-start justify-between gap-2 sm:mt-3 sm:gap-4">
                   <div className="min-w-0">
-                    <p className="font-bold text-[var(--public-heading)]">
+                    <p className="truncate text-sm font-bold text-[var(--public-heading)] sm:text-base">
                       {selectedTreatment?.name}
                     </p>
                     {selectedTreatment?.description && (
-                      <p className="mt-1 text-sm leading-6 text-[var(--public-muted)]">
+                      <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-[var(--public-muted)] sm:text-sm sm:leading-6">
                         {selectedTreatment.description}
                       </p>
                     )}
                   </div>
-                  <p className="shrink-0 rounded-full bg-white px-2.5 py-1.5 text-xs font-bold text-[var(--public-cta)] sm:px-4 sm:py-2 sm:text-sm">
+                  <p className="max-w-[42%] shrink-0 truncate rounded-full bg-[#fff8fc] px-2.5 py-1.5 text-xs font-bold text-[var(--public-cta)] sm:max-w-none sm:bg-white sm:px-4 sm:py-2 sm:text-sm">
                     {priceLabel(selectedPackage)}
                   </p>
                 </div>
@@ -1528,7 +1528,7 @@ export function PublicLeadForm({
                 )}
               </div>
 
-              <form onSubmit={submitForm} className="mt-4 w-full max-w-full space-y-3.5 overflow-x-hidden sm:mt-5 sm:space-y-5">
+              <form onSubmit={submitForm} className="mt-3.5 w-full max-w-full space-y-3 overflow-x-hidden sm:mt-5 sm:space-y-5">
                 <input
                   name="website"
                   aria-hidden="true"
@@ -1678,14 +1678,14 @@ export function PublicLeadForm({
                   </div>
                 </FormSection>
 
-                <section className="box-border w-full max-w-full rounded-[18px] border border-[var(--public-border)] bg-[var(--public-soft-bg)] p-3.5 sm:rounded-3xl sm:p-4">
-                  <p className="text-xs font-bold uppercase tracking-[0.16em] text-[var(--public-accent)]">
+                <section className="box-border w-full max-w-full rounded-[14px] border border-[#f3e5ec] bg-white p-3 sm:rounded-3xl sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-4">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--public-accent)] sm:text-xs sm:tracking-[0.16em]">
                     條款確認
                   </p>
                   <p className="mt-2 text-xs font-semibold leading-5 text-[var(--public-muted)]">
                     {LEGAL_CONSENT_HELPER_TEXT}
                   </p>
-                  <label className="mt-3 flex items-start gap-3 text-sm font-semibold leading-6 text-[var(--public-heading)]">
+                  <label className="mt-3 flex items-start gap-2.5 text-[13px] font-semibold leading-5 text-[var(--public-heading)] sm:gap-3 sm:text-sm sm:leading-6">
                     <input
                       required
                       type="checkbox"
@@ -1717,7 +1717,7 @@ export function PublicLeadForm({
 
                 <button
                   disabled={state === "loading"}
-                  className="w-full rounded-full bg-[var(--public-cta)] px-5 py-3.5 text-sm font-bold text-[var(--public-cta-text)] shadow-[0_14px_30px_rgba(216,91,163,0.28)] transition hover:bg-[var(--public-cta-hover)] disabled:opacity-60"
+                  className="w-full rounded-[14px] bg-[var(--public-cta)] px-5 py-3 text-sm font-bold text-[var(--public-cta-text)] shadow-none transition hover:bg-[var(--public-cta-hover)] disabled:opacity-60 sm:rounded-full sm:py-3.5 sm:shadow-[0_14px_30px_rgba(216,91,163,0.28)]"
                 >
                   {state === "loading" ? "正在提交..." : "提交預約資料"}
                 </button>
@@ -1822,27 +1822,27 @@ function Notice({
       : "border-amber-200 bg-amber-50 text-amber-800";
 
   return (
-    <section className={`box-border w-full max-w-full rounded-[18px] border p-3.5 text-center sm:rounded-[26px] sm:p-6 ${classes}`}>
-      <h2 className="text-lg font-bold sm:text-2xl">{title}</h2>
-      <div className="mt-2.5 text-sm font-semibold leading-6 sm:mt-3">{children}</div>
+    <section className={`box-border w-full max-w-full rounded-[14px] border p-3 text-center sm:rounded-[26px] sm:p-6 ${classes}`}>
+      <h2 className="text-base font-bold sm:text-2xl">{title}</h2>
+      <div className="mt-2 text-[13px] font-semibold leading-5 sm:mt-3 sm:text-sm sm:leading-6">{children}</div>
     </section>
   );
 }
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="box-border w-full max-w-full min-w-0 rounded-[18px] border border-[#f3e5ec] bg-white/95 p-3.5 sm:rounded-3xl sm:border-[var(--public-border)] sm:bg-white sm:p-4">
-      <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--public-accent)] sm:mb-4 sm:text-xs sm:tracking-[0.16em]">
+    <section className="box-border w-full max-w-full min-w-0 rounded-[14px] border border-[#f3e5ec] bg-white p-3 sm:rounded-3xl sm:border-[var(--public-border)] sm:bg-white sm:p-4">
+      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--public-accent)] sm:mb-4 sm:text-xs sm:tracking-[0.16em]">
         {title}
       </p>
-      <div className="min-w-0 space-y-3.5 sm:space-y-4">{children}</div>
+      <div className="min-w-0 space-y-3 sm:space-y-4">{children}</div>
     </section>
   );
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block min-w-0 text-[13px] font-bold text-[var(--public-heading)] sm:text-sm">
+    <label className="block min-w-0 text-[13px] font-semibold text-[var(--public-heading)] sm:text-sm sm:font-bold">
       {label}
       {children}
     </label>
@@ -1857,7 +1857,7 @@ function PublicLegalFooter({
   links: Array<{ label: string; href: string }>;
 }) {
   return (
-    <footer className="mt-5 border-t border-[var(--public-border)] pt-4 text-center text-xs font-semibold leading-5 text-[var(--public-muted)]">
+    <footer className="mt-4 border-t border-[var(--public-border)] pt-3 text-center text-[11px] font-semibold leading-5 text-[var(--public-muted)] sm:mt-5 sm:pt-4 sm:text-xs">
       <p>{footerText}</p>
       <p className="mt-1">{IMAGE_REFERENCE_FOOTER_NOTE}</p>
       <nav className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
