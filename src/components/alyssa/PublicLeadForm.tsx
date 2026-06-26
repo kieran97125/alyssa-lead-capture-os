@@ -880,32 +880,11 @@ function priceLabel(item: PackageOption | undefined) {
   return item.promoPrice > 0 ? `HK$${item.promoPrice}` : "預約查詢";
 }
 
-function padDatePart(value: string | number) {
-  return String(value).padStart(2, "0");
-}
-
-function parseDateParts(value: string) {
+function formatSelectedDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  return {
-    year: match?.[1] || "",
-    month: match?.[2] || "",
-    day: match?.[3] || "",
-  };
-}
+  if (!match) return "";
 
-function getDaysInMonth(year: string, month: string) {
-  const numericYear = Number(year);
-  const numericMonth = Number(month);
-  if (!Number.isFinite(numericYear) || !Number.isFinite(numericMonth)) {
-    return 31;
-  }
-
-  return new Date(numericYear, numericMonth, 0).getDate();
-}
-
-function getDatePickerYears() {
-  const currentYear = new Date().getFullYear();
-  return [currentYear, currentYear + 1, currentYear + 2];
+  return `${match[1]}年${Number(match[2])}月${Number(match[3])}日`;
 }
 
 export function PublicLeadForm({
@@ -1972,83 +1951,26 @@ function MobileDateField({
   value: string;
   onChange: (value: string) => void;
 }) {
-  const [parts, setParts] = useState(() => parseDateParts(value));
-  const years = useMemo(() => getDatePickerYears(), []);
-  const monthOptions = useMemo(
-    () => Array.from({ length: 12 }, (_, index) => index + 1),
-    []
-  );
-  const dayCount = getDaysInMonth(parts.year, parts.month);
-  const dayOptions = useMemo(
-    () => Array.from({ length: dayCount }, (_, index) => index + 1),
-    [dayCount]
-  );
-
-  function updatePart(key: "year" | "month" | "day", nextValue: string) {
-    const next = {
-      ...parts,
-      [key]: nextValue,
-    };
-    const maxDay = getDaysInMonth(next.year, next.month);
-    if (next.day && Number(next.day) > maxDay) {
-      next.day = padDatePart(maxDay);
-    }
-
-    setParts(next);
-    if (next.year && next.month && next.day) {
-      onChange(`${next.year}-${padDatePart(next.month)}-${padDatePart(next.day)}`);
-    } else {
-      onChange("");
-    }
-  }
-
-  const selectClass =
-    "mt-2 h-11 min-h-11 w-full rounded-[14px] border border-[var(--public-border)] bg-white px-3 py-2 text-base font-semibold text-[var(--public-heading)] outline-none focus:border-[var(--public-cta)] sm:h-12 sm:min-h-12 sm:rounded-2xl sm:text-sm";
+  const displayValue = formatSelectedDate(value);
 
   return (
-    <div className="mt-2 grid min-w-0 grid-cols-3 gap-2" role="group" aria-label="預約日期">
-      <select
+    <div className="relative mt-2 min-w-0">
+      <div className="pointer-events-none flex h-11 min-h-11 w-full items-center justify-between rounded-[14px] border border-[var(--public-border)] bg-white px-3.5 py-2 text-base font-semibold text-[var(--public-heading)] sm:h-12 sm:min-h-12 sm:rounded-2xl sm:px-4 sm:text-sm">
+        <span className={displayValue ? "" : "text-[var(--public-muted)]"}>
+          {displayValue || "選擇預約日期"}
+        </span>
+        <span aria-hidden="true" className="text-[var(--public-accent)]">
+          日曆
+        </span>
+      </div>
+      <input
         required
-        aria-label="預約年份"
-        className={selectClass}
-        value={parts.year}
-        onChange={(event) => updatePart("year", event.target.value)}
-      >
-        <option value="">年份</option>
-        {years.map((year) => (
-          <option key={year} value={year}>
-            {year}
-          </option>
-        ))}
-      </select>
-      <select
-        required
-        aria-label="預約月份"
-        className={selectClass}
-        value={parts.month}
-        onChange={(event) => updatePart("month", event.target.value)}
-      >
-        <option value="">月份</option>
-        {monthOptions.map((month) => (
-          <option key={month} value={padDatePart(month)}>
-            {month}月
-          </option>
-        ))}
-      </select>
-      <select
-        required
+        type="date"
         aria-label="預約日期"
-        className={selectClass}
-        value={parts.day}
-        onChange={(event) => updatePart("day", event.target.value)}
-      >
-        <option value="">日期</option>
-        {dayOptions.map((day) => (
-          <option key={day} value={padDatePart(day)}>
-            {day}日
-          </option>
-        ))}
-      </select>
+        className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+      />
     </div>
   );
 }
