@@ -6,13 +6,13 @@ import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
 import { formatDateTime, getLeadRows } from "@/lib/data/businessMetrics";
 import { crmPipelineStatuses, toCrmLeadCase } from "@/lib/crm/leadOps";
 import {
-  addNoteAction,
   assignCsAction,
   confirmBookingAction,
   createFollowUpTaskAction,
   markInvalidAction,
   markNoShowAction,
   markShowedAction,
+  recordContactAttemptAction,
   saveLostReasonAction,
   updateStatusAction,
 } from "./actions";
@@ -26,6 +26,26 @@ import {
 } from "@/lib/crm/store";
 
 export const dynamic = "force-dynamic";
+
+const lostReasonOptions: Array<[string, string]> = [
+  ["", "請選擇原因"],
+  ["no_reply", "一直未回覆"],
+  ["price_concern", "價錢考慮"],
+  ["time_not_fit", "時間不合"],
+  ["location_not_fit", "地點不合"],
+  ["changed_mind", "改變主意"],
+  ["duplicate", "重複個案"],
+  ["other", "其他"],
+];
+
+const invalidReasonOptions: Array<[string, string]> = [
+  ["", "請選擇原因"],
+  ["fake_contact", "假資料"],
+  ["wrong_number", "電話錯誤"],
+  ["spam", "Spam"],
+  ["duplicate", "重複個案"],
+  ["other", "其他"],
+];
 
 export default async function CrmLeadDetailPage({
   params,
@@ -65,7 +85,8 @@ export default async function CrmLeadDetailPage({
   const hasCtwa = Object.values(leadCase.ctwa).some(Boolean);
   const bookingMeta = getBookingMeta(bundle.booking?.metadata_json);
   const hasConfirmedBooking = Boolean(
-    bundle.booking && ["booked", "confirmed", "showed", "no_show"].includes(bundle.booking.status)
+    bundle.booking &&
+      ["booked", "confirmed", "showed", "no_show"].includes(bundle.booking.status)
   );
   const confirmedAppointmentLabel =
     hasConfirmedBooking && bundle.booking?.booking_date && bundle.booking?.booking_time
@@ -95,23 +116,22 @@ export default async function CrmLeadDetailPage({
                 Phone-first identity: {leadCase.canonicalIdentity}
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {leadCase.whatsappUrl ? (
-                <a
-                  href={leadCase.whatsappUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex h-8 whitespace-nowrap rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2.5 text-[10px] font-black text-[#15803d] transition hover:bg-[#dcfce7]"
-                >
-                  <span className="self-center">WA</span>
-                </a>
-              ) : (
-                <span className="inline-flex h-8 whitespace-nowrap rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 text-[11px] font-bold text-[#94a3b8]">
-                  <span className="self-center">No WhatsApp</span>
-                </span>
-              )}
-            </div>
+            {leadCase.whatsappUrl ? (
+              <a
+                href={leadCase.whatsappUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-8 whitespace-nowrap rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2.5 text-[10px] font-black text-[#15803d] transition hover:bg-[#dcfce7]"
+              >
+                <span className="self-center">WA</span>
+              </a>
+            ) : (
+              <span className="inline-flex h-8 whitespace-nowrap rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 text-[11px] font-bold text-[#94a3b8]">
+                <span className="self-center">No WhatsApp</span>
+              </span>
+            )}
           </div>
+
           {error && (
             <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
               CRM detail could not refresh all latest records.
@@ -173,10 +193,18 @@ export default async function CrmLeadDetailPage({
                 <InfoLine label="客人偏好日期時間" value={leadCase.appointmentLabel} />
                 <InfoLine
                   label="CS 已確認預約"
-                  value={hasConfirmedBooking ? "是" : "未有已確認預約"}
+                  value={hasConfirmedBooking ? "已確認" : "未確認"}
                 />
                 <InfoLine label="Created" value={leadCase.createdLabel} />
                 <InfoLine label="Last activity" value={leadCase.lastActivityLabel} />
+              </Panel>
+
+              <Panel title="CS Confirmed Appointment">
+                <InfoLine label="Confirmed date/time" value={confirmedAppointmentLabel} />
+                <InfoLine label="Room arrangement" value={bookingMeta.roomArrangement || "-"} />
+                <InfoLine label="Paid status" value={bookingMeta.paidStatusLabel} />
+                <InfoLine label="Booking note" value={bookingMeta.bookingNote || "-"} />
+                <InfoLine label="Booking record status" value={bundle.booking?.status || "-"} />
               </Panel>
             </div>
 
@@ -211,18 +239,12 @@ export default async function CrmLeadDetailPage({
                     <>
                       <InfoLine label="CTWA Source ID" value={leadCase.ctwa.ctwa_source_id || "-"} />
                       <InfoLine label="CTWA Source URL" value={leadCase.ctwa.ctwa_source_url || "-"} />
-                      <InfoLine
-                        label="Headline"
-                        value={leadCase.ctwa.ctwa_referral_headline || "-"}
-                      />
+                      <InfoLine label="Headline" value={leadCase.ctwa.ctwa_referral_headline || "-"} />
                       <InfoLine label="Body" value={leadCase.ctwa.ctwa_referral_body || "-"} />
                       <InfoLine label="Campaign ID" value={leadCase.ctwa.campaign_id || "-"} />
                       <InfoLine label="Ad Set ID" value={leadCase.ctwa.adset_id || "-"} />
                       <InfoLine label="Ad ID" value={leadCase.ctwa.ad_id || "-"} />
-                      <InfoLine
-                        label="Phone Number ID"
-                        value={leadCase.ctwa.phone_number_id || "-"}
-                      />
+                      <InfoLine label="Phone Number ID" value={leadCase.ctwa.phone_number_id || "-"} />
                     </>
                   ) : (
                     <p className="text-[12px] leading-5 text-[#64748b]">
@@ -231,14 +253,6 @@ export default async function CrmLeadDetailPage({
                   )}
                 </Panel>
               </div>
-
-              <Panel title="CS Confirmed Appointment">
-                <InfoLine label="Confirmed date/time" value={confirmedAppointmentLabel} />
-                <InfoLine label="Room arrangement" value={bookingMeta.roomArrangement || "-"} />
-                <InfoLine label="Paid status" value={bookingMeta.paidStatusLabel} />
-                <InfoLine label="Booking note" value={bookingMeta.bookingNote || "-"} />
-                <InfoLine label="Booking record status" value={bundle.booking?.status || "-"} />
-              </Panel>
 
               <div className="grid gap-3.5 xl:grid-cols-3">
                 <ActionPanel
@@ -263,12 +277,9 @@ export default async function CrmLeadDetailPage({
                 >
                   <SelectInput
                     name="status"
-                    label="CS 跟進狀態"
+                    label="Status"
                     defaultValue={leadCase.status}
-                    options={crmPipelineStatuses.map((item) => [
-                      item.value,
-                      item.label,
-                    ])}
+                    options={crmPipelineStatuses.map((item) => [item.value, item.label])}
                   />
                   <TextAreaInput
                     name="status_note"
@@ -278,19 +289,13 @@ export default async function CrmLeadDetailPage({
                 </ActionPanel>
 
                 <ActionPanel
-                  title="Notes"
+                  title="Contact Attempt"
                   enabled={runtime.actionsEnabled}
-                  action={addNoteAction.bind(null, leadId)}
-                  submitLabel="Add note"
+                  action={recordContactAttemptAction.bind(null, leadId)}
+                  submitLabel="Save contact attempt"
                 >
-                  <TextAreaInput
-                    name="note"
-                    label="Follow-up note"
-                    placeholder="例如：已 WhatsApp 客人，等待確認時間。"
-                    maxLength={2000}
-                  />
                   <SelectInput
-                    name="channel"
+                    name="contact_channel"
                     label="Channel"
                     defaultValue="whatsapp"
                     options={[
@@ -301,19 +306,22 @@ export default async function CrmLeadDetailPage({
                     ]}
                   />
                   <SelectInput
-                    name="direction"
-                    label="Direction"
-                    defaultValue="outbound"
+                    name="contact_outcome"
+                    label="Outcome"
+                    defaultValue="pending"
                     options={[
-                      ["outbound", "Outbound"],
-                      ["inbound", "Inbound"],
-                      ["internal_note", "Internal note"],
+                      ["reached", "Reached"],
+                      ["no_answer", "No answer"],
+                      ["replied", "Replied"],
+                      ["pending", "Pending"],
+                      ["other", "Other"],
                     ]}
                   />
-                  <TextInput
-                    name="outcome"
-                    label="Outcome"
-                    placeholder="例如：已覆 / 未覆 / 約咗時間"
+                  <TextAreaInput
+                    name="contact_note"
+                    label="Follow-up note"
+                    placeholder="例：WhatsApp 已發出，客人話明天下午再覆。"
+                    maxLength={2000}
                   />
                   <TextInput
                     name="next_follow_up_at"
@@ -356,7 +364,7 @@ export default async function CrmLeadDetailPage({
                     name="room_arrangement"
                     label="Room arrangement"
                     defaultValue={bookingMeta.roomArrangement}
-                    placeholder="例如：CWB Room 1"
+                    placeholder="例：CWB Room 1"
                   />
                   <SelectInput
                     name="paid_status"
@@ -381,8 +389,26 @@ export default async function CrmLeadDetailPage({
                   canMarkAttendance={canMarkAttendance}
                   showedAction={markShowedAction.bind(null, leadId)}
                   noShowAction={markNoShowAction.bind(null, leadId)}
-                  invalidAction={markInvalidAction.bind(null, leadId)}
                 />
+
+                <ActionPanel
+                  title="Invalid Reason"
+                  enabled={runtime.actionsEnabled}
+                  action={markInvalidAction.bind(null, leadId)}
+                  submitLabel="Mark invalid"
+                >
+                  <SelectInput
+                    name="invalid_reason_code"
+                    label="Reason"
+                    defaultValue=""
+                    options={invalidReasonOptions}
+                  />
+                  <TextAreaInput
+                    name="invalid_reason_note"
+                    label="Reason note"
+                    placeholder="Optional note"
+                  />
+                </ActionPanel>
 
                 <ActionPanel
                   title="Follow-up Task"
@@ -395,16 +421,8 @@ export default async function CrmLeadDetailPage({
                     label="CS owner"
                     defaultValue={bundle.caseRecord?.assigned_to || ""}
                   />
-                  <TextInput
-                    name="due_at"
-                    type="datetime-local"
-                    label="Due at"
-                  />
-                  <TextInput
-                    name="task_type"
-                    label="Task type"
-                    defaultValue="follow_up"
-                  />
+                  <TextInput name="due_at" type="datetime-local" label="Due at" />
+                  <TextInput name="task_type" label="Task type" defaultValue="follow_up" />
                   <TextAreaInput
                     name="task_note"
                     label="Task note"
@@ -418,11 +436,17 @@ export default async function CrmLeadDetailPage({
                   action={saveLostReasonAction.bind(null, leadId)}
                   submitLabel="Save lost reason"
                 >
-                  <TextAreaInput
-                    name="lost_reason"
+                  <SelectInput
+                    name="lost_reason_code"
                     label="Reason"
+                    defaultValue=""
+                    options={lostReasonOptions}
+                  />
+                  <TextAreaInput
+                    name="lost_reason_note"
+                    label="Reason note"
                     defaultValue={bundle.caseRecord?.lost_reason || ""}
-                    placeholder="Why this case was lost"
+                    placeholder="Optional note"
                   />
                 </ActionPanel>
 
@@ -467,8 +491,7 @@ function getCrmFeedback(
   const successMessages: Record<string, string> = {
     assignment_saved: "Assignment saved.",
     status_updated: "Status updated. Timeline has been refreshed.",
-    note_saved: "Note saved. Timeline has been refreshed.",
-    booking_saved: "Booking outcome saved.",
+    contact_attempt_saved: "Contact attempt saved. Timeline has been refreshed.",
     booking_confirmed: "Booking confirmed. Timeline has been refreshed.",
     showed_saved: "Lead marked as showed.",
     no_show_saved: "Lead marked as no-show.",
@@ -484,13 +507,6 @@ function getCrmFeedback(
     };
   }
 
-  if (error === "note_required") {
-    return {
-      kind: "error" as const,
-      message: "Please enter a note before saving.",
-    };
-  }
-
   if (error === "write_disabled") {
     return {
       kind: "error" as const,
@@ -499,14 +515,6 @@ function getCrmFeedback(
           ? debug.message
           : "CRM write actions are not enabled yet.",
       debug: debug.message !== "-" ? debug : undefined,
-    };
-  }
-
-  if (error === "note_failed") {
-    return {
-      kind: "error" as const,
-      message: "Note could not be saved. Please check CRM table setup and try again.",
-      debug,
     };
   }
 
@@ -625,22 +633,19 @@ function ActionPanel({
 }
 
 function QuickActionsPanel({
-  enabled,
   canMarkAttendance,
   showedAction,
   noShowAction,
-  invalidAction,
 }: {
   enabled: boolean;
   canMarkAttendance: boolean;
   showedAction: () => Promise<void>;
   noShowAction: () => Promise<void>;
-  invalidAction: () => Promise<void>;
 }) {
   return (
     <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[13px] font-bold text-[#111827]">Operational actions</h2>
+        <h2 className="text-[13px] font-bold text-[#111827]">Attendance</h2>
         <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
           CS only
         </span>
@@ -656,15 +661,10 @@ function QuickActionsPanel({
           enabled={canMarkAttendance}
           label="Mark no-show"
         />
-        <QuickActionButton
-          action={invalidAction}
-          enabled={enabled}
-          label="Mark invalid"
-        />
       </div>
       {!canMarkAttendance && (
         <p className="mt-3 text-[11px] leading-4 text-[#64748b]">
-          Show / no-show can only be marked after CS has confirmed a booking and the appointment time has passed.
+          Show / no-show can only be marked after CS confirmed a booking and the appointment time has passed.
         </p>
       )}
     </section>
@@ -814,7 +814,7 @@ function TimelinePanel({ interactions }: { interactions: CrmInteractionRecord[] 
                 {item.body || "-"}
               </p>
               <p className="mt-1 text-[10px] font-semibold text-[#94a3b8]">
-                {item.author || "CS"} · {item.source_type || "crm"}
+                {item.author || "CS"} / {item.source_type || "crm"}
               </p>
             </li>
           ))}

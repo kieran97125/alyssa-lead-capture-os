@@ -27,6 +27,74 @@ const allowedStatuses: CrmStatus[] = [
   "invalid",
 ];
 
+const contactChannels = ["phone", "whatsapp", "inbox", "other"] as const;
+const contactOutcomes = ["reached", "no_answer", "replied", "pending", "other"] as const;
+const lostReasonCodes = [
+  "no_reply",
+  "price_concern",
+  "time_not_fit",
+  "location_not_fit",
+  "changed_mind",
+  "duplicate",
+  "other",
+] as const;
+const invalidReasonCodes = [
+  "fake_contact",
+  "wrong_number",
+  "spam",
+  "duplicate",
+  "other",
+] as const;
+
+const contactChannelLabels: Record<(typeof contactChannels)[number], string> = {
+  phone: "Phone",
+  whatsapp: "WhatsApp",
+  inbox: "Inbox",
+  other: "Other",
+};
+
+const contactOutcomeLabels: Record<(typeof contactOutcomes)[number], string> = {
+  reached: "reached",
+  no_answer: "no answer",
+  replied: "replied",
+  pending: "pending",
+  other: "other",
+};
+
+const lostReasonLabels: Record<(typeof lostReasonCodes)[number], string> = {
+  no_reply: "no reply",
+  price_concern: "price concern",
+  time_not_fit: "time not fit",
+  location_not_fit: "location not fit",
+  changed_mind: "changed mind",
+  duplicate: "duplicate",
+  other: "other",
+};
+
+const invalidReasonLabels: Record<(typeof invalidReasonCodes)[number], string> = {
+  fake_contact: "fake contact",
+  wrong_number: "wrong number",
+  spam: "spam",
+  duplicate: "duplicate",
+  other: "other",
+};
+
+function isContactChannel(value: string): value is (typeof contactChannels)[number] {
+  return (contactChannels as readonly string[]).includes(value);
+}
+
+function isContactOutcome(value: string): value is (typeof contactOutcomes)[number] {
+  return (contactOutcomes as readonly string[]).includes(value);
+}
+
+function isLostReasonCode(value: string): value is (typeof lostReasonCodes)[number] {
+  return (lostReasonCodes as readonly string[]).includes(value);
+}
+
+function isInvalidReasonCode(value: string): value is (typeof invalidReasonCodes)[number] {
+  return (invalidReasonCodes as readonly string[]).includes(value);
+}
+
 async function getWritableCase(leadId: string) {
   const runtime = await getCrmRuntimeStatus();
   if (!runtime.actionsEnabled) return null;
@@ -142,120 +210,99 @@ export async function updateStatusAction(leadId: string, formData: FormData) {
   });
 }
 
-export async function addNoteAction(leadId: string, formData: FormData) {
-  const note = safeText(formData.get("note"), 2000);
-  const channel = safeText(formData.get("channel"), 40) || "whatsapp";
-  const direction = safeText(formData.get("direction"), 40) || "outbound";
-  const outcome = safeText(formData.get("outcome"), 200);
-  const nextFollowUpRaw = safeText(formData.get("next_follow_up_at"), 80);
-  const nextFollowUpAt = parseDateTimeValue(nextFollowUpRaw);
-  let result: "note_saved" | "note_required" | "note_failed" | "write_disabled" =
-    "note_failed";
+export async function recordContactAttemptAction(leadId: string, formData: FormData) {
+  await runCrmAction(leadId, "contact_attempt_saved", async (caseRecord) => {
+    const rawChannel = safeText(formData.get("contact_channel"), 40);
+    const rawOutcome = safeText(formData.get("contact_outcome"), 40);
+    const note = safeText(formData.get("contact_note"), 2000);
+    const nextFollowUpAt = parseDateTimeValue(
+      safeText(formData.get("next_follow_up_at"), 80)
+    );
+    const channel = isContactChannel(rawChannel) ? rawChannel : "whatsapp";
+    const outcome = isContactOutcome(rawOutcome) ? rawOutcome : "pending";
 
-  if (!note) {
-    redirect(crmLeadDetailUrl(leadId, "crm_error", "note_required"));
-  }
+    if (!note) {
+      throw new Error("Follow-up note is required.");
+    }
 
-  try {
-    const runtime = await getCrmRuntimeStatus();
+    const supabase = createSupabaseAdminClient();
+    const now = new Date().toISOString();
+    const interactionType =
+      channel === "phone"
+        ? "call"
+        : channel === "whatsapp"
+          ? "whatsapp_outbound"
+          : "note";
+    const body = [
+      `${contactChannelLabels[channel]} attempt: ${contactOutcomeLabels[outcome]}.`,
+      note,
+      nextFollowUpAt ? `Next follow-up: ${nextFollowUpAt}` : null,
+    ]
+      .filter(Boolean)
+      .join(" ");
 
-    if (!runtime.actionsEnabled) {
-      revalidatePath("/crm");
-      revalidatePath(`/crm/leads/${leadId}`);
-      redirect(
-        crmLeadDetailUrl(
-          leadId,
-          "crm_error",
-          "write_disabled",
-          runtime.debug ? new CrmOperationError(runtime.debug) : undefined
-        )
-      );
-    } else {
-      const { leads, error } = await getLeadRows("month", 5000);
-      if (error) throw error;
+    await createCrmInteraction({
+      caseId: caseRecord.id,
+      contactId: caseRecord.contact_id,
+      interactionType,
+      body,
+      author: "admin",
+      sourceType: "crm",
+      direction: "outbound",
+      metadata: {
+        action: "contact_attempt",
+        channel,
+        outcome,
+        note,
+        next_follow_up_at: nextFollowUpAt,
+      },
+      operation: "contact attempt insert failed",
+    });
 
-      const lead = leads.find((item) => item.id === leadId);
-      if (!lead) throw new Error("crm_note_lead_not_found");
+    if (caseRecord.status === "new" || caseRecord.status === "pending_follow_up") {
+      const { error: statusError } = await supabase
+        .from("crm_lead_cases")
+        .update({
+          status: "contacting",
+          updated_at: now,
+        })
+        .eq("id", caseRecord.id);
+      if (statusError) throw statusError;
 
-      const caseRecord = await bootstrapCrmLeadCaseFromLead(lead, {
-        throwOnError: true,
-      });
-      if (!caseRecord) throw new Error("crm_note_bootstrap_failed");
-      const supabase = createSupabaseAdminClient();
-      const interactionType =
-        channel === "phone"
-          ? "call"
-          : channel === "whatsapp"
-            ? direction === "inbound"
-              ? "whatsapp_inbound"
-              : "whatsapp_outbound"
-            : "note";
-
-      await createCrmInteraction({
-        caseId: caseRecord.id,
-        contactId: caseRecord.contact_id,
-        interactionType,
-        body: note,
-        author: "admin",
-        sourceType: "crm",
-        direction:
-          direction === "inbound" || direction === "outbound"
-            ? direction
-            : "internal",
-        metadata: {
-          channel,
-          outcome: outcome || null,
-          next_follow_up_at: nextFollowUpAt,
-        },
-        operation: "note insert failed",
-      });
-
-      if (nextFollowUpAt) {
-        const now = new Date().toISOString();
-        const { error: taskError } = await supabase.from("crm_follow_up_tasks").insert({
+      const { error: historyError } = await supabase
+        .from("crm_status_history")
+        .insert({
           case_id: caseRecord.id,
-          contact_id: caseRecord.contact_id,
-          assigned_to: caseRecord.assigned_to || null,
-          due_at: nextFollowUpAt,
-          task_type: "follow_up",
-          note: outcome || note,
-          status: "open",
+          previous_status: caseRecord.status,
+          new_status: "contacting",
+          changed_by: "CS",
+          note: body,
         });
-        if (taskError) throw taskError;
-
-        const { error: caseUpdateError } = await supabase
-          .from("crm_lead_cases")
-          .update({
-            next_follow_up_at: nextFollowUpAt,
-            updated_at: now,
-          })
-          .eq("id", caseRecord.id);
-        if (caseUpdateError) throw caseUpdateError;
-      }
-
-      result = "note_saved";
+      if (historyError) throw historyError;
     }
-  } catch (error) {
-    if (error instanceof CrmOperationError) {
-      console.error("crm_note_action_failed", error.debug);
-    } else {
-      console.error("crm_note_action_failed", safeError(error));
-    }
-    result = "note_failed";
-    revalidatePath("/crm");
-    revalidatePath(`/crm/leads/${leadId}`);
-    redirect(crmLeadDetailUrl(leadId, "crm_error", result, error));
-  }
 
-  revalidatePath("/crm");
-  revalidatePath(`/crm/leads/${leadId}`);
-  redirect(
-    crmLeadDetailUrl(
-      leadId,
-      result === "note_saved" ? "crm_success" : "crm_error",
-      result
-    )
-  );
+    if (nextFollowUpAt) {
+      const { error: taskError } = await supabase.from("crm_follow_up_tasks").insert({
+        case_id: caseRecord.id,
+        contact_id: caseRecord.contact_id,
+        assigned_to: caseRecord.assigned_to || null,
+        due_at: nextFollowUpAt,
+        task_type: "follow_up",
+        note,
+        status: "open",
+      });
+      if (taskError) throw taskError;
+
+      const { error: caseUpdateError } = await supabase
+        .from("crm_lead_cases")
+        .update({
+          next_follow_up_at: nextFollowUpAt,
+          updated_at: now,
+        })
+        .eq("id", caseRecord.id);
+      if (caseUpdateError) throw caseUpdateError;
+    }
+  });
 }
 
 function crmLeadDetailUrl(
@@ -399,16 +446,32 @@ export async function markNoShowAction(leadId: string) {
   await markBookedCaseOutcome(leadId, "no_show", "no_show_saved", "Marked as no-show");
 }
 
-export async function markInvalidAction(leadId: string) {
+export async function markInvalidAction(leadId: string, formData: FormData) {
   await runCrmAction(leadId, "invalid_saved", async (caseRecord) => {
+    const rawReason = safeText(formData.get("invalid_reason_code"), 60);
+    const reasonCode = isInvalidReasonCode(rawReason) ? rawReason : null;
+    const reasonNote = safeText(formData.get("invalid_reason_note"), 800);
+
+    if (!reasonCode) {
+      throw new Error("Invalid reason is required.");
+    }
+
     const supabase = createSupabaseAdminClient();
     const previousStatus = caseRecord.status;
     const now = new Date().toISOString();
+    const reasonLabel = invalidReasonLabels[reasonCode];
+    const body = `Invalid reason: ${reasonLabel}${reasonNote ? `. ${reasonNote}` : ""}`;
 
     const { error: updateError } = await supabase
       .from("crm_lead_cases")
       .update({
         status: "invalid",
+        metadata_json: {
+          ...(caseRecord.metadata_json ?? {}),
+          invalid_reason_code: reasonCode,
+          invalid_reason_note: reasonNote || null,
+          invalid_marked_at: now,
+        },
         updated_at: now,
       })
       .eq("id", caseRecord.id);
@@ -422,7 +485,7 @@ export async function markInvalidAction(leadId: string) {
           previous_status: previousStatus,
           new_status: "invalid",
           changed_by: "CS",
-          note: "Marked as invalid.",
+          note: body,
         });
       if (historyError) throw historyError;
     }
@@ -431,10 +494,12 @@ export async function markInvalidAction(leadId: string) {
       caseId: caseRecord.id,
       contactId: caseRecord.contact_id,
       interactionType: "status_change",
-      body: "Marked as invalid.",
+      body,
       metadata: {
         previous_status: previousStatus,
         new_status: "invalid",
+        invalid_reason_code: reasonCode,
+        invalid_reason_note: reasonNote || null,
       },
     });
   });
@@ -549,17 +614,30 @@ export async function createFollowUpTaskAction(leadId: string, formData: FormDat
 
 export async function saveLostReasonAction(leadId: string, formData: FormData) {
   await runCrmAction(leadId, "lost_reason_saved", async (caseRecord) => {
-    const lostReason = safeText(formData.get("lost_reason"), 800);
-    if (!lostReason) return;
+    const rawReason = safeText(formData.get("lost_reason_code"), 60);
+    const reasonCode = isLostReasonCode(rawReason) ? rawReason : null;
+    const reasonNote = safeText(formData.get("lost_reason_note"), 800);
+
+    if (!reasonCode) {
+      throw new Error("Lost reason is required.");
+    }
 
     const supabase = createSupabaseAdminClient();
     const previousStatus = caseRecord.status;
     const now = new Date().toISOString();
+    const reasonLabel = lostReasonLabels[reasonCode];
+    const lostReason = `${reasonLabel}${reasonNote ? `: ${reasonNote}` : ""}`;
     const { error: updateError } = await supabase
       .from("crm_lead_cases")
       .update({
         lost_reason: lostReason,
         status: "lost",
+        metadata_json: {
+          ...(caseRecord.metadata_json ?? {}),
+          lost_reason_code: reasonCode,
+          lost_reason_note: reasonNote || null,
+          lost_marked_at: now,
+        },
         updated_at: now,
       })
       .eq("id", caseRecord.id);
@@ -585,6 +663,12 @@ export async function saveLostReasonAction(leadId: string, formData: FormData) {
       contactId: caseRecord.contact_id,
       interactionType: "status_change",
       body: `Lost reason: ${lostReason}`,
+      metadata: {
+        previous_status: previousStatus,
+        new_status: "lost",
+        lost_reason_code: reasonCode,
+        lost_reason_note: reasonNote || null,
+      },
     });
   });
 }

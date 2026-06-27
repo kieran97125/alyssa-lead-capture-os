@@ -127,7 +127,7 @@ function whatsappLink(phone: string, brandName: string) {
   const digits = phone.replace(/\D/g, "");
   if (digits.length < 8) return null;
 
-  const message = `你好，我哋係 ${brandName || "品牌"} 團隊，收到你嘅登記，想同你確認預約安排。請問你方便 WhatsApp 跟進嗎？`;
+  const message = `你好，我係 ${brandName || "品牌"} 團隊，想跟進你提交嘅預約登記。`;
   return `https://wa.me/${digits}?text=${encodeURIComponent(message)}`;
 }
 
@@ -173,12 +173,12 @@ export function mapCrmSourceType(lead: LeadRow, ctwa = getCtwa(lead)): CrmSource
 
 export function crmSourceTypeLabel(type: CrmSourceType) {
   const labels: Record<CrmSourceType, string> = {
-    landing_form: "Landing Page / 登記表格",
+    landing_form: "Landing Page / 網站表格",
     whatsapp_ad: "WhatsApp 廣告",
     whatsapp_direct: "WhatsApp 直接查詢",
-    manual: "人手建立",
+    manual: "手動建立",
     import: "匯入資料",
-    unknown: "未知來源",
+    unknown: "未分類來源",
   };
   return labels[type];
 }
@@ -207,6 +207,7 @@ export function deriveInitialCrmStatusFromLead(lead: LeadRow): CrmStatus {
   ) {
     return "booked";
   }
+
   return "new";
 }
 

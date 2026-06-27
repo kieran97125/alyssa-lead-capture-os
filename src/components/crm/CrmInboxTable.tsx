@@ -101,9 +101,7 @@ export function CrmInboxTable({ cases }: { cases: CrmLeadCase[] }) {
                     <CrmStatusBadge status={item.status} label={item.statusLabel} />
                   </Cell>
                   <Cell>
-                    <span className="whitespace-nowrap text-[11px] font-semibold text-[#64748b]">
-                      {item.nextFollowUpLabel}
-                    </span>
+                    <FollowUpCell value={item.nextFollowUpAt} label={item.nextFollowUpLabel} />
                   </Cell>
                   <Cell>
                     <div className="flex items-center gap-1.5 whitespace-nowrap">
@@ -145,4 +143,44 @@ export function CrmInboxTable({ cases }: { cases: CrmLeadCase[] }) {
 
 function Cell({ children }: { children: ReactNode }) {
   return <td className="border-b border-[#eef2f6] px-2.5 py-1.5">{children}</td>;
+}
+
+function FollowUpCell({ value, label }: { value: string | null; label: string }) {
+  const state = getFollowUpState(value);
+
+  return (
+    <div className="grid gap-1">
+      <span className="whitespace-nowrap text-[11px] font-semibold text-[#64748b]">
+        {label}
+      </span>
+      {state ? (
+        <span
+          className={`w-fit rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] ${
+            state === "overdue"
+              ? "bg-red-50 text-red-700"
+              : state === "today"
+                ? "bg-amber-50 text-amber-700"
+                : "bg-slate-100 text-slate-600"
+          }`}
+        >
+          {state === "overdue" ? "過期" : state === "today" ? "今日" : "已安排"}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function getFollowUpState(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const now = new Date();
+  const isSameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+
+  if (date.getTime() < now.getTime() && !isSameDay) return "overdue";
+  if (isSameDay) return "today";
+  return "upcoming";
 }

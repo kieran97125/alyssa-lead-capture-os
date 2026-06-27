@@ -1,6 +1,6 @@
 import { CrmInboxTable } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
-import { crmPipelineStatuses, summarizeCrmCases, toCrmLeadCase } from "@/lib/crm/leadOps";
+import { summarizeCrmCases, toCrmLeadCase } from "@/lib/crm/leadOps";
 import {
   applyCrmRecordToLeadCase,
   getCrmCasesBySourceLeadIds,
@@ -12,6 +12,19 @@ export const dynamic = "force-dynamic";
 
 const tabs = ["Leads", "Bookings", "Contacts", "Follow-up", "Reports"];
 
+const queueOptions = [
+  ["", "All queues"],
+  ["new", "待跟進"],
+  ["contacting", "已聯絡"],
+  ["booked", "已預約"],
+  ["follow_up_today", "今日 follow-up"],
+  ["follow_up_overdue", "過期 follow-up"],
+  ["showed", "已完成 / 已到店"],
+  ["no_show", "No-show"],
+  ["lost", "Lost"],
+  ["invalid", "Invalid"],
+];
+
 export default async function CrmPage({
   searchParams,
 }: {
@@ -22,7 +35,7 @@ export default async function CrmPage({
   const search = firstQueryValue(query?.search)?.trim() || "";
   const brand = firstQueryValue(query?.brand)?.trim().toLowerCase() || "";
   const treatment = firstQueryValue(query?.treatment)?.trim().toLowerCase() || "";
-  const status = firstQueryValue(query?.status)?.trim() || "";
+  const queue = firstQueryValue(query?.queue)?.trim() || "";
   const source = firstQueryValue(query?.source)?.trim().toLowerCase() || "";
   const { leads, error } = await getLeadRows(range, 500, { query: search });
   const [runtime, crmCasesByLeadId] = await Promise.all([
@@ -36,7 +49,7 @@ export default async function CrmPage({
     .filter((item) => {
       if (brand && !item.brandName.toLowerCase().includes(brand)) return false;
       if (treatment && !item.treatmentOffer.toLowerCase().includes(treatment)) return false;
-      if (status && item.status !== status) return false;
+      if (queue && !matchesQueue(item.status, item.nextFollowUpAt, queue)) return false;
       if (
         source &&
         ![item.sourceLabel, item.sourceTypeRaw, item.campaignLabel, item.adLabel]
@@ -63,7 +76,7 @@ export default async function CrmPage({
                 </span>
               </div>
               <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-                CS follow-up workbench for lead to booking to show monitoring.
+                CS follow-up workbench for lead, confirmed booking, show and no-show monitoring.
               </p>
             </div>
             <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold text-[#475569] sm:flex">
@@ -118,14 +131,13 @@ export default async function CrmPage({
                 className="h-9 w-[140px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
               />
               <select
-                name="status"
-                defaultValue={status}
+                name="queue"
+                defaultValue={queue}
                 className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
               >
-                <option value="">All statuses</option>
-                {crmPipelineStatuses.map((item) => (
-                  <option key={item.value} value={item.value}>
-                    {item.label}
+                {queueOptions.map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
                   </option>
                 ))}
               </select>
@@ -180,6 +192,31 @@ function Metric({ label, value }: { label: string; value: number }) {
       <span className="ml-2 text-[#111827]">{value}</span>
     </div>
   );
+}
+
+function matchesQueue(status: string, nextFollowUpAt: string | null, queue: string) {
+  if (queue === "follow_up_today") return isToday(nextFollowUpAt);
+  if (queue === "follow_up_overdue") return isOverdue(nextFollowUpAt);
+  return status === queue;
+}
+
+function isToday(value: string | null) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  const now = new Date();
+  return (
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate()
+  );
+}
+
+function isOverdue(value: string | null) {
+  if (!value) return false;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return false;
+  return date.getTime() < Date.now() && !isToday(value);
 }
 
 function firstQueryValue(value: string | string[] | undefined) {
