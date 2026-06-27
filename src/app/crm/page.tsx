@@ -26,6 +26,7 @@ export const dynamic = "force-dynamic";
 type SummaryTone = "blue" | "emerald" | "amber" | "red" | "purple" | "orange" | "slate";
 type ConversionTone = "blue" | "emerald" | "purple" | "red" | "slate";
 type TrackingQualityKey = "strong" | "partial" | "direct" | "missing";
+type ReadinessKey = "ready" | "needs_stronger_tracking" | "crm_only" | "missing_identifiers";
 
 type CrmTabKey = "leads" | "bookings" | "customers" | "follow_up" | "reports";
 
@@ -116,6 +117,7 @@ export default async function CrmPage({
     return true;
   });
   const outcomeSummary = getOutcomeFeedbackSummary(outcomeRows);
+  const readinessSummary = getOutcomeReadinessSummary(outcomeRows);
   const cases = baseFilteredCases
     .filter((item) => (queue ? matchesQueue(item, queue) : true))
     .sort(comparePriority);
@@ -295,6 +297,23 @@ export default async function CrmPage({
               <ConversionMetric label="Tracking 強" value={outcomeSummary.strong} tone="emerald" />
               <ConversionMetric label="Tracking 不完整" value={outcomeSummary.partial} tone="blue" />
               <ConversionMetric label="直接 / 無追蹤" value={outcomeSummary.direct} tone="red" />
+            </div>
+
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
+              <ConversionMetric label="Total outcome records" value={readinessSummary.total} />
+              <ConversionMetric label="Ready for Meta feedback" value={readinessSummary.ready} tone="emerald" />
+              <ConversionMetric label="Needs stronger tracking" value={readinessSummary.needsStrongerTracking} tone="blue" />
+              <ConversionMetric label="CRM reporting only" value={readinessSummary.crmOnly} />
+              <ConversionMetric label="Missing fbclid / fbc / fbp" value={readinessSummary.missingClickIds} tone="red" />
+              <ConversionMetric label="Direct / no tracking" value={readinessSummary.directNoTracking} tone="red" />
+              <ConversionMetric label="Strong tracking %" value={formatPercent(readinessSummary.strongTrackingRate)} tone="emerald" />
+            </div>
+
+            <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-[12px] font-semibold leading-5 text-amber-900">
+              <p className="font-black">Outcome readiness audit</p>
+              <p className="mt-1">
+                這頁只作內部預覽及審核，現階段不會向 Meta 或任何外部平台回傳事件。Booked、showed、no_show、lost、invalid 均為 CRM 營運結果；客人在表格填寫的偏好日期時間不等於已預約。直接 / 無追蹤 Leads 暫時不能可靠配對回 Meta，除非之後改善 fbclid / fbc / fbp 或其他可用識別。
+              </p>
             </div>
 
             <OutcomeFeedbackPreviewTable rows={outcomeRows} />
@@ -626,6 +645,7 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
               <th className="px-3 py-2">fbp</th>
               <th className="px-3 py-2">fbc</th>
               <th className="px-3 py-2">Tracking</th>
+              <th className="px-3 py-2">Readiness</th>
               <th className="px-3 py-2">狀態</th>
             </tr>
           </thead>
@@ -666,12 +686,17 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
                       {row.trackingQualityLabel}
                     </span>
                   </td>
+                  <td className="px-3 py-2">
+                    <span className={`rounded px-2 py-1 text-[10px] font-black ${row.readinessClassName}`}>
+                      {row.readinessLabel}
+                    </span>
+                  </td>
                   <td className="px-3 py-2 font-bold text-amber-700">尚未回傳</td>
                 </tr>
               ))
             ) : (
               <tr>
-                <td colSpan={18} className="px-3 py-6 text-center text-[#64748b]">
+                <td colSpan={19} className="px-3 py-6 text-center text-[#64748b]">
                   這個範圍未有可預覽嘅 CRM outcome 記錄。
                 </td>
               </tr>
@@ -909,6 +934,12 @@ type OutcomeFeedbackRow = {
   trackingQualityKey: TrackingQualityKey;
   trackingQualityLabel: string;
   trackingClassName: string;
+  readinessKey: ReadinessKey;
+  readinessLabel: string;
+  readinessClassName: string;
+  hasFbclid: boolean;
+  hasFbp: boolean;
+  hasFbc: boolean;
 };
 
 function getOutcomeFeedbackRows(
@@ -930,6 +961,12 @@ function getOutcomeFeedbackRows(
       const fbp = stringValue(snapshotRecord.fbp);
       const fbc = stringValue(snapshotRecord.fbc);
       const trackingQuality = getTrackingQuality(item, lead);
+      const readiness = getOutcomeReadiness({
+        trackingQualityKey: trackingQuality.key,
+        hasFbclid: Boolean(fbclid),
+        hasFbp: Boolean(fbp),
+        hasFbc: Boolean(fbc),
+      });
 
       return {
         key: `${item.id}-${item.status}`,
@@ -953,6 +990,12 @@ function getOutcomeFeedbackRows(
         trackingQualityKey: trackingQuality.key,
         trackingQualityLabel: trackingQuality.label,
         trackingClassName: trackingQuality.className,
+        readinessKey: readiness.key,
+        readinessLabel: readiness.label,
+        readinessClassName: readiness.className,
+        hasFbclid: Boolean(fbclid),
+        hasFbp: Boolean(fbp),
+        hasFbc: Boolean(fbc),
       } satisfies OutcomeFeedbackRow;
     })
     .sort((a, b) => {
@@ -977,6 +1020,67 @@ function getOutcomeFeedbackSummary(rows: OutcomeFeedbackRow[]) {
     partial: rows.filter((row) => row.trackingQualityKey === "partial").length,
     direct: rows.filter((row) => row.trackingQualityKey === "direct").length,
     missing: rows.filter((row) => row.trackingQualityKey === "missing").length,
+  };
+}
+
+function getOutcomeReadinessSummary(rows: OutcomeFeedbackRow[]) {
+  const strongTracking = rows.filter((row) => row.trackingQualityKey === "strong").length;
+
+  return {
+    total: rows.length,
+    ready: rows.filter((row) => row.readinessKey === "ready").length,
+    needsStrongerTracking: rows.filter(
+      (row) => row.readinessKey === "needs_stronger_tracking"
+    ).length,
+    crmOnly: rows.filter((row) => row.readinessKey === "crm_only").length,
+    missingIdentifiers: rows.filter((row) => row.readinessKey === "missing_identifiers")
+      .length,
+    missingClickIds: rows.filter((row) => !row.hasFbclid && !row.hasFbp && !row.hasFbc)
+      .length,
+    directNoTracking: rows.filter((row) => row.trackingQualityKey === "direct").length,
+    strongTrackingRate: safeRate(strongTracking, rows.length),
+  };
+}
+
+function getOutcomeReadiness({
+  trackingQualityKey,
+  hasFbclid,
+  hasFbp,
+  hasFbc,
+}: {
+  trackingQualityKey: TrackingQualityKey;
+  hasFbclid: boolean;
+  hasFbp: boolean;
+  hasFbc: boolean;
+}) {
+  if (hasFbclid || hasFbc) {
+    return {
+      key: "ready" as const,
+      label: "Ready for Meta feedback",
+      className: "bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (trackingQualityKey === "direct") {
+    return {
+      key: "crm_only" as const,
+      label: "CRM reporting only",
+      className: "bg-slate-100 text-slate-700",
+    };
+  }
+
+  if (trackingQualityKey === "partial" || hasFbp) {
+    return {
+      key: "needs_stronger_tracking" as const,
+      label: "Needs stronger tracking",
+      className: "bg-blue-50 text-blue-700",
+    };
+  }
+
+  return {
+    key: "missing_identifiers" as const,
+    label: "Missing identifiers",
+    className: "bg-amber-50 text-amber-700",
   };
 }
 
