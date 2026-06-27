@@ -1,4 +1,8 @@
-import { CrmInboxTable } from "@/components/crm/CrmInboxTable";
+import {
+  CrmInboxTable,
+  crmInboxPresets,
+  type CrmInboxPreset,
+} from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
 import {
   summarizeCrmCases,
@@ -54,6 +58,14 @@ const bookingQueueOptions = [
   ["no_show", "No-show"],
 ];
 
+const inboxSubTabs = [
+  { label: "Chats / 對話", queue: "" },
+  { label: "Bookings / 預約", queue: "booked" },
+  { label: "Follow-up / 跟進", queue: "follow_up_today" },
+  { label: "Completed / 已完成", queue: "showed" },
+  { label: "All / 全部", queue: "" },
+];
+
 export default async function CrmPage({
   searchParams,
 }: {
@@ -66,6 +78,7 @@ export default async function CrmPage({
   const brand = firstQueryValue(query?.brand)?.trim().toLowerCase() || "";
   const treatment = firstQueryValue(query?.treatment)?.trim().toLowerCase() || "";
   const queue = firstQueryValue(query?.queue)?.trim() || "";
+  const viewPreset = normalizeInboxPreset(firstQueryValue(query?.view));
   const source =
     activeTab === "reports"
       ? firstQueryValue(query?.source)?.trim().toLowerCase() || ""
@@ -151,7 +164,11 @@ export default async function CrmPage({
             <div>
               <div className="flex items-center gap-2.5">
                 <h1 className="text-lg font-bold text-[#111827]">
-                  {activeTab === "reports" ? "Marketing Reports" : "CS Command Center"}
+                  {activeTab === "reports"
+                    ? "Marketing Reports / 報表"
+                    : activeTab === "bookings"
+                      ? "Bookings / 預約"
+                      : "Inbox / 工作台"}
                 </h1>
                 <span className="rounded-md bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#047857]">
                   {runtime.actionsEnabled ? "Actions enabled" : "Read-only"}
@@ -160,7 +177,9 @@ export default async function CrmPage({
               <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
                 {activeTab === "reports"
                   ? "管理層及 Marketing 用報表；CS 日常工作只需要使用工作台及預約。"
-                  : "每日跟進工作台：先處理過期跟進、今日跟進，再處理新 Leads 及今日預約。"}
+                  : activeTab === "bookings"
+                    ? "集中處理今日預約、待標記到店結果及已確認預約。"
+                    : "CS 每日跟進 Lead、手動開 WhatsApp、確認預約及更新狀態。"}
               </p>
             </div>
           </div>
@@ -399,25 +418,55 @@ export default async function CrmPage({
             </>
           )}
 
-          <div className="flex min-w-0 flex-col gap-2 border-t border-[#f1f5f9] px-4 py-2 xl:flex-row xl:items-center xl:justify-between">
-            <nav className="flex gap-0.5 overflow-x-auto">
-              {tabs.map((tab) => (
-                <a
-                  key={tab.key}
-                  href={crmTabHref(tab.key)}
-                  className={`flex h-8 items-center whitespace-nowrap rounded-md px-2.5 text-[13px] font-semibold ${
-                    activeTab === tab.key
-                      ? "bg-[#111827] text-white"
-                      : "text-[#64748b] hover:bg-[#f8fafc]"
-                  }`}
-                >
-                  {tab.label}
-                </a>
-              ))}
-            </nav>
+          <div className="flex min-w-0 flex-col gap-2 border-t border-[#f1f5f9] px-4 py-2">
+            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+              <nav className="flex gap-0.5 overflow-x-auto">
+                {tabs.map((tab) => (
+                  <a
+                    key={tab.key}
+                    href={crmTabHref(tab.key)}
+                    className={`flex h-8 items-center whitespace-nowrap rounded-md px-2.5 text-[13px] font-semibold ${
+                      activeTab === tab.key
+                        ? "bg-[#111827] text-white"
+                        : "text-[#64748b] hover:bg-[#f8fafc]"
+                    }`}
+                  >
+                    {tab.label}
+                  </a>
+                ))}
+              </nav>
+
+              {activeTab === "leads" && (
+                <nav className="flex gap-1 overflow-x-auto">
+                  {inboxSubTabs.map((item) => {
+                    const href = item.queue ? `/crm?queue=${item.queue}` : "/crm";
+                    const active = queue === item.queue || (!queue && item.label.startsWith("Chats"));
+                    return (
+                      <a
+                        key={item.label}
+                        href={href}
+                        className={`flex h-8 items-center whitespace-nowrap rounded-full border px-3 text-[12px] font-bold ${
+                          active
+                            ? "border-[#111827] bg-[#111827] text-white"
+                            : "border-[#e2e8f0] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+                        }`}
+                      >
+                        {item.label}
+                      </a>
+                    );
+                  })}
+                </nav>
+              )}
+            </div>
 
             <form className="flex min-w-0 flex-wrap items-center gap-2">
               <input type="hidden" name="tab" value={activeTab} />
+              <button
+                type="submit"
+                className="h-9 whitespace-nowrap rounded-md border border-[#dbe2ea] bg-white px-3 text-[12px] font-black text-[#111827]"
+              >
+                Filter
+              </button>
               <select
                 name="range"
                 defaultValue={range}
@@ -429,18 +478,6 @@ export default async function CrmPage({
                   </option>
                 ))}
               </select>
-              <input
-                name="brand"
-                defaultValue={firstQueryValue(query?.brand) || ""}
-                placeholder="Brand"
-                className="h-9 w-[120px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-              />
-              <input
-                name="treatment"
-                defaultValue={firstQueryValue(query?.treatment) || ""}
-                placeholder="Treatment"
-                className="h-9 w-[140px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-              />
               {activeTab !== "reports" && (
                 <select
                   name="queue"
@@ -468,12 +505,42 @@ export default async function CrmPage({
                   className="h-9 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#2563eb] focus:bg-white"
                 />
               </label>
-              <button
-                type="submit"
-                className="h-9 whitespace-nowrap rounded-md bg-[#111827] px-3 text-[12px] font-bold text-white"
-              >
-                Filter
-              </button>
+              <input
+                name="brand"
+                defaultValue={firstQueryValue(query?.brand) || ""}
+                placeholder="Brand"
+                className="h-9 w-[120px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+              />
+              <input
+                name="treatment"
+                defaultValue={firstQueryValue(query?.treatment) || ""}
+                placeholder="Treatment"
+                className="h-9 w-[140px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+              />
+              {activeTab !== "reports" && (
+                <select
+                  name="view"
+                  defaultValue={viewPreset}
+                  className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+                  title="Columns / 欄位"
+                >
+                  {crmInboxPresets.map((item) => (
+                    <option key={item.key} value={item.key}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {activeTab !== "reports" && (
+                <span className="inline-flex h-9 items-center rounded-md bg-[#eff6ff] px-2.5 text-[11px] font-bold text-[#1d4ed8]">
+                  Columns / 欄位: {crmInboxPresets.find((item) => item.key === viewPreset)?.label}
+                </span>
+              )}
+              {(queue || search || brand || treatment || viewPreset !== "cs_booking") && activeTab !== "reports" ? (
+                <span className="inline-flex h-9 items-center rounded-md bg-[#fef3c7] px-2.5 text-[11px] font-bold text-[#92400e]">
+                  Filter applied
+                </span>
+              ) : null}
             </form>
           </div>
 
@@ -498,7 +565,7 @@ export default async function CrmPage({
                 body="顯示今日已確認預約、待標記到店結果，以及已預約 Leads。"
               />
             )}
-            <CrmInboxTable cases={visibleCases} />
+            <CrmInboxTable cases={visibleCases} preset={viewPreset} />
           </>
         )}
       </div>
@@ -1654,6 +1721,13 @@ function parseBookingDateTime(date: string | null, time: string | null) {
   const normalizedTime = time ? (time.length === 5 ? `${time}:00` : time) : "23:59:59";
   const parsed = new Date(`${date}T${normalizedTime}+08:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeInboxPreset(value: string | string[] | undefined): CrmInboxPreset {
+  const preset = Array.isArray(value) ? value[0] : value;
+  return crmInboxPresets.some((item) => item.key === preset)
+    ? (preset as CrmInboxPreset)
+    : "cs_booking";
 }
 
 function normalizeCrmTab(value: string | string[] | undefined): CrmTabKey {

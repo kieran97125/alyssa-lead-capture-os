@@ -37,7 +37,7 @@ export function CrmShell({
   return (
     <main className="min-h-screen bg-[#f5f6f8] text-[#1f2933]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[208px] shrink-0 border-r border-[#dfe4ea] bg-[#111827] text-white lg:flex lg:flex-col">
+        <aside className="hidden w-[216px] shrink-0 border-r border-[#dfe4ea] bg-[#111827] text-white lg:flex lg:flex-col">
           <div className="border-b border-white/10 px-4 py-3">
             <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">
               LeadOps
@@ -45,10 +45,10 @@ export function CrmShell({
             <h1 className="mt-1 text-base font-bold">CRM</h1>
           </div>
           <nav className="flex-1 space-y-1 px-2.5 py-3">
-            {sidebarItems.map((item) => (
+            {sidebarItems.map((item) =>
               item.enabled ? (
                 <Link
-                  key={item.label}
+                  key={item.key}
                   href={item.href}
                   className={`flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold transition ${
                     item.key === active
@@ -60,7 +60,7 @@ export function CrmShell({
                 </Link>
               ) : (
                 <span
-                  key={item.label}
+                  key={item.key}
                   className="flex h-9 cursor-not-allowed items-center justify-between rounded-lg px-3 text-[13px] font-semibold text-[#6b7280]"
                 >
                   {item.label}
@@ -69,7 +69,7 @@ export function CrmShell({
                   </span>
                 </span>
               )
-            ))}
+            )}
           </nav>
           <div className="border-t border-white/10 p-2.5">
             <div className="mb-2 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2">
@@ -109,7 +109,7 @@ export function CrmShell({
               { label: "設", href: "/crm/settings", key: "settings", title: "設定" },
             ].map((item) => (
               <Link
-                key={item.label}
+                key={item.key}
                 href={item.href}
                 className={`grid h-8 w-8 place-items-center rounded-lg text-[10px] font-bold ${
                   item.key === active ? "bg-white text-[#111827]" : "bg-white/8 text-[#9ca3af]"
