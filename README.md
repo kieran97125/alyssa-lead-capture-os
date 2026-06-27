@@ -111,6 +111,7 @@ CS write actions:
 - CRM Phase 2.0 adds an internal outcome feedback preview layer on `/crm` for future booked/showed/no-show/lost/invalid feedback. It shows tracking quality and Meta identifier availability for audit only; no external events are sent.
 - CRM Phase 2.1 adds outcome readiness audit labels and summary cards for future Meta/offline feedback review. It is still preview-only and does not send events.
 - CRM Phase 2.2 is a reviewed SQL proposal for a future durable outcome event queue. It plans event deduplication, CRM/lead/brand references, payload preview, hashed user-data readiness, tracking snapshots, send lifecycle, retry/error fields, and external response audit. No schema has been applied and no Meta events are being sent.
+- CRM Phase 2.3 adds tracking capture audit visibility on `/crm?tab=reports` and documents current source snapshot coverage versus future Meta matching needs. It is audit-only and does not change live capture behavior.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:
@@ -119,6 +120,7 @@ CRM Phase 2 schema files:
 - `docs/CRM_PHASE2_APPLY.sql` is the Phase 2B review/apply script for the six CS operation tables only.
 - `docs/CRM_PHASE1_APPLY.sql` is the Phase 1 status-constraint review script for the CS pipeline statuses.
 - `docs/CRM_PHASE_2_2_OUTCOME_EVENT_QUEUE_PLAN.sql` is a review-only future event queue proposal wrapped in `begin` / `rollback`; it has not been executed.
+- `docs/CRM_PHASE_2_3_TRACKING_CAPTURE_AUDIT.md` documents current tracking capture coverage and future `fbp` / `fbc` / parent URL recommendations.
 
 `docs/CRM_PHASE2_APPLY.sql` has not been executed against the live database by this code change. It uses `create table if not exists`, non-destructive indexes, and comments. It does not alter existing LaunchHub tables.
 

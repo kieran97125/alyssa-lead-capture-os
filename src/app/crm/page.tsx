@@ -118,6 +118,7 @@ export default async function CrmPage({
   });
   const outcomeSummary = getOutcomeFeedbackSummary(outcomeRows);
   const readinessSummary = getOutcomeReadinessSummary(outcomeRows);
+  const trackingCaptureAudit = getTrackingCaptureAudit(baseFilteredCases, leadById);
   const cases = baseFilteredCases
     .filter((item) => (queue ? matchesQueue(item, queue) : true))
     .sort(comparePriority);
@@ -270,6 +271,45 @@ export default async function CrmPage({
 
             <SourceQualityTable rows={sourceQualityRows} />
             <CampaignQualityTable rows={campaignQualityRows} />
+          </section>
+
+          <section className="border-t border-[#f1f5f9] px-4 py-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-[13px] font-black text-[#111827]">
+                  Tracking Capture Audit / 追蹤欄位覆蓋
+                </h2>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
+                  內部檢查現有 Lead / source snapshot 是否足夠支援未來 Meta CAPI 或 offline conversion feedback；此區不會改變追蹤或送出任何事件。
+                </p>
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#94a3b8]">
+                Audit only
+              </p>
+            </div>
+
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-11">
+              <ConversionMetric label="Total leads" value={trackingCaptureAudit.summary.totalLeads} />
+              <ConversionMetric label="Leads with UTM" value={trackingCaptureAudit.summary.withUtm} tone="blue" />
+              <ConversionMetric label="Leads with fbclid" value={trackingCaptureAudit.summary.withFbclid} tone="emerald" />
+              <ConversionMetric label="Leads with fbp" value={trackingCaptureAudit.summary.withFbp} />
+              <ConversionMetric label="Leads with fbc" value={trackingCaptureAudit.summary.withFbc} />
+              <ConversionMetric label="Meta campaign ID" value={trackingCaptureAudit.summary.withMetaCampaignId} />
+              <ConversionMetric label="Meta adset ID" value={trackingCaptureAudit.summary.withMetaAdsetId} />
+              <ConversionMetric label="Meta ad ID" value={trackingCaptureAudit.summary.withMetaAdId} />
+              <ConversionMetric label="Direct / no tracking" value={trackingCaptureAudit.summary.directNoTracking} tone="red" />
+              <ConversionMetric label="Strong tracking %" value={formatPercent(trackingCaptureAudit.summary.strongTrackingRate)} tone="emerald" />
+              <ConversionMetric label="Missing tracking %" value={formatPercent(trackingCaptureAudit.summary.missingTrackingRate)} tone="red" />
+            </div>
+
+            <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] font-semibold leading-5 text-blue-950">
+              <p className="font-black">Source capture diagnosis</p>
+              <p className="mt-1">
+                UTM 對報表分析有用；但未來如要做 Meta CAPI / offline matching，fbclid、fbc、fbp 會更重要。Direct / no tracking Leads 暫時不能可靠配對回 Meta。此區只作 audit，不會改變 capture 行為，亦不會發送任何事件。
+              </p>
+            </div>
+
+            <TrackingCoverageTable rows={trackingCaptureAudit.coverageRows} />
           </section>
 
           <section className="border-t border-[#f1f5f9] px-4 py-3">
@@ -611,6 +651,40 @@ function CampaignQualityTable({ rows }: { rows: CampaignQualityRow[] }) {
   );
 }
 
+function TrackingCoverageTable({ rows }: { rows: TrackingCoverageRow[] }) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
+      <div className="border-b border-[#eef2f6] px-3 py-2">
+        <h3 className="text-[12px] font-black text-[#111827]">追蹤欄位 coverage</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[760px] text-left text-[11px]">
+          <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+            <tr>
+              <th className="px-3 py-2">Field</th>
+              <th className="px-3 py-2">Available count</th>
+              <th className="px-3 py-2">Missing count</th>
+              <th className="px-3 py-2">Coverage %</th>
+              <th className="px-3 py-2">Notes</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row) => (
+              <tr key={row.field} className="border-t border-[#eef2f6]">
+                <td className="px-3 py-2 font-bold text-[#111827]">{row.field}</td>
+                <NumberCell value={row.available} />
+                <NumberCell value={row.missing} />
+                <NumberCell value={formatPercent(row.coverageRate)} />
+                <td className="px-3 py-2 font-semibold text-[#64748b]">{row.notes}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
 function NumberCell({ value }: { value: number | string }) {
   return <td className="px-3 py-2 font-semibold text-[#111827]">{value}</td>;
 }
@@ -910,6 +984,14 @@ type CampaignQualityRow = {
   lost: number;
   bookingRate: number;
   showRate: number;
+};
+
+type TrackingCoverageRow = {
+  field: string;
+  available: number;
+  missing: number;
+  coverageRate: number;
+  notes: string;
 };
 
 type OutcomeFeedbackRow = {
@@ -1249,6 +1331,109 @@ function getDirectTrafficSummary(cases: CrmLeadCase[]) {
     booked: directCases.filter(isBookedOutcome).length,
     showed: directCases.filter((item) => item.status === "showed").length,
   };
+}
+
+function getTrackingCaptureAudit(cases: CrmLeadCase[], leadById: Map<string, LeadRow>) {
+  const total = cases.length;
+  const rows = cases.map((item) => ({
+    item,
+    lead: leadById.get(item.id) ?? null,
+  }));
+
+  const hasUtm = (lead: LeadRow | null) =>
+    Boolean(
+      lead?.sourceSnapshot?.utm_source ||
+        lead?.sourceSnapshot?.utm_medium ||
+        lead?.sourceSnapshot?.utm_campaign ||
+        lead?.sourceSnapshot?.utm_content
+    );
+  const hasMetaId = (
+    item: CrmLeadCase,
+    lead: LeadRow | null,
+    field: "campaign" | "adset" | "ad"
+  ) => {
+    if (field === "campaign") {
+      return Boolean(item.ctwa.campaign_id || lead?.sourceSnapshot?.meta_campaign_id);
+    }
+    if (field === "adset") {
+      return Boolean(item.ctwa.adset_id || lead?.sourceSnapshot?.meta_adset_id);
+    }
+    return Boolean(item.ctwa.ad_id || lead?.sourceSnapshot?.meta_ad_id);
+  };
+
+  const withUtm = rows.filter(({ lead }) => hasUtm(lead)).length;
+  const withFbclid = rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.fbclid)).length;
+  const withFbp = rows.filter(({ lead }) => Boolean(sourceSnapshotExtra(lead, "fbp"))).length;
+  const withFbc = rows.filter(({ lead }) => Boolean(sourceSnapshotExtra(lead, "fbc"))).length;
+  const withMetaCampaignId = rows.filter(({ item, lead }) =>
+    hasMetaId(item, lead, "campaign")
+  ).length;
+  const withMetaAdsetId = rows.filter(({ item, lead }) => hasMetaId(item, lead, "adset"))
+    .length;
+  const withMetaAdId = rows.filter(({ item, lead }) => hasMetaId(item, lead, "ad")).length;
+  const directNoTracking = rows.filter(({ item }) => isDirectNoTracking(item)).length;
+  const strongTracking = rows.filter(
+    ({ lead }) =>
+      Boolean(lead?.sourceSnapshot?.fbclid) ||
+      Boolean(sourceSnapshotExtra(lead, "fbc")) ||
+      Boolean(sourceSnapshotExtra(lead, "fbp"))
+  ).length;
+  const missingTracking = rows.filter(
+    ({ item, lead }) =>
+      !hasUtm(lead) &&
+      !lead?.sourceSnapshot?.fbclid &&
+      !sourceSnapshotExtra(lead, "fbp") &&
+      !sourceSnapshotExtra(lead, "fbc") &&
+      !hasMetaId(item, lead, "campaign") &&
+      !hasMetaId(item, lead, "adset") &&
+      !hasMetaId(item, lead, "ad")
+  ).length;
+
+  return {
+    summary: {
+      totalLeads: total,
+      withUtm,
+      withFbclid,
+      withFbp,
+      withFbc,
+      withMetaCampaignId,
+      withMetaAdsetId,
+      withMetaAdId,
+      directNoTracking,
+      strongTrackingRate: safeRate(strongTracking, total),
+      missingTrackingRate: safeRate(missingTracking, total),
+    },
+    coverageRows: [
+      coverageRow("utm_source", total, rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.utm_source)).length, "主要來源，例如 meta / google。"),
+      coverageRow("utm_medium", total, rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.utm_medium)).length, "媒介，例如 paid_social。"),
+      coverageRow("utm_campaign", total, rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.utm_campaign)).length, "Campaign 報表與廣告組合分析。"),
+      coverageRow("utm_content", total, rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.utm_content)).length, "廣告內容 / hook / creative。"),
+      coverageRow("fbclid", total, withFbclid, "Meta click ID，對未來 matching 較重要。"),
+      coverageRow("fbp", total, withFbp, "目前未見固定 typed source snapshot 欄位；建議未來安全保存。"),
+      coverageRow("fbc", total, withFbc, "目前未見固定 typed source snapshot 欄位；可由 fbclid 建立。"),
+      coverageRow("meta_campaign_id", total, withMetaCampaignId, "Meta campaign ID，如廣告平台或 URL 有提供。"),
+      coverageRow("meta_adset_id", total, withMetaAdsetId, "Meta ad set ID，如廣告平台或 URL 有提供。"),
+      coverageRow("meta_ad_id", total, withMetaAdId, "Meta ad ID，如廣告平台或 URL 有提供。"),
+      coverageRow("parent_url", total, rows.filter(({ lead }) => Boolean(sourceSnapshotExtra(lead, "parent_url"))).length, "Wix parent URL 目前不是固定 typed 欄位；current_page_url / landing_page_url 只能部分輔助。"),
+      coverageRow("landing_page_slug / slug", total, rows.filter(({ item }) => Boolean(item.landingPageSlug)).length, "由 landing page URL 或 CRM case landing_page_slug 推斷。"),
+      coverageRow("form_id / form_token", total, rows.filter(({ lead }) => Boolean(lead?.form_id || lead?.form?.public_form_token)).length, "表格來源定位，可協助回查 campaign setup。"),
+    ],
+  };
+}
+
+function coverageRow(field: string, total: number, available: number, notes: string) {
+  return {
+    field,
+    available,
+    missing: Math.max(total - available, 0),
+    coverageRate: safeRate(available, total),
+    notes,
+  } satisfies TrackingCoverageRow;
+}
+
+function sourceSnapshotExtra(lead: LeadRow | null, key: string) {
+  const snapshot = (lead?.sourceSnapshot ?? {}) as Record<string, unknown>;
+  return stringValue(snapshot[key]);
 }
 
 function getSourceGroup(item: CrmLeadCase) {
