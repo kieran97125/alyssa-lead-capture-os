@@ -118,6 +118,7 @@ CS write actions:
 - CRM Phase 2.7 adds a config-first CRM settings layer in code via `src/lib/crm/settingsConfig.ts` and a read-only admin view in `/crm/settings`. Quick replies and AI reply drafts remain manual/template-based; no WhatsApp API, external AI API, Meta sending, or schema migration is active.
 - CRM Phase 2.8 improves the lead detail reply workflow with grouped CS templates, copy buttons, context suggestions, and manual WhatsApp open links. Messages are still copied and sent by CS manually; no WhatsApp API, external AI API, or auto-send behavior is connected.
 - CRM Phase 2.9 polishes the lead detail page into a booking-first CS operation card: customer, treatment, preferred time, confirmed booking, manual WhatsApp/contact actions, reply templates, and timeline are prioritized while marketing/tracking details stay at the bottom. No API sending behavior is connected.
+- CRM Phase 3.0 plans the editable app settings layer and improves `/crm/settings` as an admin preview. No schema has been applied, no live settings mutation is enabled, and `src/lib/crm/settingsConfig.ts` still powers CRM defaults and fallback behavior.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:
@@ -131,6 +132,8 @@ CRM Phase 2 schema files:
 - `docs/CRM_PHASE_2_4_TRACKING_CAPTURE_FIELDS_PLAN.sql` is a review-only future source snapshot field proposal wrapped in `begin` / `rollback`; it has not been executed.
 - `docs/CRM_PHASE_2_6_APP_SETTINGS_PLAN.md` documents the future CRM app settings foundation; it is planning-only and no schema has been applied.
 - `docs/CRM_PHASE_2_7_APP_SETTINGS_CONFIG_PLAN.sql` is a review-only future CRM app settings table proposal wrapped in `begin` / `rollback`; it has not been executed.
+- `docs/CRM_PHASE_3_0_EDITABLE_SETTINGS_ARCHITECTURE.md` documents the future editable settings flow, fallback strategy, brand overrides, and safety rules.
+- `docs/CRM_PHASE_3_0_EDITABLE_SETTINGS_PLAN.sql` is a review-only editable settings proposal wrapped in `begin` / `rollback`; it has not been executed.
 
 `docs/CRM_PHASE2_APPLY.sql` has not been executed against the live database by this code change. It uses `create table if not exists`, non-destructive indexes, and comments. It does not alter existing LaunchHub tables.
 

@@ -50,6 +50,27 @@ const replySettings = [
   ["Branch / room options", "Future branch room labels for CS booking confirmation"],
 ];
 
+const editableSettingsRoadmap = [
+  ["WhatsApp quick replies", "Read-only code defaults now", "Future editable by brand"],
+  ["AI reply draft templates", "Read-only template drafts now", "Future editable tone and copy"],
+  ["Lost reasons", "Read-only dropdown defaults now", "Future editable list with enabled flag"],
+  ["Invalid reasons", "Read-only dropdown defaults now", "Future editable list with enabled flag"],
+  ["Contact channels", "Read-only operational defaults now", "Future editable labels and ordering"],
+  ["Follow-up outcomes", "Read-only operational defaults now", "Future editable labels and ordering"],
+  ["Room options", "Placeholder defaults now", "Future brand / branch room settings"],
+  ["Booking confirmation templates", "Template direction only", "Future approved message drafts"],
+  ["Treatment FAQ replies", "Planning only", "Future treatment-specific reply library"],
+  ["Paid status labels", "Read-only dropdown defaults now", "Future editable labels"],
+];
+
+const fallbackRules = [
+  "Code defaults in src/lib/crm/settingsConfig.ts remain the source of truth today.",
+  "Future DB settings should override defaults only when enabled and valid.",
+  "If DB settings are missing, malformed, or disabled, CRM must fall back to code defaults.",
+  "Settings must not change booking semantics: preferred appointment time is not a confirmed booking.",
+  "Settings must not trigger WhatsApp sends, external AI calls, Meta sends, or public form behavior changes.",
+];
+
 const configModulePreview = [
   ["Contact channels", optionTuples(contactChannelOptions).map(([, label]) => label).join(" / ")],
   ["Follow-up outcomes", optionTuples(followUpOutcomeOptions).map(([, label]) => label).join(" / ")],
@@ -70,10 +91,10 @@ export default async function CrmSettingsPage() {
           <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h1 className="text-lg font-bold text-[#111827]">
-                WhatsApp Channel Settings
+                CRM App Settings
               </h1>
               <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-                Configure channel architecture without exposing raw tokens or calling WhatsApp APIs.
+                Admin preview for future editable CS workflow settings. Current values are read-only safe defaults.
               </p>
             </div>
             <span className="w-fit rounded-md bg-[#fef3c7] px-2 py-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#92400e]">
@@ -84,6 +105,35 @@ export default async function CrmSettingsPage() {
 
         <div className="min-h-0 flex-1 overflow-auto p-3.5">
           <div className="grid gap-3.5 xl:grid-cols-[1.1fr_0.9fr]">
+            <SettingsPanel
+              title="Editable Settings Layer Preview"
+              description="Phase 3.0 is planning and safe foundation only. Nothing on this page writes settings yet."
+            >
+              <div className="grid gap-2">
+                {editableSettingsRoadmap.map(([area, current, future]) => (
+                  <ReadinessRow
+                    key={area}
+                    area={area}
+                    current={current}
+                    future={future}
+                  />
+                ))}
+              </div>
+            </SettingsPanel>
+
+            <SettingsPanel
+              title="Safe Fallback Behavior"
+              description="Future editable settings must be optional. The CRM booking workflow should continue even if settings records are unavailable."
+            >
+              <ul className="grid gap-2 text-[12px] font-semibold leading-5 text-[#475569]">
+                {fallbackRules.map((item) => (
+                  <li key={item} className="rounded-md bg-[#f8fafc] px-3 py-2">
+                    {item}
+                  </li>
+                ))}
+              </ul>
+            </SettingsPanel>
+
             <SettingsPanel
               title="WhatsApp Channels"
               description="Channel records will live in whatsapp_channels. Token values must stay in a secure secret manager; the CRM should only store a secret reference."
@@ -130,7 +180,7 @@ export default async function CrmSettingsPage() {
 
             <SettingsPanel
               title="Current Config Module Defaults"
-              description="These values now come from src/lib/crm/settingsConfig.ts. They are still code defaults until a reviewed settings table is applied."
+              description="These values come from src/lib/crm/settingsConfig.ts. They power CRM today and remain fallback defaults after future DB settings are applied."
             >
               <div className="grid gap-2">
                 {configModulePreview.map(([label, value]) => (
@@ -152,13 +202,15 @@ export default async function CrmSettingsPage() {
 
             <SettingsPanel
               title="Security Boundary"
-              description="No token value input is active in this version. Token setup should be a future secure admin step."
+              description="No token value input, external API call, or live settings mutation is active in this version."
             >
               <ul className="grid gap-2 text-[12px] font-semibold leading-5 text-[#475569]">
                 <li>Store a secret reference only, not the token value.</li>
                 <li>Store a hashed webhook verify token only.</li>
                 <li>No Meta / WhatsApp API calls are made from this page.</li>
                 <li>No send-message endpoint is enabled.</li>
+                <li>No external AI API is connected.</li>
+                <li>No Supabase settings SQL has been executed for Phase 3.0.</li>
               </ul>
             </SettingsPanel>
           </div>
@@ -202,5 +254,42 @@ function ReadOnlyField({ label, value }: { label: string; value: string }) {
         className="mt-1.5 h-8 w-full rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#475569]"
       />
     </label>
+  );
+}
+
+function ReadinessRow({
+  area,
+  current,
+  future,
+}: {
+  area: string;
+  current: string;
+  future: string;
+}) {
+  return (
+    <div className="grid gap-2 rounded-md border border-[#eef2f6] bg-[#f8fafc] p-3 lg:grid-cols-[180px_1fr_1fr]">
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+          Setting area
+        </p>
+        <p className="mt-1 text-[12px] font-black text-[#111827]">{area}</p>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+          Current
+        </p>
+        <p className="mt-1 text-[12px] font-semibold leading-5 text-[#475569]">
+          {current}
+        </p>
+      </div>
+      <div>
+        <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+          Future editable
+        </p>
+        <p className="mt-1 text-[12px] font-semibold leading-5 text-[#475569]">
+          {future}
+        </p>
+      </div>
+    </div>
   );
 }
