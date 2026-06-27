@@ -11,15 +11,31 @@ import {
   getCrmCasesBySourceLeadIds,
   getCrmRuntimeStatus,
   type CrmBookingRecord,
+  type CrmLeadCaseRecord,
 } from "@/lib/crm/store";
-import { dateRangeOptions, getLeadRows, parseRange } from "@/lib/data/businessMetrics";
+import {
+  dateRangeOptions,
+  formatDateTime,
+  getLeadRows,
+  parseRange,
+  type LeadRow,
+} from "@/lib/data/businessMetrics";
 
 export const dynamic = "force-dynamic";
 
 type SummaryTone = "blue" | "emerald" | "amber" | "red" | "purple" | "orange" | "slate";
 type ConversionTone = "blue" | "emerald" | "purple" | "red" | "slate";
+type TrackingQualityKey = "strong" | "partial" | "direct" | "missing";
 
-const tabs = ["Leads", "預約", "客戶", "跟進", "報表"];
+type CrmTabKey = "leads" | "bookings" | "customers" | "follow_up" | "reports";
+
+const tabs: Array<{ key: CrmTabKey; label: string }> = [
+  { key: "leads", label: "Leads" },
+  { key: "bookings", label: "預約" },
+  { key: "customers", label: "客戶" },
+  { key: "follow_up", label: "跟進" },
+  { key: "reports", label: "報表" },
+];
 
 const queueOptions = [
   ["", "全部"],
@@ -42,14 +58,18 @@ export default async function CrmPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
+  const activeTab = normalizeCrmTab(firstQueryValue(query?.tab));
   const range = parseRange(query?.range);
   const search = firstQueryValue(query?.search)?.trim() || "";
   const brand = firstQueryValue(query?.brand)?.trim().toLowerCase() || "";
   const treatment = firstQueryValue(query?.treatment)?.trim().toLowerCase() || "";
   const queue = firstQueryValue(query?.queue)?.trim() || "";
   const source = firstQueryValue(query?.source)?.trim().toLowerCase() || "";
+  const outcome = firstQueryValue(query?.outcome)?.trim() || "";
+  const tracking = firstQueryValue(query?.tracking)?.trim() || "";
   const leadLimit = range === "all" ? 5000 : 500;
   const { leads, error } = await getLeadRows(range, leadLimit, { query: search });
+  const leadById = new Map(leads.map((lead) => [lead.id, lead]));
   const [runtime, crmCasesByLeadId] = await Promise.all([
     getCrmRuntimeStatus(),
     getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id)),
@@ -86,9 +106,31 @@ export default async function CrmPage({
   const sourceQualityRows = getSourceQualityRows(baseFilteredCases);
   const campaignQualityRows = getCampaignQualityRows(baseFilteredCases);
   const directSummary = getDirectTrafficSummary(baseFilteredCases);
+  const outcomeRows = getOutcomeFeedbackRows(
+    baseFilteredCases,
+    leadById,
+    crmCasesByLeadId
+  ).filter((row) => {
+    if (outcome && row.outcomeType !== outcome) return false;
+    if (tracking && row.trackingQualityKey !== tracking) return false;
+    return true;
+  });
+  const outcomeSummary = getOutcomeFeedbackSummary(outcomeRows);
   const cases = baseFilteredCases
     .filter((item) => (queue ? matchesQueue(item, queue) : true))
     .sort(comparePriority);
+  const followUpCases = baseFilteredCases
+    .filter((item) => item.nextFollowUpAt || isTodayFollowUp(item) || isOverdueFollowUp(item))
+    .sort(comparePriority);
+  const bookingCases = baseFilteredCases
+    .filter((item) => item.status === "booked" || isTodayBooking(item) || isPendingShowOutcome(item))
+    .sort(comparePriority);
+  const visibleCases =
+    activeTab === "follow_up"
+      ? followUpCases
+      : activeTab === "bookings"
+        ? bookingCases
+        : cases;
 
   return (
     <CrmShell>
@@ -120,6 +162,8 @@ export default async function CrmPage({
             <SummaryCard label="Invalid" value={summary.invalid} tone="slate" />
           </div>
 
+          {activeTab === "reports" && (
+            <>
           <section className="border-t border-[#f1f5f9] px-4 py-3">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -226,25 +270,57 @@ export default async function CrmPage({
             <CampaignQualityTable rows={campaignQualityRows} />
           </section>
 
+          <section className="border-t border-[#f1f5f9] px-4 py-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-[13px] font-black text-[#111827]">
+                  事件預覽 / Outcome Feedback Prep
+                </h2>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
+                  只作內部檢查，所有記錄目前均為尚未回傳；未有向 Meta 或其他平台發送事件。
+                </p>
+              </div>
+              <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#94a3b8]">
+                Preview only
+              </p>
+            </div>
+
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-9">
+              <ConversionMetric label="事件預覽" value={outcomeSummary.total} />
+              <ConversionMetric label="已預約" value={outcomeSummary.booked} tone="emerald" />
+              <ConversionMetric label="已到店" value={outcomeSummary.showed} tone="purple" />
+              <ConversionMetric label="No-show" value={outcomeSummary.noShow} tone="red" />
+              <ConversionMetric label="已流失" value={outcomeSummary.lost} tone="red" />
+              <ConversionMetric label="無效" value={outcomeSummary.invalid} />
+              <ConversionMetric label="Tracking 強" value={outcomeSummary.strong} tone="emerald" />
+              <ConversionMetric label="Tracking 不完整" value={outcomeSummary.partial} tone="blue" />
+              <ConversionMetric label="直接 / 無追蹤" value={outcomeSummary.direct} tone="red" />
+            </div>
+
+            <OutcomeFeedbackPreviewTable rows={outcomeRows} />
+          </section>
+            </>
+          )}
+
           <div className="flex min-w-0 flex-col gap-2 border-t border-[#f1f5f9] px-4 py-2 xl:flex-row xl:items-center xl:justify-between">
             <nav className="flex gap-0.5 overflow-x-auto">
-              {tabs.map((tab, index) => (
-                <button
-                  key={tab}
-                  type="button"
-                  disabled={index !== 0}
-                  className={`h-8 whitespace-nowrap rounded-md px-2.5 text-[13px] font-semibold ${
-                    index === 0
+              {tabs.map((tab) => (
+                <a
+                  key={tab.key}
+                  href={crmTabHref(tab.key)}
+                  className={`flex h-8 items-center whitespace-nowrap rounded-md px-2.5 text-[13px] font-semibold ${
+                    activeTab === tab.key
                       ? "bg-[#111827] text-white"
-                      : "text-[#94a3b8] hover:bg-[#f8fafc]"
+                      : "text-[#64748b] hover:bg-[#f8fafc]"
                   }`}
                 >
-                  {tab}
-                </button>
+                  {tab.label}
+                </a>
               ))}
             </nav>
 
             <form className="flex min-w-0 flex-wrap items-center gap-2">
+              <input type="hidden" name="tab" value={activeTab} />
               <select
                 name="range"
                 defaultValue={range}
@@ -268,17 +344,46 @@ export default async function CrmPage({
                 placeholder="Treatment"
                 className="h-9 w-[140px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
               />
-              <select
-                name="queue"
-                defaultValue={queue}
-                className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-              >
-                {queueOptions.map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
-              </select>
+              {activeTab === "leads" && (
+                <select
+                  name="queue"
+                  defaultValue={queue}
+                  className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+                >
+                  {queueOptions.map(([value, label]) => (
+                    <option key={value} value={value}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              )}
+              {activeTab === "reports" && (
+                <>
+                  <select
+                    name="outcome"
+                    defaultValue={outcome}
+                    className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+                  >
+                    <option value="">全部 Outcome</option>
+                    <option value="booked">已預約</option>
+                    <option value="showed">已到店</option>
+                    <option value="no_show">No-show</option>
+                    <option value="lost">已流失</option>
+                    <option value="invalid">無效</option>
+                  </select>
+                  <select
+                    name="tracking"
+                    defaultValue={tracking}
+                    className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+                  >
+                    <option value="">全部 Tracking</option>
+                    <option value="strong">Tracking 強</option>
+                    <option value="partial">Tracking 不完整</option>
+                    <option value="direct">直接 / 無追蹤</option>
+                    <option value="missing">缺少必要識別</option>
+                  </select>
+                </>
+              )}
               <input
                 name="source"
                 defaultValue={firstQueryValue(query?.source) || ""}
@@ -317,9 +422,50 @@ export default async function CrmPage({
           )}
         </header>
 
-        <CrmInboxTable cases={cases} />
+        {activeTab === "customers" ? (
+          <PlaceholderPanel
+            title="客戶檔案模組準備中"
+            body="之後會集中顯示客戶電話身份、歷史互動、預約及跟進紀錄。"
+          />
+        ) : activeTab === "reports" ? null : (
+          <>
+            {activeTab === "follow_up" && (
+              <TabNotice
+                title="跟進工作"
+                body="顯示今日要跟、過期未跟，以及已設定下一次跟進時間的 Leads。"
+              />
+            )}
+            {activeTab === "bookings" && (
+              <TabNotice
+                title="預約工作"
+                body="顯示今日已確認預約、待標記到店結果，以及已預約 Leads。"
+              />
+            )}
+            <CrmInboxTable cases={visibleCases} />
+          </>
+        )}
       </div>
     </CrmShell>
+  );
+}
+
+function TabNotice({ title, body }: { title: string; body: string }) {
+  return (
+    <div className="border-b border-[#e5e7eb] bg-[#f8fafc] px-4 py-2">
+      <p className="text-[12px] font-black text-[#111827]">{title}</p>
+      <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">{body}</p>
+    </div>
+  );
+}
+
+function PlaceholderPanel({ title, body }: { title: string; body: string }) {
+  return (
+    <main className="flex min-h-0 flex-1 items-center justify-center bg-[#f8fafc] p-6">
+      <div className="max-w-md rounded-lg border border-[#e5e7eb] bg-white p-5 text-center shadow-sm">
+        <p className="text-sm font-black text-[#111827]">{title}</p>
+        <p className="mt-2 text-[12px] font-semibold leading-5 text-[#64748b]">{body}</p>
+      </div>
+    </main>
   );
 }
 
@@ -448,6 +594,85 @@ function CampaignQualityTable({ rows }: { rows: CampaignQualityRow[] }) {
 
 function NumberCell({ value }: { value: number | string }) {
   return <td className="px-3 py-2 font-semibold text-[#111827]">{value}</td>;
+}
+
+function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
+      <div className="flex items-center justify-between border-b border-[#eef2f6] px-3 py-2">
+        <h3 className="text-[12px] font-black text-[#111827]">尚未回傳事件預覽</h3>
+        <span className="rounded bg-amber-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">
+          Preview only
+        </span>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1320px] text-left text-[11px]">
+          <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+            <tr>
+              <th className="px-3 py-2">客人</th>
+              <th className="px-3 py-2">電話</th>
+              <th className="px-3 py-2">品牌</th>
+              <th className="px-3 py-2">療程 / 優惠</th>
+              <th className="px-3 py-2">CRM 狀態</th>
+              <th className="px-3 py-2">Outcome</th>
+              <th className="px-3 py-2">Outcome 時間</th>
+              <th className="px-3 py-2">Created At</th>
+              <th className="px-3 py-2">來源 / Medium</th>
+              <th className="px-3 py-2">Campaign</th>
+              <th className="px-3 py-2">Meta Campaign ID</th>
+              <th className="px-3 py-2">Meta Ad Set ID</th>
+              <th className="px-3 py-2">Meta Ad ID</th>
+              <th className="px-3 py-2">fbclid / fbp / fbc</th>
+              <th className="px-3 py-2">Tracking</th>
+              <th className="px-3 py-2">狀態</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row) => (
+                <tr key={row.key} className="border-t border-[#eef2f6]">
+                  <td className="px-3 py-2 font-bold text-[#111827]">{row.leadName}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">{row.phone}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">{row.brand}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">
+                    {row.treatmentOffer}
+                  </td>
+                  <td className="px-3 py-2 font-semibold text-[#111827]">{row.statusLabel}</td>
+                  <td className="px-3 py-2 font-bold text-[#111827]">{row.outcomeLabel}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">
+                    {row.outcomeTimestamp}
+                  </td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">{row.createdAt}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">{row.sourceMedium}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">{row.campaign}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">
+                    {row.metaCampaignId}
+                  </td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">{row.metaAdsetId}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">{row.metaAdId}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">
+                    {row.clickIdAvailability}
+                  </td>
+                  <td className="px-3 py-2">
+                    <span className={`rounded px-2 py-1 text-[10px] font-black ${row.trackingClassName}`}>
+                      {row.trackingQualityLabel}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2 font-bold text-amber-700">尚未回傳</td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={16} className="px-3 py-6 text-center text-[#64748b]">
+                  這個範圍未有可預覽嘅 CRM outcome 記錄。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
 }
 
 function applyBookingToCase(item: CrmLeadCase, booking: CrmBookingRecord | null): CrmLeadCase {
@@ -653,6 +878,162 @@ type CampaignQualityRow = {
   bookingRate: number;
   showRate: number;
 };
+
+type OutcomeFeedbackRow = {
+  key: string;
+  leadName: string;
+  phone: string;
+  brand: string;
+  treatmentOffer: string;
+  statusLabel: string;
+  outcomeType: string;
+  outcomeLabel: string;
+  outcomeTimestamp: string;
+  createdAt: string;
+  sourceMedium: string;
+  campaign: string;
+  metaCampaignId: string;
+  metaAdsetId: string;
+  metaAdId: string;
+  clickIdAvailability: string;
+  trackingQualityKey: TrackingQualityKey;
+  trackingQualityLabel: string;
+  trackingClassName: string;
+};
+
+function getOutcomeFeedbackRows(
+  cases: CrmLeadCase[],
+  leadById: Map<string, LeadRow>,
+  crmCasesByLeadId: Map<string, CrmLeadCaseRecord>
+) {
+  return cases
+    .filter((item) => isFeedbackOutcomeStatus(item.status))
+    .map((item) => {
+      const lead = leadById.get(item.id) ?? null;
+      const crmRecord = crmCasesByLeadId.get(item.id) ?? null;
+      const snapshot = lead?.sourceSnapshot ?? null;
+      const metaCampaignId = item.ctwa.campaign_id || snapshot?.meta_campaign_id || "";
+      const metaAdsetId = item.ctwa.adset_id || snapshot?.meta_adset_id || "";
+      const metaAdId = item.ctwa.ad_id || snapshot?.meta_ad_id || "";
+      const fbclid = snapshot?.fbclid || "";
+      const trackingQuality = getTrackingQuality(item, lead);
+
+      return {
+        key: `${item.id}-${item.status}`,
+        leadName: item.customerName,
+        phone: item.phone,
+        brand: item.brandName,
+        treatmentOffer: item.treatmentOffer,
+        statusLabel: item.statusLabel,
+        outcomeType: item.status,
+        outcomeLabel: outcomeLabel(item.status),
+        outcomeTimestamp: outcomeTimestamp(item, crmRecord),
+        createdAt: item.createdLabel,
+        sourceMedium: item.sourceLabel,
+        campaign: cleanLabel(item.campaignLabel) || "未設定 Campaign",
+        metaCampaignId: metaCampaignId || "-",
+        metaAdsetId: metaAdsetId || "-",
+        metaAdId: metaAdId || "-",
+        clickIdAvailability: [
+          `fbclid ${fbclid ? "有" : "無"}`,
+          "fbp/fbc 未有欄位",
+        ].join(" / "),
+        trackingQualityKey: trackingQuality.key,
+        trackingQualityLabel: trackingQuality.label,
+        trackingClassName: trackingQuality.className,
+      } satisfies OutcomeFeedbackRow;
+    })
+    .sort((a, b) => {
+      const outcomeOrder = ["booked", "showed", "no_show", "lost", "invalid"];
+      return (
+        outcomeOrder.indexOf(a.outcomeType) - outcomeOrder.indexOf(b.outcomeType) ||
+        a.brand.localeCompare(b.brand) ||
+        a.leadName.localeCompare(b.leadName)
+      );
+    });
+}
+
+function getOutcomeFeedbackSummary(rows: OutcomeFeedbackRow[]) {
+  return {
+    total: rows.length,
+    booked: rows.filter((row) => row.outcomeType === "booked").length,
+    showed: rows.filter((row) => row.outcomeType === "showed").length,
+    noShow: rows.filter((row) => row.outcomeType === "no_show").length,
+    lost: rows.filter((row) => row.outcomeType === "lost").length,
+    invalid: rows.filter((row) => row.outcomeType === "invalid").length,
+    strong: rows.filter((row) => row.trackingQualityKey === "strong").length,
+    partial: rows.filter((row) => row.trackingQualityKey === "partial").length,
+    direct: rows.filter((row) => row.trackingQualityKey === "direct").length,
+    missing: rows.filter((row) => row.trackingQualityKey === "missing").length,
+  };
+}
+
+function isFeedbackOutcomeStatus(status: string) {
+  return ["booked", "showed", "no_show", "lost", "invalid"].includes(status);
+}
+
+function outcomeLabel(status: string) {
+  const labels: Record<string, string> = {
+    booked: "已預約",
+    showed: "已到店",
+    no_show: "No-show",
+    lost: "已流失",
+    invalid: "無效",
+  };
+  return labels[status] ?? status;
+}
+
+function outcomeTimestamp(item: CrmLeadCase, crmRecord: CrmLeadCaseRecord | null) {
+  if (item.status === "booked" && item.confirmedBookingLabel) {
+    return item.confirmedBookingLabel;
+  }
+  if (crmRecord?.updated_at) return formatDateTime(crmRecord.updated_at);
+  return item.lastActivityLabel || item.createdLabel || "-";
+}
+
+function getTrackingQuality(item: CrmLeadCase, lead: LeadRow | null) {
+  const snapshot = lead?.sourceSnapshot ?? null;
+  const hasFbclid = Boolean(snapshot?.fbclid);
+  const hasMetaIds = Boolean(
+    item.ctwa.campaign_id ||
+      item.ctwa.adset_id ||
+      item.ctwa.ad_id ||
+      snapshot?.meta_campaign_id ||
+      snapshot?.meta_adset_id ||
+      snapshot?.meta_ad_id
+  );
+  const hasTrackedSource = !isDirectNoTracking(item);
+
+  if (!hasTrackedSource) {
+    return {
+      key: "direct" as const,
+      label: "直接 / 無追蹤",
+      className: "bg-red-50 text-red-700",
+    };
+  }
+
+  if (hasFbclid && (hasMetaIds || cleanLabel(item.campaignLabel))) {
+    return {
+      key: "strong" as const,
+      label: "Tracking 強",
+      className: "bg-emerald-50 text-emerald-700",
+    };
+  }
+
+  if (hasMetaIds || cleanLabel(item.campaignLabel) || cleanLabel(item.sourceLabel)) {
+    return {
+      key: "partial" as const,
+      label: "Tracking 不完整",
+      className: "bg-blue-50 text-blue-700",
+    };
+  }
+
+  return {
+    key: "missing" as const,
+    label: "缺少必要識別",
+    className: "bg-amber-50 text-amber-700",
+  };
+}
 
 function getSourceQualityRows(cases: CrmLeadCase[]) {
   const rows = new Map<string, SourceQualityRow>();
@@ -916,6 +1297,15 @@ function parseBookingDateTime(date: string | null, time: string | null) {
   const normalizedTime = time ? (time.length === 5 ? `${time}:00` : time) : "23:59:59";
   const parsed = new Date(`${date}T${normalizedTime}+08:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeCrmTab(value: string | string[] | undefined): CrmTabKey {
+  const tab = Array.isArray(value) ? value[0] : value;
+  return tabs.some((item) => item.key === tab) ? (tab as CrmTabKey) : "leads";
+}
+
+function crmTabHref(tab: CrmTabKey) {
+  return tab === "leads" ? "/crm" : `/crm?tab=${tab}`;
 }
 
 function firstQueryValue(value: string | string[] | undefined) {
