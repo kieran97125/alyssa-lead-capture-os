@@ -274,10 +274,10 @@ export default async function CrmPage({
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-[13px] font-black text-[#111827]">
-                  事件預覽 / Outcome Feedback Prep
+                  Outcome Feedback Preview / 事件回傳預覽
                 </h2>
                 <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                  只作內部檢查，所有記錄目前均為尚未回傳；未有向 Meta 或其他平台發送事件。
+                  內部審核用，尚未回傳 Meta 或任何外部平台。
                 </p>
               </div>
               <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#94a3b8]">
@@ -286,7 +286,7 @@ export default async function CrmPage({
             </div>
 
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-9">
-              <ConversionMetric label="事件預覽" value={outcomeSummary.total} />
+              <ConversionMetric label="Outcome 總數" value={outcomeSummary.total} />
               <ConversionMetric label="已預約" value={outcomeSummary.booked} tone="emerald" />
               <ConversionMetric label="已到店" value={outcomeSummary.showed} tone="purple" />
               <ConversionMetric label="No-show" value={outcomeSummary.noShow} tone="red" />
@@ -622,7 +622,9 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
               <th className="px-3 py-2">Meta Campaign ID</th>
               <th className="px-3 py-2">Meta Ad Set ID</th>
               <th className="px-3 py-2">Meta Ad ID</th>
-              <th className="px-3 py-2">fbclid / fbp / fbc</th>
+              <th className="px-3 py-2">fbclid</th>
+              <th className="px-3 py-2">fbp</th>
+              <th className="px-3 py-2">fbc</th>
               <th className="px-3 py-2">Tracking</th>
               <th className="px-3 py-2">狀態</th>
             </tr>
@@ -651,7 +653,13 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
                   <td className="px-3 py-2 font-semibold text-[#475569]">{row.metaAdsetId}</td>
                   <td className="px-3 py-2 font-semibold text-[#475569]">{row.metaAdId}</td>
                   <td className="px-3 py-2 font-semibold text-[#475569]">
-                    {row.clickIdAvailability}
+                    {row.fbclidAvailability}
+                  </td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">
+                    {row.fbpAvailability}
+                  </td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">
+                    {row.fbcAvailability}
                   </td>
                   <td className="px-3 py-2">
                     <span className={`rounded px-2 py-1 text-[10px] font-black ${row.trackingClassName}`}>
@@ -663,7 +671,7 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
               ))
             ) : (
               <tr>
-                <td colSpan={16} className="px-3 py-6 text-center text-[#64748b]">
+                <td colSpan={18} className="px-3 py-6 text-center text-[#64748b]">
                   這個範圍未有可預覽嘅 CRM outcome 記錄。
                 </td>
               </tr>
@@ -895,7 +903,9 @@ type OutcomeFeedbackRow = {
   metaCampaignId: string;
   metaAdsetId: string;
   metaAdId: string;
-  clickIdAvailability: string;
+  fbclidAvailability: string;
+  fbpAvailability: string;
+  fbcAvailability: string;
   trackingQualityKey: TrackingQualityKey;
   trackingQualityLabel: string;
   trackingClassName: string;
@@ -916,6 +926,9 @@ function getOutcomeFeedbackRows(
       const metaAdsetId = item.ctwa.adset_id || snapshot?.meta_adset_id || "";
       const metaAdId = item.ctwa.ad_id || snapshot?.meta_ad_id || "";
       const fbclid = snapshot?.fbclid || "";
+      const snapshotRecord = (snapshot ?? {}) as Record<string, unknown>;
+      const fbp = stringValue(snapshotRecord.fbp);
+      const fbc = stringValue(snapshotRecord.fbc);
       const trackingQuality = getTrackingQuality(item, lead);
 
       return {
@@ -934,10 +947,9 @@ function getOutcomeFeedbackRows(
         metaCampaignId: metaCampaignId || "-",
         metaAdsetId: metaAdsetId || "-",
         metaAdId: metaAdId || "-",
-        clickIdAvailability: [
-          `fbclid ${fbclid ? "有" : "無"}`,
-          "fbp/fbc 未有欄位",
-        ].join(" / "),
+        fbclidAvailability: fbclid ? "有" : "無",
+        fbpAvailability: fbp ? "有" : "未有欄位",
+        fbcAvailability: fbc ? "有" : "未有欄位",
         trackingQualityKey: trackingQuality.key,
         trackingQualityLabel: trackingQuality.label,
         trackingClassName: trackingQuality.className,
@@ -1176,6 +1188,10 @@ function cleanLabel(value: string | null | undefined) {
   if (!text || text === "-" || text.toLowerCase() === "unknown") return "";
   if (text.includes("未有") || text.includes("直接 / 無追蹤")) return "";
   return text;
+}
+
+function stringValue(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
 }
 
 function isDirectNoTracking(item: CrmLeadCase) {
