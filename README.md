@@ -117,6 +117,7 @@ CS write actions:
 - CRM Phase 2.6 simplifies the CS booking console and starts the app settings foundation. CS inbox screens hide marketing attribution details; tracking/reporting remains in `/crm?tab=reports`. Settings planning is documented only, with no schema applied.
 - CRM Phase 2.7 adds a config-first CRM settings layer in code via `src/lib/crm/settingsConfig.ts` and a read-only admin view in `/crm/settings`. Quick replies and AI reply drafts remain manual/template-based; no WhatsApp API, external AI API, Meta sending, or schema migration is active.
 - CRM Phase 2.8 improves the lead detail reply workflow with grouped CS templates, copy buttons, context suggestions, and manual WhatsApp open links. Messages are still copied and sent by CS manually; no WhatsApp API, external AI API, or auto-send behavior is connected.
+- CRM Phase 2.9 polishes the lead detail page into a booking-first CS operation card: customer, treatment, preferred time, confirmed booking, manual WhatsApp/contact actions, reply templates, and timeline are prioritized while marketing/tracking details stay at the bottom. No API sending behavior is connected.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:
