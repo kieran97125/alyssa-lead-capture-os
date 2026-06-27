@@ -33,7 +33,6 @@ type CrmTabKey = "leads" | "bookings" | "reports";
 const tabs: Array<{ key: CrmTabKey; label: string }> = [
   { key: "leads", label: "工作台" },
   { key: "bookings", label: "預約" },
-  { key: "reports", label: "報表" },
 ];
 
 const queueOptions = [
@@ -151,13 +150,17 @@ export default async function CrmPage({
           <div className="flex flex-col gap-2.5 px-4 py-2.5 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className="text-lg font-bold text-[#111827]">CS Command Center</h1>
+                <h1 className="text-lg font-bold text-[#111827]">
+                  {activeTab === "reports" ? "Marketing Reports" : "CS Command Center"}
+                </h1>
                 <span className="rounded-md bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#047857]">
                   {runtime.actionsEnabled ? "Actions enabled" : "Read-only"}
                 </span>
               </div>
               <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-                每日跟進工作台：先處理過期跟進、今日跟進，再處理新 Leads 及今日預約。
+                {activeTab === "reports"
+                  ? "管理層及 Marketing 用報表；CS 日常工作只需要使用工作台及預約。"
+                  : "每日跟進工作台：先處理過期跟進、今日跟進，再處理新 Leads 及今日預約。"}
               </p>
             </div>
           </div>
@@ -285,10 +288,10 @@ export default async function CrmPage({
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-[13px] font-black text-[#111827]">
-                    Advanced Tracking Audit / 技術追蹤審核
+                    Technical Audit / 技術審核
                   </h2>
                   <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                    技術追蹤、Meta readiness、fbclid / fbp / fbc coverage 及 campaign detail 預設收合。
+                    只供 Marketing / Admin 檢查追蹤與回傳準備，CS 不需要使用。
                   </p>
                 </div>
                 <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#94a3b8]">
@@ -1655,6 +1658,7 @@ function parseBookingDateTime(date: string | null, time: string | null) {
 
 function normalizeCrmTab(value: string | string[] | undefined): CrmTabKey {
   const tab = Array.isArray(value) ? value[0] : value;
+  if (tab === "reports") return "reports";
   return tabs.some((item) => item.key === tab) ? (tab as CrmTabKey) : "leads";
 }
 

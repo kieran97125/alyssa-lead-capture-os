@@ -14,7 +14,14 @@ const sidebarItems: Array<{
 }> = [
   { key: "inbox", label: "工作台", href: "/crm" },
   { key: "bookings", label: "預約", href: "/crm?tab=bookings" },
-  { key: "reports", label: "報表", href: "/crm?tab=reports" },
+];
+
+const adminItems: Array<{
+  key: CrmSidebarKey;
+  label: string;
+  href: string;
+}> = [
+  { key: "reports", label: "Marketing Reports", href: "/crm?tab=reports" },
   { key: "settings", label: "Settings", href: "/crm/settings" },
 ];
 
@@ -37,20 +44,38 @@ export function CrmShell({
           </div>
           <nav className="flex-1 space-y-1 px-2.5 py-3">
             {sidebarItems.map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
+                className={`flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold transition ${
+                  item.key === active
+                    ? "bg-white text-[#111827]"
+                    : "text-[#d1d5db] hover:bg-white/10 hover:text-white"
+                }`}
+              >
+                {item.label}
+              </Link>
+            ))}
+          </nav>
+          <div className="border-t border-white/10 p-2.5">
+            <p className="px-3 pb-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6b7280]">
+              Admin / Marketing
+            </p>
+            <div className="grid gap-1 pb-2">
+              {adminItems.map((item) => (
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold transition ${
+                  className={`block rounded-lg px-3 py-2 text-[12px] font-semibold transition ${
                     item.key === active
                       ? "bg-white text-[#111827]"
-                      : "text-[#d1d5db] hover:bg-white/10 hover:text-white"
+                      : "text-[#9ca3af] hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   {item.label}
                 </Link>
-            ))}
-          </nav>
-          <div className="border-t border-white/10 p-2.5">
+              ))}
+            </div>
             <Link
               href="/dashboard"
               className="block rounded-lg px-3 py-2 text-[12px] font-semibold text-[#d1d5db] transition hover:bg-white/10 hover:text-white"
@@ -69,16 +94,20 @@ export function CrmShell({
             C
           </Link>
           <div className="mt-4 grid gap-2">
-            {["工", "約", "報"].map((label, index) => (
-              <span
-                key={label}
+            {[
+              { label: "工", href: "/crm", key: "inbox" },
+              { label: "約", href: "/crm?tab=bookings", key: "bookings" },
+            ].map((item) => (
+              <Link
+                key={item.label}
+                href={item.href}
                 className={`grid h-8 w-8 place-items-center rounded-lg text-[10px] font-bold ${
-                  index === 0 ? "bg-white text-[#111827]" : "bg-white/8 text-[#9ca3af]"
+                  item.key === active ? "bg-white text-[#111827]" : "bg-white/8 text-[#9ca3af]"
                 }`}
-                title={index === 0 ? "Inbox" : "Coming soon"}
+                title={item.label === "工" ? "工作台" : "預約"}
               >
-                {label}
-              </span>
+                {item.label}
+              </Link>
             ))}
           </div>
         </aside>
