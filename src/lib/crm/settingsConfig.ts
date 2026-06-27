@@ -6,8 +6,11 @@ export type CrmConfigOption<TValue extends string = string> = {
 
 export type CrmReplyTemplate = {
   key: string;
+  group: string;
   title: string;
+  useCase: string;
   body: string;
+  recommendedStatuses?: readonly string[];
 };
 
 export const crmStatusOptions = [
@@ -68,23 +71,83 @@ export const roomOptionPlaceholders = [
 export const quickReplyTemplates: CrmReplyTemplate[] = [
   {
     key: "first_follow_up",
+    group: "首次跟進",
     title: "首次跟進",
-    body: "你好，我哋收到你嘅登記，想同你確認預約資料同方便時間。",
+    useCase: "新 lead 或未正式聯絡客人時使用。",
+    body: "你好，我哋收到你嘅登記，想同你確認預約資料同方便時間。請問你今日方便 WhatsApp 傾一傾預約安排嗎？",
+    recommendedStatuses: ["new", "contacting"],
   },
   {
     key: "confirm_preference",
+    group: "首次跟進",
     title: "確認偏好時間",
+    useCase: "客人已填偏好日期時間，但 CS 未確認預約。",
     body: "收到，你填寫嘅時間我哋會先記錄為偏好時間，稍後由同事確認實際預約安排。",
+    recommendedStatuses: ["new", "contacting"],
+  },
+  {
+    key: "booking_confirmation",
+    group: "確認預約",
+    title: "確認預約安排",
+    useCase: "CS 已確認 booking 後，發給客人核對。",
+    body: "已幫你確認預約時間。到時請按時到店，如需要更改時間，可以提前 WhatsApp 我哋。",
+    recommendedStatuses: ["booked"],
+  },
+  {
+    key: "reschedule_time",
+    group: "更改時間",
+    title: "協助更改時間",
+    useCase: "客人想改期或原定時間不合適。",
+    body: "可以，我哋幫你睇睇其他時間。請回覆你方便嘅日期同大約時段，我哋再同你確認。",
+    recommendedStatuses: ["contacting", "booked"],
   },
   {
     key: "no_response",
+    group: "未回覆跟進",
     title: "未回覆跟進",
     body: "你好，想再跟進你早前提交嘅登記。如果仍然想預約，可以直接回覆我哋。",
+    useCase: "第一次聯絡後客人未回覆。",
+    recommendedStatuses: ["new", "contacting"],
   },
   {
-    key: "booking_confirmed",
-    title: "已確認預約",
-    body: "已幫你確認預約時間。到時請按時到店，如需要更改時間，可以提前 WhatsApp 我哋。",
+    key: "price_concern",
+    group: "價錢疑問",
+    title: "價錢疑問回覆",
+    useCase: "客人對價錢、優惠或付款安排有疑問。",
+    body: "明白，價錢方面可以先按今次優惠安排了解清楚。實際療程及付款安排會由同事同你確認，你可以放心先問清楚再決定。",
+    recommendedStatuses: ["contacting", "lost"],
+  },
+  {
+    key: "branch_location",
+    group: "位置 / 分店查詢",
+    title: "分店位置查詢",
+    useCase: "客人查詢分店位置、交通或到店安排。",
+    body: "可以，我哋會按你選擇嘅分店幫你確認地址同預約安排。如你想改其他分店，都可以 WhatsApp 同我哋講。",
+    recommendedStatuses: ["new", "contacting", "booked"],
+  },
+  {
+    key: "booking_reminder",
+    group: "已預約提醒",
+    title: "到店前提醒",
+    useCase: "已確認預約，臨近到店前提醒客人。",
+    body: "溫馨提示，你嘅預約時間已確認。請按時到店，如臨時需要更改時間，請盡早 WhatsApp 通知我哋。",
+    recommendedStatuses: ["booked"],
+  },
+  {
+    key: "no_show_follow_up",
+    group: "No-show follow-up",
+    title: "未有到店跟進",
+    useCase: "客人未按已確認預約時間到店後跟進。",
+    body: "你好，見到你今日未能按原定時間到店。如你想重新安排時間，可以回覆我哋，我哋再幫你睇可預約時段。",
+    recommendedStatuses: ["no_show"],
+  },
+  {
+    key: "lost_pause",
+    group: "Lost / 暫不處理",
+    title: "暫不處理收尾",
+    useCase: "客人表示暫時不考慮或不再跟進。",
+    body: "明白，謝謝你通知我哋。之後如果想再了解療程或重新預約，可以隨時 WhatsApp 我哋。",
+    recommendedStatuses: ["lost"],
   },
 ];
 

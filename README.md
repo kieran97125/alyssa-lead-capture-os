@@ -116,6 +116,7 @@ CS write actions:
 - CRM Phase 2.5 safely preserves optional `fbp`, `fbc`, parent URL, page URL, form context, and client event ID values inside existing attribution touch JSON. No schema has been applied, no Meta events are sent, and public tracking / Google Sheets / thank-you behavior is preserved.
 - CRM Phase 2.6 simplifies the CS booking console and starts the app settings foundation. CS inbox screens hide marketing attribution details; tracking/reporting remains in `/crm?tab=reports`. Settings planning is documented only, with no schema applied.
 - CRM Phase 2.7 adds a config-first CRM settings layer in code via `src/lib/crm/settingsConfig.ts` and a read-only admin view in `/crm/settings`. Quick replies and AI reply drafts remain manual/template-based; no WhatsApp API, external AI API, Meta sending, or schema migration is active.
+- CRM Phase 2.8 improves the lead detail reply workflow with grouped CS templates, copy buttons, context suggestions, and manual WhatsApp open links. Messages are still copied and sent by CS manually; no WhatsApp API, external AI API, or auto-send behavior is connected.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:
