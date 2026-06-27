@@ -27,15 +27,6 @@ const allowedStatuses: CrmStatus[] = [
   "invalid",
 ];
 
-const allowedBookingStatuses = [
-  "tentative",
-  "booked",
-  "confirmed",
-  "showed",
-  "no_show",
-  "cancelled",
-];
-
 async function getWritableCase(leadId: string) {
   const runtime = await getCrmRuntimeStatus();
   if (!runtime.actionsEnabled) return null;
@@ -289,48 +280,48 @@ function crmLeadDetailUrl(
   return `/crm/leads/${encodeURIComponent(leadId)}?${params.toString()}`;
 }
 
-export async function saveBookingAction(leadId: string, formData: FormData) {
-  await runCrmAction(leadId, "booking_saved", async (caseRecord) => {
+export async function confirmBookingAction(leadId: string, formData: FormData) {
+  await runCrmAction(leadId, "booking_confirmed", async (caseRecord) => {
+    const confirmedDate = safeText(formData.get("confirmed_appointment_date"), 20);
+    const confirmedTime = safeText(formData.get("confirmed_appointment_time"), 20);
     const branchLabel = safeText(formData.get("branch_label"), 160);
     const treatmentLabel = safeText(formData.get("treatment_label"), 200);
-    const bookingDate = safeText(formData.get("booking_date"), 20);
-    const bookingTime = safeText(formData.get("booking_time"), 20);
-    const status = safeText(formData.get("booking_status"), 40) || "tentative";
-    const paidStatus = safeText(formData.get("paid_status"), 40) || "unknown";
+    const roomArrangement = safeText(formData.get("room_arrangement"), 160);
+    const bookingNote = safeText(formData.get("booking_note"), 800);
+    const paidStatusRaw = safeText(formData.get("paid_status"), 40) || "unknown";
+    const paidStatus = ["paid", "unpaid", "unknown"].includes(paidStatusRaw)
+      ? paidStatusRaw
+      : "unknown";
 
-    if (!allowedBookingStatuses.includes(status)) return;
+    if (!confirmedDate || !confirmedTime) {
+      throw new Error("Confirmed appointment date and time are required.");
+    }
 
     const supabase = createSupabaseAdminClient();
     const bundle = await getCrmCaseBundleByCaseRecord(caseRecord);
     const now = new Date().toISOString();
-    const nextCaseStatus =
-      status === "showed"
-        ? "showed"
-        : status === "no_show"
-          ? "no_show"
-          : status === "cancelled"
-            ? "cancelled"
-            : status === "booked" || status === "confirmed"
-              ? "booked"
-              : caseRecord.status;
+    const previousMetadata = bundle.booking?.metadata_json ?? {};
+    const metadata = {
+      ...previousMetadata,
+      paid_status: paidStatus,
+      room_arrangement: roomArrangement || null,
+      booking_note: bookingNote || null,
+      booking_confirmed_at:
+        typeof previousMetadata.booking_confirmed_at === "string"
+          ? previousMetadata.booking_confirmed_at
+          : now,
+    };
     const payload = {
       branch_label: branchLabel || null,
-      treatment_label: treatmentLabel || null,
-      booking_date: bookingDate || null,
-      booking_time: bookingTime || null,
-      status,
+      treatment_label: treatmentLabel || caseRecord.treatment_label || caseRecord.offer_label || null,
+      booking_date: confirmedDate,
+      booking_time: confirmedTime,
+      status: "booked",
       created_by: "CS",
-      metadata_json: {
-        paid_status: ["paid", "unpaid", "unknown"].includes(paidStatus)
-          ? paidStatus
-          : "unknown",
-        booking_confirmed_at:
-          status === "confirmed" || status === "booked"
-            ? now
-            : bundle.booking?.metadata_json?.booking_confirmed_at ?? null,
-      },
+      metadata_json: metadata,
       updated_at: now,
     };
+    let bookingId = bundle.booking?.id ?? null;
 
     if (bundle.booking) {
       const { error } = await supabase
@@ -338,15 +329,6 @@ export async function saveBookingAction(leadId: string, formData: FormData) {
         .update(payload)
         .eq("id", bundle.booking.id);
       if (error) throw error;
-
-      const { error: caseUpdateError } = await supabase
-        .from("crm_lead_cases")
-        .update({
-          status: nextCaseStatus,
-          updated_at: now,
-        })
-        .eq("id", caseRecord.id);
-      if (caseUpdateError) throw caseUpdateError;
     } else {
       const { data, error } = await supabase
         .from("crm_bookings")
@@ -360,46 +342,167 @@ export async function saveBookingAction(leadId: string, formData: FormData) {
         .single();
 
       if (error || !data) throw error ?? new Error("crm_booking_create_failed");
+      bookingId = String(data.id);
+    }
 
-      const { error: caseUpdateError } = await supabase
-        .from("crm_lead_cases")
-        .update({
-          booking_id: String(data.id),
-          status: nextCaseStatus,
-          updated_at: now,
-        })
-        .eq("id", caseRecord.id);
+    const { error: caseUpdateError } = await supabase
+      .from("crm_lead_cases")
+      .update({
+        booking_id: bookingId,
+        status: "booked",
+        updated_at: now,
+      })
+      .eq("id", caseRecord.id);
+    if (caseUpdateError) throw caseUpdateError;
 
-      if (caseUpdateError) throw caseUpdateError;
+    if (caseRecord.status !== "booked") {
+      const { error: historyError } = await supabase
+        .from("crm_status_history")
+        .insert({
+          case_id: caseRecord.id,
+          previous_status: caseRecord.status,
+          new_status: "booked",
+          changed_by: "CS",
+          note: "CS confirmed booking.",
+        });
+      if (historyError) throw historyError;
     }
 
     await insertCrmInteraction({
       caseId: caseRecord.id,
       contactId: caseRecord.contact_id,
       interactionType: "booking",
-      body: `Booking saved: ${[bookingDate, bookingTime, status]
+      body: [
+        `CS confirmed booking: ${confirmedDate} ${confirmedTime}`,
+        roomArrangement ? `room: ${roomArrangement}` : null,
+        `paid: ${paidStatus}`,
+        bookingNote ? `note: ${bookingNote}` : null,
+      ]
         .filter(Boolean)
-        .join(" ")}`,
+        .join(", "),
       metadata: {
-        booking_date: bookingDate || null,
-        booking_time: bookingTime || null,
-        booking_status: status,
+        confirmed_appointment_date: confirmedDate,
+        confirmed_appointment_time: confirmedTime,
+        room_arrangement: roomArrangement || null,
+        booking_note: bookingNote || null,
         paid_status: paidStatus,
       },
     });
+  });
+}
 
-    if (nextCaseStatus !== caseRecord.status) {
+export async function markShowedAction(leadId: string) {
+  await markBookedCaseOutcome(leadId, "showed", "showed_saved", "Marked as showed");
+}
+
+export async function markNoShowAction(leadId: string) {
+  await markBookedCaseOutcome(leadId, "no_show", "no_show_saved", "Marked as no-show");
+}
+
+export async function markInvalidAction(leadId: string) {
+  await runCrmAction(leadId, "invalid_saved", async (caseRecord) => {
+    const supabase = createSupabaseAdminClient();
+    const previousStatus = caseRecord.status;
+    const now = new Date().toISOString();
+
+    const { error: updateError } = await supabase
+      .from("crm_lead_cases")
+      .update({
+        status: "invalid",
+        updated_at: now,
+      })
+      .eq("id", caseRecord.id);
+    if (updateError) throw updateError;
+
+    if (previousStatus !== "invalid") {
       const { error: historyError } = await supabase
         .from("crm_status_history")
         .insert({
           case_id: caseRecord.id,
-          previous_status: caseRecord.status,
-          new_status: nextCaseStatus,
+          previous_status: previousStatus,
+          new_status: "invalid",
           changed_by: "CS",
-          note: `Booking outcome changed to ${status}.`,
+          note: "Marked as invalid.",
         });
       if (historyError) throw historyError;
     }
+
+    await insertCrmInteraction({
+      caseId: caseRecord.id,
+      contactId: caseRecord.contact_id,
+      interactionType: "status_change",
+      body: "Marked as invalid.",
+      metadata: {
+        previous_status: previousStatus,
+        new_status: "invalid",
+      },
+    });
+  });
+}
+
+async function markBookedCaseOutcome(
+  leadId: string,
+  nextStatus: "showed" | "no_show",
+  success: string,
+  body: string
+) {
+  await runCrmAction(leadId, success, async (caseRecord) => {
+    if (caseRecord.status !== "booked") {
+      throw new Error("Show / no-show can only be marked after CS confirmed booking.");
+    }
+
+    const supabase = createSupabaseAdminClient();
+    const bundle = await getCrmCaseBundleByCaseRecord(caseRecord);
+    if (!bookingDateTimeHasPassed(bundle.booking?.booking_date, bundle.booking?.booking_time)) {
+      throw new Error("Show / no-show can only be marked after the confirmed appointment time.");
+    }
+
+    const now = new Date().toISOString();
+    if (bundle.booking) {
+      const { error: bookingError } = await supabase
+        .from("crm_bookings")
+        .update({
+          status: nextStatus,
+          metadata_json: {
+            ...(bundle.booking.metadata_json ?? {}),
+            outcome_recorded_at: now,
+          },
+          updated_at: now,
+        })
+        .eq("id", bundle.booking.id);
+      if (bookingError) throw bookingError;
+    }
+
+    const { error: caseUpdateError } = await supabase
+      .from("crm_lead_cases")
+      .update({
+        status: nextStatus,
+        updated_at: now,
+      })
+      .eq("id", caseRecord.id);
+    if (caseUpdateError) throw caseUpdateError;
+
+    const { error: historyError } = await supabase
+      .from("crm_status_history")
+      .insert({
+        case_id: caseRecord.id,
+        previous_status: caseRecord.status,
+        new_status: nextStatus,
+        changed_by: "CS",
+        note: body,
+      });
+    if (historyError) throw historyError;
+
+    await insertCrmInteraction({
+      caseId: caseRecord.id,
+      contactId: caseRecord.contact_id,
+      interactionType: "status_change",
+      body,
+      metadata: {
+        previous_status: caseRecord.status,
+        new_status: nextStatus,
+      },
+    });
   });
 }
 
@@ -490,4 +593,12 @@ function parseDateTimeValue(value: string) {
   if (!value) return null;
   const parsed = new Date(value);
   return Number.isNaN(parsed.getTime()) ? null : parsed.toISOString();
+}
+
+function bookingDateTimeHasPassed(date: string | null | undefined, time: string | null | undefined) {
+  if (!date || !time) return false;
+  const normalizedTime = time.length === 5 ? `${time}:00` : time;
+  const parsed = new Date(`${date}T${normalizedTime}+08:00`);
+  if (Number.isNaN(parsed.getTime())) return false;
+  return parsed.getTime() <= Date.now();
 }

@@ -102,6 +102,8 @@ CS write actions:
 - CRM Phase 1 uses the DB-compatible statuses `new`, `contacting`, `booked`, `showed`, `no_show`, `lost`, and `invalid`.
 - Add Note can capture channel, direction, outcome, and next follow-up time. When next follow-up time is set, it also creates a follow-up task.
 - Booking can track booked/showed/no-show/cancelled outcomes and stores paid/unpaid display state in `crm_bookings.metadata_json`.
+- CRM Phase 1.5 keeps customer-selected form date/time as appointment preference only. CS confirmation writes the confirmed date/time to `crm_bookings.booking_date` / `booking_time`, stores room arrangement, booking note, and paid status in `crm_bookings.metadata_json`, and then moves the CRM case to `booked`.
+- Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:
 

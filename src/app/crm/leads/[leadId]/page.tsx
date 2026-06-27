@@ -8,8 +8,11 @@ import { crmPipelineStatuses, toCrmLeadCase } from "@/lib/crm/leadOps";
 import {
   addNoteAction,
   assignCsAction,
+  confirmBookingAction,
   createFollowUpTaskAction,
-  saveBookingAction,
+  markInvalidAction,
+  markNoShowAction,
+  markShowedAction,
   saveLostReasonAction,
   updateStatusAction,
 } from "./actions";
@@ -60,6 +63,15 @@ export default async function CrmLeadDetailPage({
     bundle.caseRecord ?? bootstrappedCase
   );
   const hasCtwa = Object.values(leadCase.ctwa).some(Boolean);
+  const bookingMeta = getBookingMeta(bundle.booking?.metadata_json);
+  const hasConfirmedBooking = Boolean(
+    bundle.booking && ["booked", "confirmed", "showed", "no_show"].includes(bundle.booking.status)
+  );
+  const confirmedAppointmentLabel =
+    hasConfirmedBooking && bundle.booking?.booking_date && bundle.booking?.booking_time
+      ? `${bundle.booking.booking_date} ${bundle.booking.booking_time}`
+      : "未有已確認預約";
+  const canMarkAttendance = runtime.actionsEnabled && leadCase.status === "booked";
 
   return (
     <CrmShell>
@@ -98,13 +110,6 @@ export default async function CrmLeadDetailPage({
                   <span className="self-center">No WhatsApp</span>
                 </span>
               )}
-              <button
-                type="button"
-                disabled
-                className="h-8 whitespace-nowrap rounded-md bg-[#e5e7eb] px-2.5 text-[11px] font-bold text-[#94a3b8]"
-              >
-                Update status
-              </button>
             </div>
           </div>
           {error && (
@@ -168,7 +173,7 @@ export default async function CrmLeadDetailPage({
                 <InfoLine label="客人偏好日期時間" value={leadCase.appointmentLabel} />
                 <InfoLine
                   label="CS 已確認預約"
-                  value={leadCase.status === "booked" ? "是" : "否"}
+                  value={hasConfirmedBooking ? "是" : "未有已確認預約"}
                 />
                 <InfoLine label="Created" value={leadCase.createdLabel} />
                 <InfoLine label="Last activity" value={leadCase.lastActivityLabel} />
@@ -226,6 +231,14 @@ export default async function CrmLeadDetailPage({
                   )}
                 </Panel>
               </div>
+
+              <Panel title="CS Confirmed Appointment">
+                <InfoLine label="Confirmed date/time" value={confirmedAppointmentLabel} />
+                <InfoLine label="Room arrangement" value={bookingMeta.roomArrangement || "-"} />
+                <InfoLine label="Paid status" value={bookingMeta.paidStatusLabel} />
+                <InfoLine label="Booking note" value={bookingMeta.bookingNote || "-"} />
+                <InfoLine label="Booking record status" value={bundle.booking?.status || "-"} />
+              </Panel>
 
               <div className="grid gap-3.5 xl:grid-cols-3">
                 <ActionPanel
@@ -310,10 +323,10 @@ export default async function CrmLeadDetailPage({
                 </ActionPanel>
 
                 <ActionPanel
-                  title="CS 已確認預約"
+                  title="CS 確認預約"
                   enabled={runtime.actionsEnabled}
-                  action={saveBookingAction.bind(null, leadId)}
-                  submitLabel="Save booking"
+                  action={confirmBookingAction.bind(null, leadId)}
+                  submitLabel="Confirm booking"
                 >
                   <TextInput
                     name="branch_label"
@@ -328,45 +341,48 @@ export default async function CrmLeadDetailPage({
                   <div className="grid gap-2 sm:grid-cols-2">
                     <TextInput
                       type="date"
-                      name="booking_date"
-                      label="Date"
+                      name="confirmed_appointment_date"
+                      label="Confirmed date"
                       defaultValue={bundle.booking?.booking_date || ""}
                     />
                     <TextInput
                       type="time"
-                      name="booking_time"
-                      label="Time"
+                      name="confirmed_appointment_time"
+                      label="Confirmed time"
                       defaultValue={bundle.booking?.booking_time || ""}
                     />
                   </div>
-                  <SelectInput
-                    name="booking_status"
-                    label="Booking status"
-                    defaultValue={bundle.booking?.status || "tentative"}
-                    options={[
-                      ["tentative", "Tentative"],
-                      ["booked", "Booked"],
-                      ["confirmed", "Confirmed"],
-                      ["showed", "Showed"],
-                      ["no_show", "No-show"],
-                      ["cancelled", "Cancelled"],
-                    ]}
+                  <TextInput
+                    name="room_arrangement"
+                    label="Room arrangement"
+                    defaultValue={bookingMeta.roomArrangement}
+                    placeholder="例如：CWB Room 1"
                   />
                   <SelectInput
                     name="paid_status"
                     label="Paid status"
-                    defaultValue={
-                      typeof bundle.booking?.metadata_json?.paid_status === "string"
-                        ? bundle.booking.metadata_json.paid_status
-                        : "unknown"
-                    }
+                    defaultValue={bookingMeta.paidStatus}
                     options={[
                       ["unknown", "Unknown"],
                       ["unpaid", "Unpaid"],
                       ["paid", "Paid"],
                     ]}
                   />
+                  <TextAreaInput
+                    name="booking_note"
+                    label="Booking note"
+                    defaultValue={bookingMeta.bookingNote}
+                    placeholder="Internal booking note"
+                  />
                 </ActionPanel>
+
+                <QuickActionsPanel
+                  enabled={runtime.actionsEnabled}
+                  canMarkAttendance={canMarkAttendance}
+                  showedAction={markShowedAction.bind(null, leadId)}
+                  noShowAction={markNoShowAction.bind(null, leadId)}
+                  invalidAction={markInvalidAction.bind(null, leadId)}
+                />
 
                 <ActionPanel
                   title="Follow-up Task"
@@ -453,6 +469,10 @@ function getCrmFeedback(
     status_updated: "Status updated. Timeline has been refreshed.",
     note_saved: "Note saved. Timeline has been refreshed.",
     booking_saved: "Booking outcome saved.",
+    booking_confirmed: "Booking confirmed. Timeline has been refreshed.",
+    showed_saved: "Lead marked as showed.",
+    no_show_saved: "Lead marked as no-show.",
+    invalid_saved: "Lead marked as invalid.",
     follow_up_saved: "Follow-up task saved.",
     lost_reason_saved: "Lost reason saved.",
   };
@@ -493,7 +513,10 @@ function getCrmFeedback(
   if (error === "action_failed") {
     return {
       kind: "error" as const,
-      message: "CRM action could not be saved. Please check CRM table setup and try again.",
+      message:
+        debug.message !== "-"
+          ? debug.message
+          : "CRM action could not be saved. Please check CRM table setup and try again.",
       debug,
     };
   }
@@ -503,6 +526,22 @@ function getCrmFeedback(
 
 function firstQueryValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
+}
+
+function getBookingMeta(metadata: Record<string, unknown> | null | undefined) {
+  const paidStatus = metadataString(metadata, "paid_status") || "unknown";
+  return {
+    paidStatus,
+    paidStatusLabel:
+      paidStatus === "paid" ? "Paid" : paidStatus === "unpaid" ? "Unpaid" : "Unknown",
+    roomArrangement: metadataString(metadata, "room_arrangement"),
+    bookingNote: metadataString(metadata, "booking_note"),
+  };
+}
+
+function metadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
+  const value = metadata?.[key];
+  return typeof value === "string" ? value : "";
 }
 
 function DebugLine({ label, value }: { label: string; value: string }) {
@@ -582,6 +621,79 @@ function ActionPanel({
         </button>
       </form>
     </section>
+  );
+}
+
+function QuickActionsPanel({
+  enabled,
+  canMarkAttendance,
+  showedAction,
+  noShowAction,
+  invalidAction,
+}: {
+  enabled: boolean;
+  canMarkAttendance: boolean;
+  showedAction: () => Promise<void>;
+  noShowAction: () => Promise<void>;
+  invalidAction: () => Promise<void>;
+}) {
+  return (
+    <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-bold text-[#111827]">Operational actions</h2>
+        <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
+          CS only
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2">
+        <QuickActionButton
+          action={showedAction}
+          enabled={canMarkAttendance}
+          label="Mark showed"
+        />
+        <QuickActionButton
+          action={noShowAction}
+          enabled={canMarkAttendance}
+          label="Mark no-show"
+        />
+        <QuickActionButton
+          action={invalidAction}
+          enabled={enabled}
+          label="Mark invalid"
+        />
+      </div>
+      {!canMarkAttendance && (
+        <p className="mt-3 text-[11px] leading-4 text-[#64748b]">
+          Show / no-show can only be marked after CS has confirmed a booking and the appointment time has passed.
+        </p>
+      )}
+    </section>
+  );
+}
+
+function QuickActionButton({
+  action,
+  enabled,
+  label,
+}: {
+  action: () => Promise<void>;
+  enabled: boolean;
+  label: string;
+}) {
+  return (
+    <form action={action}>
+      <button
+        type="submit"
+        disabled={!enabled}
+        className={`h-7 w-full whitespace-nowrap rounded-md px-2.5 text-[10px] font-bold ${
+          enabled
+            ? "border border-[#dbeafe] bg-[#eff6ff] text-[#1d4ed8] transition hover:bg-[#dbeafe]"
+            : "bg-[#e5e7eb] text-[#94a3b8]"
+        }`}
+      >
+        {label}
+      </button>
+    </form>
   );
 }
 
