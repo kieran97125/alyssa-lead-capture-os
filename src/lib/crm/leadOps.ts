@@ -84,6 +84,10 @@ export type CrmLeadCase = {
   assignedCsLabel: string;
   nextFollowUpLabel: string;
   nextFollowUpAt: string | null;
+  confirmedBookingDate: string | null;
+  confirmedBookingTime: string | null;
+  confirmedBookingLabel: string;
+  bookingStatus: string | null;
   whatsappUrl: string | null;
   ctwa: CrmCtwaFields;
 };
@@ -285,6 +289,10 @@ export function toCrmLeadCase(lead: LeadRow): CrmLeadCase {
     assignedCsLabel: "未分配",
     nextFollowUpLabel: "未設定",
     nextFollowUpAt: null,
+    confirmedBookingDate: null,
+    confirmedBookingTime: null,
+    confirmedBookingLabel: "未有已確認預約",
+    bookingStatus: null,
     whatsappUrl: whatsappLink(normalizedPhone || phone, brandName),
     ctwa,
   };
@@ -296,9 +304,14 @@ export function summarizeCrmCases(cases: CrmLeadCase[]) {
     pendingFollowUp: cases.filter((item) =>
       ["new", "pending_follow_up"].includes(item.status)
     ).length,
+    contacting: cases.filter((item) =>
+      ["contacting", "contacted"].includes(item.status)
+    ).length,
     nextFollowUp: cases.filter((item) => Boolean(item.nextFollowUpAt)).length,
     booked: cases.filter((item) => item.status === "booked").length,
     showed: cases.filter((item) => item.status === "showed").length,
     noShow: cases.filter((item) => item.status === "no_show").length,
+    lost: cases.filter((item) => item.status === "lost").length,
+    invalid: cases.filter((item) => item.status === "invalid").length,
   };
 }

@@ -219,19 +219,6 @@ export default async function CrmLeadDetailPage({
                   <InfoLine label="Campaign" value={leadCase.campaignLabel} />
                   <InfoLine label="Ad / Content" value={leadCase.adLabel} />
                   <InfoLine label="Lost reason" value={bundle.caseRecord?.lost_reason || "-"} />
-                  <details className="rounded-md bg-[#f8fafc] px-2.5 py-2">
-                    <summary className="cursor-pointer text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
-                      UTM / lh debug
-                    </summary>
-                    <div className="mt-2 grid gap-2">
-                      <InfoLine label="utm_source" value={lead.sourceSnapshot?.utm_source || "-"} />
-                      <InfoLine label="utm_medium" value={lead.sourceSnapshot?.utm_medium || "-"} />
-                      <InfoLine label="utm_campaign" value={lead.sourceSnapshot?.utm_campaign || "-"} />
-                      <InfoLine label="utm_content" value={lead.sourceSnapshot?.utm_content || "-"} />
-                      <InfoLine label="fbclid" value={lead.sourceSnapshot?.fbclid || "-"} />
-                      <InfoLine label="landing URL" value={lead.sourceSnapshot?.landing_page_url || "-"} />
-                    </div>
-                  </details>
                 </Panel>
 
                 <Panel title="CTWA / WhatsApp Ad">
@@ -385,7 +372,6 @@ export default async function CrmLeadDetailPage({
                 </ActionPanel>
 
                 <QuickActionsPanel
-                  enabled={runtime.actionsEnabled}
                   canMarkAttendance={canMarkAttendance}
                   showedAction={markShowedAction.bind(null, leadId)}
                   noShowAction={markNoShowAction.bind(null, leadId)}
@@ -637,7 +623,6 @@ function QuickActionsPanel({
   showedAction,
   noShowAction,
 }: {
-  enabled: boolean;
   canMarkAttendance: boolean;
   showedAction: () => Promise<void>;
   noShowAction: () => Promise<void>;

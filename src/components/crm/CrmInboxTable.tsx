@@ -10,6 +10,7 @@ const headings = [
   "Brand",
   "Treatment / Package",
   "偏好日期時間",
+  "已確認預約",
   "Source",
   "Campaign / Content",
   "Status",
@@ -21,7 +22,7 @@ export function CrmInboxTable({ cases }: { cases: CrmLeadCase[] }) {
   return (
     <div className="min-h-0 flex-1 overflow-hidden border-t border-[#e5e7eb] bg-white">
       <div className="h-full overflow-auto">
-        <table className="min-w-[1320px] table-fixed border-separate border-spacing-0 text-left text-[12px] leading-5">
+        <table className="min-w-[1460px] table-fixed border-separate border-spacing-0 text-left text-[12px] leading-5">
           <thead className="sticky top-0 z-10 bg-[#f9fafb]">
             <tr className="h-9 text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b7280]">
               {headings.map((heading) => (
@@ -36,7 +37,7 @@ export function CrmInboxTable({ cases }: { cases: CrmLeadCase[] }) {
               cases.map((item) => (
                 <tr
                   key={item.id}
-                  className="h-[50px] align-middle text-[#1f2933] transition hover:bg-[#f8fafc]"
+                  className="h-[52px] align-middle text-[#1f2933] transition hover:bg-[#f8fafc]"
                 >
                   <Cell>
                     <span className="block whitespace-nowrap font-semibold">
@@ -80,6 +81,9 @@ export function CrmInboxTable({ cases }: { cases: CrmLeadCase[] }) {
                     <span className="block truncate font-semibold">
                       {item.appointmentLabel}
                     </span>
+                  </Cell>
+                  <Cell>
+                    <BookingCell item={item} />
                   </Cell>
                   <Cell>
                     <span className="block whitespace-nowrap font-semibold">
@@ -145,6 +149,29 @@ function Cell({ children }: { children: ReactNode }) {
   return <td className="border-b border-[#eef2f6] px-2.5 py-1.5">{children}</td>;
 }
 
+function BookingCell({ item }: { item: CrmLeadCase }) {
+  const state = getBookingState(item);
+
+  return (
+    <div className="grid gap-1">
+      <span className="whitespace-nowrap text-[11px] font-semibold text-[#64748b]">
+        {item.confirmedBookingLabel}
+      </span>
+      {state ? (
+        <span
+          className={`w-fit rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] ${
+            state === "pending"
+              ? "bg-orange-50 text-orange-700"
+              : "bg-purple-50 text-purple-700"
+          }`}
+        >
+          {state === "pending" ? "待標記結果" : "今日預約"}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
 function FollowUpCell({ value, label }: { value: string | null; label: string }) {
   const state = getFollowUpState(value);
 
@@ -170,6 +197,14 @@ function FollowUpCell({ value, label }: { value: string | null; label: string })
   );
 }
 
+function getBookingState(item: CrmLeadCase) {
+  if (item.status !== "booked") return null;
+  const bookingDate = parseBookingDateTime(item.confirmedBookingDate, item.confirmedBookingTime);
+  if (bookingDate && bookingDate.getTime() <= Date.now()) return "pending";
+  if (isTodayDateOnly(item.confirmedBookingDate)) return "today";
+  return null;
+}
+
 function getFollowUpState(value: string | null) {
   if (!value) return null;
   const date = new Date(value);
@@ -183,4 +218,18 @@ function getFollowUpState(value: string | null) {
   if (date.getTime() < now.getTime() && !isSameDay) return "overdue";
   if (isSameDay) return "today";
   return "upcoming";
+}
+
+function isTodayDateOnly(value: string | null) {
+  if (!value) return false;
+  const today = new Date();
+  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return value === todayDate;
+}
+
+function parseBookingDateTime(date: string | null, time: string | null) {
+  if (!date) return null;
+  const normalizedTime = time ? (time.length === 5 ? `${time}:00` : time) : "23:59:59";
+  const parsed = new Date(`${date}T${normalizedTime}+08:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }

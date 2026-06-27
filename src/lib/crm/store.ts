@@ -301,6 +301,42 @@ export async function getCrmCasesBySourceLeadIds(leadIds: string[]) {
   return casesByLeadId;
 }
 
+export async function getCrmBookingsByCaseIds(caseIds: string[]) {
+  const uniqueIds = Array.from(new Set(caseIds.filter(Boolean)));
+  const bookingsByCaseId = new Map<string, CrmBookingRecord>();
+
+  if (uniqueIds.length === 0 || !hasSupabaseAdminEnv()) {
+    return bookingsByCaseId;
+  }
+
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase
+      .from("crm_bookings")
+      .select("*")
+      .in("case_id", uniqueIds)
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      console.warn("crm_bookings_read_failed", {
+        code: error.code,
+        message: error.message,
+      });
+      return bookingsByCaseId;
+    }
+
+    ((data ?? []) as CrmBookingRecord[]).forEach((item) => {
+      if (!bookingsByCaseId.has(item.case_id)) {
+        bookingsByCaseId.set(item.case_id, item);
+      }
+    });
+  } catch (error) {
+    console.warn("crm_bookings_read_failed", safeError(error));
+  }
+
+  return bookingsByCaseId;
+}
+
 export async function getCrmCaseBundleBySourceLeadId(
   sourceLeadId: string
 ): Promise<CrmCaseBundle> {

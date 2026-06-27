@@ -1,10 +1,16 @@
 import { CrmInboxTable } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
-import { summarizeCrmCases, toCrmLeadCase } from "@/lib/crm/leadOps";
+import {
+  summarizeCrmCases,
+  toCrmLeadCase,
+  type CrmLeadCase,
+} from "@/lib/crm/leadOps";
 import {
   applyCrmRecordToLeadCase,
+  getCrmBookingsByCaseIds,
   getCrmCasesBySourceLeadIds,
   getCrmRuntimeStatus,
+  type CrmBookingRecord,
 } from "@/lib/crm/store";
 import { dateRangeOptions, getLeadRows, parseRange } from "@/lib/data/businessMetrics";
 
@@ -13,13 +19,15 @@ export const dynamic = "force-dynamic";
 const tabs = ["Leads", "Bookings", "Contacts", "Follow-up", "Reports"];
 
 const queueOptions = [
-  ["", "All queues"],
-  ["new", "待跟進"],
-  ["contacting", "已聯絡"],
-  ["booked", "已預約"],
-  ["follow_up_today", "今日 follow-up"],
-  ["follow_up_overdue", "過期 follow-up"],
-  ["showed", "已完成 / 已到店"],
+  ["", "All"],
+  ["new", "New"],
+  ["contacting", "Contacting"],
+  ["booked", "Booked"],
+  ["follow_up_today", "Today follow-up"],
+  ["follow_up_overdue", "Overdue follow-up"],
+  ["today_bookings", "Today bookings"],
+  ["pending_show_outcome", "Pending show outcome"],
+  ["showed", "Showed"],
   ["no_show", "No-show"],
   ["lost", "Lost"],
   ["invalid", "Invalid"],
@@ -42,26 +50,36 @@ export default async function CrmPage({
     getCrmRuntimeStatus(),
     getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id)),
   ]);
-  const cases = leads
-    .map((lead) =>
-      applyCrmRecordToLeadCase(toCrmLeadCase(lead), crmCasesByLeadId.get(lead.id) ?? null)
-    )
-    .filter((item) => {
-      if (brand && !item.brandName.toLowerCase().includes(brand)) return false;
-      if (treatment && !item.treatmentOffer.toLowerCase().includes(treatment)) return false;
-      if (queue && !matchesQueue(item.status, item.nextFollowUpAt, queue)) return false;
-      if (
-        source &&
-        ![item.sourceLabel, item.sourceTypeRaw, item.campaignLabel, item.adLabel]
-          .join(" ")
-          .toLowerCase()
-          .includes(source)
-      ) {
-        return false;
-      }
-      return true;
-    });
-  const summary = summarizeCrmCases(cases);
+  const caseIds = Array.from(crmCasesByLeadId.values()).map((item) => item.id);
+  const bookingsByCaseId = await getCrmBookingsByCaseIds(caseIds);
+
+  const enrichedCases = leads.map((lead) => {
+    const record = crmCasesByLeadId.get(lead.id) ?? null;
+    const booking = record ? bookingsByCaseId.get(record.id) ?? null : null;
+    return applyBookingToCase(
+      applyCrmRecordToLeadCase(toCrmLeadCase(lead), record),
+      booking
+    );
+  });
+
+  const baseFilteredCases = enrichedCases.filter((item) => {
+    if (brand && !item.brandName.toLowerCase().includes(brand)) return false;
+    if (treatment && !item.treatmentOffer.toLowerCase().includes(treatment)) return false;
+    if (
+      source &&
+      ![item.sourceLabel, item.sourceTypeRaw, item.campaignLabel, item.adLabel]
+        .join(" ")
+        .toLowerCase()
+        .includes(source)
+    ) {
+      return false;
+    }
+    return true;
+  });
+  const summary = getCommandCenterSummary(baseFilteredCases);
+  const cases = baseFilteredCases
+    .filter((item) => (queue ? matchesQueue(item, queue) : true))
+    .sort(comparePriority);
 
   return (
     <CrmShell>
@@ -70,22 +88,27 @@ export default async function CrmPage({
           <div className="flex flex-col gap-2.5 px-4 py-2.5 xl:flex-row xl:items-center xl:justify-between">
             <div>
               <div className="flex items-center gap-2.5">
-                <h1 className="text-lg font-bold text-[#111827]">Inbox</h1>
+                <h1 className="text-lg font-bold text-[#111827]">CS Command Center</h1>
                 <span className="rounded-md bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#047857]">
                   {runtime.actionsEnabled ? "Actions enabled" : "Read-only"}
                 </span>
               </div>
               <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-                CS follow-up workbench for lead, confirmed booking, show and no-show monitoring.
+                每日跟進工作台：先處理過期跟進、今日跟進，再處理新 Leads 及今日預約。
               </p>
             </div>
-            <div className="grid grid-cols-2 gap-1.5 text-[10px] font-bold text-[#475569] sm:flex">
-              <Metric label="待跟進" value={summary.pendingFollowUp} />
-              <Metric label="有跟進時間" value={summary.nextFollowUp} />
-              <Metric label="已預約" value={summary.booked} />
-              <Metric label="已到店" value={summary.showed} />
-              <Metric label="No-show" value={summary.noShow} />
-            </div>
+          </div>
+
+          <div className="grid gap-2 border-t border-[#f1f5f9] px-4 py-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-9">
+            <SummaryCard label="待跟進" value={summary.newLeads} tone="blue" />
+            <SummaryCard label="已聯絡" value={summary.contacting} tone="slate" />
+            <SummaryCard label="已預約" value={summary.booked} tone="emerald" />
+            <SummaryCard label="今日要跟" value={summary.todayFollowUp} tone="amber" />
+            <SummaryCard label="過期未跟" value={summary.overdueFollowUp} tone="red" />
+            <SummaryCard label="今日預約" value={summary.todayBookings} tone="purple" />
+            <SummaryCard label="待標記到店結果" value={summary.pendingShowOutcome} tone="orange" />
+            <SummaryCard label="Lost" value={summary.lost} tone="slate" />
+            <SummaryCard label="Invalid" value={summary.invalid} tone="slate" />
           </div>
 
           <div className="flex min-w-0 flex-col gap-2 border-t border-[#f1f5f9] px-4 py-2 xl:flex-row xl:items-center xl:justify-between">
@@ -185,25 +208,126 @@ export default async function CrmPage({
   );
 }
 
-function Metric({ label, value }: { label: string; value: number }) {
+function applyBookingToCase(item: CrmLeadCase, booking: CrmBookingRecord | null): CrmLeadCase {
+  if (!booking) return item;
+  const bookingLabel =
+    booking.booking_date && booking.booking_time
+      ? `${booking.booking_date} ${booking.booking_time}`
+      : booking.booking_date || "未有已確認預約";
+
+  return {
+    ...item,
+    confirmedBookingDate: booking.booking_date,
+    confirmedBookingTime: booking.booking_time,
+    confirmedBookingLabel: bookingLabel,
+    bookingStatus: booking.status,
+  };
+}
+
+function getCommandCenterSummary(cases: CrmLeadCase[]) {
+  const base = summarizeCrmCases(cases);
+  return {
+    newLeads: base.pendingFollowUp,
+    contacting: base.contacting,
+    booked: base.booked,
+    todayFollowUp: cases.filter(isTodayFollowUp).length,
+    overdueFollowUp: cases.filter(isOverdueFollowUp).length,
+    todayBookings: cases.filter(isTodayBooking).length,
+    pendingShowOutcome: cases.filter(isPendingShowOutcome).length,
+    lost: base.lost,
+    invalid: base.invalid,
+  };
+}
+
+function SummaryCard({
+  label,
+  value,
+  tone,
+}: {
+  label: string;
+  value: number;
+  tone: "blue" | "emerald" | "amber" | "red" | "purple" | "orange" | "slate";
+}) {
+  const toneClass: Record<typeof tone, string> = {
+    blue: "border-blue-100 bg-blue-50 text-blue-800",
+    emerald: "border-emerald-100 bg-emerald-50 text-emerald-800",
+    amber: "border-amber-100 bg-amber-50 text-amber-800",
+    red: "border-red-100 bg-red-50 text-red-800",
+    purple: "border-purple-100 bg-purple-50 text-purple-800",
+    orange: "border-orange-100 bg-orange-50 text-orange-800",
+    slate: "border-slate-100 bg-slate-50 text-slate-700",
+  };
+
   return (
-    <div className="rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-1.5">
-      <span className="text-[#64748b]">{label}</span>
-      <span className="ml-2 text-[#111827]">{value}</span>
+    <div className={`rounded-lg border px-3 py-2 ${toneClass[tone]}`}>
+      <p className="text-[10px] font-black uppercase tracking-[0.08em] opacity-75">
+        {label}
+      </p>
+      <p className="mt-1 text-xl font-black leading-none">{value}</p>
     </div>
   );
 }
 
-function matchesQueue(status: string, nextFollowUpAt: string | null, queue: string) {
-  if (queue === "follow_up_today") return isToday(nextFollowUpAt);
-  if (queue === "follow_up_overdue") return isOverdue(nextFollowUpAt);
-  return status === queue;
+function comparePriority(a: CrmLeadCase, b: CrmLeadCase) {
+  const rankDelta = getPriorityRank(a) - getPriorityRank(b);
+  if (rankDelta !== 0) return rankDelta;
+  const aTime = getSortTime(a);
+  const bTime = getSortTime(b);
+  return aTime - bTime;
+}
+
+function getPriorityRank(item: CrmLeadCase) {
+  if (isOverdueFollowUp(item)) return 0;
+  if (isTodayFollowUp(item)) return 1;
+  if (["new", "pending_follow_up"].includes(item.status)) return 2;
+  if (["contacting", "contacted"].includes(item.status)) return 3;
+  if (isPendingShowOutcome(item) || isTodayBooking(item)) return 4;
+  if (item.status === "booked") return 5;
+  return 6;
+}
+
+function getSortTime(item: CrmLeadCase) {
+  if (item.nextFollowUpAt) return parseDate(item.nextFollowUpAt)?.getTime() ?? 0;
+  if (item.confirmedBookingDate) {
+    const bookingDate = parseBookingDateTime(item.confirmedBookingDate, item.confirmedBookingTime);
+    if (bookingDate) return bookingDate.getTime();
+  }
+  return parseDate(item.createdAt)?.getTime() ?? 0;
+}
+
+function matchesQueue(item: CrmLeadCase, queue: string) {
+  if (queue === "follow_up_today") return isTodayFollowUp(item);
+  if (queue === "follow_up_overdue") return isOverdueFollowUp(item);
+  if (queue === "today_bookings") return isTodayBooking(item);
+  if (queue === "pending_show_outcome") return isPendingShowOutcome(item);
+  if (queue === "contacting") return ["contacting", "contacted"].includes(item.status);
+  if (queue === "new") return ["new", "pending_follow_up"].includes(item.status);
+  return item.status === queue;
+}
+
+function isTodayFollowUp(item: CrmLeadCase) {
+  return isToday(item.nextFollowUpAt);
+}
+
+function isOverdueFollowUp(item: CrmLeadCase) {
+  const date = parseDate(item.nextFollowUpAt);
+  if (!date) return false;
+  return date.getTime() < Date.now() && !isToday(item.nextFollowUpAt);
+}
+
+function isTodayBooking(item: CrmLeadCase) {
+  return item.status === "booked" && isTodayDateOnly(item.confirmedBookingDate);
+}
+
+function isPendingShowOutcome(item: CrmLeadCase) {
+  if (item.status !== "booked") return false;
+  const bookingDate = parseBookingDateTime(item.confirmedBookingDate, item.confirmedBookingTime);
+  return Boolean(bookingDate && bookingDate.getTime() <= Date.now());
 }
 
 function isToday(value: string | null) {
-  if (!value) return false;
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
+  const date = parseDate(value);
+  if (!date) return false;
   const now = new Date();
   return (
     date.getFullYear() === now.getFullYear() &&
@@ -212,11 +336,24 @@ function isToday(value: string | null) {
   );
 }
 
-function isOverdue(value: string | null) {
+function isTodayDateOnly(value: string | null) {
   if (!value) return false;
+  const today = new Date();
+  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+  return value === todayDate;
+}
+
+function parseDate(value: string | null) {
+  if (!value) return null;
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return false;
-  return date.getTime() < Date.now() && !isToday(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function parseBookingDateTime(date: string | null, time: string | null) {
+  if (!date) return null;
+  const normalizedTime = time ? (time.length === 5 ? `${time}:00` : time) : "23:59:59";
+  const parsed = new Date(`${date}T${normalizedTime}+08:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
 }
 
 function firstQueryValue(value: string | string[] | undefined) {
