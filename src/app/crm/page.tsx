@@ -45,7 +45,8 @@ export default async function CrmPage({
   const treatment = firstQueryValue(query?.treatment)?.trim().toLowerCase() || "";
   const queue = firstQueryValue(query?.queue)?.trim() || "";
   const source = firstQueryValue(query?.source)?.trim().toLowerCase() || "";
-  const { leads, error } = await getLeadRows(range, 500, { query: search });
+  const leadLimit = range === "all" ? 5000 : 500;
+  const { leads, error } = await getLeadRows(range, leadLimit, { query: search });
   const [runtime, crmCasesByLeadId] = await Promise.all([
     getCrmRuntimeStatus(),
     getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id)),
@@ -77,6 +78,8 @@ export default async function CrmPage({
     return true;
   });
   const summary = getCommandCenterSummary(baseFilteredCases);
+  const conversion = getConversionOverview(baseFilteredCases);
+  const conversionBreakdown = getConversionBreakdown(baseFilteredCases);
   const cases = baseFilteredCases
     .filter((item) => (queue ? matchesQueue(item, queue) : true))
     .sort(comparePriority);
@@ -110,6 +113,85 @@ export default async function CrmPage({
             <SummaryCard label="Lost" value={summary.lost} tone="slate" />
             <SummaryCard label="Invalid" value={summary.invalid} tone="slate" />
           </div>
+
+          <section className="border-t border-[#f1f5f9] px-4 py-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-[13px] font-black text-[#111827]">
+                  CRM 轉化概覽
+                </h2>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
+                  以 Lead created_at 計算；已預約只計 CS 確認預約，不包括客人偏好日期時間。
+                </p>
+              </div>
+              <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#94a3b8]">
+                {baseFilteredCases.length} cases in current view
+              </p>
+            </div>
+
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
+              <ConversionMetric label="Total leads" value={conversion.totalLeads} />
+              <ConversionMetric label="New" value={conversion.newLeads} />
+              <ConversionMetric label="Contacting" value={conversion.contacting} />
+              <ConversionMetric label="Booked" value={conversion.booked} />
+              <ConversionMetric label="Showed" value={conversion.showed} />
+              <ConversionMetric label="No-show" value={conversion.noShow} />
+              <ConversionMetric label="Lost" value={conversion.lost} />
+              <ConversionMetric label="Invalid" value={conversion.invalid} />
+            </div>
+
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <ConversionMetric label="Contact rate" value={formatPercent(conversion.contactRate)} tone="blue" />
+              <ConversionMetric label="Booking rate" value={formatPercent(conversion.bookingRate)} tone="emerald" />
+              <ConversionMetric label="Show rate" value={formatPercent(conversion.showRate)} tone="purple" />
+              <ConversionMetric label="Lost rate" value={formatPercent(conversion.lostRate)} tone="red" />
+            </div>
+
+            <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
+              <table className="min-w-full text-left text-[11px]">
+                <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                  <tr>
+                    <th className="px-3 py-2">Brand</th>
+                    <th className="px-3 py-2">Treatment / offer</th>
+                    <th className="px-3 py-2">Lead</th>
+                    <th className="px-3 py-2">Booked</th>
+                    <th className="px-3 py-2">Showed</th>
+                    <th className="px-3 py-2">Lost</th>
+                    <th className="px-3 py-2">Booking rate</th>
+                    <th className="px-3 py-2">Show rate</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {conversionBreakdown.length > 0 ? (
+                    conversionBreakdown.map((row) => (
+                      <tr key={row.key} className="border-t border-[#eef2f6]">
+                        <td className="px-3 py-2 font-bold text-[#111827]">{row.brand}</td>
+                        <td className="px-3 py-2 font-semibold text-[#475569]">
+                          {row.treatment}
+                        </td>
+                        <td className="px-3 py-2 font-semibold">{row.leads}</td>
+                        <td className="px-3 py-2 font-semibold">{row.booked}</td>
+                        <td className="px-3 py-2 font-semibold">{row.showed}</td>
+                        <td className="px-3 py-2 font-semibold">{row.lost}</td>
+                        <td className="px-3 py-2 font-semibold">
+                          {formatPercent(row.bookingRate)}
+                        </td>
+                        <td className="px-3 py-2 font-semibold">
+                          {formatPercent(row.showRate)}
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td colSpan={8} className="px-3 py-6 text-center text-[#64748b]">
+                        No CRM conversion rows in this range.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
 
           <div className="flex min-w-0 flex-col gap-2 border-t border-[#f1f5f9] px-4 py-2 xl:flex-row xl:items-center xl:justify-between">
             <nav className="flex gap-0.5 overflow-x-auto">
@@ -266,6 +348,142 @@ function SummaryCard({
       <p className="mt-1 text-xl font-black leading-none">{value}</p>
     </div>
   );
+}
+
+function ConversionMetric({
+  label,
+  value,
+  tone = "slate",
+}: {
+  label: string;
+  value: number | string;
+  tone?: "blue" | "emerald" | "purple" | "red" | "slate";
+}) {
+  const toneClass: Record<typeof tone, string> = {
+    blue: "border-blue-100 bg-blue-50 text-blue-800",
+    emerald: "border-emerald-100 bg-emerald-50 text-emerald-800",
+    purple: "border-purple-100 bg-purple-50 text-purple-800",
+    red: "border-red-100 bg-red-50 text-red-800",
+    slate: "border-slate-100 bg-white text-slate-800",
+  };
+
+  return (
+    <div className={`rounded-lg border px-3 py-2 ${toneClass[tone]}`}>
+      <p className="text-[10px] font-black uppercase tracking-[0.08em] opacity-70">
+        {label}
+      </p>
+      <p className="mt-1 text-lg font-black leading-none">{value}</p>
+    </div>
+  );
+}
+
+function getConversionOverview(cases: CrmLeadCase[]) {
+  const totalLeads = cases.length;
+  const validCases = cases.filter((item) => item.status !== "invalid");
+  const validLeads = validCases.length;
+  const newLeads = countStatuses(cases, ["new", "pending_follow_up"]);
+  const contacting = countStatuses(cases, ["contacting", "contacted"]);
+  const booked = countStatuses(cases, ["booked"]);
+  const showed = countStatuses(cases, ["showed"]);
+  const noShow = countStatuses(cases, ["no_show"]);
+  const lost = countStatuses(cases, ["lost"]);
+  const invalid = countStatuses(cases, ["invalid"]);
+  const contactedOrOutcome = countStatuses(validCases, [
+    "contacting",
+    "contacted",
+    "booked",
+    "showed",
+    "no_show",
+    "lost",
+  ]);
+  const bookingOrOutcome = countStatuses(validCases, ["booked", "showed", "no_show"]);
+  const showDenominator = bookingOrOutcome;
+
+  return {
+    totalLeads,
+    validLeads,
+    newLeads,
+    contacting,
+    booked,
+    showed,
+    noShow,
+    lost,
+    invalid,
+    contactRate: safeRate(contactedOrOutcome, validLeads),
+    bookingRate: safeRate(bookingOrOutcome, validLeads),
+    showRate: safeRate(showed, showDenominator),
+    lostRate: safeRate(lost, validLeads),
+  };
+}
+
+function getConversionBreakdown(cases: CrmLeadCase[]) {
+  const rows = new Map<
+    string,
+    {
+      key: string;
+      brand: string;
+      treatment: string;
+      leads: number;
+      booked: number;
+      showed: number;
+      lost: number;
+      bookingRate: number;
+      showRate: number;
+    }
+  >();
+
+  cases.forEach((item) => {
+    const key = `${item.brandName}|${item.treatmentOffer}`;
+    const current =
+      rows.get(key) ??
+      ({
+        key,
+        brand: item.brandName,
+        treatment: item.treatmentOffer,
+        leads: 0,
+        booked: 0,
+        showed: 0,
+        lost: 0,
+        bookingRate: 0,
+        showRate: 0,
+      } satisfies {
+        key: string;
+        brand: string;
+        treatment: string;
+        leads: number;
+        booked: number;
+        showed: number;
+        lost: number;
+        bookingRate: number;
+        showRate: number;
+      });
+
+    current.leads += 1;
+    if (["booked", "showed", "no_show"].includes(item.status)) current.booked += 1;
+    if (item.status === "showed") current.showed += 1;
+    if (item.status === "lost") current.lost += 1;
+    rows.set(key, current);
+  });
+
+  return Array.from(rows.values())
+    .map((row) => ({
+      ...row,
+      bookingRate: safeRate(row.booked, row.leads),
+      showRate: safeRate(row.showed, row.booked),
+    }))
+    .sort((a, b) => b.leads - a.leads || a.brand.localeCompare(b.brand));
+}
+
+function countStatuses(cases: CrmLeadCase[], statuses: string[]) {
+  return cases.filter((item) => statuses.includes(item.status)).length;
+}
+
+function safeRate(numerator: number, denominator: number) {
+  return denominator > 0 ? numerator / denominator : 0;
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 100)}%`;
 }
 
 function comparePriority(a: CrmLeadCase, b: CrmLeadCase) {

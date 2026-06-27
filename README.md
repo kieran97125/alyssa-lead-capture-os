@@ -106,6 +106,7 @@ CS write actions:
 - CRM Phase 1.6 adds CS follow-up workflow: contact attempts write `crm_interactions`, optional next follow-up time updates `crm_lead_cases.next_follow_up_at` and creates `crm_follow_up_tasks`, lost/invalid actions require a reason, and `/crm` can filter today / overdue follow-up queues.
 - Contact attempt metadata is stored in `crm_interactions.metadata_json` with channel, outcome, note, and next follow-up values. Lost / invalid reasons are stored in existing case metadata and timeline records. No schema change is required for Phase 1.6.
 - CRM Phase 1.7 turns `/crm` into a CS Command Center with daily summary cards, clearer queue filters, priority ordering, today confirmed bookings, and pending show-outcome queues. It reads existing `crm_lead_cases`, `crm_bookings`, and follow-up fields only; no schema change is required.
+- CRM Phase 1.8 adds a CRM conversion overview on `/crm`: total/new/contacting/booked/showed/no-show/lost/invalid counts, contact/booking/show/lost rates, and brand + treatment breakdowns using existing CRM case statuses only.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:

@@ -3,7 +3,7 @@ import {
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
 
-export type DateRangeKey = "today" | "yesterday" | "last7" | "month" | "custom";
+export type DateRangeKey = "today" | "yesterday" | "last7" | "month" | "custom" | "all";
 
 export type CountItem = {
   label: string;
@@ -136,9 +136,10 @@ export type LeadRowsOptions = {
 
 export const dateRangeOptions: Array<{ key: DateRangeKey; label: string }> = [
   { key: "today", label: "今日" },
-  { key: "yesterday", label: "昨日" },
   { key: "last7", label: "近7日" },
   { key: "month", label: "本月" },
+  { key: "all", label: "全部時間" },
+  { key: "yesterday", label: "昨日" },
   { key: "custom", label: "自訂日期" },
 ];
 
@@ -192,6 +193,15 @@ export function getDateRange(range: DateRangeKey) {
   const year = hkNow.getUTCFullYear();
   const month = hkNow.getUTCMonth();
   const day = hkNow.getUTCDate();
+
+  if (range === "all") {
+    return {
+      key: range,
+      label: "全部時間",
+      start: "2020-01-01T00:00:00.000Z",
+      end: hkDateToUtcIso(year + 10, month, day + 1),
+    };
+  }
 
   if (range === "today") {
     return {
