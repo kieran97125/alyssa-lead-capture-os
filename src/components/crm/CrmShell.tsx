@@ -2,27 +2,29 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 type CrmSidebarKey =
+  | "home"
   | "inbox"
   | "bookings"
+  | "team"
+  | "dashboard"
   | "reports"
-  | "settings";
+  | "settings"
+  | "more";
 
 const sidebarItems: Array<{
   key: CrmSidebarKey;
   label: string;
   href: string;
+  enabled: boolean;
 }> = [
-  { key: "inbox", label: "工作台", href: "/crm" },
-  { key: "bookings", label: "預約", href: "/crm?tab=bookings" },
-];
-
-const adminItems: Array<{
-  key: CrmSidebarKey;
-  label: string;
-  href: string;
-}> = [
-  { key: "reports", label: "Marketing Reports", href: "/crm?tab=reports" },
-  { key: "settings", label: "Settings", href: "/crm/settings" },
+  { key: "home", label: "Home / 首頁", href: "/crm", enabled: true },
+  { key: "inbox", label: "Inbox / 工作台", href: "/crm", enabled: true },
+  { key: "bookings", label: "Bookings / 預約", href: "/crm?tab=bookings", enabled: true },
+  { key: "team", label: "Team / 團隊", href: "/crm", enabled: false },
+  { key: "dashboard", label: "Dashboard / 營運總覽", href: "/crm", enabled: false },
+  { key: "reports", label: "Reports / 報表", href: "/crm?tab=reports", enabled: true },
+  { key: "settings", label: "Settings / 設定", href: "/crm/settings", enabled: true },
+  { key: "more", label: "More / 更多", href: "/crm", enabled: false },
 ];
 
 export function CrmShell({
@@ -44,37 +46,42 @@ export function CrmShell({
           </div>
           <nav className="flex-1 space-y-1 px-2.5 py-3">
             {sidebarItems.map((item) => (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold transition ${
-                  item.key === active
-                    ? "bg-white text-[#111827]"
-                    : "text-[#d1d5db] hover:bg-white/10 hover:text-white"
-                }`}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </nav>
-          <div className="border-t border-white/10 p-2.5">
-            <p className="px-3 pb-1 text-[9px] font-bold uppercase tracking-[0.16em] text-[#6b7280]">
-              Admin / Marketing
-            </p>
-            <div className="grid gap-1 pb-2">
-              {adminItems.map((item) => (
+              item.enabled ? (
                 <Link
                   key={item.label}
                   href={item.href}
-                  className={`block rounded-lg px-3 py-2 text-[12px] font-semibold transition ${
+                  className={`flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold transition ${
                     item.key === active
                       ? "bg-white text-[#111827]"
-                      : "text-[#9ca3af] hover:bg-white/10 hover:text-white"
+                      : "text-[#d1d5db] hover:bg-white/10 hover:text-white"
                   }`}
                 >
                   {item.label}
                 </Link>
-              ))}
+              ) : (
+                <span
+                  key={item.label}
+                  className="flex h-9 cursor-not-allowed items-center justify-between rounded-lg px-3 text-[13px] font-semibold text-[#6b7280]"
+                >
+                  {item.label}
+                  <span className="text-[9px] uppercase tracking-[0.12em] text-[#4b5563]">
+                    Soon
+                  </span>
+                </span>
+              )
+            ))}
+          </nav>
+          <div className="border-t border-white/10 p-2.5">
+            <div className="mb-2 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2">
+              <div className="flex items-center gap-2">
+                <span className="h-2 w-2 rounded-full bg-emerald-400" />
+                <span className="text-[11px] font-bold text-emerald-100">
+                  Online status / 上線狀態
+                </span>
+              </div>
+              <p className="mt-1 text-[10px] font-semibold leading-4 text-[#9ca3af]">
+                Manual WhatsApp only. No API sending.
+              </p>
             </div>
             <Link
               href="/dashboard"
@@ -95,8 +102,11 @@ export function CrmShell({
           </Link>
           <div className="mt-4 grid gap-2">
             {[
-              { label: "工", href: "/crm", key: "inbox" },
-              { label: "約", href: "/crm?tab=bookings", key: "bookings" },
+              { label: "首", href: "/crm", key: "home", title: "首頁" },
+              { label: "工", href: "/crm", key: "inbox", title: "工作台" },
+              { label: "約", href: "/crm?tab=bookings", key: "bookings", title: "預約" },
+              { label: "報", href: "/crm?tab=reports", key: "reports", title: "報表" },
+              { label: "設", href: "/crm/settings", key: "settings", title: "設定" },
             ].map((item) => (
               <Link
                 key={item.label}
@@ -104,7 +114,7 @@ export function CrmShell({
                 className={`grid h-8 w-8 place-items-center rounded-lg text-[10px] font-bold ${
                   item.key === active ? "bg-white text-[#111827]" : "bg-white/8 text-[#9ca3af]"
                 }`}
-                title={item.label === "工" ? "工作台" : "預約"}
+                title={item.title}
               >
                 {item.label}
               </Link>
