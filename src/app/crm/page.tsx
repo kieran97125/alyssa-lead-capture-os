@@ -28,29 +28,31 @@ type ConversionTone = "blue" | "emerald" | "purple" | "red" | "slate";
 type TrackingQualityKey = "strong" | "partial" | "direct" | "missing";
 type ReadinessKey = "ready" | "needs_stronger_tracking" | "crm_only" | "missing_identifiers";
 
-type CrmTabKey = "leads" | "bookings" | "customers" | "follow_up" | "reports";
+type CrmTabKey = "leads" | "bookings" | "reports";
 
 const tabs: Array<{ key: CrmTabKey; label: string }> = [
-  { key: "leads", label: "Leads" },
+  { key: "leads", label: "工作台" },
   { key: "bookings", label: "預約" },
-  { key: "customers", label: "客戶" },
-  { key: "follow_up", label: "跟進" },
   { key: "reports", label: "報表" },
 ];
 
 const queueOptions = [
   ["", "全部"],
   ["new", "待跟進"],
-  ["contacting", "已聯絡"],
-  ["booked", "已預約"],
   ["follow_up_today", "今日要跟"],
   ["follow_up_overdue", "過期未跟"],
+  ["contacting", "已聯絡"],
+  ["booked", "已預約"],
+  ["lost", "Lost"],
+  ["invalid", "Invalid"],
+];
+
+const bookingQueueOptions = [
+  ["", "全部"],
   ["today_bookings", "今日預約"],
   ["pending_show_outcome", "待標記到店結果"],
-  ["showed", "已到店"],
+  ["booked", "已預約"],
   ["no_show", "No-show"],
-  ["lost", "已流失"],
-  ["invalid", "無效"],
 ];
 
 export default async function CrmPage({
@@ -122,24 +124,28 @@ export default async function CrmPage({
   const outcomeSummary = getOutcomeFeedbackSummary(outcomeRows);
   const readinessSummary = getOutcomeReadinessSummary(outcomeRows);
   const trackingCaptureAudit = getTrackingCaptureAudit(baseFilteredCases, leadById);
-  const cases = baseFilteredCases
+  const workbenchCases = baseFilteredCases
     .filter((item) => (queue ? matchesQueue(item, queue) : true))
-    .sort(comparePriority);
-  const followUpCases = baseFilteredCases
-    .filter((item) => item.nextFollowUpAt || isTodayFollowUp(item) || isOverdueFollowUp(item))
     .sort(comparePriority);
   const bookingCases = baseFilteredCases
     .filter((item) => item.status === "booked" || isTodayBooking(item) || isPendingShowOutcome(item))
+    .filter((item) => (queue ? matchesQueue(item, queue) : true))
     .sort(comparePriority);
   const visibleCases =
-    activeTab === "follow_up"
-      ? followUpCases
-      : activeTab === "bookings"
-        ? bookingCases
-        : cases;
+    activeTab === "bookings"
+      ? bookingCases
+      : workbenchCases;
 
   return (
-    <CrmShell>
+    <CrmShell
+      active={
+        activeTab === "bookings"
+          ? "bookings"
+          : activeTab === "reports"
+            ? "reports"
+            : "inbox"
+      }
+    >
       <div className="flex h-screen min-w-0 flex-col">
         <header className="shrink-0 border-b border-[#e5e7eb] bg-white">
           <div className="flex flex-col gap-2.5 px-4 py-2.5 xl:flex-row xl:items-center xl:justify-between">
@@ -170,6 +176,19 @@ export default async function CrmPage({
           </div>
           )}
 
+          {activeTab === "bookings" && (
+            <div className="grid gap-2 border-t border-[#f1f5f9] px-4 py-2 sm:grid-cols-2 lg:grid-cols-4">
+              <SummaryCard label="今日預約" value={summary.todayBookings} tone="purple" />
+              <SummaryCard label="待標記到店結果" value={summary.pendingShowOutcome} tone="orange" />
+              <SummaryCard label="已預約" value={summary.booked} tone="emerald" />
+              <SummaryCard
+                label="No-show"
+                value={baseFilteredCases.filter((item) => item.status === "no_show").length}
+                tone="red"
+              />
+            </div>
+          )}
+
           {activeTab === "reports" && (
             <>
           <section className="border-t border-[#f1f5f9] px-4 py-3">
@@ -187,22 +206,19 @@ export default async function CrmPage({
               </p>
             </div>
 
-            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-8">
-              <ConversionMetric label="Total leads" value={conversion.totalLeads} />
-              <ConversionMetric label="New" value={conversion.newLeads} />
-              <ConversionMetric label="Contacting" value={conversion.contacting} />
-              <ConversionMetric label="Booked" value={conversion.booked} />
-              <ConversionMetric label="Showed" value={conversion.showed} />
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-6">
+              <ConversionMetric label="Lead" value={conversion.totalLeads} />
+              <ConversionMetric label="已聯絡" value={conversion.contacting} tone="blue" />
+              <ConversionMetric label="已預約" value={conversion.booked} tone="emerald" />
+              <ConversionMetric label="已到店" value={conversion.showed} tone="purple" />
               <ConversionMetric label="No-show" value={conversion.noShow} />
-              <ConversionMetric label="Lost" value={conversion.lost} />
-              <ConversionMetric label="Invalid" value={conversion.invalid} />
+              <ConversionMetric label="Lost" value={conversion.lost} tone="red" />
             </div>
 
-            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <ConversionMetric label="Contact rate" value={formatPercent(conversion.contactRate)} tone="blue" />
-              <ConversionMetric label="Booking rate" value={formatPercent(conversion.bookingRate)} tone="emerald" />
-              <ConversionMetric label="Show rate" value={formatPercent(conversion.showRate)} tone="purple" />
-              <ConversionMetric label="Lost rate" value={formatPercent(conversion.lostRate)} tone="red" />
+            <div className="mt-2 grid gap-2 sm:grid-cols-3">
+              <ConversionMetric label="聯絡率" value={formatPercent(conversion.contactRate)} tone="blue" />
+              <ConversionMetric label="預約率" value={formatPercent(conversion.bookingRate)} tone="emerald" />
+              <ConversionMetric label="到店率" value={formatPercent(conversion.showRate)} tone="purple" />
             </div>
 
             <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
@@ -212,11 +228,10 @@ export default async function CrmPage({
                     <th className="px-3 py-2">Brand</th>
                     <th className="px-3 py-2">Treatment / offer</th>
                     <th className="px-3 py-2">Lead</th>
-                    <th className="px-3 py-2">Booked</th>
-                    <th className="px-3 py-2">Showed</th>
-                    <th className="px-3 py-2">Lost</th>
-                    <th className="px-3 py-2">Booking rate</th>
-                    <th className="px-3 py-2">Show rate</th>
+                    <th className="px-3 py-2">已預約</th>
+                    <th className="px-3 py-2">已到店</th>
+                    <th className="px-3 py-2">預約率</th>
+                    <th className="px-3 py-2">到店率</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -230,7 +245,6 @@ export default async function CrmPage({
                         <td className="px-3 py-2 font-semibold">{row.leads}</td>
                         <td className="px-3 py-2 font-semibold">{row.booked}</td>
                         <td className="px-3 py-2 font-semibold">{row.showed}</td>
-                        <td className="px-3 py-2 font-semibold">{row.lost}</td>
                         <td className="px-3 py-2 font-semibold">
                           {formatPercent(row.bookingRate)}
                         </td>
@@ -241,7 +255,7 @@ export default async function CrmPage({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={8} className="px-3 py-6 text-center text-[#64748b]">
+                      <td colSpan={7} className="px-3 py-6 text-center text-[#64748b]">
                         No CRM conversion rows in this range.
                       </td>
                     </tr>
@@ -255,28 +269,43 @@ export default async function CrmPage({
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-[13px] font-black text-[#111827]">
-                  來源質素 / Channel Outcome
+                  Source Ranking
                 </h2>
                 <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                  幫 Marketing 睇邊個來源、Campaign、內容帶來真正已預約及到店結果，而不只是表格提交。
+                  用最簡單方式睇來源帶來幾多 Leads、已預約及已到店。
                 </p>
               </div>
-              <div className="grid gap-1 text-[10px] font-bold text-[#64748b] sm:text-right">
-                <span>直接 / 無追蹤：{directSummary.leads} leads</span>
-                <span>佔目前範圍 {formatPercent(directSummary.share)}</span>
-              </div>
             </div>
 
-            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-              <ConversionMetric label="直接 Leads" value={directSummary.leads} tone="red" />
-              <ConversionMetric label="直接佔比" value={formatPercent(directSummary.share)} tone="red" />
-              <ConversionMetric label="直接已預約" value={directSummary.booked} tone="emerald" />
-              <ConversionMetric label="直接已到店" value={directSummary.showed} tone="purple" />
-            </div>
-
-            <SourceQualityTable rows={sourceQualityRows} />
-            <CampaignQualityTable rows={campaignQualityRows} />
+            <SimpleSourceRankingTable rows={sourceQualityRows} />
           </section>
+
+          <details className="border-t border-[#f1f5f9] bg-white">
+            <summary className="cursor-pointer px-4 py-3">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <h2 className="text-[13px] font-black text-[#111827]">
+                    Advanced Tracking Audit / 技術追蹤審核
+                  </h2>
+                  <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
+                    技術追蹤、Meta readiness、fbclid / fbp / fbc coverage 及 campaign detail 預設收合。
+                  </p>
+                </div>
+                <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#94a3b8]">
+                  Advanced
+                </p>
+              </div>
+            </summary>
+            <div className="px-4 pb-3">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <ConversionMetric label="直接 Leads" value={directSummary.leads} tone="red" />
+                <ConversionMetric label="直接佔比" value={formatPercent(directSummary.share)} tone="red" />
+                <ConversionMetric label="直接已預約" value={directSummary.booked} tone="emerald" />
+                <ConversionMetric label="直接已到店" value={directSummary.showed} tone="purple" />
+              </div>
+              <SourceQualityTable rows={sourceQualityRows} />
+              <CampaignQualityTable rows={campaignQualityRows} />
+            </div>
 
           <section className="border-t border-[#f1f5f9] px-4 py-3">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
@@ -363,6 +392,7 @@ export default async function CrmPage({
 
             <OutcomeFeedbackPreviewTable rows={outcomeRows} />
           </section>
+          </details>
             </>
           )}
 
@@ -408,53 +438,18 @@ export default async function CrmPage({
                 placeholder="Treatment"
                 className="h-9 w-[140px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
               />
-              {activeTab === "leads" && (
+              {activeTab !== "reports" && (
                 <select
                   name="queue"
                   defaultValue={queue}
                   className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
                 >
-                  {queueOptions.map(([value, label]) => (
+                  {(activeTab === "bookings" ? bookingQueueOptions : queueOptions).map(([value, label]) => (
                     <option key={value} value={value}>
                       {label}
                     </option>
                   ))}
                 </select>
-              )}
-              {activeTab === "reports" && (
-                <>
-                  <select
-                    name="outcome"
-                    defaultValue={outcome}
-                    className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-                  >
-                    <option value="">全部 Outcome</option>
-                    <option value="booked">已預約</option>
-                    <option value="showed">已到店</option>
-                    <option value="no_show">No-show</option>
-                    <option value="lost">已流失</option>
-                    <option value="invalid">無效</option>
-                  </select>
-                  <select
-                    name="tracking"
-                    defaultValue={tracking}
-                    className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-                  >
-                    <option value="">全部 Tracking</option>
-                    <option value="strong">Tracking 強</option>
-                    <option value="partial">Tracking 不完整</option>
-                    <option value="direct">直接 / 無追蹤</option>
-                    <option value="missing">缺少必要識別</option>
-                  </select>
-                </>
-              )}
-              {activeTab === "reports" && (
-                <input
-                  name="source"
-                  defaultValue={firstQueryValue(query?.source) || ""}
-                  placeholder="Source / campaign"
-                  className="h-9 w-[160px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-                />
               )}
               <label className="min-w-[220px] flex-1 xl:w-[320px] xl:flex-none">
                 <span className="sr-only">Search CRM inbox</span>
@@ -464,7 +459,7 @@ export default async function CrmPage({
                   defaultValue={search}
                   placeholder={
                     activeTab === "reports"
-                      ? "Search name, phone, CTWA ID, campaign..."
+                      ? "Search report rows..."
                       : "Search name, phone, treatment..."
                   }
                   className="h-9 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#2563eb] focus:bg-white"
@@ -492,19 +487,8 @@ export default async function CrmPage({
           )}
         </header>
 
-        {activeTab === "customers" ? (
-          <PlaceholderPanel
-            title="客戶檔案模組準備中"
-            body="之後會集中顯示客戶電話身份、歷史互動、預約及跟進紀錄。"
-          />
-        ) : activeTab === "reports" ? null : (
+        {activeTab === "reports" ? null : (
           <>
-            {activeTab === "follow_up" && (
-              <TabNotice
-                title="跟進工作"
-                body="顯示今日要跟、過期未跟，以及已設定下一次跟進時間的 Leads。"
-              />
-            )}
             {activeTab === "bookings" && (
               <TabNotice
                 title="預約工作"
@@ -525,17 +509,6 @@ function TabNotice({ title, body }: { title: string; body: string }) {
       <p className="text-[12px] font-black text-[#111827]">{title}</p>
       <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">{body}</p>
     </div>
-  );
-}
-
-function PlaceholderPanel({ title, body }: { title: string; body: string }) {
-  return (
-    <main className="flex min-h-0 flex-1 items-center justify-center bg-[#f8fafc] p-6">
-      <div className="max-w-md rounded-lg border border-[#e5e7eb] bg-white p-5 text-center shadow-sm">
-        <p className="text-sm font-black text-[#111827]">{title}</p>
-        <p className="mt-2 text-[12px] font-semibold leading-5 text-[#64748b]">{body}</p>
-      </div>
-    </main>
   );
 }
 
@@ -689,6 +662,52 @@ function TrackingCoverageTable({ rows }: { rows: TrackingCoverageRow[] }) {
                 <td className="px-3 py-2 font-semibold text-[#64748b]">{row.notes}</td>
               </tr>
             ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function SimpleSourceRankingTable({ rows }: { rows: SourceQualityRow[] }) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
+      <div className="overflow-x-auto">
+        <table className="min-w-[760px] text-left text-[11px]">
+          <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+            <tr>
+              <th className="px-3 py-2">Source / medium</th>
+              <th className="px-3 py-2">Lead</th>
+              <th className="px-3 py-2">已預約</th>
+              <th className="px-3 py-2">已到店</th>
+              <th className="px-3 py-2">預約率</th>
+              <th className="px-3 py-2">到店率</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row) => (
+                <tr key={row.key} className="border-t border-[#eef2f6]">
+                  <td className="px-3 py-2">
+                    <span className="font-bold text-[#111827]">{row.label}</span>
+                    <span className="block text-[10px] font-semibold text-[#64748b]">
+                      {row.meta}
+                    </span>
+                  </td>
+                  <NumberCell value={row.leads} />
+                  <NumberCell value={row.booked} />
+                  <NumberCell value={row.showed} />
+                  <NumberCell value={formatPercent(row.bookingRate)} />
+                  <NumberCell value={formatPercent(row.showRate)} />
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={6} className="px-3 py-6 text-center text-[#64748b]">
+                  這個日期範圍未有來源資料。
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
