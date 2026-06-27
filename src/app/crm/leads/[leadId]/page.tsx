@@ -10,6 +10,16 @@ import {
   type CrmLeadCase,
 } from "@/lib/crm/leadOps";
 import {
+  contactChannelOptions,
+  followUpOutcomeOptions,
+  getCrmAiReplyDrafts,
+  invalidReasonOptions as configuredInvalidReasonOptions,
+  lostReasonOptions as configuredLostReasonOptions,
+  optionTuples,
+  paidStatusOptions,
+  quickReplyTemplates,
+} from "@/lib/crm/settingsConfig";
+import {
   assignCsAction,
   confirmBookingAction,
   createFollowUpTaskAction,
@@ -50,6 +60,9 @@ const invalidReasonOptions: Array<[string, string]> = [
   ["duplicate", "重複個案"],
   ["other", "其他"],
 ];
+
+void lostReasonOptions;
+void invalidReasonOptions;
 
 export default async function CrmLeadDetailPage({
   params,
@@ -97,7 +110,12 @@ export default async function CrmLeadDetailPage({
       ? `${bundle.booking.booking_date} ${bundle.booking.booking_time}`
       : "未有已確認預約";
   const canMarkAttendance = runtime.actionsEnabled && leadCase.status === "booked";
-  const aiReplyDrafts = getAiReplyDrafts(leadCase, confirmedAppointmentLabel);
+  const aiReplyDrafts = getCrmAiReplyDrafts({
+    brandName: leadCase.brandName,
+    treatmentOffer: leadCase.treatmentOffer,
+    appointmentPreference: leadCase.appointmentLabel,
+    confirmedAppointment: confirmedAppointmentLabel,
+  });
 
   return (
     <CrmShell>
@@ -260,24 +278,13 @@ export default async function CrmLeadDetailPage({
                     name="contact_channel"
                     label="Channel"
                     defaultValue="whatsapp"
-                    options={[
-                      ["whatsapp", "WhatsApp"],
-                      ["phone", "Phone"],
-                      ["inbox", "Inbox"],
-                      ["other", "Other"],
-                    ]}
+                    options={optionTuples(contactChannelOptions)}
                   />
                   <SelectInput
                     name="contact_outcome"
                     label="Outcome"
                     defaultValue="pending"
-                    options={[
-                      ["reached", "Reached"],
-                      ["no_answer", "No answer"],
-                      ["replied", "Replied"],
-                      ["pending", "Pending"],
-                      ["other", "Other"],
-                    ]}
+                    options={optionTuples(followUpOutcomeOptions)}
                   />
                   <TextAreaInput
                     name="contact_note"
@@ -332,11 +339,7 @@ export default async function CrmLeadDetailPage({
                     name="paid_status"
                     label="Paid status"
                     defaultValue={bookingMeta.paidStatus}
-                    options={[
-                      ["unknown", "Unknown"],
-                      ["unpaid", "Unpaid"],
-                      ["paid", "Paid"],
-                    ]}
+                    options={optionTuples(paidStatusOptions)}
                   />
                   <TextAreaInput
                     name="booking_note"
@@ -362,7 +365,7 @@ export default async function CrmLeadDetailPage({
                     name="invalid_reason_code"
                     label="Reason"
                     defaultValue=""
-                    options={invalidReasonOptions}
+                    options={[["", "請選擇原因"], ...optionTuples(configuredInvalidReasonOptions)]}
                   />
                   <TextAreaInput
                     name="invalid_reason_note"
@@ -401,7 +404,7 @@ export default async function CrmLeadDetailPage({
                     name="lost_reason_code"
                     label="Reason"
                     defaultValue=""
-                    options={lostReasonOptions}
+                    options={[["", "請選擇原因"], ...optionTuples(configuredLostReasonOptions)]}
                   />
                   <TextAreaInput
                     name="lost_reason_note"
@@ -412,7 +415,7 @@ export default async function CrmLeadDetailPage({
                 </ActionPanel>
 
                 <TimelinePanel interactions={bundle.interactions} />
-                <Placeholder title="Quick Replies" body="Brand-approved replies will be selectable here later." />
+                <QuickReplyPanel templates={quickReplyTemplates} />
                 <AiDraftPanel drafts={aiReplyDrafts} />
                 <Placeholder title="Brand Knowledge" body="Treatment FAQ, policies, and brand information will support CS and AI responses." />
                 <Placeholder title="Intent / Tagging" body="Inquiry intent, objections, budget, and treatment tags are reserved." />
@@ -512,35 +515,6 @@ function getBookingMeta(metadata: Record<string, unknown> | null | undefined) {
     roomArrangement: metadataString(metadata, "room_arrangement"),
     bookingNote: metadataString(metadata, "booking_note"),
   };
-}
-
-function getAiReplyDrafts(leadCase: CrmLeadCase, confirmedAppointmentLabel: string) {
-  const brand = leadCase.brandName || "我們";
-  const treatment = leadCase.treatmentOffer || "療程";
-  const preference = leadCase.appointmentLabel || "你填寫的時間";
-  const confirmed =
-    confirmedAppointmentLabel && confirmedAppointmentLabel !== "未有已確認預約"
-      ? confirmedAppointmentLabel
-      : "稍後由同事確認";
-
-  return [
-    {
-      title: "首次跟進",
-      body: `你好，我哋係 ${brand}，收到你對 ${treatment} 嘅登記。想同你確認一下預約資料同時間，方便我哋幫你安排。`,
-    },
-    {
-      title: "確認預約",
-      body: `你好，已幫你記錄 ${treatment}。客人偏好時間：${preference}。CS 確認預約時間：${confirmed}。如需更改時間，可以直接回覆我哋。`,
-    },
-    {
-      title: "未回覆跟進",
-      body: `你好，想再跟進你早前提交嘅 ${treatment} 登記。如果仍然想預約，可以回覆我哋你方便嘅時間。`,
-    },
-    {
-      title: "價錢 / 時間不合適",
-      body: `明白，謝謝你告知。你可以先考慮一下，如果之後想了解 ${treatment} 或其他安排，歡迎再 WhatsApp 我哋。`,
-    },
-  ];
 }
 
 function metadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
@@ -683,6 +657,36 @@ function AiDraftPanel({ drafts }: { drafts: Array<{ title: string; body: string 
             <p className="text-[11px] font-black text-[#111827]">{draft.title}</p>
             <p className="mt-1 whitespace-pre-line text-[12px] font-semibold leading-5 text-[#475569]">
               {draft.body}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function QuickReplyPanel({ templates }: { templates: Array<{ title: string; body: string }> }) {
+  return (
+    <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5 xl:col-span-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-bold text-[#111827]">
+            WhatsApp Quick Replies / 手動複製
+          </h2>
+          <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
+            這些是 settings-ready 模板。請複製文字後人手貼到 WhatsApp；系統不會自動發送。
+          </p>
+        </div>
+        <span className="rounded-md bg-[#f0fdf4] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#15803d]">
+          Manual send
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        {templates.map((template) => (
+          <article key={template.title} className="rounded-md border border-[#e5e7eb] bg-[#f8fafc] p-3">
+            <p className="text-[11px] font-black text-[#111827]">{template.title}</p>
+            <p className="mt-1 whitespace-pre-line text-[12px] font-semibold leading-5 text-[#475569]">
+              {template.body}
             </p>
           </article>
         ))}

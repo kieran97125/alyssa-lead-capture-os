@@ -16,6 +16,15 @@ import {
 } from "@/lib/crm/store";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { CrmStatus } from "@/lib/crm/leadOps";
+import {
+  contactChannelOptions,
+  followUpOutcomeOptions,
+  invalidReasonOptions,
+  lostReasonOptions,
+  optionLabel,
+  optionValues,
+  paidStatusOptions,
+} from "@/lib/crm/settingsConfig";
 
 const allowedStatuses: CrmStatus[] = [
   "new",
@@ -27,60 +36,18 @@ const allowedStatuses: CrmStatus[] = [
   "invalid",
 ];
 
-const contactChannels = ["phone", "whatsapp", "inbox", "other"] as const;
-const contactOutcomes = ["reached", "no_answer", "replied", "pending", "other"] as const;
-const lostReasonCodes = [
-  "no_reply",
-  "price_concern",
-  "time_not_fit",
-  "location_not_fit",
-  "changed_mind",
-  "duplicate",
-  "other",
-] as const;
-const invalidReasonCodes = [
-  "fake_contact",
-  "wrong_number",
-  "spam",
-  "duplicate",
-  "other",
-] as const;
-
-const contactChannelLabels: Record<(typeof contactChannels)[number], string> = {
-  phone: "Phone",
-  whatsapp: "WhatsApp",
-  inbox: "Inbox",
-  other: "Other",
-};
-
-const contactOutcomeLabels: Record<(typeof contactOutcomes)[number], string> = {
-  reached: "reached",
-  no_answer: "no answer",
-  replied: "replied",
-  pending: "pending",
-  other: "other",
-};
-
-const lostReasonLabels: Record<(typeof lostReasonCodes)[number], string> = {
-  no_reply: "no reply",
-  price_concern: "price concern",
-  time_not_fit: "time not fit",
-  location_not_fit: "location not fit",
-  changed_mind: "changed mind",
-  duplicate: "duplicate",
-  other: "other",
-};
-
-const invalidReasonLabels: Record<(typeof invalidReasonCodes)[number], string> = {
-  fake_contact: "fake contact",
-  wrong_number: "wrong number",
-  spam: "spam",
-  duplicate: "duplicate",
-  other: "other",
-};
+const contactChannels = optionValues(contactChannelOptions);
+const contactOutcomes = optionValues(followUpOutcomeOptions);
+const lostReasonCodes = optionValues(lostReasonOptions);
+const invalidReasonCodes = optionValues(invalidReasonOptions);
+const paidStatusValues = optionValues(paidStatusOptions);
 
 function isContactChannel(value: string): value is (typeof contactChannels)[number] {
   return (contactChannels as readonly string[]).includes(value);
+}
+
+function isPaidStatus(value: string): value is (typeof paidStatusValues)[number] {
+  return (paidStatusValues as readonly string[]).includes(value);
 }
 
 function isContactOutcome(value: string): value is (typeof contactOutcomes)[number] {
@@ -234,7 +201,7 @@ export async function recordContactAttemptAction(leadId: string, formData: FormD
           ? "whatsapp_outbound"
           : "note";
     const body = [
-      `${contactChannelLabels[channel]} attempt: ${contactOutcomeLabels[outcome]}.`,
+      `${optionLabel(contactChannelOptions, channel)} attempt: ${optionLabel(followUpOutcomeOptions, outcome)}.`,
       note,
       nextFollowUpAt ? `Next follow-up: ${nextFollowUpAt}` : null,
     ]
@@ -336,7 +303,7 @@ export async function confirmBookingAction(leadId: string, formData: FormData) {
     const roomArrangement = safeText(formData.get("room_arrangement"), 160);
     const bookingNote = safeText(formData.get("booking_note"), 800);
     const paidStatusRaw = safeText(formData.get("paid_status"), 40) || "unknown";
-    const paidStatus = ["paid", "unpaid", "unknown"].includes(paidStatusRaw)
+    const paidStatus = isPaidStatus(paidStatusRaw)
       ? paidStatusRaw
       : "unknown";
 
@@ -459,7 +426,7 @@ export async function markInvalidAction(leadId: string, formData: FormData) {
     const supabase = createSupabaseAdminClient();
     const previousStatus = caseRecord.status;
     const now = new Date().toISOString();
-    const reasonLabel = invalidReasonLabels[reasonCode];
+    const reasonLabel = optionLabel(invalidReasonOptions, reasonCode);
     const body = `Invalid reason: ${reasonLabel}${reasonNote ? `. ${reasonNote}` : ""}`;
 
     const { error: updateError } = await supabase
@@ -625,7 +592,7 @@ export async function saveLostReasonAction(leadId: string, formData: FormData) {
     const supabase = createSupabaseAdminClient();
     const previousStatus = caseRecord.status;
     const now = new Date().toISOString();
-    const reasonLabel = lostReasonLabels[reasonCode];
+    const reasonLabel = optionLabel(lostReasonOptions, reasonCode);
     const lostReason = `${reasonLabel}${reasonNote ? `: ${reasonNote}` : ""}`;
     const { error: updateError } = await supabase
       .from("crm_lead_cases")

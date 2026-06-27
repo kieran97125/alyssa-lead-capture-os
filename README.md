@@ -115,6 +115,7 @@ CS write actions:
 - CRM Phase 2.4 is a capture improvement plan for future `fbp` / `fbc` / source snapshot readiness. It is planning-only: no live tracking behavior changed, no schema has been applied, and no Meta events are being sent.
 - CRM Phase 2.5 safely preserves optional `fbp`, `fbc`, parent URL, page URL, form context, and client event ID values inside existing attribution touch JSON. No schema has been applied, no Meta events are sent, and public tracking / Google Sheets / thank-you behavior is preserved.
 - CRM Phase 2.6 simplifies the CS booking console and starts the app settings foundation. CS inbox screens hide marketing attribution details; tracking/reporting remains in `/crm?tab=reports`. Settings planning is documented only, with no schema applied.
+- CRM Phase 2.7 adds a config-first CRM settings layer in code via `src/lib/crm/settingsConfig.ts` and a read-only admin view in `/crm/settings`. Quick replies and AI reply drafts remain manual/template-based; no WhatsApp API, external AI API, Meta sending, or schema migration is active.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:
@@ -127,6 +128,7 @@ CRM Phase 2 schema files:
 - `docs/CRM_PHASE_2_4_TRACKING_CAPTURE_IMPROVEMENT_PLAN.md` documents the future tracking capture improvement plan.
 - `docs/CRM_PHASE_2_4_TRACKING_CAPTURE_FIELDS_PLAN.sql` is a review-only future source snapshot field proposal wrapped in `begin` / `rollback`; it has not been executed.
 - `docs/CRM_PHASE_2_6_APP_SETTINGS_PLAN.md` documents the future CRM app settings foundation; it is planning-only and no schema has been applied.
+- `docs/CRM_PHASE_2_7_APP_SETTINGS_CONFIG_PLAN.sql` is a review-only future CRM app settings table proposal wrapped in `begin` / `rollback`; it has not been executed.
 
 `docs/CRM_PHASE2_APPLY.sql` has not been executed against the live database by this code change. It uses `create table if not exists`, non-destructive indexes, and comments. It does not alter existing LaunchHub tables.
 

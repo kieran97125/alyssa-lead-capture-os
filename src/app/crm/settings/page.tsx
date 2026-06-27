@@ -1,5 +1,15 @@
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getCrmRuntimeStatus } from "@/lib/crm/store";
+import {
+  contactChannelOptions,
+  followUpOutcomeOptions,
+  invalidReasonOptions,
+  lostReasonOptions,
+  optionTuples,
+  paidStatusOptions,
+  quickReplyTemplates,
+  roomOptionPlaceholders,
+} from "@/lib/crm/settingsConfig";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +48,16 @@ const replySettings = [
   ["Booking confirmation", "Future confirmation template by brand and branch"],
   ["Treatment FAQ replies", "Future treatment-specific FAQ and policy replies"],
   ["Branch / room options", "Future branch room labels for CS booking confirmation"],
+];
+
+const configModulePreview = [
+  ["Contact channels", optionTuples(contactChannelOptions).map(([, label]) => label).join(" / ")],
+  ["Follow-up outcomes", optionTuples(followUpOutcomeOptions).map(([, label]) => label).join(" / ")],
+  ["Lost reasons", optionTuples(lostReasonOptions).map(([, label]) => label).join(" / ")],
+  ["Invalid reasons", optionTuples(invalidReasonOptions).map(([, label]) => label).join(" / ")],
+  ["Paid status", optionTuples(paidStatusOptions).map(([, label]) => label).join(" / ")],
+  ["Room placeholders", optionTuples(roomOptionPlaceholders).map(([, label]) => label).join(" / ")],
+  ["Quick replies", quickReplyTemplates.map((item) => item.title).join(" / ")],
 ];
 
 export default async function CrmSettingsPage() {
@@ -103,6 +123,17 @@ export default async function CrmSettingsPage() {
             >
               <div className="grid gap-2">
                 {workflowSettings.map(([label, value]) => (
+                  <ReadOnlyField key={label} label={label} value={value} />
+                ))}
+              </div>
+            </SettingsPanel>
+
+            <SettingsPanel
+              title="Current Config Module Defaults"
+              description="These values now come from src/lib/crm/settingsConfig.ts. They are still code defaults until a reviewed settings table is applied."
+            >
+              <div className="grid gap-2">
+                {configModulePreview.map(([label, value]) => (
                   <ReadOnlyField key={label} label={label} value={value} />
                 ))}
               </div>
