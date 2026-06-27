@@ -113,6 +113,8 @@ CS write actions:
 - CRM Phase 2.2 is a reviewed SQL proposal for a future durable outcome event queue. It plans event deduplication, CRM/lead/brand references, payload preview, hashed user-data readiness, tracking snapshots, send lifecycle, retry/error fields, and external response audit. No schema has been applied and no Meta events are being sent.
 - CRM Phase 2.3 adds tracking capture audit visibility on `/crm?tab=reports` and documents current source snapshot coverage versus future Meta matching needs. It is audit-only and does not change live capture behavior.
 - CRM Phase 2.4 is a capture improvement plan for future `fbp` / `fbc` / source snapshot readiness. It is planning-only: no live tracking behavior changed, no schema has been applied, and no Meta events are being sent.
+- CRM Phase 2.5 safely preserves optional `fbp`, `fbc`, parent URL, page URL, form context, and client event ID values inside existing attribution touch JSON. No schema has been applied, no Meta events are sent, and public tracking / Google Sheets / thank-you behavior is preserved.
+- CRM Phase 2.6 simplifies the CS booking console and starts the app settings foundation. CS inbox screens hide marketing attribution details; tracking/reporting remains in `/crm?tab=reports`. Settings planning is documented only, with no schema applied.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:
@@ -124,6 +126,7 @@ CRM Phase 2 schema files:
 - `docs/CRM_PHASE_2_3_TRACKING_CAPTURE_AUDIT.md` documents current tracking capture coverage and future `fbp` / `fbc` / parent URL recommendations.
 - `docs/CRM_PHASE_2_4_TRACKING_CAPTURE_IMPROVEMENT_PLAN.md` documents the future tracking capture improvement plan.
 - `docs/CRM_PHASE_2_4_TRACKING_CAPTURE_FIELDS_PLAN.sql` is a review-only future source snapshot field proposal wrapped in `begin` / `rollback`; it has not been executed.
+- `docs/CRM_PHASE_2_6_APP_SETTINGS_PLAN.md` documents the future CRM app settings foundation; it is planning-only and no schema has been applied.
 
 `docs/CRM_PHASE2_APPLY.sql` has not been executed against the live database by this code change. It uses `create table if not exists`, non-destructive indexes, and comments. It does not alter existing LaunchHub tables.
 

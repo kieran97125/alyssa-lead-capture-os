@@ -80,6 +80,9 @@ type SourceSnapshotRecord = {
   whatsapp_referral_source_id: string | null;
   tracking_status: string | null;
   audit_reason: string | null;
+  first_touch_json?: Record<string, unknown> | null;
+  latest_touch_json?: Record<string, unknown> | null;
+  submitted_touch_json?: Record<string, unknown> | null;
 };
 
 type BookingRecord = {
@@ -612,6 +615,9 @@ export async function getLeadRows(
           "whatsapp_referral_source_id",
           "tracking_status",
           "audit_reason",
+          "first_touch_json",
+          "latest_touch_json",
+          "submitted_touch_json",
         ].join(","),
         ids(leadRecords.map((lead) => lead.source_snapshot_id))
       ),

@@ -11,6 +11,8 @@ const utmKeys = [
 
 const clickIdKeys = [
   "fbclid",
+  "fbp",
+  "fbc",
   "gclid",
   "ttclid",
   "msclkid",

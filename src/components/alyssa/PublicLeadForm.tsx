@@ -325,6 +325,15 @@ function createUrlFromSearch(search: string) {
   return `${window.location.origin}${window.location.pathname}${search}${window.location.hash}`;
 }
 
+function getLandingPageSlugFromUrl(value: string) {
+  try {
+    const pathParts = new URL(value).pathname.split("/").filter(Boolean);
+    return pathParts[0] === "lp" && pathParts[1] ? pathParts[1] : "";
+  } catch {
+    return "";
+  }
+}
+
 function readCookie(name: string) {
   const prefix = `${name}=`;
   return (
@@ -334,6 +343,15 @@ function readCookie(name: string) {
       .find((item) => item.startsWith(prefix))
       ?.slice(prefix.length) ?? null
   );
+}
+
+function readMetaBrowserCookie(name: "_fbp" | "_fbc") {
+  const value = readCookie(name);
+  try {
+    return value ? decodeURIComponent(value) : "";
+  } catch {
+    return value || "";
+  }
 }
 
 function readProxyAttributionCookie() {
@@ -601,6 +619,10 @@ function captureCurrentPageAttribution({
       : effectiveUrl.sourceUsed === "server_initial" && serverTouch
       ? pickTouchParams(serverTouch)
       : pickParams(searchParams);
+  const fbpCookie = readMetaBrowserCookie("_fbp");
+  const fbcCookie = readMetaBrowserCookie("_fbc");
+  if (!paramPayload.fbp && fbpCookie) paramPayload.fbp = fbpCookie;
+  if (!paramPayload.fbc && fbcCookie) paramPayload.fbc = fbcCookie;
   const firstStored = readStorage(localKey, window.localStorage);
   const latestStored = readStorage(sessionKey, window.sessionStorage);
   const firstTrackingStored = getTrackingTouch(firstStored);
@@ -656,14 +678,18 @@ function captureCurrentPageAttribution({
     form_id: formId,
     form_token: formToken,
     parent_origin: parentOriginParam || window.location.origin,
+    parent_url: parentUrlParam || "",
     referrer: document.referrer || "",
     landing_page_url: landingPageUrl,
     current_page_url: currentPageUrl,
+    page_url: currentPageUrl,
+    landing_page_slug: getLandingPageSlugFromUrl(currentPageUrl),
     page_path: parentPath,
     page_title: document.title || "",
     preserved_initial_full_url: effectiveUrl.href,
     preserved_initial_search: initialQueryString,
     attribution_source_used: effectiveUrl.sourceUsed,
+    client_event_id: createId("lh_evt"),
     captured_at: new Date().toISOString(),
   };
   const latestTouch = {

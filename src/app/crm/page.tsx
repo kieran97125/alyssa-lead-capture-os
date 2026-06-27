@@ -65,7 +65,10 @@ export default async function CrmPage({
   const brand = firstQueryValue(query?.brand)?.trim().toLowerCase() || "";
   const treatment = firstQueryValue(query?.treatment)?.trim().toLowerCase() || "";
   const queue = firstQueryValue(query?.queue)?.trim() || "";
-  const source = firstQueryValue(query?.source)?.trim().toLowerCase() || "";
+  const source =
+    activeTab === "reports"
+      ? firstQueryValue(query?.source)?.trim().toLowerCase() || ""
+      : "";
   const outcome = firstQueryValue(query?.outcome)?.trim() || "";
   const tracking = firstQueryValue(query?.tracking)?.trim() || "";
   const leadLimit = range === "all" ? 5000 : 500;
@@ -153,6 +156,7 @@ export default async function CrmPage({
             </div>
           </div>
 
+          {activeTab === "leads" && (
           <div className="grid gap-2 border-t border-[#f1f5f9] px-4 py-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-9">
             <SummaryCard label="待跟進" value={summary.newLeads} tone="blue" />
             <SummaryCard label="已聯絡" value={summary.contacting} tone="slate" />
@@ -164,6 +168,7 @@ export default async function CrmPage({
             <SummaryCard label="Lost" value={summary.lost} tone="slate" />
             <SummaryCard label="Invalid" value={summary.invalid} tone="slate" />
           </div>
+          )}
 
           {activeTab === "reports" && (
             <>
@@ -443,19 +448,25 @@ export default async function CrmPage({
                   </select>
                 </>
               )}
-              <input
-                name="source"
-                defaultValue={firstQueryValue(query?.source) || ""}
-                placeholder="Source / campaign"
-                className="h-9 w-[160px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-              />
+              {activeTab === "reports" && (
+                <input
+                  name="source"
+                  defaultValue={firstQueryValue(query?.source) || ""}
+                  placeholder="Source / campaign"
+                  className="h-9 w-[160px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
+                />
+              )}
               <label className="min-w-[220px] flex-1 xl:w-[320px] xl:flex-none">
                 <span className="sr-only">Search CRM inbox</span>
                 <input
                   name="search"
                   type="search"
                   defaultValue={search}
-                  placeholder="Search name, phone, CTWA ID, campaign..."
+                  placeholder={
+                    activeTab === "reports"
+                      ? "Search name, phone, CTWA ID, campaign..."
+                      : "Search name, phone, treatment..."
+                  }
                   className="h-9 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#2563eb] focus:bg-white"
                 />
               </label>
@@ -1039,9 +1050,8 @@ function getOutcomeFeedbackRows(
       const metaAdsetId = item.ctwa.adset_id || snapshot?.meta_adset_id || "";
       const metaAdId = item.ctwa.ad_id || snapshot?.meta_ad_id || "";
       const fbclid = snapshot?.fbclid || "";
-      const snapshotRecord = (snapshot ?? {}) as Record<string, unknown>;
-      const fbp = stringValue(snapshotRecord.fbp);
-      const fbc = stringValue(snapshotRecord.fbc);
+      const fbp = sourceSnapshotExtra(lead, "fbp");
+      const fbc = sourceSnapshotExtra(lead, "fbc");
       const trackingQuality = getTrackingQuality(item, lead);
       const readiness = getOutcomeReadiness({
         trackingQualityKey: trackingQuality.key,
@@ -1192,6 +1202,8 @@ function outcomeTimestamp(item: CrmLeadCase, crmRecord: CrmLeadCaseRecord | null
 function getTrackingQuality(item: CrmLeadCase, lead: LeadRow | null) {
   const snapshot = lead?.sourceSnapshot ?? null;
   const hasFbclid = Boolean(snapshot?.fbclid);
+  const hasFbp = Boolean(sourceSnapshotExtra(lead, "fbp"));
+  const hasFbc = Boolean(sourceSnapshotExtra(lead, "fbc"));
   const hasMetaIds = Boolean(
     item.ctwa.campaign_id ||
       item.ctwa.adset_id ||
@@ -1210,7 +1222,7 @@ function getTrackingQuality(item: CrmLeadCase, lead: LeadRow | null) {
     };
   }
 
-  if (hasFbclid && (hasMetaIds || cleanLabel(item.campaignLabel))) {
+  if ((hasFbclid || hasFbc) && (hasMetaIds || cleanLabel(item.campaignLabel))) {
     return {
       key: "strong" as const,
       label: "Tracking 強",
@@ -1218,7 +1230,12 @@ function getTrackingQuality(item: CrmLeadCase, lead: LeadRow | null) {
     };
   }
 
-  if (hasMetaIds || cleanLabel(item.campaignLabel) || cleanLabel(item.sourceLabel)) {
+  if (
+    hasFbp ||
+    hasMetaIds ||
+    cleanLabel(item.campaignLabel) ||
+    cleanLabel(item.sourceLabel)
+  ) {
     return {
       key: "partial" as const,
       label: "Tracking 不完整",
@@ -1433,7 +1450,20 @@ function coverageRow(field: string, total: number, available: number, notes: str
 
 function sourceSnapshotExtra(lead: LeadRow | null, key: string) {
   const snapshot = (lead?.sourceSnapshot ?? {}) as Record<string, unknown>;
-  return stringValue(snapshot[key]);
+  const candidates = [
+    snapshot,
+    snapshot.submitted_touch_json,
+    snapshot.latest_touch_json,
+    snapshot.first_touch_json,
+  ];
+
+  for (const candidate of candidates) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const value = stringValue((candidate as Record<string, unknown>)[key]);
+    if (value) return value;
+  }
+
+  return "";
 }
 
 function getSourceGroup(item: CrmLeadCase) {

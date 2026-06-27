@@ -61,9 +61,15 @@ export type TouchPayload = {
   storage_status?: string | null;
   landing_page_url?: string | null;
   current_page_url?: string | null;
+  page_url?: string | null;
   page_path?: string | null;
   page_title?: string | null;
   referrer?: string | null;
+  parent_url?: string | null;
+  form_token?: string | null;
+  form_id?: string | null;
+  landing_page_slug?: string | null;
+  client_event_id?: string | null;
   utm_source?: string | null;
   utm_medium?: string | null;
   utm_campaign?: string | null;
@@ -71,6 +77,8 @@ export type TouchPayload = {
   utm_content?: string | null;
   utm_term?: string | null;
   fbclid?: string | null;
+  fbp?: string | null;
+  fbc?: string | null;
   gclid?: string | null;
   ttclid?: string | null;
   msclkid?: string | null;

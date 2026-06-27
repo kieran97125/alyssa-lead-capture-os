@@ -4,7 +4,11 @@ import type { ReactNode } from "react";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
 import { formatDateTime, getLeadRows } from "@/lib/data/businessMetrics";
-import { crmPipelineStatuses, toCrmLeadCase } from "@/lib/crm/leadOps";
+import {
+  crmPipelineStatuses,
+  toCrmLeadCase,
+  type CrmLeadCase,
+} from "@/lib/crm/leadOps";
 import {
   assignCsAction,
   confirmBookingAction,
@@ -93,6 +97,7 @@ export default async function CrmLeadDetailPage({
       ? `${bundle.booking.booking_date} ${bundle.booking.booking_time}`
       : "未有已確認預約";
   const canMarkAttendance = runtime.actionsEnabled && leadCase.status === "booked";
+  const aiReplyDrafts = getAiReplyDrafts(leadCase, confirmedAppointmentLabel);
 
   return (
     <CrmShell>
@@ -209,39 +214,9 @@ export default async function CrmLeadDetailPage({
             </div>
 
             <div className="grid gap-3.5">
-              <div className="grid gap-3.5 2xl:grid-cols-2">
-                <Panel title="Source">
-                  <InfoLine label="CRM source" value={leadCase.sourceLabel} />
-                  <InfoLine label="Raw source type" value={leadCase.sourceTypeRaw} />
-                  <InfoLine label="Landing page" value={leadCase.landingPageSlug || "-"} />
-                  <InfoLine label="Form token" value={bundle.caseRecord?.form_token || "-"} />
-                  <InfoLine label="Page URL" value={leadCase.pageUrl || "-"} />
-                  <InfoLine label="Campaign" value={leadCase.campaignLabel} />
-                  <InfoLine label="Ad / Content" value={leadCase.adLabel} />
-                  <InfoLine label="Lost reason" value={bundle.caseRecord?.lost_reason || "-"} />
-                </Panel>
-
-                <Panel title="CTWA / WhatsApp Ad">
-                  {hasCtwa ? (
-                    <>
-                      <InfoLine label="CTWA Source ID" value={leadCase.ctwa.ctwa_source_id || "-"} />
-                      <InfoLine label="CTWA Source URL" value={leadCase.ctwa.ctwa_source_url || "-"} />
-                      <InfoLine label="Headline" value={leadCase.ctwa.ctwa_referral_headline || "-"} />
-                      <InfoLine label="Body" value={leadCase.ctwa.ctwa_referral_body || "-"} />
-                      <InfoLine label="Campaign ID" value={leadCase.ctwa.campaign_id || "-"} />
-                      <InfoLine label="Ad Set ID" value={leadCase.ctwa.adset_id || "-"} />
-                      <InfoLine label="Ad ID" value={leadCase.ctwa.ad_id || "-"} />
-                      <InfoLine label="Phone Number ID" value={leadCase.ctwa.phone_number_id || "-"} />
-                    </>
-                  ) : (
-                    <p className="text-[12px] leading-5 text-[#64748b]">
-                      No CTWA referral data yet. WhatsApp webhook/API can enrich this block later.
-                    </p>
-                  )}
-                </Panel>
-              </div>
-
               <div className="grid gap-3.5 xl:grid-cols-3">
+                <ManualWhatsAppPanel leadCase={leadCase} />
+
                 <ActionPanel
                   title="Assignment"
                   enabled={runtime.actionsEnabled}
@@ -438,10 +413,16 @@ export default async function CrmLeadDetailPage({
 
                 <TimelinePanel interactions={bundle.interactions} />
                 <Placeholder title="Quick Replies" body="Brand-approved replies will be selectable here later." />
-                <Placeholder title="AI Reply Suggestions" body="AI suggestions will use brand knowledge and conversation context later." />
+                <AiDraftPanel drafts={aiReplyDrafts} />
                 <Placeholder title="Brand Knowledge" body="Treatment FAQ, policies, and brand information will support CS and AI responses." />
                 <Placeholder title="Intent / Tagging" body="Inquiry intent, objections, budget, and treatment tags are reserved." />
                 <Placeholder title="Next Best Action" body="Future CRM can recommend WhatsApp follow-up, booking confirmation, or payment reminders." />
+                <MarketingTrackingPanel
+                  leadCase={leadCase}
+                  formToken={bundle.caseRecord?.form_token || "-"}
+                  lostReason={bundle.caseRecord?.lost_reason || "-"}
+                  hasCtwa={hasCtwa}
+                />
               </div>
             </div>
           </div>
@@ -533,6 +514,35 @@ function getBookingMeta(metadata: Record<string, unknown> | null | undefined) {
   };
 }
 
+function getAiReplyDrafts(leadCase: CrmLeadCase, confirmedAppointmentLabel: string) {
+  const brand = leadCase.brandName || "我們";
+  const treatment = leadCase.treatmentOffer || "療程";
+  const preference = leadCase.appointmentLabel || "你填寫的時間";
+  const confirmed =
+    confirmedAppointmentLabel && confirmedAppointmentLabel !== "未有已確認預約"
+      ? confirmedAppointmentLabel
+      : "稍後由同事確認";
+
+  return [
+    {
+      title: "首次跟進",
+      body: `你好，我哋係 ${brand}，收到你對 ${treatment} 嘅登記。想同你確認一下預約資料同時間，方便我哋幫你安排。`,
+    },
+    {
+      title: "確認預約",
+      body: `你好，已幫你記錄 ${treatment}。客人偏好時間：${preference}。CS 確認預約時間：${confirmed}。如需更改時間，可以直接回覆我哋。`,
+    },
+    {
+      title: "未回覆跟進",
+      body: `你好，想再跟進你早前提交嘅 ${treatment} 登記。如果仍然想預約，可以回覆我哋你方便嘅時間。`,
+    },
+    {
+      title: "價錢 / 時間不合適",
+      body: `明白，謝謝你告知。你可以先考慮一下，如果之後想了解 ${treatment} 或其他安排，歡迎再 WhatsApp 我哋。`,
+    },
+  ];
+}
+
 function metadataString(metadata: Record<string, unknown> | null | undefined, key: string) {
   const value = metadata?.[key];
   return typeof value === "string" ? value : "";
@@ -568,6 +578,39 @@ function InfoLine({ label, value }: { label: string; value: string }) {
         {value}
       </dd>
     </div>
+  );
+}
+
+function ManualWhatsAppPanel({ leadCase }: { leadCase: CrmLeadCase }) {
+  return (
+    <section className="rounded-lg border border-[#bbf7d0] bg-[#f0fdf4] p-3.5">
+      <div className="flex items-center justify-between gap-3">
+        <h2 className="text-[13px] font-bold text-[#111827]">
+          Contact / WhatsApp
+        </h2>
+        <span className="rounded-md bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#15803d]">
+          Manual
+        </span>
+      </div>
+      <dl className="mt-3 grid gap-2">
+        <InfoLine label="Phone" value={leadCase.normalizedPhone || leadCase.phone || "-"} />
+        <InfoLine label="Status" value="Open WhatsApp 後，請用 Contact Attempt 記錄結果。" />
+      </dl>
+      {leadCase.whatsappUrl ? (
+        <a
+          href={leadCase.whatsappUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-3 inline-flex h-8 items-center justify-center rounded-md bg-[#16a34a] px-3 text-[11px] font-black text-white transition hover:bg-[#15803d]"
+        >
+          Open WhatsApp
+        </a>
+      ) : (
+        <p className="mt-3 rounded-md bg-white/80 px-3 py-2 text-[11px] font-semibold text-[#64748b]">
+          未有可用 WhatsApp link。這不是 WhatsApp API integration。
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -614,6 +657,98 @@ function ActionPanel({
           {submitLabel}
         </button>
       </form>
+    </section>
+  );
+}
+
+function AiDraftPanel({ drafts }: { drafts: Array<{ title: string; body: string }> }) {
+  return (
+    <section className="rounded-lg border border-[#dbeafe] bg-white p-3.5 xl:col-span-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-bold text-[#111827]">
+            AI 回覆草稿 / 需人手發送
+          </h2>
+          <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
+            暫時是本地模板草稿，未接外部 AI，亦不會自動發送 WhatsApp。
+          </p>
+        </div>
+        <span className="rounded-md bg-[#eff6ff] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#1d4ed8]">
+          Draft only
+        </span>
+      </div>
+      <div className="mt-3 grid gap-2 lg:grid-cols-2">
+        {drafts.map((draft) => (
+          <article key={draft.title} className="rounded-md border border-[#e5e7eb] bg-[#f8fafc] p-3">
+            <p className="text-[11px] font-black text-[#111827]">{draft.title}</p>
+            <p className="mt-1 whitespace-pre-line text-[12px] font-semibold leading-5 text-[#475569]">
+              {draft.body}
+            </p>
+          </article>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function MarketingTrackingPanel({
+  leadCase,
+  formToken,
+  lostReason,
+  hasCtwa,
+}: {
+  leadCase: CrmLeadCase;
+  formToken: string;
+  lostReason: string;
+  hasCtwa: boolean;
+}) {
+  return (
+    <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5 xl:col-span-3">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <h2 className="text-[13px] font-bold text-[#111827]">
+            Marketing / Tracking 資料（內部分析用）
+          </h2>
+          <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
+            這些資料只供報表及 Marketing 分析，不應用來判斷是否已預約。
+          </p>
+        </div>
+        <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
+          Analysis only
+        </span>
+      </div>
+
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <Panel title="Source">
+          <InfoLine label="CRM source" value={leadCase.sourceLabel} />
+          <InfoLine label="Raw source type" value={leadCase.sourceTypeRaw} />
+          <InfoLine label="Landing page" value={leadCase.landingPageSlug || "-"} />
+          <InfoLine label="Form token" value={formToken} />
+          <InfoLine label="Page URL" value={leadCase.pageUrl || "-"} />
+          <InfoLine label="Campaign" value={leadCase.campaignLabel} />
+          <InfoLine label="Ad / Content" value={leadCase.adLabel} />
+          <InfoLine label="Lost reason" value={lostReason} />
+        </Panel>
+
+        <Panel title="CTWA / WhatsApp Ad">
+          {hasCtwa ? (
+            <>
+              <InfoLine label="CTWA Source ID" value={leadCase.ctwa.ctwa_source_id || "-"} />
+              <InfoLine label="CTWA Source URL" value={leadCase.ctwa.ctwa_source_url || "-"} />
+              <InfoLine label="Headline" value={leadCase.ctwa.ctwa_referral_headline || "-"} />
+              <InfoLine label="Body" value={leadCase.ctwa.ctwa_referral_body || "-"} />
+              <InfoLine label="Campaign ID" value={leadCase.ctwa.campaign_id || "-"} />
+              <InfoLine label="Ad Set ID" value={leadCase.ctwa.adset_id || "-"} />
+              <InfoLine label="Ad ID" value={leadCase.ctwa.ad_id || "-"} />
+              <InfoLine label="Phone Number ID" value={leadCase.ctwa.phone_number_id || "-"} />
+            </>
+          ) : (
+            <p className="text-[12px] leading-5 text-[#64748b]">
+              No CTWA referral data yet. WhatsApp webhook/API can enrich this block later.
+            </p>
+          )}
+        </Panel>
+      </div>
     </section>
   );
 }

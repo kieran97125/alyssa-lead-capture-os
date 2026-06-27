@@ -7,6 +7,8 @@
     "utm_content",
     "utm_term",
     "fbclid",
+    "fbp",
+    "fbc",
     "gclid",
     "ttclid",
     "msclkid",
@@ -77,6 +79,24 @@
     return normalizeAttributionFields(output);
   }
 
+  function readCookie(name) {
+    var prefix = name + "=";
+    try {
+      var item = document.cookie
+        .split(";")
+        .map(function (cookie) {
+          return cookie.trim();
+        })
+        .find(function (cookie) {
+          return cookie.indexOf(prefix) === 0;
+        });
+
+      return item ? decodeURIComponent(item.slice(prefix.length)) : "";
+    } catch {
+      return "";
+    }
+  }
+
   function normalizeAttributionFields(input) {
     var output = Object.assign({}, input || {});
 
@@ -117,6 +137,15 @@
       return value ? new URL(value).pathname : window.location.pathname;
     } catch {
       return window.location.pathname;
+    }
+  }
+
+  function getLandingPageSlug(value) {
+    try {
+      var parts = new URL(value).pathname.split("/").filter(Boolean);
+      return parts[0] === "lp" && parts[1] ? parts[1] : "";
+    } catch {
+      return "";
     }
   }
 
@@ -398,6 +427,11 @@
       createId("ses");
 
     var paramPayload = pickParams(searchParams);
+    var fbpCookie = readCookie("_fbp");
+    var fbcCookie = readCookie("_fbc");
+    if (!paramPayload.fbp && fbpCookie) paramPayload.fbp = fbpCookie;
+    if (!paramPayload.fbc && fbcCookie) paramPayload.fbc = fbcCookie;
+    paramPayload = normalizeAttributionFields(paramPayload);
     var firstStored = readStorage(localKey, window.localStorage);
     var latestStored = readStorage(sessionKey, window.sessionStorage);
     var hasCurrentParams = hasKeys(paramPayload);
@@ -415,12 +449,17 @@
       session_id: sessionId,
       brand: brand,
       form_id: formId,
+      form_token: formToken,
       parent_origin: parentOrigin,
+      parent_url: parentPageUrl,
       referrer: document.referrer || "",
       landing_page_url: firstStored && firstStored.landing_page_url ? firstStored.landing_page_url : parentPageUrl,
       current_page_url: parentPageUrl,
+      page_url: parentPageUrl,
+      landing_page_slug: getLandingPageSlug(parentPageUrl),
       page_path: getPathname(parentPageUrl),
       page_title: document.title || "",
+      client_event_id: createId("lh_evt"),
       captured_at: new Date().toISOString()
     };
     var latestTouch = Object.assign({}, basePayload, latestStored || {}, paramPayload, {

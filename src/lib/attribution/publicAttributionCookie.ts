@@ -12,6 +12,8 @@ export const publicAttributionTrackingKeys = [
   "utm_content",
   "utm_term",
   "fbclid",
+  "fbp",
+  "fbc",
   "gclid",
   "ttclid",
   "msclkid",

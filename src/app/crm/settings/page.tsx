@@ -23,6 +23,23 @@ const templateFields = [
   ["Status", "Draft / submitted / approved / rejected"],
 ];
 
+const workflowSettings = [
+  ["CS status labels", "待跟進 / 已聯絡 / 已預約 / 已到店 / No-show / 已流失 / 無效"],
+  ["Contact channels", "phone / WhatsApp / Inbox / other"],
+  ["Follow-up outcomes", "reached / no_answer / replied / pending / other"],
+  ["Lost reasons", "no_reply / price_concern / time_not_fit / location_not_fit / changed_mind / duplicate / other"],
+  ["Invalid reasons", "fake_contact / wrong_number / spam / duplicate / other"],
+  ["Paid status", "unknown / unpaid / paid"],
+];
+
+const replySettings = [
+  ["WhatsApp quick replies", "Future brand-approved manual reply templates"],
+  ["AI reply tone", "Friendly, concise, Hong Kong Traditional Chinese"],
+  ["Booking confirmation", "Future confirmation template by brand and branch"],
+  ["Treatment FAQ replies", "Future treatment-specific FAQ and policy replies"],
+  ["Branch / room options", "Future branch room labels for CS booking confirmation"],
+];
+
 export default async function CrmSettingsPage() {
   const runtime = await getCrmRuntimeStatus();
 
@@ -77,6 +94,28 @@ export default async function CrmSettingsPage() {
                 <ReadOnlyField label="Event Type" value="messages / statuses" />
                 <ReadOnlyField label="Processing" value="Not connected" />
                 <ReadOnlyField label="Raw Payload" value="Stored server-side only" />
+              </div>
+            </SettingsPanel>
+
+            <SettingsPanel
+              title="CS Workflow Settings Foundation"
+              description="Read-only planning view for future app settings. Current CRM uses safe code defaults; no settings are saved from this page."
+            >
+              <div className="grid gap-2">
+                {workflowSettings.map(([label, value]) => (
+                  <ReadOnlyField key={label} label={label} value={value} />
+                ))}
+              </div>
+            </SettingsPanel>
+
+            <SettingsPanel
+              title="Reply Drafts / AI Assist Foundation"
+              description="Planning area for future quick replies and AI-assisted drafts. Nothing is auto-sent and no external AI API is connected here."
+            >
+              <div className="grid gap-2">
+                {replySettings.map(([label, value]) => (
+                  <ReadOnlyField key={label} label={label} value={value} />
+                ))}
               </div>
             </SettingsPanel>
 
