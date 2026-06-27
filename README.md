@@ -108,6 +108,7 @@ CS write actions:
 - CRM Phase 1.7 turns `/crm` into a CS Command Center with daily summary cards, clearer queue filters, priority ordering, today confirmed bookings, and pending show-outcome queues. It reads existing `crm_lead_cases`, `crm_bookings`, and follow-up fields only; no schema change is required.
 - CRM Phase 1.8 adds a CRM conversion overview on `/crm`: total/new/contacting/booked/showed/no-show/lost/invalid counts, contact/booking/show/lost rates, and brand + treatment breakdowns using existing CRM case statuses only.
 - CRM Phase 1.9 adds source quality and campaign outcome reporting on `/crm`: source groups, campaign rows, direct/no-tracking visibility, and lead/contact/book/show/no-show/lost/invalid rates using existing lead attribution and CRM status data only.
+- CRM Phase 2.0 adds an internal outcome feedback preview layer on `/crm` for future booked/showed/no-show/lost/invalid feedback. It shows tracking quality and Meta identifier availability for audit only; no external events are sent.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:
