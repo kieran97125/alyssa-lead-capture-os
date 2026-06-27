@@ -107,6 +107,7 @@ CS write actions:
 - Contact attempt metadata is stored in `crm_interactions.metadata_json` with channel, outcome, note, and next follow-up values. Lost / invalid reasons are stored in existing case metadata and timeline records. No schema change is required for Phase 1.6.
 - CRM Phase 1.7 turns `/crm` into a CS Command Center with daily summary cards, clearer queue filters, priority ordering, today confirmed bookings, and pending show-outcome queues. It reads existing `crm_lead_cases`, `crm_bookings`, and follow-up fields only; no schema change is required.
 - CRM Phase 1.8 adds a CRM conversion overview on `/crm`: total/new/contacting/booked/showed/no-show/lost/invalid counts, contact/booking/show/lost rates, and brand + treatment breakdowns using existing CRM case statuses only.
+- CRM Phase 1.9 adds source quality and campaign outcome reporting on `/crm`: source groups, campaign rows, direct/no-tracking visibility, and lead/contact/book/show/no-show/lost/invalid rates using existing lead attribution and CRM status data only.
 - Show / no-show actions are guarded: the case must already be `booked`, and the confirmed appointment time must have passed.
 
 CRM Phase 2 schema files:

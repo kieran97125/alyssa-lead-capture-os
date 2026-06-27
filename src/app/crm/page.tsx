@@ -16,21 +16,24 @@ import { dateRangeOptions, getLeadRows, parseRange } from "@/lib/data/businessMe
 
 export const dynamic = "force-dynamic";
 
-const tabs = ["Leads", "Bookings", "Contacts", "Follow-up", "Reports"];
+type SummaryTone = "blue" | "emerald" | "amber" | "red" | "purple" | "orange" | "slate";
+type ConversionTone = "blue" | "emerald" | "purple" | "red" | "slate";
+
+const tabs = ["Leads", "預約", "客戶", "跟進", "報表"];
 
 const queueOptions = [
-  ["", "All"],
-  ["new", "New"],
-  ["contacting", "Contacting"],
-  ["booked", "Booked"],
-  ["follow_up_today", "Today follow-up"],
-  ["follow_up_overdue", "Overdue follow-up"],
-  ["today_bookings", "Today bookings"],
-  ["pending_show_outcome", "Pending show outcome"],
-  ["showed", "Showed"],
+  ["", "全部"],
+  ["new", "待跟進"],
+  ["contacting", "已聯絡"],
+  ["booked", "已預約"],
+  ["follow_up_today", "今日要跟"],
+  ["follow_up_overdue", "過期未跟"],
+  ["today_bookings", "今日預約"],
+  ["pending_show_outcome", "待標記到店結果"],
+  ["showed", "已到店"],
   ["no_show", "No-show"],
-  ["lost", "Lost"],
-  ["invalid", "Invalid"],
+  ["lost", "已流失"],
+  ["invalid", "無效"],
 ];
 
 export default async function CrmPage({
@@ -80,6 +83,9 @@ export default async function CrmPage({
   const summary = getCommandCenterSummary(baseFilteredCases);
   const conversion = getConversionOverview(baseFilteredCases);
   const conversionBreakdown = getConversionBreakdown(baseFilteredCases);
+  const sourceQualityRows = getSourceQualityRows(baseFilteredCases);
+  const campaignQualityRows = getCampaignQualityRows(baseFilteredCases);
+  const directSummary = getDirectTrafficSummary(baseFilteredCases);
   const cases = baseFilteredCases
     .filter((item) => (queue ? matchesQueue(item, queue) : true))
     .sort(comparePriority);
@@ -193,6 +199,33 @@ export default async function CrmPage({
             </div>
           </section>
 
+          <section className="border-t border-[#f1f5f9] px-4 py-3">
+            <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-[13px] font-black text-[#111827]">
+                  來源質素 / Channel Outcome
+                </h2>
+                <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
+                  幫 Marketing 睇邊個來源、Campaign、內容帶來真正已預約及到店結果，而不只是表格提交。
+                </p>
+              </div>
+              <div className="grid gap-1 text-[10px] font-bold text-[#64748b] sm:text-right">
+                <span>直接 / 無追蹤：{directSummary.leads} leads</span>
+                <span>佔目前範圍 {formatPercent(directSummary.share)}</span>
+              </div>
+            </div>
+
+            <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <ConversionMetric label="直接 Leads" value={directSummary.leads} tone="red" />
+              <ConversionMetric label="直接佔比" value={formatPercent(directSummary.share)} tone="red" />
+              <ConversionMetric label="直接已預約" value={directSummary.booked} tone="emerald" />
+              <ConversionMetric label="直接已到店" value={directSummary.showed} tone="purple" />
+            </div>
+
+            <SourceQualityTable rows={sourceQualityRows} />
+            <CampaignQualityTable rows={campaignQualityRows} />
+          </section>
+
           <div className="flex min-w-0 flex-col gap-2 border-t border-[#f1f5f9] px-4 py-2 xl:flex-row xl:items-center xl:justify-between">
             <nav className="flex gap-0.5 overflow-x-auto">
               {tabs.map((tab, index) => (
@@ -290,6 +323,133 @@ export default async function CrmPage({
   );
 }
 
+function SourceQualityTable({ rows }: { rows: SourceQualityRow[] }) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
+      <div className="border-b border-[#eef2f6] px-3 py-2">
+        <h3 className="text-[12px] font-black text-[#111827]">來源群組質素</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[1120px] text-left text-[11px]">
+          <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+            <tr>
+              <th className="px-3 py-2">來源群組</th>
+              <th className="px-3 py-2">Lead</th>
+              <th className="px-3 py-2">有效</th>
+              <th className="px-3 py-2">已聯絡</th>
+              <th className="px-3 py-2">已預約</th>
+              <th className="px-3 py-2">已到店</th>
+              <th className="px-3 py-2">No-show</th>
+              <th className="px-3 py-2">已流失</th>
+              <th className="px-3 py-2">無效</th>
+              <th className="px-3 py-2">聯絡率</th>
+              <th className="px-3 py-2">預約率</th>
+              <th className="px-3 py-2">到店率</th>
+              <th className="px-3 py-2">流失率</th>
+              <th className="px-3 py-2">無效率</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row) => (
+                <tr
+                  key={row.key}
+                  className={`border-t border-[#eef2f6] ${
+                    row.isDirect ? "bg-red-50/45" : ""
+                  }`}
+                >
+                  <td className="px-3 py-2">
+                    <span className="font-bold text-[#111827]">{row.label}</span>
+                    {row.isDirect ? (
+                      <span className="ml-2 rounded bg-red-100 px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] text-red-700">
+                        追蹤較弱
+                      </span>
+                    ) : null}
+                    <span className="block text-[10px] font-semibold text-[#64748b]">
+                      {row.meta}
+                    </span>
+                  </td>
+                  <NumberCell value={row.leads} />
+                  <NumberCell value={row.validLeads} />
+                  <NumberCell value={row.contacted} />
+                  <NumberCell value={row.booked} />
+                  <NumberCell value={row.showed} />
+                  <NumberCell value={row.noShow} />
+                  <NumberCell value={row.lost} />
+                  <NumberCell value={row.invalid} />
+                  <NumberCell value={formatPercent(row.contactRate)} />
+                  <NumberCell value={formatPercent(row.bookingRate)} />
+                  <NumberCell value={formatPercent(row.showRate)} />
+                  <NumberCell value={formatPercent(row.lostRate)} />
+                  <NumberCell value={formatPercent(row.invalidRate)} />
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={14} className="px-3 py-6 text-center text-[#64748b]">
+                  這個日期範圍未有來源質素資料。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function CampaignQualityTable({ rows }: { rows: CampaignQualityRow[] }) {
+  return (
+    <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
+      <div className="border-b border-[#eef2f6] px-3 py-2">
+        <h3 className="text-[12px] font-black text-[#111827]">Campaign 質素</h3>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="min-w-[880px] text-left text-[11px]">
+          <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+            <tr>
+              <th className="px-3 py-2">Campaign</th>
+              <th className="px-3 py-2">來源 / Medium</th>
+              <th className="px-3 py-2">Lead</th>
+              <th className="px-3 py-2">已預約</th>
+              <th className="px-3 py-2">已到店</th>
+              <th className="px-3 py-2">已流失</th>
+              <th className="px-3 py-2">預約率</th>
+              <th className="px-3 py-2">到店率</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.length > 0 ? (
+              rows.map((row) => (
+                <tr key={row.key} className="border-t border-[#eef2f6]">
+                  <td className="px-3 py-2 font-bold text-[#111827]">{row.campaign}</td>
+                  <td className="px-3 py-2 font-semibold text-[#475569]">{row.source}</td>
+                  <NumberCell value={row.leads} />
+                  <NumberCell value={row.booked} />
+                  <NumberCell value={row.showed} />
+                  <NumberCell value={row.lost} />
+                  <NumberCell value={formatPercent(row.bookingRate)} />
+                  <NumberCell value={formatPercent(row.showRate)} />
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan={8} className="px-3 py-6 text-center text-[#64748b]">
+                  這個日期範圍未有 Campaign 質素資料。
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
+
+function NumberCell({ value }: { value: number | string }) {
+  return <td className="px-3 py-2 font-semibold text-[#111827]">{value}</td>;
+}
+
 function applyBookingToCase(item: CrmLeadCase, booking: CrmBookingRecord | null): CrmLeadCase {
   if (!booking) return item;
   const bookingLabel =
@@ -328,9 +488,9 @@ function SummaryCard({
 }: {
   label: string;
   value: number;
-  tone: "blue" | "emerald" | "amber" | "red" | "purple" | "orange" | "slate";
+  tone: SummaryTone;
 }) {
-  const toneClass: Record<typeof tone, string> = {
+  const toneClass: Record<SummaryTone, string> = {
     blue: "border-blue-100 bg-blue-50 text-blue-800",
     emerald: "border-emerald-100 bg-emerald-50 text-emerald-800",
     amber: "border-amber-100 bg-amber-50 text-amber-800",
@@ -357,9 +517,9 @@ function ConversionMetric({
 }: {
   label: string;
   value: number | string;
-  tone?: "blue" | "emerald" | "purple" | "red" | "slate";
+  tone?: ConversionTone;
 }) {
-  const toneClass: Record<typeof tone, string> = {
+  const toneClass: Record<ConversionTone, string> = {
     blue: "border-blue-100 bg-blue-50 text-blue-800",
     emerald: "border-emerald-100 bg-emerald-50 text-emerald-800",
     purple: "border-purple-100 bg-purple-50 text-purple-800",
@@ -397,7 +557,6 @@ function getConversionOverview(cases: CrmLeadCase[]) {
     "lost",
   ]);
   const bookingOrOutcome = countStatuses(validCases, ["booked", "showed", "no_show"]);
-  const showDenominator = bookingOrOutcome;
 
   return {
     totalLeads,
@@ -411,26 +570,13 @@ function getConversionOverview(cases: CrmLeadCase[]) {
     invalid,
     contactRate: safeRate(contactedOrOutcome, validLeads),
     bookingRate: safeRate(bookingOrOutcome, validLeads),
-    showRate: safeRate(showed, showDenominator),
+    showRate: safeRate(showed, bookingOrOutcome),
     lostRate: safeRate(lost, validLeads),
   };
 }
 
 function getConversionBreakdown(cases: CrmLeadCase[]) {
-  const rows = new Map<
-    string,
-    {
-      key: string;
-      brand: string;
-      treatment: string;
-      leads: number;
-      booked: number;
-      showed: number;
-      lost: number;
-      bookingRate: number;
-      showRate: number;
-    }
-  >();
+  const rows = new Map<string, ConversionBreakdownRow>();
 
   cases.forEach((item) => {
     const key = `${item.brandName}|${item.treatmentOffer}`;
@@ -446,20 +592,10 @@ function getConversionBreakdown(cases: CrmLeadCase[]) {
         lost: 0,
         bookingRate: 0,
         showRate: 0,
-      } satisfies {
-        key: string;
-        brand: string;
-        treatment: string;
-        leads: number;
-        booked: number;
-        showed: number;
-        lost: number;
-        bookingRate: number;
-        showRate: number;
-      });
+      } satisfies ConversionBreakdownRow);
 
     current.leads += 1;
-    if (["booked", "showed", "no_show"].includes(item.status)) current.booked += 1;
+    if (isBookedOutcome(item)) current.booked += 1;
     if (item.status === "showed") current.showed += 1;
     if (item.status === "lost") current.lost += 1;
     rows.set(key, current);
@@ -472,6 +608,214 @@ function getConversionBreakdown(cases: CrmLeadCase[]) {
       showRate: safeRate(row.showed, row.booked),
     }))
     .sort((a, b) => b.leads - a.leads || a.brand.localeCompare(b.brand));
+}
+
+type ConversionBreakdownRow = {
+  key: string;
+  brand: string;
+  treatment: string;
+  leads: number;
+  booked: number;
+  showed: number;
+  lost: number;
+  bookingRate: number;
+  showRate: number;
+};
+
+type SourceQualityRow = {
+  key: string;
+  label: string;
+  meta: string;
+  isDirect: boolean;
+  leads: number;
+  validLeads: number;
+  contacted: number;
+  booked: number;
+  showed: number;
+  noShow: number;
+  lost: number;
+  invalid: number;
+  contactRate: number;
+  bookingRate: number;
+  showRate: number;
+  lostRate: number;
+  invalidRate: number;
+};
+
+type CampaignQualityRow = {
+  key: string;
+  campaign: string;
+  source: string;
+  leads: number;
+  booked: number;
+  showed: number;
+  lost: number;
+  bookingRate: number;
+  showRate: number;
+};
+
+function getSourceQualityRows(cases: CrmLeadCase[]) {
+  const rows = new Map<string, SourceQualityRow>();
+
+  cases.forEach((item) => {
+    const source = getSourceGroup(item);
+    const current =
+      rows.get(source.key) ??
+      ({
+        key: source.key,
+        label: source.label,
+        meta: source.meta,
+        isDirect: source.isDirect,
+        leads: 0,
+        validLeads: 0,
+        contacted: 0,
+        booked: 0,
+        showed: 0,
+        noShow: 0,
+        lost: 0,
+        invalid: 0,
+        contactRate: 0,
+        bookingRate: 0,
+        showRate: 0,
+        lostRate: 0,
+        invalidRate: 0,
+      } satisfies SourceQualityRow);
+
+    current.leads += 1;
+    if (item.status !== "invalid") current.validLeads += 1;
+    if (isContactedOutcome(item)) current.contacted += 1;
+    if (isBookedOutcome(item)) current.booked += 1;
+    if (item.status === "showed") current.showed += 1;
+    if (item.status === "no_show") current.noShow += 1;
+    if (item.status === "lost") current.lost += 1;
+    if (item.status === "invalid") current.invalid += 1;
+    rows.set(source.key, current);
+  });
+
+  return Array.from(rows.values())
+    .map((row) => ({
+      ...row,
+      contactRate: safeRate(row.contacted, row.validLeads),
+      bookingRate: safeRate(row.booked, row.validLeads),
+      showRate: safeRate(row.showed, row.booked),
+      lostRate: safeRate(row.lost, row.validLeads),
+      invalidRate: safeRate(row.invalid, row.leads),
+    }))
+    .sort((a, b) => {
+      if (a.isDirect !== b.isDirect) return a.isDirect ? -1 : 1;
+      return b.leads - a.leads || a.label.localeCompare(b.label);
+    });
+}
+
+function getCampaignQualityRows(cases: CrmLeadCase[]) {
+  const rows = new Map<string, CampaignQualityRow>();
+
+  cases.forEach((item) => {
+    const campaign = normalizeCampaignLabel(item.campaignLabel, item);
+    const source = getSourceGroup(item).label;
+    const key = `${source}|${campaign}`;
+    const current =
+      rows.get(key) ??
+      ({
+        key,
+        campaign,
+        source,
+        leads: 0,
+        booked: 0,
+        showed: 0,
+        lost: 0,
+        bookingRate: 0,
+        showRate: 0,
+      } satisfies CampaignQualityRow);
+
+    current.leads += 1;
+    if (isBookedOutcome(item)) current.booked += 1;
+    if (item.status === "showed") current.showed += 1;
+    if (item.status === "lost") current.lost += 1;
+    rows.set(key, current);
+  });
+
+  return Array.from(rows.values())
+    .map((row) => ({
+      ...row,
+      bookingRate: safeRate(row.booked, row.leads),
+      showRate: safeRate(row.showed, row.booked),
+    }))
+    .sort((a, b) => b.leads - a.leads || a.campaign.localeCompare(b.campaign));
+}
+
+function getDirectTrafficSummary(cases: CrmLeadCase[]) {
+  const directCases = cases.filter((item) => getSourceGroup(item).isDirect);
+  return {
+    leads: directCases.length,
+    share: safeRate(directCases.length, cases.length),
+    booked: directCases.filter(isBookedOutcome).length,
+    showed: directCases.filter((item) => item.status === "showed").length,
+  };
+}
+
+function getSourceGroup(item: CrmLeadCase) {
+  if (isDirectNoTracking(item)) {
+    return {
+      key: "direct-no-tracking",
+      label: "直接 / 無追蹤",
+      meta: "缺少 UTM / click ID / campaign source",
+      isDirect: true,
+    };
+  }
+
+  const source = cleanLabel(item.sourceLabel) || item.sourceTypeRaw || "Unknown source";
+  const campaign = cleanLabel(item.campaignLabel);
+  const ad = cleanLabel(item.adLabel);
+  const metaIds = [
+    item.ctwa.campaign_id ? `campaign_id=${item.ctwa.campaign_id}` : null,
+    item.ctwa.adset_id ? `adset_id=${item.ctwa.adset_id}` : null,
+    item.ctwa.ad_id ? `ad_id=${item.ctwa.ad_id}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ");
+
+  return {
+    key: [source, campaign, ad, metaIds].filter(Boolean).join("|"),
+    label: source,
+    meta: [campaign ? `Campaign: ${campaign}` : null, ad ? `Content: ${ad}` : null, metaIds || null]
+      .filter(Boolean)
+      .join(" / ") || "Tracked source",
+    isDirect: false,
+  };
+}
+
+function normalizeCampaignLabel(label: string, item: CrmLeadCase) {
+  if (isDirectNoTracking(item)) return "直接 / 無追蹤";
+  return cleanLabel(label) || item.ctwa.campaign_id || "未設定 Campaign";
+}
+
+function cleanLabel(value: string | null | undefined) {
+  const text = (value ?? "").trim();
+  if (!text || text === "-" || text.toLowerCase() === "unknown") return "";
+  if (text.includes("未有") || text.includes("直接 / 無追蹤")) return "";
+  return text;
+}
+
+function isDirectNoTracking(item: CrmLeadCase) {
+  const source = `${item.sourceLabel} ${item.sourceTypeRaw}`.toLowerCase();
+  return (
+    source.includes("organic_unknown") ||
+    source.includes("direct") ||
+    source.includes("no tracking") ||
+    item.sourceLabel.includes("直接") ||
+    item.sourceTypeRaw === "unknown"
+  );
+}
+
+function isContactedOutcome(item: CrmLeadCase) {
+  return ["contacting", "contacted", "booked", "showed", "no_show", "lost"].includes(
+    item.status
+  );
+}
+
+function isBookedOutcome(item: CrmLeadCase) {
+  return ["booked", "showed", "no_show"].includes(item.status);
 }
 
 function countStatuses(cases: CrmLeadCase[], statuses: string[]) {
