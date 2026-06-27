@@ -34,14 +34,13 @@ export type CrmStatus =
   | "invalid";
 
 export const crmPipelineStatuses: Array<{ value: CrmStatus; label: string }> = [
-  { value: "pending_follow_up", label: "待跟進" },
-  { value: "contacted", label: "已聯絡" },
+  { value: "new", label: "待跟進" },
+  { value: "contacting", label: "已聯絡" },
   { value: "booked", label: "已預約" },
   { value: "showed", label: "已到店" },
   { value: "no_show", label: "No-show" },
-  { value: "cancelled", label: "已取消" },
-  { value: "no_reply", label: "未回覆" },
   { value: "lost", label: "已流失" },
+  { value: "invalid", label: "無效" },
 ];
 
 export type CrmCtwaFields = {
@@ -195,9 +194,6 @@ function crmDisplaySourceLabel(lead: LeadRow, type: CrmSourceType) {
 export function deriveInitialCrmStatusFromLead(lead: LeadRow): CrmStatus {
   const bookingStatus = lead.booking?.booking_status || lead.booking_status;
   const leadStatus = lead.lead_status;
-  const appointmentDate = lead.booking?.appointment_date || lead.appointment_date;
-  const appointmentTime = lead.booking?.appointment_time || lead.appointment_time;
-  const hasAppointmentEvidence = Boolean(appointmentDate || appointmentTime);
 
   if (leadStatus === "invalid") return "invalid";
   if (leadStatus === "lost") return "lost";
@@ -207,13 +203,11 @@ export function deriveInitialCrmStatusFromLead(lead: LeadRow): CrmStatus {
   if (
     bookingStatus === "confirmed" ||
     bookingStatus === "booked" ||
-    bookingStatus === "rescheduled" ||
-    hasAppointmentEvidence
+    bookingStatus === "rescheduled"
   ) {
     return "booked";
   }
-  if (lead.payment_status === "pending") return "contacted";
-  return "pending_follow_up";
+  return "new";
 }
 
 export function mapCrmStatus(lead: LeadRow): CrmStatus {
@@ -298,7 +292,9 @@ export function toCrmLeadCase(lead: LeadRow): CrmLeadCase {
 export function summarizeCrmCases(cases: CrmLeadCase[]) {
   return {
     total: cases.length,
-    pendingFollowUp: cases.filter((item) => item.status === "pending_follow_up").length,
+    pendingFollowUp: cases.filter((item) =>
+      ["new", "pending_follow_up"].includes(item.status)
+    ).length,
     nextFollowUp: cases.filter((item) => Boolean(item.nextFollowUpAt)).length,
     booked: cases.filter((item) => item.status === "booked").length,
     showed: cases.filter((item) => item.status === "showed").length,

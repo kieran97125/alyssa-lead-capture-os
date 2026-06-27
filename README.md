@@ -99,7 +99,7 @@ CS write actions:
 - Booking: creates or updates `crm_bookings`, links `crm_lead_cases.booking_id` where possible, and writes `crm_interactions`.
 - Follow-up task: creates `crm_follow_up_tasks`, updates `crm_lead_cases.next_follow_up_at`, and writes `crm_interactions`.
 - Lost reason: updates `crm_lead_cases.lost_reason`, sets status to `lost`, writes `crm_status_history`, and writes `crm_interactions`.
-- CRM Phase 1 statuses are `pending_follow_up`, `contacted`, `booked`, `showed`, `no_show`, `cancelled`, `no_reply`, and `lost`.
+- CRM Phase 1 uses the DB-compatible statuses `new`, `contacting`, `booked`, `showed`, `no_show`, `lost`, and `invalid`.
 - Add Note can capture channel, direction, outcome, and next follow-up time. When next follow-up time is set, it also creates a follow-up task.
 - Booking can track booked/showed/no-show/cancelled outcomes and stores paid/unpaid display state in `crm_bookings.metadata_json`.
 
@@ -122,7 +122,7 @@ Safety boundaries:
 
 - Public landing pages, public embed forms, public lead APIs, UTM/source capture, payment semantics, legal consent validation, and Google Sheets sync are unchanged.
 - The original LaunchHub lead record is not modified by CRM bootstrapping.
-- CRM bootstrapping defaults normal landing form / registration leads to `pending_follow_up`. It must not treat `booking_only` payment status as `booked`; `booked` should come only from explicit booking evidence such as a CS booking action, booking date/time, or a reliable booked/rescheduled source state.
+- CRM bootstrapping defaults normal landing form / registration leads to `new` / 待跟進. It must not treat `booking_only` payment status or customer-selected appointment date/time as `booked`; `booked` should come only from an explicit CS booking action or a reliable booked/rescheduled source state.
 - WhatsApp quick replies, brand knowledge editing, and WhatsApp API sends remain future work.
 
 GrowthOS portability:

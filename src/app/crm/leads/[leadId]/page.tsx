@@ -161,11 +161,15 @@ export default async function CrmLeadDetailPage({
                 <InfoLine label="Next follow-up" value={leadCase.nextFollowUpLabel} />
               </Panel>
 
-              <Panel title="Treatment / Booking">
+              <Panel title="Treatment / Preference">
                 <InfoLine label="Offer" value={leadCase.treatmentOffer} />
                 <InfoLine label="Package" value={leadCase.packagePrice} />
                 <InfoLine label="Branch" value={leadCase.branchName} />
-                <InfoLine label="Appointment" value={leadCase.appointmentLabel} />
+                <InfoLine label="客人偏好日期時間" value={leadCase.appointmentLabel} />
+                <InfoLine
+                  label="CS 已確認預約"
+                  value={leadCase.status === "booked" ? "是" : "否"}
+                />
                 <InfoLine label="Created" value={leadCase.createdLabel} />
                 <InfoLine label="Last activity" value={leadCase.lastActivityLabel} />
               </Panel>
@@ -239,14 +243,14 @@ export default async function CrmLeadDetailPage({
                 </ActionPanel>
 
                 <ActionPanel
-                  title="Status Pipeline"
+                  title="CS 跟進狀態"
                   enabled={runtime.actionsEnabled}
                   action={updateStatusAction.bind(null, leadId)}
                   submitLabel="Update status"
                 >
                   <SelectInput
                     name="status"
-                    label="Current status"
+                    label="CS 跟進狀態"
                     defaultValue={leadCase.status}
                     options={crmPipelineStatuses.map((item) => [
                       item.value,
@@ -306,7 +310,7 @@ export default async function CrmLeadDetailPage({
                 </ActionPanel>
 
                 <ActionPanel
-                  title="Booking"
+                  title="CS 已確認預約"
                   enabled={runtime.actionsEnabled}
                   action={saveBookingAction.bind(null, leadId)}
                   submitLabel="Save booking"

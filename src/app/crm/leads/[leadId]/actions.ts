@@ -18,18 +18,12 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import type { CrmStatus } from "@/lib/crm/leadOps";
 
 const allowedStatuses: CrmStatus[] = [
-  "pending_follow_up",
-  "contacted",
-  "cancelled",
-  "no_reply",
-  "lost",
   "new",
   "contacting",
   "booked",
-  "confirmed",
   "showed",
-  "paid",
   "no_show",
+  "lost",
   "invalid",
 ];
 

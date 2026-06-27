@@ -9,7 +9,7 @@ const headings = [
   "Phone",
   "Brand",
   "Treatment / Package",
-  "Appointment",
+  "偏好日期時間",
   "Source",
   "Campaign / Content",
   "Status",
