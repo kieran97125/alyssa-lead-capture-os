@@ -20,14 +20,14 @@ type StatusTone = "green" | "amber" | "blue" | "slate" | "red";
 
 const sections = [
   ["overview", "Overview"],
-  ["brands", "Brand"],
-  ["treatments", "Treatment"],
+  ["brands", "Brand Profile"],
+  ["treatments", "Treatment Menu"],
   ["whatsapp", "WhatsApp"],
   ["ai", "AI Replies"],
-  ["booking", "Booking"],
-  ["inbox", "Inbox"],
-  ["team", "Team"],
-  ["technical", "Developer"],
+  ["booking", "Booking Workflow"],
+  ["inbox", "Inbox Presets"],
+  ["team", "Team Access"],
+  ["technical", "Developer Notes"],
 ] as const;
 
 const overviewItems = [
@@ -108,6 +108,16 @@ const aiMockFields = [
   ["Forbidden claims", "No guaranteed treatment results"],
   ["Price handling rules", "Use approved offer/package wording only"],
   ["Treatment FAQ knowledge source", "Future treatment settings"],
+] as const;
+
+const recommendedSetupOrder = [
+  ["1", "Brand", "確認品牌 profile、法律資料、分店及 WhatsApp 顯示資料。"],
+  ["2", "Treatments", "整理療程 menu、優惠、package、分店可用性及 FAQ 草稿。"],
+  ["3", "Booking rules", "確認 booked / showed / no-show / lost / invalid 的 CS 操作規則。"],
+  ["4", "WhatsApp connection", "目前先用 manual open；日後才接 WhatsApp API。"],
+  ["5", "AI reply templates", "先整理人工審核用草稿，日後才接外部 AI API。"],
+  ["6", "Inbox presets", "決定 CS Booking View、Marketing View 及 Technical Audit View 的欄位。"],
+  ["7", "Team permissions", "最後才定義誰可編輯設定、查看報表及管理 API connection。"],
 ] as const;
 
 const teamPermissionRows = [
@@ -206,7 +216,7 @@ export default async function CrmSettingsPage() {
                 id="overview"
                 eyebrow="Control Center"
                 title="Overview"
-                description="Admin-friendly readiness view. It explains what is active today, what is mock-only, and what needs future setup."
+                description="Admin-friendly readiness view. It explains what is active today, what is mock-only, and the safest setup order."
               >
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {overviewItems.map(([label, status, explanation, nextAction, tone]) => (
@@ -220,13 +230,14 @@ export default async function CrmSettingsPage() {
                     />
                   ))}
                 </div>
+                <RecommendedSetupOrder />
               </SettingsSection>
 
               <SettingsSection
                 id="brands"
                 eyebrow="Brand"
-                title="Brand Settings"
-                description="Brand settings preview. Existing brand data is shown as read-only fields; changes cannot be saved yet."
+                title="Brand Profile & Branch Setup"
+                description="Brand profile, legal entity, contact display, and branch setup preview. Existing data is read-only here."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
                   {brands.map((brand) => (
@@ -242,8 +253,8 @@ export default async function CrmSettingsPage() {
               <SettingsSection
                 id="treatments"
                 eyebrow="Treatment"
-                title="Treatment Settings"
-                description="Treatment settings preview for offers, room needs, FAQ replies, pre-treatment notes, and aftercare notes."
+                title="Treatment Menu / Package Setup"
+                description="Treatment menu, offer/package, branch availability, FAQ, pre-treatment, and aftercare setup preview."
               >
                 <div className="grid gap-3">
                   {treatmentRows.map(({ treatment, brand, packages, branches }) => (
@@ -261,8 +272,8 @@ export default async function CrmSettingsPage() {
               <SettingsSection
                 id="whatsapp"
                 eyebrow="Messaging"
-                title="WhatsApp Settings"
-                description="WhatsApp setup preview. Manual WhatsApp open is the only active behavior."
+                title="WhatsApp Mode, Connection & Templates"
+                description="Connection, template, and manual/API mode preview. Manual WhatsApp open is the only active behavior."
               >
                 <ImportantNotice>
                   目前只會協助 CS 開啟 WhatsApp，訊息仍需人手複製及發送。
@@ -288,8 +299,8 @@ export default async function CrmSettingsPage() {
               <SettingsSection
                 id="ai"
                 eyebrow="AI Assist"
-                title="AI Reply Settings"
-                description="Reply draft settings preview. Templates are manual drafts only."
+                title="AI Reply Tone, Knowledge & Safety"
+                description="Tone, reply knowledge, safety rules, and template draft preview. No external AI API is connected."
               >
                 <ImportantNotice>
                   目前 AI 回覆只係預設草稿，不會自動回覆客人。
@@ -324,7 +335,7 @@ export default async function CrmSettingsPage() {
               <SettingsSection
                 id="booking"
                 eyebrow="Workflow"
-                title="Booking Settings"
+                title="Booking Status, Reasons, Rooms & Rules"
                 description="Booking workflow preview for status labels, paid status, room options, lost/invalid reasons, and follow-up outcomes."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
@@ -350,8 +361,8 @@ export default async function CrmSettingsPage() {
               <SettingsSection
                 id="inbox"
                 eyebrow="Inbox"
-                title="Inbox Settings"
-                description="Inbox preset preview. Current CS Booking View still comes from code defaults."
+                title="Inbox Column Presets & CS View Preferences"
+                description="Inbox column presets and future CS view preferences. Current CS Booking View still comes from code defaults."
               >
                 <div className="grid gap-3 lg:grid-cols-3">
                   {crmSettings.inboxColumnPresets.map((preset) => (
@@ -377,7 +388,7 @@ export default async function CrmSettingsPage() {
               <SettingsSection
                 id="team"
                 eyebrow="Access"
-                title="Team & Permissions"
+                title="Team Roles & Access Control"
                 description="Future team settings preview. This phase does not change login, roles, or permissions."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
@@ -392,7 +403,7 @@ export default async function CrmSettingsPage() {
                 id="technical"
                 eyebrow="Developer"
                 title="Technical / Developer Notes"
-                description="Implementation status and safety boundary. Technical details stay away from CS workflows."
+                description="Implementation status and safety boundary. Technical details stay separated from admin setup and CS workflows."
               >
                 <div className="grid gap-3 lg:grid-cols-2">
                   <TechCard
@@ -408,10 +419,12 @@ export default async function CrmSettingsPage() {
                   <TechCard
                     title="Apply status"
                     rows={[
+                      ["settingsLoader fallback", "Active"],
+                      ["Code defaults", "Active"],
                       ["crm_app_settings SQL proposal", "docs/CRM_PHASE_3_0_EDITABLE_SETTINGS_PLAN.sql"],
-                      ["DB settings table", "Not applied"],
+                      ["SQL proposal status", "Reviewed"],
+                      ["crm_app_settings schema", "Not applied"],
                       ["Live mutation", "Disabled"],
-                      ["Code defaults", "Safety net active"],
                       ["WhatsApp API", "Not connected"],
                       ["External AI API", "Not connected"],
                       ["Meta event sending", "Not connected"],
@@ -500,6 +513,42 @@ function StatusRow({ items }: { items: Array<[string, StatusTone]> }) {
         </StatusBadge>
       ))}
     </div>
+  );
+}
+
+function RecommendedSetupOrder() {
+  return (
+    <article className="mt-3 rounded-lg border border-[#e5e7eb] bg-white p-3">
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[12px] font-black text-[#111827]">
+            Recommended next setup order
+          </p>
+          <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
+            建議先整理業務資料，再處理連接、草稿、欄位同權限；所有項目目前仍然不會儲存。
+          </p>
+        </div>
+        <StatusBadge tone="amber">Save not enabled</StatusBadge>
+      </div>
+      <ol className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+        {recommendedSetupOrder.map(([step, title, body]) => (
+          <li
+            key={step}
+            className="grid grid-cols-[28px_1fr] gap-2 rounded-lg border border-[#eef2f6] bg-[#fbfdff] p-2"
+          >
+            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[#5A2348] text-[11px] font-black text-white">
+              {step}
+            </span>
+            <span>
+              <span className="block text-[12px] font-black text-[#111827]">{title}</span>
+              <span className="mt-0.5 block text-[11px] font-semibold leading-4 text-[#64748b]">
+                {body}
+              </span>
+            </span>
+          </li>
+        ))}
+      </ol>
+    </article>
   );
 }
 
