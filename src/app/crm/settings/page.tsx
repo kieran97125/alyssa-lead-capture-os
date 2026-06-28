@@ -1,15 +1,7 @@
 import { CrmShell } from "@/components/crm/CrmShell";
+import { getCrmSettings } from "@/lib/crm/settingsLoader";
 import { getCrmRuntimeStatus } from "@/lib/crm/store";
-import {
-  contactChannelOptions,
-  followUpOutcomeOptions,
-  invalidReasonOptions,
-  lostReasonOptions,
-  optionTuples,
-  paidStatusOptions,
-  quickReplyTemplates,
-  roomOptionPlaceholders,
-} from "@/lib/crm/settingsConfig";
+import { optionTuples } from "@/lib/crm/settingsConfig";
 import type { ReactNode } from "react";
 
 export const dynamic = "force-dynamic";
@@ -65,25 +57,28 @@ const editableSettingsRoadmap = [
 ];
 
 const fallbackRules = [
-  "Code defaults in src/lib/crm/settingsConfig.ts remain the source of truth today.",
-  "Future DB settings should override defaults only when enabled and valid.",
+  "Phase 3.2B can read DB settings when available, but the DB table is optional.",
+  "Resolution order is brand-level DB override, global DB default, then code defaults.",
   "If DB settings are missing, malformed, or disabled, CRM must fall back to code defaults.",
+  "Code defaults in src/lib/crm/settingsConfig.ts remain the safety net.",
   "Settings must not change booking semantics: preferred appointment time is not a confirmed booking.",
   "Settings must not trigger WhatsApp sends, external AI calls, Meta sends, or public form behavior changes.",
 ];
 
-const configModulePreview = [
-  ["Contact channels", optionTuples(contactChannelOptions).map(([, label]) => label).join(" / ")],
-  ["Follow-up outcomes", optionTuples(followUpOutcomeOptions).map(([, label]) => label).join(" / ")],
-  ["Lost reasons", optionTuples(lostReasonOptions).map(([, label]) => label).join(" / ")],
-  ["Invalid reasons", optionTuples(invalidReasonOptions).map(([, label]) => label).join(" / ")],
-  ["Paid status", optionTuples(paidStatusOptions).map(([, label]) => label).join(" / ")],
-  ["Room placeholders", optionTuples(roomOptionPlaceholders).map(([, label]) => label).join(" / ")],
-  ["Quick replies", quickReplyTemplates.map((item) => item.title).join(" / ")],
-];
-
 export default async function CrmSettingsPage() {
-  const runtime = await getCrmRuntimeStatus();
+  const [runtime, crmSettings] = await Promise.all([
+    getCrmRuntimeStatus(),
+    getCrmSettings(),
+  ]);
+  const configModulePreview = [
+    ["Contact channels", optionTuples(crmSettings.contactChannelOptions).map(([, label]) => label).join(" / ")],
+    ["Follow-up outcomes", optionTuples(crmSettings.followUpOutcomeOptions).map(([, label]) => label).join(" / ")],
+    ["Lost reasons", optionTuples(crmSettings.lostReasonOptions).map(([, label]) => label).join(" / ")],
+    ["Invalid reasons", optionTuples(crmSettings.invalidReasonOptions).map(([, label]) => label).join(" / ")],
+    ["Paid status", optionTuples(crmSettings.paidStatusOptions).map(([, label]) => label).join(" / ")],
+    ["Room placeholders", optionTuples(crmSettings.roomOptionPlaceholders).map(([, label]) => label).join(" / ")],
+    ["Quick replies", crmSettings.quickReplyTemplates.map((item) => item.title).join(" / ")],
+  ];
 
   return (
     <CrmShell active="settings">
@@ -106,6 +101,36 @@ export default async function CrmSettingsPage() {
 
         <div className="min-h-0 flex-1 overflow-auto p-3.5">
           <div className="grid gap-3.5 xl:grid-cols-[1.1fr_0.9fr]">
+            <SettingsPanel
+              title="Active Settings Source"
+              description="Read-only Phase 3.2B loader status. DB config is optional; this page does not save or mutate settings."
+            >
+              <div className="grid gap-2 sm:grid-cols-2">
+                <ReadOnlyField
+                  label="Active source"
+                  value={crmSettings.status.label}
+                />
+                <ReadOnlyField
+                  label="DB attempted"
+                  value={crmSettings.status.dbAttempted ? "Yes" : "No"}
+                />
+                <ReadOnlyField
+                  label="DB available"
+                  value={crmSettings.status.dbAvailable ? "Yes" : "No"}
+                />
+                <ReadOnlyField
+                  label="DB rows loaded"
+                  value={String(crmSettings.status.dbRowsLoaded)}
+                />
+                <div className="sm:col-span-2">
+                  <ReadOnlyField
+                    label="Admin-safe warning"
+                    value={crmSettings.status.warning ?? "No warning"}
+                  />
+                </div>
+              </div>
+            </SettingsPanel>
+
             <SettingsPanel
               title="Editable Settings Layer Preview"
               description="Phase 3.0 is planning and safe foundation only. Nothing on this page writes settings yet."
