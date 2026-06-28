@@ -13,6 +13,7 @@ import {
 } from "@/lib/data/configuration";
 import { getBrandLegalProfileFromSettings } from "@/lib/legal/consent";
 import type { ReactNode } from "react";
+import { QuickRepliesSettingsTable } from "./QuickRepliesSettingsTable";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +21,17 @@ type StatusTone = "green" | "amber" | "blue" | "slate" | "red";
 
 const sections = [
   ["overview", "Overview"],
-  ["brands", "Brand Profile"],
+  ["brand", "Brand Profile"],
   ["treatments", "Treatment Menu"],
   ["whatsapp", "WhatsApp"],
   ["ai", "AI Replies"],
   ["booking", "Booking Workflow"],
   ["inbox", "Inbox Presets"],
   ["team", "Team Access"],
-  ["technical", "Developer Notes"],
+  ["developer", "Developer Notes"],
 ] as const;
+
+type SettingsSectionKey = (typeof sections)[number][0];
 
 const overviewItems = [
   [
@@ -61,16 +64,16 @@ const overviewItems = [
   ],
   [
     "Booking workflow",
-    "Active from code defaults",
-    "CRM 狀態、lost / invalid reason 及跟進選項目前由 code defaults 提供。",
-    "Next: Keep using defaults until DB settings are applied.",
+    "DB settings loaded",
+    "CRM 狀態、lost / invalid reason 及跟進選項目前由 DB settings 讀取，code defaults 保持 fallback。",
+    "Next: Keep these settings read-only until a later phase.",
     "green",
   ],
   [
     "Inbox presets",
-    "Active from code defaults",
-    "CS Booking View 等欄位 preset 目前由 code defaults 控制。",
-    "Next: Save presets in settings DB later.",
+    "DB settings loaded",
+    "CS Booking View 等欄位 preset 目前由 DB settings 讀取，code defaults 保持 fallback。",
+    "Next: Keep presets read-only until a later phase.",
     "green",
   ],
   [
@@ -82,9 +85,9 @@ const overviewItems = [
   ],
   [
     "DB editable settings",
-    "DB settings applied",
-    "crm_app_settings 已套用並完成 default seed；目前只讀取設定，不會儲存修改。",
-    "Next: Enable admin save flow later.",
+    "Quick Replies editable",
+    "crm_app_settings 已套用並完成 default seed；目前只開放 Quick Replies 儲存。",
+    "Next: Enable more admin save flows later.",
     "green",
   ],
 ] as const;
@@ -130,7 +133,18 @@ const teamPermissionRows = [
   ["Who can send messages", "No API sending exists yet"],
 ] as const;
 
-export default async function CrmSettingsPage() {
+export default async function CrmSettingsPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    section?: string | string[];
+    settings_success?: string | string[];
+    settings_error?: string | string[];
+  }>;
+}) {
+  const query = await searchParams;
+  const feedback = getSettingsFeedback(query);
+  const activeSection = getActiveSection(query?.section);
   const [runtime, crmSettings, config] = await Promise.all([
     getCrmRuntimeStatus(),
     getCrmSettings(),
@@ -169,16 +183,16 @@ export default async function CrmSettingsPage() {
                 CRM Settings
               </p>
               <h1 className="mt-1 text-xl font-black text-[#111827]">
-                Settings Editor Mock UX
+                Settings Editor
               </h1>
               <p className="mt-1 text-[12px] font-semibold text-[#64748b]">
-                設定中心預覽。DB default settings 已可讀取；此頁仍然 read-only，不會儲存任何改動。
+                DB default settings 已可讀取；Quick Replies 可以儲存，其他設定仍然 read-only。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge tone="green">{settingsModeBadge}</StatusBadge>
-              <StatusBadge tone="amber">Mock only</StatusBadge>
-              <StatusBadge tone="amber">Save not enabled</StatusBadge>
+              <StatusBadge tone="green">Quick Replies editable</StatusBadge>
+              <StatusBadge tone="amber">Other settings read-only</StatusBadge>
               <StatusBadge tone={runtime.actionsEnabled ? "green" : "amber"}>
                 {runtime.actionsEnabled ? "CS actions enabled" : "Writes disabled"}
               </StatusBadge>
@@ -192,24 +206,31 @@ export default async function CrmSettingsPage() {
         <div className="grid min-h-0 flex-1 lg:grid-cols-[244px_1fr]">
           <aside className="hidden border-r border-[#e5e7eb] bg-white p-3 lg:block">
             <div className="sticky top-3 grid gap-1">
-              {sections.map(([href, label]) => (
-                <a
-                  key={href}
-                  href={`#${href}`}
-                  className="rounded-md px-3 py-2 text-[12px] font-bold text-[#475569] transition hover:bg-[#f1f5f9] hover:text-[#111827]"
-                >
-                  {label}
-                </a>
-              ))}
+              {sections.map(([key, label]) => {
+                const isActive = key === activeSection;
+                return (
+                  <a
+                    key={key}
+                    href={`/crm/settings?section=${key}`}
+                    className={`rounded-md px-3 py-2 text-[12px] font-bold transition ${
+                      isActive
+                        ? "bg-[#5A2348] text-white shadow-sm"
+                        : "text-[#475569] hover:bg-[#f1f5f9] hover:text-[#111827]"
+                    }`}
+                  >
+                    {label}
+                  </a>
+                );
+              })}
               <div className="mt-3 rounded-lg border border-[#fef3c7] bg-[#fffbeb] p-3">
                 <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#92400e]">
                   Safe mode
                 </p>
                 <p className="mt-1 text-[12px] font-bold text-[#111827]">
-                  Save not enabled
+                  Partial save enabled
                 </p>
                 <p className="mt-1 text-[11px] leading-4 text-[#92400e]">
-                  Settings DB is applied and seeded. Changes still cannot be saved; code defaults remain fallback.
+                  Only Quick Replies can be saved. Other settings remain read-only; code defaults remain fallback.
                 </p>
               </div>
             </div>
@@ -217,11 +238,35 @@ export default async function CrmSettingsPage() {
 
           <main className="min-h-0 overflow-auto p-4">
             <div className="mx-auto grid max-w-7xl gap-4">
+              {feedback ? <SettingsFeedback feedback={feedback} /> : null}
+              <div className="flex gap-2 overflow-x-auto rounded-lg border border-[#e5e7eb] bg-white p-2 lg:hidden">
+                {sections.map(([key, label]) => {
+                  const isActive = key === activeSection;
+                  return (
+                    <a
+                      key={key}
+                      href={`/crm/settings?section=${key}`}
+                      className={`shrink-0 rounded-md px-3 py-2 text-[11px] font-black ${
+                        isActive
+                          ? "bg-[#5A2348] text-white"
+                          : "bg-[#f8fafc] text-[#475569]"
+                      }`}
+                    >
+                      {label}
+                    </a>
+                  );
+                })}
+              </div>
+              {activeSection === "overview" ? (
               <SettingsSection
                 id="overview"
                 eyebrow="Control Center"
                 title="Overview"
-                description="Admin-friendly readiness view. It shows DB-backed defaults, read-only editor status, and the safest setup order."
+                description="Admin-friendly readiness view. It shows DB-backed defaults, Quick Replies edit status, and the safest setup order."
+                statusItems={[
+                  ["DB settings loaded", "green"],
+                  ["Quick Replies editable", "green"],
+                ]}
               >
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {overviewItems.map(([label, status, explanation, nextAction, tone]) => (
@@ -237,9 +282,11 @@ export default async function CrmSettingsPage() {
                 </div>
                 <RecommendedSetupOrder />
               </SettingsSection>
+              ) : null}
 
+              {activeSection === "brand" ? (
               <SettingsSection
-                id="brands"
+                id="brand"
                 eyebrow="Brand"
                 title="Brand Profile & Branch Setup"
                 description="Brand profile, legal entity, contact display, and branch setup preview. Existing data is read-only here."
@@ -254,7 +301,9 @@ export default async function CrmSettingsPage() {
                   ))}
                 </div>
               </SettingsSection>
+              ) : null}
 
+              {activeSection === "treatments" ? (
               <SettingsSection
                 id="treatments"
                 eyebrow="Treatment"
@@ -273,7 +322,9 @@ export default async function CrmSettingsPage() {
                   ))}
                 </div>
               </SettingsSection>
+              ) : null}
 
+              {activeSection === "whatsapp" ? (
               <SettingsSection
                 id="whatsapp"
                 eyebrow="Messaging"
@@ -288,7 +339,7 @@ export default async function CrmSettingsPage() {
                     ["Manual only", "blue"],
                     ["API not connected", "amber"],
                     ["Auto-send off", "slate"],
-                    ["Save not enabled", "amber"],
+                    ["AI settings read-only", "amber"],
                   ]}
                 />
                 <div className="grid gap-3 xl:grid-cols-2">
@@ -300,12 +351,18 @@ export default async function CrmSettingsPage() {
                 </div>
                 <DisabledSaveBar />
               </SettingsSection>
+              ) : null}
 
+              {activeSection === "ai" ? (
               <SettingsSection
                 id="ai"
                 eyebrow="AI Assist"
                 title="AI Reply Tone, Knowledge & Safety"
-                description="Tone, reply knowledge, safety rules, and template draft preview. No external AI API is connected."
+                description="Tone, reply knowledge, safety rules, and template draft preview. Quick Replies are the only editable settings in this phase."
+                statusItems={[
+                  ["Quick Replies editable", "green"],
+                  ["Other settings read-only", "amber"],
+                ]}
               >
                 <ImportantNotice>
                   目前 AI 回覆只係預設草稿，不會自動回覆客人。
@@ -318,6 +375,9 @@ export default async function CrmSettingsPage() {
                     ["Save not enabled", "amber"],
                   ]}
                 />
+                <div className="mb-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-[12px] font-semibold leading-5 text-emerald-800">
+                  Quick Replies 目前可以儲存到 DB settings。其他 AI / WhatsApp / workflow settings 仍然 read-only。
+                </div>
                 <div className="grid gap-3 xl:grid-cols-2">
                   {aiMockFields.map(([label, value]) => (
                     <MockInput key={label} label={label} value={value} />
@@ -325,18 +385,13 @@ export default async function CrmSettingsPage() {
                   <MockToggle label="Human approval required" checked />
                   <MockToggle label="Auto-send" checked={false} />
                 </div>
-                <div className="mt-3 grid gap-2 lg:grid-cols-2">
-                  {crmSettings.quickReplyTemplates.slice(0, 4).map((template) => (
-                    <MockTextarea
-                      key={template.key}
-                      label={`${template.group} / ${template.title}`}
-                      value={template.body}
-                    />
-                  ))}
+                <div className="mt-3">
+                  <QuickRepliesSettingsTable templates={crmSettings.quickReplyTemplates} />
                 </div>
-                <DisabledSaveBar />
               </SettingsSection>
+              ) : null}
 
+              {activeSection === "booking" ? (
               <SettingsSection
                 id="booking"
                 eyebrow="Workflow"
@@ -362,12 +417,14 @@ export default async function CrmSettingsPage() {
                 </div>
                 <DisabledSaveBar />
               </SettingsSection>
+              ) : null}
 
+              {activeSection === "inbox" ? (
               <SettingsSection
                 id="inbox"
                 eyebrow="Inbox"
                 title="Inbox Column Presets & CS View Preferences"
-                description="Inbox column presets and future CS view preferences. Current CS Booking View still comes from code defaults."
+                description="Inbox column presets and future CS view preferences. Presets are loaded from DB settings with code fallback."
               >
                 <div className="grid gap-3 lg:grid-cols-3">
                   {crmSettings.inboxColumnPresets.map((preset) => (
@@ -389,7 +446,9 @@ export default async function CrmSettingsPage() {
                 </div>
                 <DisabledSaveBar />
               </SettingsSection>
+              ) : null}
 
+              {activeSection === "team" ? (
               <SettingsSection
                 id="team"
                 eyebrow="Access"
@@ -403,9 +462,11 @@ export default async function CrmSettingsPage() {
                 </div>
                 <DisabledSaveBar />
               </SettingsSection>
+              ) : null}
 
+              {activeSection === "developer" ? (
               <SettingsSection
-                id="technical"
+                id="developer"
                 eyebrow="Developer"
                 title="Technical / Developer Notes"
                 description="Implementation status and safety boundary. Technical details stay separated from admin setup and CS workflows."
@@ -438,6 +499,7 @@ export default async function CrmSettingsPage() {
                   />
                 </div>
               </SettingsSection>
+              ) : null}
             </div>
           </main>
         </div>
@@ -451,14 +513,21 @@ function SettingsSection({
   eyebrow,
   title,
   description,
+  statusItems,
   children,
 }: {
   id: string;
   eyebrow: string;
   title: string;
   description: string;
+  statusItems?: Array<[string, StatusTone]>;
   children: ReactNode;
 }) {
+  const badges = statusItems ?? [
+    ["Mock only", "amber"],
+    ["Save not enabled", "amber"],
+  ] as Array<[string, StatusTone]>;
+
   return (
     <section id={id} className="scroll-mt-4 rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
       <div className="flex flex-col gap-2 border-b border-[#eef2f6] px-4 py-3 lg:flex-row lg:items-start lg:justify-between">
@@ -472,12 +541,36 @@ function SettingsSection({
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <StatusBadge tone="amber">Mock only</StatusBadge>
-          <StatusBadge tone="amber">Save not enabled</StatusBadge>
+          {badges.map(([label, tone]) => (
+            <StatusBadge key={label} tone={tone}>
+              {label}
+            </StatusBadge>
+          ))}
         </div>
       </div>
       <div className="p-4">{children}</div>
     </section>
+  );
+}
+
+function SettingsFeedback({
+  feedback,
+}: {
+  feedback: { tone: StatusTone; title: string; body: string };
+}) {
+  const classes = {
+    green: "border-emerald-100 bg-emerald-50 text-emerald-800",
+    amber: "border-amber-100 bg-amber-50 text-amber-800",
+    blue: "border-blue-100 bg-blue-50 text-blue-800",
+    slate: "border-slate-200 bg-slate-100 text-slate-700",
+    red: "border-red-100 bg-red-50 text-red-700",
+  };
+
+  return (
+    <div className={`rounded-xl border px-4 py-3 ${classes[feedback.tone]}`}>
+      <p className="text-[12px] font-black">{feedback.title}</p>
+      <p className="mt-1 text-[12px] font-semibold leading-5">{feedback.body}</p>
+    </div>
   );
 }
 
@@ -531,10 +624,10 @@ function RecommendedSetupOrder() {
             Recommended next setup order
           </p>
           <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
-            建議先整理業務資料，再處理連接、草稿、欄位同權限；所有項目目前仍然不會儲存。
+            建議先整理業務資料，再處理連接、草稿、欄位同權限；目前只有 Quick Replies 可以儲存。
           </p>
         </div>
-        <StatusBadge tone="amber">Save not enabled</StatusBadge>
+        <StatusBadge tone="green">Quick Replies editable</StatusBadge>
       </div>
       <ol className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
         {recommendedSetupOrder.map(([step, title, body]) => (
@@ -657,7 +750,7 @@ function OptionEditor({
     <article className="rounded-lg border border-[#e5e7eb] bg-white p-3">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[12px] font-black text-[#111827]">{title}</p>
-        <StatusBadge tone="green">Active from code defaults</StatusBadge>
+        <StatusBadge tone="green">Active setting</StatusBadge>
       </div>
       <div className="mt-3 grid gap-2">
         {values.map(([value, label]) => (
@@ -685,7 +778,7 @@ function PresetEditorCard({
       <div className="flex items-start justify-between gap-3">
         <p className="text-[12px] font-black text-[#111827]">{title}</p>
         {active ? (
-          <StatusBadge tone="green">Active from code defaults</StatusBadge>
+          <StatusBadge tone="green">Active setting</StatusBadge>
         ) : (
           <StatusBadge tone="blue">Mock only</StatusBadge>
         )}
@@ -763,7 +856,7 @@ function DisabledSaveBar() {
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#eef2f6] bg-[#f8fafc] px-3 py-2">
       <p className="text-[11px] font-semibold text-[#64748b]">
-        Mock only. Changes cannot be saved yet; active CRM still uses code defaults.
+        Read-only in this phase. Changes cannot be saved here; DB settings and code defaults remain safe fallbacks.
       </p>
       <button
         type="button"
@@ -830,6 +923,54 @@ function settingsSourceTone(source: string): StatusTone {
   if (source === "db_defaults") return "green";
   if (source === "db_unavailable_code_defaults") return "amber";
   return "blue";
+}
+
+function getActiveSection(value: string | string[] | undefined): SettingsSectionKey {
+  const raw = firstParam(value);
+  const match = sections.find(([key]) => key === raw);
+  return match?.[0] ?? "overview";
+}
+
+function getSettingsFeedback(
+  query:
+    | {
+        section?: string | string[];
+        settings_success?: string | string[];
+        settings_error?: string | string[];
+      }
+    | undefined
+) {
+  const success = firstParam(query?.settings_success);
+  if (success === "quick_reply_saved") {
+    return {
+      tone: "green" as const,
+      title: "Quick Reply saved",
+      body: "Quick reply title and message have been updated in DB settings. Lead detail templates will reflect the new wording after refresh.",
+    };
+  }
+
+  const error = firstParam(query?.settings_error);
+  if (!error) return null;
+
+  const messages: Record<string, string> = {
+    label_required: "Template title is required.",
+    body_required: "Message text is required.",
+    quick_reply_not_editable:
+      "This quick reply cannot be edited because it is missing, disabled, or locked.",
+    quick_reply_save_failed:
+      "Quick reply could not be saved. Please check server logs for the safe error summary.",
+  };
+
+  return {
+    tone: "red" as const,
+    title: "Quick Reply not saved",
+    body: messages[error] ?? messages.quick_reply_save_failed,
+  };
+}
+
+function firstParam(value: string | string[] | undefined) {
+  if (Array.isArray(value)) return value[0] ?? "";
+  return value ?? "";
 }
 
 function compactList(values: Array<string | null | undefined>, fallback: string) {

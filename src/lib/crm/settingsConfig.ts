@@ -10,6 +10,8 @@ export type CrmReplyTemplate = {
   title: string;
   useCase: string;
   body: string;
+  enabled?: boolean;
+  updatedAt?: string | null;
   recommendedStatuses?: readonly string[];
 };
 

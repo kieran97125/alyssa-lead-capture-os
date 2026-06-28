@@ -28,6 +28,7 @@ type DbSettingRow = {
   value_json: Record<string, unknown> | null;
   enabled: boolean;
   sort_order: number;
+  updated_at: string | null;
 };
 
 export type CrmSettingsLoaderStatus = {
@@ -84,7 +85,7 @@ export async function getCrmSettings(options: { brandSlug?: string | null } = {}
     const brandSlug = options.brandSlug?.trim().toLowerCase() || "";
     const { data, error } = await supabase
       .from("crm_app_settings")
-      .select("setting_scope, brand_slug, config_group, config_key, label, description, value_json, enabled, sort_order")
+      .select("setting_scope, brand_slug, config_group, config_key, label, description, value_json, enabled, sort_order, updated_at")
       .in("config_group", settingsGroups)
       .or(`setting_scope.eq.global,brand_slug.eq.${brandSlug || "__no_brand__"}`)
       .order("config_group", { ascending: true })
@@ -308,6 +309,8 @@ function rowsToQuickReplies(rows: DbSettingRow[] = []): CrmReplyTemplate[] {
       title: row.label,
       useCase: stringValue(row.value_json?.use_case) || row.description || "Manual CS reply draft.",
       body,
+      enabled: row.enabled,
+      updatedAt: row.updated_at,
       recommendedStatuses: stringArray(row.value_json?.recommended_statuses),
     });
   }
