@@ -22,9 +22,10 @@ import {
   invalidReasonOptions,
   lostReasonOptions,
   optionLabel,
-  optionValues,
   paidStatusOptions,
+  type CrmConfigOption,
 } from "@/lib/crm/settingsConfig";
+import { getCrmSettings } from "@/lib/crm/settingsLoader";
 
 const allowedStatuses: CrmStatus[] = [
   "new",
@@ -35,32 +36,6 @@ const allowedStatuses: CrmStatus[] = [
   "lost",
   "invalid",
 ];
-
-const contactChannels = optionValues(contactChannelOptions);
-const contactOutcomes = optionValues(followUpOutcomeOptions);
-const lostReasonCodes = optionValues(lostReasonOptions);
-const invalidReasonCodes = optionValues(invalidReasonOptions);
-const paidStatusValues = optionValues(paidStatusOptions);
-
-function isContactChannel(value: string): value is (typeof contactChannels)[number] {
-  return (contactChannels as readonly string[]).includes(value);
-}
-
-function isPaidStatus(value: string): value is (typeof paidStatusValues)[number] {
-  return (paidStatusValues as readonly string[]).includes(value);
-}
-
-function isContactOutcome(value: string): value is (typeof contactOutcomes)[number] {
-  return (contactOutcomes as readonly string[]).includes(value);
-}
-
-function isLostReasonCode(value: string): value is (typeof lostReasonCodes)[number] {
-  return (lostReasonCodes as readonly string[]).includes(value);
-}
-
-function isInvalidReasonCode(value: string): value is (typeof invalidReasonCodes)[number] {
-  return (invalidReasonCodes as readonly string[]).includes(value);
-}
 
 async function getWritableCase(leadId: string) {
   const runtime = await getCrmRuntimeStatus();
@@ -185,8 +160,17 @@ export async function recordContactAttemptAction(leadId: string, formData: FormD
     const nextFollowUpAt = parseDateTimeValue(
       safeText(formData.get("next_follow_up_at"), 80)
     );
-    const channel = isContactChannel(rawChannel) ? rawChannel : "whatsapp";
-    const outcome = isContactOutcome(rawOutcome) ? rawOutcome : "pending";
+    const settings = await getCrmSettings({ brandSlug: caseRecord.brand_slug });
+    const contactChannelChoices = mergeOptions(
+      contactChannelOptions,
+      settings.contactChannelOptions
+    );
+    const contactOutcomeChoices = mergeOptions(
+      followUpOutcomeOptions,
+      settings.followUpOutcomeOptions
+    );
+    const channel = optionExists(contactChannelChoices, rawChannel) ? rawChannel : "whatsapp";
+    const outcome = optionExists(contactOutcomeChoices, rawOutcome) ? rawOutcome : "pending";
 
     if (!note) {
       throw new Error("Follow-up note is required.");
@@ -201,7 +185,7 @@ export async function recordContactAttemptAction(leadId: string, formData: FormD
           ? "whatsapp_outbound"
           : "note";
     const body = [
-      `${optionLabel(contactChannelOptions, channel)} attempt: ${optionLabel(followUpOutcomeOptions, outcome)}.`,
+      `${optionLabel(contactChannelChoices, channel)} attempt: ${optionLabel(contactOutcomeChoices, outcome)}.`,
       note,
       nextFollowUpAt ? `Next follow-up: ${nextFollowUpAt}` : null,
     ]
@@ -303,7 +287,9 @@ export async function confirmBookingAction(leadId: string, formData: FormData) {
     const roomArrangement = safeText(formData.get("room_arrangement"), 160);
     const bookingNote = safeText(formData.get("booking_note"), 800);
     const paidStatusRaw = safeText(formData.get("paid_status"), 40) || "unknown";
-    const paidStatus = isPaidStatus(paidStatusRaw)
+    const settings = await getCrmSettings({ brandSlug: caseRecord.brand_slug });
+    const paidStatusChoices = mergeOptions(paidStatusOptions, settings.paidStatusOptions);
+    const paidStatus = optionExists(paidStatusChoices, paidStatusRaw)
       ? paidStatusRaw
       : "unknown";
 
@@ -416,7 +402,12 @@ export async function markNoShowAction(leadId: string) {
 export async function markInvalidAction(leadId: string, formData: FormData) {
   await runCrmAction(leadId, "invalid_saved", async (caseRecord) => {
     const rawReason = safeText(formData.get("invalid_reason_code"), 60);
-    const reasonCode = isInvalidReasonCode(rawReason) ? rawReason : null;
+    const settings = await getCrmSettings({ brandSlug: caseRecord.brand_slug });
+    const invalidReasonChoices = mergeOptions(
+      invalidReasonOptions,
+      settings.invalidReasonOptions
+    );
+    const reasonCode = optionExists(invalidReasonChoices, rawReason) ? rawReason : null;
     const reasonNote = safeText(formData.get("invalid_reason_note"), 800);
 
     if (!reasonCode) {
@@ -426,7 +417,7 @@ export async function markInvalidAction(leadId: string, formData: FormData) {
     const supabase = createSupabaseAdminClient();
     const previousStatus = caseRecord.status;
     const now = new Date().toISOString();
-    const reasonLabel = optionLabel(invalidReasonOptions, reasonCode);
+    const reasonLabel = optionLabel(invalidReasonChoices, reasonCode);
     const body = `Invalid reason: ${reasonLabel}${reasonNote ? `. ${reasonNote}` : ""}`;
 
     const { error: updateError } = await supabase
@@ -582,7 +573,9 @@ export async function createFollowUpTaskAction(leadId: string, formData: FormDat
 export async function saveLostReasonAction(leadId: string, formData: FormData) {
   await runCrmAction(leadId, "lost_reason_saved", async (caseRecord) => {
     const rawReason = safeText(formData.get("lost_reason_code"), 60);
-    const reasonCode = isLostReasonCode(rawReason) ? rawReason : null;
+    const settings = await getCrmSettings({ brandSlug: caseRecord.brand_slug });
+    const lostReasonChoices = mergeOptions(lostReasonOptions, settings.lostReasonOptions);
+    const reasonCode = optionExists(lostReasonChoices, rawReason) ? rawReason : null;
     const reasonNote = safeText(formData.get("lost_reason_note"), 800);
 
     if (!reasonCode) {
@@ -592,7 +585,7 @@ export async function saveLostReasonAction(leadId: string, formData: FormData) {
     const supabase = createSupabaseAdminClient();
     const previousStatus = caseRecord.status;
     const now = new Date().toISOString();
-    const reasonLabel = optionLabel(lostReasonOptions, reasonCode);
+    const reasonLabel = optionLabel(lostReasonChoices, reasonCode);
     const lostReason = `${reasonLabel}${reasonNote ? `: ${reasonNote}` : ""}`;
     const { error: updateError } = await supabase
       .from("crm_lead_cases")
@@ -638,6 +631,20 @@ export async function saveLostReasonAction(leadId: string, formData: FormData) {
       },
     });
   });
+}
+
+function mergeOptions(
+  defaults: readonly CrmConfigOption[],
+  configured: readonly CrmConfigOption[]
+) {
+  const byValue = new Map<string, CrmConfigOption>();
+  for (const option of defaults) byValue.set(option.value, option);
+  for (const option of configured) byValue.set(option.value, option);
+  return Array.from(byValue.values());
+}
+
+function optionExists(options: readonly CrmConfigOption[], value: string) {
+  return options.some((option) => option.value === value);
 }
 
 function parseDateTimeValue(value: string) {

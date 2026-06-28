@@ -2,12 +2,16 @@ import "server-only";
 import { createSupabaseAdminClient, getSupabaseAdminEnvStatus } from "@/lib/supabase/admin";
 import {
   contactChannelOptions,
+  crmInboxPresets,
   followUpOutcomeOptions,
+  getCrmAiReplyDrafts,
   invalidReasonOptions,
   lostReasonOptions,
   paidStatusOptions,
   quickReplyTemplates,
   roomOptionPlaceholders,
+  type CrmInboxPreset,
+  type CrmInboxPresetConfig,
   type CrmConfigOption,
   type CrmReplyTemplate,
 } from "@/lib/crm/settingsConfig";
@@ -44,6 +48,8 @@ export type ResolvedCrmSettings = {
   paidStatusOptions: CrmConfigOption[];
   roomOptionPlaceholders: CrmConfigOption[];
   quickReplyTemplates: CrmReplyTemplate[];
+  aiReplyDraftTemplates: CrmReplyTemplate[];
+  inboxColumnPresets: CrmInboxPresetConfig[];
 };
 
 const settingsGroups = [
@@ -130,6 +136,8 @@ function getCodeDefaultSettings(): Omit<ResolvedCrmSettings, "status"> {
     paidStatusOptions: [...paidStatusOptions],
     roomOptionPlaceholders: [...roomOptionPlaceholders],
     quickReplyTemplates: [...quickReplyTemplates],
+    aiReplyDraftTemplates: [],
+    inboxColumnPresets: [...crmInboxPresets],
   };
 }
 
@@ -194,6 +202,18 @@ function applyDbSettings(
   const quickReplies = rowsToQuickReplies(grouped.get("quick_replies"));
   if (quickReplies.length > 0) {
     next.quickReplyTemplates = quickReplies;
+    changed = true;
+  }
+
+  const aiReplyDrafts = rowsToQuickReplies(grouped.get("ai_reply_drafts"));
+  if (aiReplyDrafts.length > 0) {
+    next.aiReplyDraftTemplates = aiReplyDrafts;
+    changed = true;
+  }
+
+  const inboxPresets = rowsToInboxPresets(grouped.get("inbox_column_presets"));
+  if (inboxPresets.length > 0) {
+    next.inboxColumnPresets = inboxPresets;
     changed = true;
   }
 
@@ -277,6 +297,64 @@ function rowsToQuickReplies(rows: DbSettingRow[] = []): CrmReplyTemplate[] {
   }
 
   return replies;
+}
+
+function rowsToInboxPresets(rows: DbSettingRow[] = []): CrmInboxPresetConfig[] {
+  const allowedKeys: CrmInboxPreset[] = ["cs_booking", "marketing", "technical"];
+  const presets: CrmInboxPresetConfig[] = [];
+
+  for (const row of rows) {
+    const key = row.config_key as CrmInboxPreset;
+    if (!allowedKeys.includes(key) || !row.label) continue;
+    presets.push({
+      key,
+      label: row.label,
+      description:
+        stringValue(row.value_json?.description) ||
+        row.description ||
+        crmInboxPresets.find((preset) => preset.key === key)?.description ||
+        "",
+      enabled: row.enabled,
+    });
+  }
+
+  return presets;
+}
+
+export function getCrmAiReplyDraftsFromSettings(
+  settings: ResolvedCrmSettings,
+  input: {
+    brandName: string;
+    treatmentOffer: string;
+    appointmentPreference: string;
+    confirmedAppointment: string;
+  }
+) {
+  if (settings.aiReplyDraftTemplates.length === 0) {
+    return getCrmAiReplyDrafts(input);
+  }
+
+  return settings.aiReplyDraftTemplates.map((template) => ({
+    key: template.key,
+    title: template.title,
+    body: applyTemplateVariables(template.body, input),
+  }));
+}
+
+function applyTemplateVariables(
+  body: string,
+  input: {
+    brandName: string;
+    treatmentOffer: string;
+    appointmentPreference: string;
+    confirmedAppointment: string;
+  }
+) {
+  return body
+    .replaceAll("{{brandName}}", input.brandName)
+    .replaceAll("{{treatmentOffer}}", input.treatmentOffer)
+    .replaceAll("{{appointmentPreference}}", input.appointmentPreference)
+    .replaceAll("{{confirmedAppointment}}", input.confirmedAppointment);
 }
 
 function stringValue(value: unknown) {

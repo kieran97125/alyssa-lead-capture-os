@@ -13,6 +13,15 @@ export type CrmReplyTemplate = {
   recommendedStatuses?: readonly string[];
 };
 
+export type CrmInboxPreset = "cs_booking" | "marketing" | "technical";
+
+export type CrmInboxPresetConfig = {
+  key: CrmInboxPreset;
+  label: string;
+  description: string;
+  enabled?: boolean;
+};
+
 export const crmStatusOptions = [
   { value: "new", label: "待跟進" },
   { value: "contacting", label: "已聯絡" },
@@ -67,6 +76,24 @@ export const roomOptionPlaceholders = [
   { value: "cwb-room-2", label: "CWB Room 2", enabled: false },
   { value: "tst-room-1", label: "TST Room 1", enabled: false },
 ] as const satisfies readonly CrmConfigOption[];
+
+export const crmInboxPresets: CrmInboxPresetConfig[] = [
+  {
+    key: "cs_booking",
+    label: "CS Booking View",
+    description: "Booking-first CS operation columns.",
+  },
+  {
+    key: "marketing",
+    label: "Marketing View",
+    description: "Source and campaign columns for marketing review.",
+  },
+  {
+    key: "technical",
+    label: "Technical Audit View",
+    description: "CTWA, URL, and tracking-adjacent audit columns.",
+  },
+];
 
 export const quickReplyTemplates: CrmReplyTemplate[] = [
   {

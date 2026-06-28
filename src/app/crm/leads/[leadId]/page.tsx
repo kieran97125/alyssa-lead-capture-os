@@ -11,14 +11,11 @@ import {
   type CrmLeadCase,
 } from "@/lib/crm/leadOps";
 import {
-  contactChannelOptions,
-  followUpOutcomeOptions,
-  getCrmAiReplyDrafts,
-  invalidReasonOptions as configuredInvalidReasonOptions,
-  lostReasonOptions as configuredLostReasonOptions,
+  getCrmAiReplyDraftsFromSettings,
+  getCrmSettings,
+} from "@/lib/crm/settingsLoader";
+import {
   optionTuples,
-  paidStatusOptions,
-  quickReplyTemplates,
   type CrmReplyTemplate,
 } from "@/lib/crm/settingsConfig";
 import {
@@ -90,7 +87,10 @@ export default async function CrmLeadDetailPage({
   if (!lead) notFound();
 
   const baseLeadCase = toCrmLeadCase(lead);
-  const runtime = await getCrmRuntimeStatus();
+  const [runtime, crmSettings] = await Promise.all([
+    getCrmRuntimeStatus(),
+    getCrmSettings({ brandSlug: baseLeadCase.brandSlug }),
+  ]);
   const bootstrappedCase = runtime.actionsEnabled
     ? await bootstrapCrmLeadCaseFromLead(lead)
     : null;
@@ -112,12 +112,15 @@ export default async function CrmLeadDetailPage({
       ? `${bundle.booking.booking_date} ${bundle.booking.booking_time}`
       : "未有已確認預約";
   const canMarkAttendance = runtime.actionsEnabled && leadCase.status === "booked";
-  const aiReplyDrafts = getCrmAiReplyDrafts({
-    brandName: leadCase.brandName,
-    treatmentOffer: leadCase.treatmentOffer,
-    appointmentPreference: leadCase.appointmentLabel,
-    confirmedAppointment: confirmedAppointmentLabel,
-  });
+  const aiReplyDrafts = getCrmAiReplyDraftsFromSettings(
+    crmSettings,
+    {
+      brandName: leadCase.brandName,
+      treatmentOffer: leadCase.treatmentOffer,
+      appointmentPreference: leadCase.appointmentLabel,
+      confirmedAppointment: confirmedAppointmentLabel,
+    }
+  );
 
   return (
     <CrmShell>
@@ -224,13 +227,13 @@ export default async function CrmLeadDetailPage({
                       name="contact_channel"
                       label="Channel"
                       defaultValue="whatsapp"
-                      options={optionTuples(contactChannelOptions)}
+                      options={optionTuples(crmSettings.contactChannelOptions)}
                     />
                     <SelectInput
                       name="contact_outcome"
                       label="Outcome"
                       defaultValue="pending"
-                      options={optionTuples(followUpOutcomeOptions)}
+                      options={optionTuples(crmSettings.followUpOutcomeOptions)}
                     />
                     <TextAreaInput
                       name="contact_note"
@@ -287,7 +290,7 @@ export default async function CrmLeadDetailPage({
                       name="paid_status"
                       label="Paid status"
                       defaultValue={bookingMeta.paidStatus}
-                      options={optionTuples(paidStatusOptions)}
+                      options={optionTuples(crmSettings.paidStatusOptions)}
                     />
                     <TextAreaInput
                       name="booking_note"
@@ -315,7 +318,7 @@ export default async function CrmLeadDetailPage({
                       name="lost_reason_code"
                       label="Reason"
                       defaultValue=""
-                      options={[["", "請選擇原因"], ...optionTuples(configuredLostReasonOptions)]}
+                      options={[["", "請選擇原因"], ...optionTuples(crmSettings.lostReasonOptions)]}
                     />
                     <TextAreaInput
                       name="lost_reason_note"
@@ -335,7 +338,7 @@ export default async function CrmLeadDetailPage({
                       name="invalid_reason_code"
                       label="Reason"
                       defaultValue=""
-                      options={[["", "請選擇原因"], ...optionTuples(configuredInvalidReasonOptions)]}
+                      options={[["", "請選擇原因"], ...optionTuples(crmSettings.invalidReasonOptions)]}
                     />
                     <TextAreaInput
                       name="invalid_reason_note"
@@ -347,7 +350,7 @@ export default async function CrmLeadDetailPage({
 
                 <section id="reply-templates" className="grid gap-3.5">
                   <QuickReplyPanel
-                    templates={quickReplyTemplates}
+                    templates={crmSettings.quickReplyTemplates}
                     status={leadCase.status}
                     whatsappUrl={leadCase.whatsappUrl}
                   />

@@ -4,6 +4,7 @@ import {
   type CrmInboxPreset,
 } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
+import { getCrmSettings } from "@/lib/crm/settingsLoader";
 import {
   summarizeCrmCases,
   toCrmLeadCase,
@@ -95,9 +96,10 @@ export default async function CrmPage({
   const leadLimit = range === "all" ? 5000 : 500;
   const { leads, error } = await getLeadRows(range, leadLimit, { query: search });
   const leadById = new Map(leads.map((lead) => [lead.id, lead]));
-  const [runtime, crmCasesByLeadId] = await Promise.all([
+  const [runtime, crmCasesByLeadId, crmSettings] = await Promise.all([
     getCrmRuntimeStatus(),
     getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id)),
+    getCrmSettings(),
   ]);
   const caseIds = Array.from(crmCasesByLeadId.values()).map((item) => item.id);
   const bookingsByCaseId = await getCrmBookingsByCaseIds(caseIds);
@@ -275,7 +277,7 @@ export default async function CrmPage({
                     className="h-8 rounded-md border border-[#dbe2ea] bg-white px-2 text-[12px] font-semibold text-[#334155]"
                     title="Column preset"
                   >
-                    {crmInboxPresets.map((item) => (
+                    {crmSettings.inboxColumnPresets.map((item) => (
                       <option key={item.key} value={item.key}>
                         {item.label}
                       </option>

@@ -65,6 +65,13 @@ const fallbackRules = [
   "Settings must not trigger WhatsApp sends, external AI calls, Meta sends, or public form behavior changes.",
 ];
 
+const loaderConsumptionPreview = [
+  ["CRM lead detail", "Contact channel, follow-up outcome, lost / invalid reasons, paid status, quick replies, and AI draft templates."],
+  ["CRM inbox", "Column preset labels for CS Booking, Marketing, and Technical Audit views."],
+  ["CRM settings", "Active settings source and fallback status."],
+  ["Server actions", "Validation merges loader-backed options with code defaults so core CS actions stay safe."],
+];
+
 export default async function CrmSettingsPage() {
   const [runtime, crmSettings] = await Promise.all([
     getCrmRuntimeStatus(),
@@ -158,6 +165,17 @@ export default async function CrmSettingsPage() {
                   </li>
                 ))}
               </ul>
+            </SettingsPanel>
+
+            <SettingsPanel
+              title="Loader-backed CRM Screens"
+              description="Phase 3.3 starts consuming settings through the fallback loader while keeping code defaults as the safety net."
+            >
+              <div className="grid gap-2">
+                {loaderConsumptionPreview.map(([label, value]) => (
+                  <ReadOnlyField key={label} label={label} value={value} />
+                ))}
+              </div>
             </SettingsPanel>
 
             <SettingsPanel
