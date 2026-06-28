@@ -16,7 +16,7 @@ import {
   type CrmReplyTemplate,
 } from "@/lib/crm/settingsConfig";
 
-type SettingsSource = "code_defaults" | "db_override" | "db_unavailable_code_defaults";
+type SettingsSource = "code_defaults" | "db_defaults" | "db_override" | "db_unavailable_code_defaults";
 
 type DbSettingRow = {
   setting_scope: string | null;
@@ -86,7 +86,6 @@ export async function getCrmSettings(options: { brandSlug?: string | null } = {}
       .from("crm_app_settings")
       .select("setting_scope, brand_slug, config_group, config_key, label, description, value_json, enabled, sort_order")
       .in("config_group", settingsGroups)
-      .eq("enabled", true)
       .or(`setting_scope.eq.global,brand_slug.eq.${brandSlug || "__no_brand__"}`)
       .order("config_group", { ascending: true })
       .order("sort_order", { ascending: true });
@@ -104,11 +103,11 @@ export async function getCrmSettings(options: { brandSlug?: string | null } = {}
 
     const rows = (Array.isArray(data) ? data : []) as DbSettingRow[];
     const resolved = applyDbSettings(codeDefaults, rows, brandSlug);
-    const hasOverrides = resolved !== codeDefaults;
+    const source = resolveSettingsSource(rows, resolved !== codeDefaults, brandSlug);
 
     return withStatus(resolved, {
-      activeSource: hasOverrides ? "db_override" : "code_defaults",
-      label: hasOverrides ? "DB override" : "Code defaults",
+      activeSource: source,
+      label: settingsSourceLabel(source),
       dbAttempted: true,
       dbAvailable: true,
       dbRowsLoaded: rows.length,
@@ -218,6 +217,23 @@ function applyDbSettings(
   }
 
   return changed ? next : defaults;
+}
+
+function resolveSettingsSource(
+  rows: DbSettingRow[],
+  hasResolvedDbSettings: boolean,
+  brandSlug: string
+): SettingsSource {
+  if (!hasResolvedDbSettings) return "code_defaults";
+  const hasBrandOverride = rows.some((row) => row.enabled && rowScopeRank(row, brandSlug) === 1);
+  return hasBrandOverride ? "db_override" : "db_defaults";
+}
+
+function settingsSourceLabel(source: SettingsSource) {
+  if (source === "db_override") return "DB override + code fallback";
+  if (source === "db_defaults") return "DB default settings + code fallback";
+  if (source === "db_unavailable_code_defaults") return "DB unavailable, using code defaults";
+  return "Code defaults";
 }
 
 function groupResolvedRows(rows: DbSettingRow[], brandSlug: string) {

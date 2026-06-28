@@ -35,7 +35,7 @@ const overviewItems = [
     "Brand setup",
     "Mock only",
     "品牌資料會以現有設定展示，暫時未能在此頁儲存修改。",
-    "Next: Apply settings DB first.",
+    "Next: Review active DB-backed defaults.",
     "blue",
   ],
   [
@@ -82,10 +82,10 @@ const overviewItems = [
   ],
   [
     "DB editable settings",
-    "DB not applied",
-    "crm_app_settings 仍未套用，設定頁不會寫入資料庫。",
-    "Next: Review and apply SQL proposal first.",
-    "amber",
+    "DB settings applied",
+    "crm_app_settings 已套用並完成 default seed；目前只讀取設定，不會儲存修改。",
+    "Next: Enable admin save flow later.",
+    "green",
   ],
 ] as const;
 
@@ -153,6 +153,11 @@ export default async function CrmSettingsPage() {
     ["Contact channels", optionTuples(crmSettings.contactChannelOptions)],
     ["Follow-up outcomes", optionTuples(crmSettings.followUpOutcomeOptions)],
   ] as const;
+  const settingsModeBadge =
+    crmSettings.status.activeSource === "db_defaults" ||
+    crmSettings.status.activeSource === "db_override"
+      ? "DB settings loaded"
+      : "Code defaults fallback";
 
   return (
     <CrmShell active="settings">
@@ -167,11 +172,11 @@ export default async function CrmSettingsPage() {
                 Settings Editor Mock UX
               </h1>
               <p className="mt-1 text-[12px] font-semibold text-[#64748b]">
-                設定中心預覽。現時 CRM 仍使用 code defaults；此頁只展示未來可編輯設定，不會儲存任何改動。
+                設定中心預覽。DB default settings 已可讀取；此頁仍然 read-only，不會儲存任何改動。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge tone="green">Active from code defaults</StatusBadge>
+              <StatusBadge tone="green">{settingsModeBadge}</StatusBadge>
               <StatusBadge tone="amber">Mock only</StatusBadge>
               <StatusBadge tone="amber">Save not enabled</StatusBadge>
               <StatusBadge tone={runtime.actionsEnabled ? "green" : "amber"}>
@@ -204,7 +209,7 @@ export default async function CrmSettingsPage() {
                   Save not enabled
                 </p>
                 <p className="mt-1 text-[11px] leading-4 text-[#92400e]">
-                  Changes cannot be saved yet. Code defaults remain active until the settings DB is applied.
+                  Settings DB is applied and seeded. Changes still cannot be saved; code defaults remain fallback.
                 </p>
               </div>
             </div>
@@ -216,7 +221,7 @@ export default async function CrmSettingsPage() {
                 id="overview"
                 eyebrow="Control Center"
                 title="Overview"
-                description="Admin-friendly readiness view. It explains what is active today, what is mock-only, and the safest setup order."
+                description="Admin-friendly readiness view. It shows DB-backed defaults, read-only editor status, and the safest setup order."
               >
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {overviewItems.map(([label, status, explanation, nextAction, tone]) => (
@@ -420,10 +425,11 @@ export default async function CrmSettingsPage() {
                     title="Apply status"
                     rows={[
                       ["settingsLoader fallback", "Active"],
-                      ["Code defaults", "Active"],
+                      ["Code defaults", "Active fallback"],
                       ["crm_app_settings SQL proposal", "docs/CRM_PHASE_3_0_EDITABLE_SETTINGS_PLAN.sql"],
-                      ["SQL proposal status", "Reviewed"],
-                      ["crm_app_settings schema", "Not applied"],
+                      ["SQL proposal status", "Applied manually"],
+                      ["crm_app_settings schema", "Applied"],
+                      ["Default settings seed", "Applied manually"],
                       ["Live mutation", "Disabled"],
                       ["WhatsApp API", "Not connected"],
                       ["External AI API", "Not connected"],
@@ -821,6 +827,7 @@ function StatusBadge({
 
 function settingsSourceTone(source: string): StatusTone {
   if (source === "db_override") return "green";
+  if (source === "db_defaults") return "green";
   if (source === "db_unavailable_code_defaults") return "amber";
   return "blue";
 }
