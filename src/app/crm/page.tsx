@@ -32,7 +32,7 @@ type ConversionTone = "blue" | "emerald" | "purple" | "red" | "slate";
 type TrackingQualityKey = "strong" | "partial" | "direct" | "missing";
 type ReadinessKey = "ready" | "needs_stronger_tracking" | "crm_only" | "missing_identifiers";
 
-type CrmTabKey = "leads" | "bookings" | "reports";
+type CrmTabKey = "dashboard" | "leads" | "bookings" | "reports";
 
 const tabs: Array<{ key: CrmTabKey; label: string }> = [
   { key: "leads", label: "工作台" },
@@ -158,11 +158,23 @@ export default async function CrmPage({
       : workbenchCases;
   const activeSubTabs = activeTab === "bookings" ? bookingSubTabs : inboxSubTabs;
   const activeQueueOptions = activeTab === "bookings" ? bookingQueueOptions : queueOptions;
+  const dashboardCards = [
+    { label: "Today leads", value: countTodayCreated(baseFilteredCases), href: "/crm?tab=leads" },
+    { label: "Pending follow-up", value: summary.newLeads, href: "/crm?tab=leads&queue=new" },
+    { label: "Today follow-up", value: summary.todayFollowUp, href: "/crm?tab=leads&queue=follow_up_today" },
+    { label: "Overdue follow-up", value: summary.overdueFollowUp, href: "/crm?tab=leads&queue=follow_up_overdue" },
+    { label: "Today bookings", value: summary.todayBookings, href: "/crm?tab=bookings&queue=today_bookings" },
+    { label: "Pending show outcome", value: summary.pendingShowOutcome, href: "/crm?tab=bookings&queue=pending_show_outcome" },
+    { label: "Booked", value: summary.booked, href: "/crm?tab=bookings&queue=booked" },
+    { label: "Showed / No-show", value: conversion.showed + conversion.noShow, href: "/crm?tab=reports" },
+  ];
 
   return (
     <CrmShell
       active={
-        activeTab === "bookings"
+        activeTab === "dashboard"
+          ? "dashboard"
+          : activeTab === "bookings"
           ? "bookings"
           : activeTab === "reports"
             ? "reports"
@@ -178,6 +190,8 @@ export default async function CrmPage({
                   <h1 className="text-[17px] font-black text-[#111827]">
                     {activeTab === "reports"
                       ? "Marketing Reports / 報表"
+                      : activeTab === "dashboard"
+                        ? "Dashboard / 首頁"
                       : activeTab === "bookings"
                         ? "Bookings / 預約"
                         : "Inbox / 工作台"}
@@ -189,12 +203,14 @@ export default async function CrmPage({
                 <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
                   {activeTab === "reports"
                     ? "管理層及 Marketing 用報表；CS 日常工作只需要使用工作台及預約。"
+                    : activeTab === "dashboard"
+                      ? "CRM 首頁總覽：今日 lead、跟進、預約及需要處理的 booking outcome。"
                     : activeTab === "bookings"
                       ? "今日預約、待標記到店結果及已確認預約的操作隊列。"
                       : "CS 每日跟進 Lead、手動開 WhatsApp、確認預約及更新狀態。"}
                 </p>
               </div>
-              {activeTab !== "reports" ? (
+              {activeTab !== "reports" && activeTab !== "dashboard" ? (
                 <div className="flex flex-wrap items-center gap-1.5">
                   <CountChip label="待跟進" value={summary.newLeads} />
                   <CountChip label="今日要跟" value={summary.todayFollowUp} tone="amber" />
@@ -204,7 +220,7 @@ export default async function CrmPage({
               ) : null}
             </div>
 
-            {activeTab !== "reports" ? (
+            {activeTab !== "reports" && activeTab !== "dashboard" ? (
               <div className="mt-3 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
                 <nav className="flex gap-1 overflow-x-auto">
                   {activeSubTabs.map((item) => {
@@ -212,7 +228,7 @@ export default async function CrmPage({
                       ? `/crm?tab=${activeTab}&queue=${item.queue}`
                       : activeTab === "bookings"
                         ? "/crm?tab=bookings"
-                        : "/crm";
+                        : "/crm?tab=leads";
                     const active = queue === item.queue || (!queue && item.queue === "");
                     return (
                       <a
@@ -520,7 +536,9 @@ export default async function CrmPage({
           )}
         </header>
 
-        {activeTab === "reports" ? null : (
+        {activeTab === "dashboard" ? (
+          <CrmDashboardOverview cards={dashboardCards} />
+        ) : activeTab === "reports" ? null : (
           <CrmInboxTable cases={visibleCases} preset={viewPreset} />
         )}
       </div>
@@ -881,6 +899,88 @@ function CountChip({
       <span>{label}</span>
       <span className="tabular-nums">{value}</span>
     </span>
+  );
+}
+
+function CrmDashboardOverview({
+  cards,
+}: {
+  cards: Array<{ label: string; value: number; href: string }>;
+}) {
+  return (
+    <div className="min-h-0 flex-1 overflow-auto bg-[#f8fafc] p-4">
+      <div className="grid gap-4">
+        <section className="rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-sm">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-[15px] font-black text-[#111827]">
+                CRM 今日工作總覽
+              </h2>
+              <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
+                快速查看需要跟進、今日預約及待標記到店結果。技術追蹤資料只放在報表頁。
+              </p>
+            </div>
+            <span className="w-fit rounded-md bg-[#eef2ff] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#4338ca]">
+              CRM Home
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {cards.map((card) => (
+              <a
+                key={card.label}
+                href={card.href}
+                className="rounded-lg border border-[#e5e7eb] bg-[#fbfdff] p-3 transition hover:border-[#c7d2fe] hover:bg-[#f8fafc]"
+              >
+                <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
+                  {card.label}
+                </p>
+                <p className="mt-2 text-2xl font-black tabular-nums text-[#111827]">
+                  {card.value}
+                </p>
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <section className="grid gap-3 lg:grid-cols-2">
+          <QuickLinkCard
+            title="Inbox / 工作台"
+            body="處理新 leads、今日要跟及過期未跟。"
+            href="/crm?tab=leads"
+          />
+          <QuickLinkCard
+            title="Bookings / 預約"
+            body="查看今日預約、已確認預約及待標記到店結果。"
+            href="/crm?tab=bookings"
+          />
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function QuickLinkCard({
+  title,
+  body,
+  href,
+}: {
+  title: string;
+  body: string;
+  href: string;
+}) {
+  return (
+    <a
+      href={href}
+      className="rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-sm transition hover:border-[#c7d2fe] hover:bg-[#fbfdff]"
+    >
+      <p className="text-[13px] font-black text-[#111827]">{title}</p>
+      <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
+        {body}
+      </p>
+      <p className="mt-3 text-[11px] font-black text-[#4338ca]">
+        Open
+      </p>
+    </a>
   );
 }
 
@@ -1645,6 +1745,10 @@ function isToday(value: string | null) {
   );
 }
 
+function countTodayCreated(cases: CrmLeadCase[]) {
+  return cases.filter((item) => isToday(item.createdAt)).length;
+}
+
 function isTodayDateOnly(value: string | null) {
   if (!value) return false;
   const today = new Date();
@@ -1674,6 +1778,7 @@ function normalizeInboxPreset(value: string | string[] | undefined): CrmInboxPre
 
 function normalizeCrmTab(value: string | string[] | undefined): CrmTabKey {
   const tab = Array.isArray(value) ? value[0] : value;
+  if (tab === "dashboard") return "dashboard";
   if (tab === "reports") return "reports";
   return tabs.some((item) => item.key === tab) ? (tab as CrmTabKey) : "leads";
 }
