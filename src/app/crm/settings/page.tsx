@@ -92,13 +92,48 @@ const overviewItems = [
   ],
 ] as const;
 
-const whatsappMockFields = [
-  ["Current mode", "Manual WhatsApp open"],
-  ["API status", "Not connected"],
-  ["Auto-send", "Off"],
-  ["Human approval", "Required"],
-  ["Template sending", "Not enabled"],
-  ["Webhook sync", "Not connected"],
+const whatsappOverviewCards = [
+  ["Current mode", "Manual WhatsApp", "目前仍使用手動開啟 WhatsApp。", "blue"],
+  ["WhatsApp connection", "Not connected yet", "完成連接後，系統可協助同事直接發送已確認訊息。", "amber"],
+  ["Message sending", "Not enabled yet", "訊息發送前仍需同事確認。", "amber"],
+  ["Conversation sync", "Not enabled yet", "對話同步稍後啟用。", "slate"],
+  ["Human approval", "Required", "所有回覆都要由同事檢查後先可以發送。", "green"],
+] as const;
+
+const whatsappProviderOptions = [
+  ["manual", "Manual only", true],
+  ["meta_cloud", "Meta Cloud API", false],
+  ["360dialog", "360dialog", false],
+  ["twilio", "Twilio", false],
+  ["sleekflow", "SleekFlow / other provider", false],
+] as const;
+
+const whatsappConnectionFields = [
+  ["Provider", "Manual only"],
+  ["WhatsApp Business Account ID", "稍後設定"],
+  ["Phone Number ID", "稍後設定"],
+  ["Display phone number", "稍後設定"],
+  ["Webhook URL", "稍後設定"],
+  ["Verify token", "稍後設定"],
+  ["Access token", "稍後設定"],
+  ["App secret", "稍後設定"],
+  ["Template namespace", "稍後設定"],
+  ["Default send mode", "Human approval required"],
+] as const;
+
+const whatsappWebhookFields = [
+  ["Webhook endpoint", "稍後設定"],
+  ["Verification token", "稍後設定"],
+  ["Incoming message sync", "Not active"],
+  ["Delivery status sync", "Not active"],
+] as const;
+
+const whatsappTemplateRows = [
+  ["Booking confirmation", "確認預約後發送", "Planned"],
+  ["Reminder", "預約前提醒", "Planned"],
+  ["No-show follow-up", "未到店後跟進", "Planned"],
+  ["Re-engagement", "長時間未回覆後重新跟進", "Planned"],
+  ["Payment reminder", "需要付款提示時使用", "Planned"],
 ] as const;
 
 const aiMockFields = [
@@ -325,27 +360,113 @@ export default async function CrmSettingsPage({
               <SettingsSection
                 id="whatsapp"
                 eyebrow="Messaging"
-                title="WhatsApp Mode, Connection & Templates"
-                description="Connection, template, and manual mode preview. Manual WhatsApp open is the only active behavior."
+                title="WhatsApp Connection"
+                description="Future WhatsApp connection setup. Manual WhatsApp remains the active mode today."
               >
                 <ImportantNotice>
-                  目前只會協助 CS 開啟 WhatsApp，訊息仍需人手複製及發送。
+                  目前仍使用手動開啟 WhatsApp。完成連接後，系統可協助同事直接發送已確認訊息；訊息發送前仍需同事確認。
                 </ImportantNotice>
-                <StatusRow
-                  items={[
-                    ["Manual only", "blue"],
-                    ["Connection not enabled", "amber"],
-                    ["Auto-send off", "slate"],
-                    ["AI settings view only", "amber"],
-                  ]}
-                />
-                <div className="grid gap-3 xl:grid-cols-2">
-                  {whatsappMockFields.map(([label, value]) => (
-                    <MockInput key={label} label={label} value={value} />
+
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  {whatsappOverviewCards.map(([title, status, body, tone]) => (
+                    <ReadinessCard
+                      key={title}
+                      title={title}
+                      status={status}
+                      explanation={body}
+                      nextAction="View only"
+                      tone={tone}
+                    />
                   ))}
-                  <MockToggle label="Auto-reply" checked={false} />
-                  <MockToggle label="Human approval required" checked />
                 </div>
+
+                <div className="mt-3 grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <div className="grid gap-3">
+                    <SettingsSubsection
+                      title="Provider setup"
+                      description="Choose the future WhatsApp provider. Current selected mode is Manual only."
+                    >
+                      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                        {whatsappProviderOptions.map(([value, label, selected]) => (
+                          <ProviderOption
+                            key={value}
+                            label={label}
+                            selected={selected}
+                          />
+                        ))}
+                      </div>
+                    </SettingsSubsection>
+
+                    <SettingsSubsection
+                      title="Connection details"
+                      description="Fields are prepared for future setup and are not editable yet."
+                    >
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {whatsappConnectionFields.map(([label, value]) => (
+                          <MockInput key={label} label={label} value={value} />
+                        ))}
+                        <MockToggle label="Human approval required" checked />
+                        <MockToggle label="Auto-send default" checked={false} />
+                      </div>
+                    </SettingsSubsection>
+                  </div>
+
+                  <div className="grid content-start gap-3">
+                    <SettingsSubsection
+                      title="Webhook readiness"
+                      description="對話同步稍後啟用；目前不會改動任何現有 webhook 行為。"
+                    >
+                      <div className="grid gap-3">
+                        {whatsappWebhookFields.map(([label, value]) => (
+                          <MockInput key={label} label={label} value={value} />
+                        ))}
+                      </div>
+                    </SettingsSubsection>
+
+                    <SettingsSubsection
+                      title="Test connection"
+                      description="完成連接設定後，可在此測試連線。"
+                    >
+                      <button
+                        type="button"
+                        disabled
+                        className="h-9 w-full rounded-md bg-[#e5e7eb] px-3 text-[12px] font-black text-[#94a3b8]"
+                      >
+                        Test WhatsApp connection
+                      </button>
+                    </SettingsSubsection>
+                  </div>
+                </div>
+
+                <SettingsSubsection
+                  title="Message templates"
+                  description="Future template management. These are planned templates only and are not connected to sending."
+                  className="mt-3"
+                >
+                  <div className="overflow-hidden rounded-lg border border-[#e5e7eb]">
+                    <table className="w-full min-w-[680px] text-left text-[12px]">
+                      <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                        <tr>
+                          <th className="px-3 py-2">Template</th>
+                          <th className="px-3 py-2">Use case</th>
+                          <th className="px-3 py-2">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#eef2f6]">
+                        {whatsappTemplateRows.map(([name, useCase, status]) => (
+                          <tr key={name}>
+                            <td className="px-3 py-2 font-black text-[#111827]">{name}</td>
+                            <td className="px-3 py-2 font-semibold text-[#475569]">{useCase}</td>
+                            <td className="px-3 py-2">
+                              <StatusBadge tone="slate">{status}</StatusBadge>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </SettingsSubsection>
+
                 <DisabledSaveBar />
               </SettingsSection>
               ) : null}
@@ -597,6 +718,63 @@ function ReadinessCard({
         {nextAction}
       </p>
     </article>
+  );
+}
+
+function SettingsSubsection({
+  title,
+  description,
+  className = "",
+  children,
+}: {
+  title: string;
+  description: string;
+  className?: string;
+  children: ReactNode;
+}) {
+  return (
+    <article className={`rounded-lg border border-[#e5e7eb] bg-white p-3 ${className}`}>
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-2">
+        <div>
+          <p className="text-[12px] font-black text-[#111827]">{title}</p>
+          <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
+            {description}
+          </p>
+        </div>
+        <StatusBadge tone="amber">Coming soon</StatusBadge>
+      </div>
+      {children}
+    </article>
+  );
+}
+
+function ProviderOption({
+  label,
+  selected,
+}: {
+  label: string;
+  selected: boolean;
+}) {
+  return (
+    <div
+      className={`rounded-lg border px-3 py-2 ${
+        selected
+          ? "border-[#bbf7d0] bg-[#f0fdf4]"
+          : "border-[#e5e7eb] bg-[#f8fafc]"
+      }`}
+    >
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-[12px] font-black text-[#111827]">{label}</p>
+        <span
+          className={`h-3 w-3 rounded-full border ${
+            selected ? "border-[#16a34a] bg-[#16a34a]" : "border-[#cbd5e1] bg-white"
+          }`}
+        />
+      </div>
+      <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
+        {selected ? "Current mode" : "Future option"}
+      </p>
+    </div>
   );
 }
 
