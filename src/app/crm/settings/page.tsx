@@ -20,47 +20,54 @@ type StatusTone = "green" | "amber" | "blue" | "slate" | "red";
 
 const sections = [
   ["overview", "Overview"],
-  ["brands", "Brand Settings"],
-  ["treatments", "Treatment Settings"],
-  ["whatsapp", "WhatsApp Settings"],
-  ["ai", "AI Reply Settings"],
-  ["booking", "Booking Settings"],
-  ["inbox", "Inbox Settings"],
-  ["team", "Team & Permissions"],
-  ["technical", "Technical Notes"],
+  ["brands", "Brand"],
+  ["treatments", "Treatment"],
+  ["whatsapp", "WhatsApp"],
+  ["ai", "AI Replies"],
+  ["booking", "Booking"],
+  ["inbox", "Inbox"],
+  ["team", "Team"],
+  ["technical", "Developer"],
 ] as const;
 
-const whatsappFields = [
-  ["Connection mode", "Manual open currently active", "green"],
-  ["API provider", "Not connected", "amber"],
-  ["WhatsApp phone number", "Future setting", "slate"],
-  ["Business account ID", "Not connected", "slate"],
-  ["Message templates", "Planned", "blue"],
-  ["Webhook status", "Not connected", "amber"],
-  ["Auto-reply", "Off", "slate"],
-  ["Human approval required", "On", "green"],
+const overviewItems = [
+  ["Brand setup", "Preview only", "blue"],
+  ["Treatment setup", "Preview only", "blue"],
+  ["WhatsApp connection", "Not connected", "amber"],
+  ["AI replies", "Template draft only", "green"],
+  ["Booking workflow", "Code defaults active", "green"],
+  ["Inbox presets", "Code defaults active", "green"],
+  ["Team permissions", "Planned", "slate"],
+  ["DB editable settings", "Not applied", "amber"],
 ] as const;
 
-const aiFields = [
-  ["AI mode", "Template drafts only", "green"],
-  ["External AI API", "Not connected", "amber"],
-  ["Brand tone", "Friendly, concise, Hong Kong Traditional Chinese", "blue"],
-  ["Reply language", "Traditional Chinese / English ready", "blue"],
-  ["Forbidden claims", "No guaranteed treatment results", "green"],
-  ["Price handling rules", "Use approved offer/package wording only", "green"],
-  ["Treatment FAQ knowledge", "Planned settings library", "blue"],
-  ["Human approval required", "On", "green"],
-  ["Auto-send", "Off", "green"],
+const whatsappMockFields = [
+  ["Connection mode", "Manual open currently active"],
+  ["API provider", "Not connected"],
+  ["WhatsApp phone number", "Future setting"],
+  ["Business Account ID", "Not connected"],
+  ["Webhook URL", "Not connected"],
+  ["Message templates", "Planned"],
+] as const;
+
+const aiMockFields = [
+  ["AI mode", "Template draft only"],
+  ["Brand tone", "Friendly, concise, Hong Kong Traditional Chinese"],
+  ["Reply language", "Traditional Chinese"],
+  ["Forbidden claims", "No guaranteed treatment results"],
+  ["Price handling rules", "Use approved offer/package wording only"],
+  ["Treatment FAQ knowledge source", "Future treatment settings"],
+  ["External AI API", "Not connected"],
 ] as const;
 
 const teamPermissionRows = [
-  ["CS role", "Can follow up leads, confirm bookings, mark outcomes, use manual replies."],
-  ["Marketing role", "Can review reports and technical tracking audit when enabled."],
-  ["Admin role", "Can manage settings after editable DB config is applied."],
-  ["Who can edit settings", "Future admin-only mutation boundary."],
-  ["Who can view technical audit", "Future admin / marketing permission."],
-  ["Who can connect WhatsApp API", "Future owner/admin-only permission with secret storage."],
-  ["Who can send messages", "No API sending exists yet. Manual WhatsApp only."],
+  ["CS role", "Follow up leads, confirm bookings, mark outcomes, use manual replies"],
+  ["Marketing role", "Review simple reports and source ranking"],
+  ["Admin role", "Future settings editor access"],
+  ["Who can edit settings", "Future admin-only mutation boundary"],
+  ["Who can view technical audit", "Future admin / marketing permission"],
+  ["Who can connect WhatsApp API", "Future owner/admin-only permission"],
+  ["Who can send messages", "No API sending exists yet"],
 ] as const;
 
 export default async function CrmSettingsPage() {
@@ -78,15 +85,13 @@ export default async function CrmSettingsPage() {
       : [];
     return { treatment, brand, packages, branches };
   });
-  const overviewCards = [
-    ["Brand setup", config.brands.length > 0 ? "Ready from existing data" : "Planned", config.brands.length > 0 ? "green" : "blue"],
-    ["Treatment setup", config.treatments.length > 0 ? "Ready from existing data" : "Planned", config.treatments.length > 0 ? "green" : "blue"],
-    ["WhatsApp connection", "Manual open active / API not connected", "amber"],
-    ["AI reply templates", "Ready from code defaults", "green"],
-    ["Booking workflow", runtime.actionsEnabled ? "CRM actions enabled" : "Read-only / writes disabled", runtime.actionsEnabled ? "green" : "amber"],
-    ["Inbox presets", "Ready from settings loader", "green"],
-    ["Team permissions", "Planned", "blue"],
-    ["DB editable settings", crmSettings.status.dbAvailable ? "DB readable" : "Needs DB settings table", crmSettings.status.dbAvailable ? "green" : "amber"],
+  const bookingOptionGroups = [
+    ["Paid status options", optionTuples(crmSettings.paidStatusOptions)],
+    ["Room options", optionTuples(crmSettings.roomOptionPlaceholders)],
+    ["Lost reasons", optionTuples(crmSettings.lostReasonOptions)],
+    ["Invalid reasons", optionTuples(crmSettings.invalidReasonOptions)],
+    ["Contact channels", optionTuples(crmSettings.contactChannelOptions)],
+    ["Follow-up outcomes", optionTuples(crmSettings.followUpOutcomeOptions)],
   ] as const;
 
   return (
@@ -99,13 +104,14 @@ export default async function CrmSettingsPage() {
                 CRM Settings
               </p>
               <h1 className="mt-1 text-xl font-black text-[#111827]">
-                Settings Control Center
+                Settings Editor Mock UX
               </h1>
               <p className="mt-1 text-[12px] font-semibold text-[#64748b]">
-                管理 CRM 未來可編輯設定的 read-only control center。現階段不會儲存設定、不連接 WhatsApp API、不使用外部 AI。
+                設定中心預覽。欄位以可編輯介面展示，但目前全部為 mock only，未儲存到 DB。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge tone="amber">Mock only / 未啟用儲存</StatusBadge>
               <StatusBadge tone={runtime.actionsEnabled ? "green" : "amber"}>
                 {runtime.actionsEnabled ? "CS actions enabled" : "Writes disabled"}
               </StatusBadge>
@@ -128,15 +134,15 @@ export default async function CrmSettingsPage() {
                   {label}
                 </a>
               ))}
-              <div className="mt-3 rounded-lg border border-[#e5e7eb] bg-[#f8fafc] p-3">
-                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#64748b]">
-                  Active source
+              <div className="mt-3 rounded-lg border border-[#fef3c7] bg-[#fffbeb] p-3">
+                <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#92400e]">
+                  Safe mode
                 </p>
                 <p className="mt-1 text-[12px] font-bold text-[#111827]">
-                  {crmSettings.status.label}
+                  No DB save
                 </p>
-                <p className="mt-1 text-[11px] leading-4 text-[#64748b]">
-                  {crmSettings.status.warning ?? "DB config optional. Code defaults remain fallback."}
+                <p className="mt-1 text-[11px] leading-4 text-[#92400e]">
+                  crm_app_settings table is not required. Code defaults remain the safety net.
                 </p>
               </div>
             </div>
@@ -148,10 +154,10 @@ export default async function CrmSettingsPage() {
                 id="overview"
                 eyebrow="Control Center"
                 title="Overview"
-                description="高層次 readiness view。這裡只顯示狀態，不會儲存或套用任何設定。"
+                description="高層次 readiness cards。全部狀態只供 admin preview，不會執行任何設定更新。"
               >
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {overviewCards.map(([label, status, tone]) => (
+                  {overviewItems.map(([label, status, tone]) => (
                     <ReadinessCard
                       key={label}
                       title={label}
@@ -166,11 +172,11 @@ export default async function CrmSettingsPage() {
                 id="brands"
                 eyebrow="Brand"
                 title="Brand Settings"
-                description="品牌資料目前來自現有設定 / database fallback。未來可由 App Settings 做 brand-level override。"
+                description="Mock editor for brand-level settings. Existing data is shown where available; save is disabled."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
                   {brands.map((brand) => (
-                    <BrandCard
+                    <BrandEditorCard
                       key={brand.id}
                       brand={brand}
                       branches={config.branches.filter((branch) => branch.brandId === brand.id)}
@@ -183,31 +189,18 @@ export default async function CrmSettingsPage() {
                 id="treatments"
                 eyebrow="Treatment"
                 title="Treatment Settings"
-                description="療程、優惠、分店可用性與 FAQ/護理資訊的 future settings surface。現階段只讀現有資料。"
+                description="Mock editor for offer, booking, room, FAQ, pre-treatment, and aftercare settings."
               >
-                <div className="overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
-                  <table className="min-w-full text-left text-[12px]">
-                    <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-                      <tr>
-                        <th className="px-3 py-2">Treatment</th>
-                        <th className="px-3 py-2">Brand</th>
-                        <th className="px-3 py-2">Offer price</th>
-                        <th className="px-3 py-2">Availability</th>
-                        <th className="px-3 py-2">Future settings</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {treatmentRows.map(({ treatment, brand, packages, branches }) => (
-                        <TreatmentRow
-                          key={treatment.id}
-                          treatment={treatment}
-                          brand={brand}
-                          packages={packages}
-                          branches={branches}
-                        />
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="grid gap-3">
+                  {treatmentRows.map(({ treatment, brand, packages, branches }) => (
+                    <TreatmentEditorCard
+                      key={treatment.id}
+                      treatment={treatment}
+                      brand={brand}
+                      packages={packages}
+                      branches={branches}
+                    />
+                  ))}
                 </div>
               </SettingsSection>
 
@@ -215,67 +208,84 @@ export default async function CrmSettingsPage() {
                 id="whatsapp"
                 eyebrow="Messaging"
                 title="WhatsApp Settings"
-                description="目前只支援手動開啟 WhatsApp；未連接 WhatsApp API、Webhook 或自動發送。"
+                description="Future-ready WhatsApp API settings UI. Manual WhatsApp open remains the only active behavior."
               >
                 <ImportantNotice>
-                  目前只支援 CS 手動開啟 WhatsApp，並不代表已連接 WhatsApp API；訊息仍需人手複製及發送。
+                  目前只支援手動開啟 WhatsApp，並未連接 WhatsApp API；訊息仍需人手複製及發送。
                 </ImportantNotice>
-                <FieldGrid fields={whatsappFields} />
+                <div className="grid gap-3 xl:grid-cols-2">
+                  {whatsappMockFields.map(([label, value]) => (
+                    <MockInput key={label} label={label} value={value} />
+                  ))}
+                  <MockToggle label="Auto-reply" checked={false} />
+                  <MockToggle label="Human approval required" checked />
+                </div>
+                <DisabledSaveBar />
               </SettingsSection>
 
               <SettingsSection
                 id="ai"
                 eyebrow="AI Assist"
                 title="AI Reply Settings"
-                description="AI 回覆目前是 template-based draft only。未連接外部 AI API，不會自動發送。"
+                description="Template draft settings UI only. No external AI API, no auto-send."
               >
                 <ImportantNotice>
-                  AI replies are drafts only。CS 必須自行檢查、複製，再用 WhatsApp 手動發送。
+                  AI 回覆只係草稿，必須由 CS 人手檢查、複製及發送。
                 </ImportantNotice>
-                <FieldGrid fields={aiFields} />
+                <div className="grid gap-3 xl:grid-cols-2">
+                  {aiMockFields.map(([label, value]) => (
+                    <MockInput key={label} label={label} value={value} />
+                  ))}
+                  <MockToggle label="Human approval required" checked />
+                  <MockToggle label="Auto-send" checked={false} />
+                </div>
                 <div className="mt-3 grid gap-2 lg:grid-cols-2">
                   {crmSettings.quickReplyTemplates.slice(0, 4).map((template) => (
-                    <PreviewCard
+                    <MockTextarea
                       key={template.key}
-                      title={template.title}
-                      meta={template.group}
-                      body={template.useCase}
+                      label={`${template.group} / ${template.title}`}
+                      value={template.body}
                     />
                   ))}
                 </div>
+                <DisabledSaveBar />
               </SettingsSection>
 
               <SettingsSection
                 id="booking"
                 eyebrow="Workflow"
                 title="Booking Settings"
-                description="Booking-first CS workflow settings。現階段由 settingsLoader + code defaults 提供。"
+                description="Mock editor for CRM status labels, booking rules, paid status, room options, lost/invalid reasons, and follow-up outcomes."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
-                  <OptionPanel title="Paid status options" values={optionTuples(crmSettings.paidStatusOptions)} />
-                  <OptionPanel title="Room options" values={optionTuples(crmSettings.roomOptionPlaceholders)} />
-                  <OptionPanel title="Lost reasons" values={optionTuples(crmSettings.lostReasonOptions)} />
-                  <OptionPanel title="Invalid reasons" values={optionTuples(crmSettings.invalidReasonOptions)} />
-                  <OptionPanel title="Contact channels" values={optionTuples(crmSettings.contactChannelOptions)} />
-                  <OptionPanel title="Follow-up outcomes" values={optionTuples(crmSettings.followUpOutcomeOptions)} />
+                  <MockTextarea
+                    label="Confirm booking rules"
+                    value="Form submission is pending follow-up. Customer preferred date/time is not booked. CS must confirm before status becomes booked."
+                  />
+                  <MockTextarea
+                    label="Show / no-show rules"
+                    value="Show / no-show can only be marked after CS confirmed booking and appointment time has passed."
+                  />
+                  {bookingOptionGroups.map(([title, values]) => (
+                    <OptionEditor key={title} title={title} values={values} />
+                  ))}
+                  <MockTextarea
+                    label="Reminder templates"
+                    value="Future reminder templates by brand, branch, treatment, and confirmed appointment time."
+                  />
                 </div>
-                <div className="mt-3 rounded-lg border border-[#e5e7eb] bg-[#f8fafc] p-3">
-                  <p className="text-[12px] font-bold text-[#111827]">Booking rules</p>
-                  <p className="mt-1 text-[12px] leading-5 text-[#64748b]">
-                    Form submission = 待跟進。客人選擇的日期時間只是偏好；只有 CS 確認後才是已預約。Show / no-show 只可以在已確認預約時間後由 CS 操作。
-                  </p>
-                </div>
+                <DisabledSaveBar />
               </SettingsSection>
 
               <SettingsSection
                 id="inbox"
                 eyebrow="Inbox"
                 title="Inbox Settings"
-                description="Column presets are read through the fallback settings loader. Persistence is planned, not active."
+                description="Mock editor for column presets and future user/team preferences."
               >
                 <div className="grid gap-3 lg:grid-cols-3">
                   {crmSettings.inboxColumnPresets.map((preset) => (
-                    <PresetCard
+                    <PresetEditorCard
                       key={preset.key}
                       title={preset.label}
                       body={preset.description}
@@ -283,30 +293,36 @@ export default async function CrmSettingsPage() {
                     />
                   ))}
                 </div>
-                <div className="mt-3 rounded-lg border border-[#e5e7eb] bg-white p-3">
-                  <FieldLabel label="Default view" value="CS Booking View" />
-                  <FieldLabel label="Future" value="Save user/team column preferences after editable settings table is applied." />
+                <div className="mt-3 grid gap-3 xl:grid-cols-2">
+                  <MockInput label="Default inbox view" value="CS Booking View" />
+                  <MockInput label="Future preference scope" value="User-level or brand-level preset" />
+                  <MockTextarea
+                    label="Column visibility note"
+                    value="Future editable settings can control CS, Marketing, and Technical column presets without changing CRM code."
+                  />
                 </div>
+                <DisabledSaveBar />
               </SettingsSection>
 
               <SettingsSection
                 id="team"
                 eyebrow="Access"
                 title="Team & Permissions"
-                description="Future permission model preview only. No auth or role behavior is changed in this phase."
+                description="Future-ready permission settings UI. No real auth or permission logic changes in this phase."
               >
-                <div className="grid gap-2 lg:grid-cols-2">
+                <div className="grid gap-3 xl:grid-cols-2">
                   {teamPermissionRows.map(([label, value]) => (
-                    <FieldLabel key={label} label={label} value={value} />
+                    <MockInput key={label} label={label} value={value} />
                   ))}
                 </div>
+                <DisabledSaveBar />
               </SettingsSection>
 
               <SettingsSection
                 id="technical"
                 eyebrow="Developer"
                 title="Technical / Developer Notes"
-                description="SQL/apply plan and loader status stay here, away from the main admin UX."
+                description="Implementation status and safety boundary. Technical details stay away from CS workflows."
               >
                 <div className="grid gap-3 lg:grid-cols-2">
                   <TechCard
@@ -322,9 +338,10 @@ export default async function CrmSettingsPage() {
                   <TechCard
                     title="Apply status"
                     rows={[
-                      ["DB settings table", "Not required / not applied by this phase"],
-                      ["SQL proposal", "docs/CRM_PHASE_3_0_EDITABLE_SETTINGS_PLAN.sql"],
+                      ["crm_app_settings SQL proposal", "docs/CRM_PHASE_3_0_EDITABLE_SETTINGS_PLAN.sql"],
+                      ["DB settings table", "Not required yet"],
                       ["Live mutation", "Disabled"],
+                      ["Code defaults", "Safety net active"],
                       ["WhatsApp API", "Not connected"],
                       ["External AI API", "Not connected"],
                       ["Meta event sending", "Not connected"],
@@ -355,14 +372,17 @@ function SettingsSection({
 }) {
   return (
     <section id={id} className="scroll-mt-4 rounded-xl border border-[#e5e7eb] bg-white shadow-sm">
-      <div className="border-b border-[#eef2f6] px-4 py-3">
-        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#64748b]">
-          {eyebrow}
-        </p>
-        <h2 className="mt-1 text-[15px] font-black text-[#111827]">{title}</h2>
-        <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
-          {description}
-        </p>
+      <div className="flex flex-col gap-2 border-b border-[#eef2f6] px-4 py-3 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#64748b]">
+            {eyebrow}
+          </p>
+          <h2 className="mt-1 text-[15px] font-black text-[#111827]">{title}</h2>
+          <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
+            {description}
+          </p>
+        </div>
+        <StatusBadge tone="amber">Mock editor / Coming soon</StatusBadge>
       </div>
       <div className="p-4">{children}</div>
     </section>
@@ -388,7 +408,7 @@ function ReadinessCard({
   );
 }
 
-function BrandCard({
+function BrandEditorCard({
   brand,
   branches,
 }: {
@@ -406,21 +426,32 @@ function BrandCard({
             {brand.slug}
           </p>
         </div>
-        <StatusBadge tone="green">Existing data</StatusBadge>
+        <StatusBadge tone="blue">Preview only</StatusBadge>
       </div>
-      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-        <FieldLabel label="Legal company" value={legalProfile.operatingCompanyName ?? "YISSA GROUP LIMITED"} />
-        <FieldLabel label="Default language" value="zh-HK / Traditional Chinese" />
-        <FieldLabel label="Default WhatsApp" value={brand.whatsappNumber || "Future setting"} />
-        <FieldLabel label="Business hours" value={compactList(branches.map((item) => item.openingHours).filter(Boolean), "Future setting")} />
-        <FieldLabel label="Branches" value={compactList(branches.map((item) => item.name), "No branch configured")} />
-        <FieldLabel label="Booking policy note" value="CS confirmation required before booked status." />
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        <MockInput label="Brand name" value={brand.name} />
+        <MockInput label="Brand slug" value={brand.slug} />
+        <MockInput
+          label="Legal company name"
+          value={legalProfile.operatingCompanyName ?? "YISSA GROUP LIMITED"}
+        />
+        <MockInput label="Default language" value="zh-HK / Traditional Chinese" />
+        <MockInput label="Default WhatsApp contact" value={brand.whatsappNumber || "Future setting"} />
+        <MockTextarea
+          label="Booking policy note"
+          value="CS confirmation is required before a lead becomes booked."
+        />
+        <MockTextarea
+          label="Branch list / display names"
+          value={compactList(branches.map((item) => item.name), "No branch configured")}
+        />
       </div>
+      <DisabledSaveBar />
     </article>
   );
 }
 
-function TreatmentRow({
+function TreatmentEditorCard({
   treatment,
   brand,
   packages,
@@ -432,95 +463,65 @@ function TreatmentRow({
   branches: BranchSetting[];
 }) {
   return (
-    <tr className="border-t border-[#eef2f6]">
-      <td className="px-3 py-2 align-top">
-        <p className="font-black text-[#111827]">{treatment.name}</p>
-        <p className="mt-0.5 font-mono text-[10px] text-[#64748b]">{treatment.slug}</p>
-      </td>
-      <td className="px-3 py-2 align-top font-semibold text-[#475569]">
-        {brand?.name ?? "Unknown brand"}
-      </td>
-      <td className="px-3 py-2 align-top font-semibold text-[#475569]">
-        {packages.length > 0
-          ? packages.map((item) => packagePriceLabel(item)).join(" / ")
-          : "Future offer setting"}
-      </td>
-      <td className="px-3 py-2 align-top font-semibold text-[#475569]">
-        {compactList(branches.map((item) => item.name), "Future branch setting")}
-      </td>
-      <td className="px-3 py-2 align-top text-[11px] leading-5 text-[#64748b]">
-        Duration, room requirement, booking buffer, FAQ replies, pre-treatment notes, aftercare notes.
-      </td>
-    </tr>
-  );
-}
-
-function FieldGrid({
-  fields,
-}: {
-  fields: readonly (readonly [string, string, StatusTone])[];
-}) {
-  return (
-    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-      {fields.map(([label, value, tone]) => (
-        <div key={label} className="rounded-lg border border-[#e5e7eb] bg-[#fbfdff] p-3">
-          <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-            {label}
+    <article className="rounded-lg border border-[#e5e7eb] bg-white p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-[13px] font-black text-[#111827]">{treatment.name}</p>
+          <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
+            {brand?.name ?? "Unknown brand"} / {treatment.slug}
           </p>
-          <div className="mt-2">
-            <StatusBadge tone={tone}>{value}</StatusBadge>
-          </div>
         </div>
-      ))}
-    </div>
+        <StatusBadge tone="blue">Preview only</StatusBadge>
+      </div>
+      <div className="mt-3 grid gap-3 xl:grid-cols-3">
+        <MockInput label="Treatment name" value={treatment.name} />
+        <MockInput label="Offer label" value={packages[0]?.name ?? treatment.name} />
+        <MockInput
+          label="Price"
+          value={packages.length > 0 ? packages.map((item) => packagePriceLabel(item)).join(" / ") : "Future price"}
+        />
+        <MockInput label="Duration" value="Future setting" />
+        <MockInput
+          label="Branch availability"
+          value={compactList(branches.map((item) => item.name), "Future branch setting")}
+        />
+        <MockInput label="Room requirement" value="Future room option" />
+        <MockInput label="Booking buffer" value="Future setting" />
+        <MockTextarea label="FAQ reply" value="Future treatment-specific FAQ reply." />
+        <MockTextarea label="Pre-treatment note" value="Future pre-treatment note." />
+        <MockTextarea label="Aftercare note" value="Future aftercare note." />
+      </div>
+      <DisabledSaveBar />
+    </article>
   );
 }
 
-function OptionPanel({
+function OptionEditor({
   title,
   values,
 }: {
   title: string;
-  values: Array<[string, string]>;
+  values: readonly [string, string][];
 }) {
   return (
     <article className="rounded-lg border border-[#e5e7eb] bg-white p-3">
-      <p className="text-[12px] font-black text-[#111827]">{title}</p>
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[12px] font-black text-[#111827]">{title}</p>
+        <StatusBadge tone="green">Code defaults</StatusBadge>
+      </div>
+      <div className="mt-3 grid gap-2">
         {values.map(([value, label]) => (
-          <span
-            key={value}
-            className="rounded-md bg-[#f1f5f9] px-2 py-1 text-[10px] font-bold text-[#475569]"
-          >
-            {label}
-          </span>
+          <div key={value} className="grid gap-2 sm:grid-cols-[140px_1fr]">
+            <MockInput label="Key" value={value} />
+            <MockInput label="Label" value={label} />
+          </div>
         ))}
       </div>
     </article>
   );
 }
 
-function PreviewCard({
-  title,
-  meta,
-  body,
-}: {
-  title: string;
-  meta: string;
-  body: string;
-}) {
-  return (
-    <article className="rounded-lg border border-[#e5e7eb] bg-[#fbfdff] p-3">
-      <p className="text-[12px] font-black text-[#111827]">{title}</p>
-      <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
-        {meta}
-      </p>
-      <p className="mt-2 text-[12px] leading-5 text-[#475569]">{body}</p>
-    </article>
-  );
-}
-
-function PresetCard({
+function PresetEditorCard({
   title,
   body,
   active,
@@ -533,10 +534,91 @@ function PresetCard({
     <article className="rounded-lg border border-[#e5e7eb] bg-white p-3">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[12px] font-black text-[#111827]">{title}</p>
-        {active ? <StatusBadge tone="green">Default</StatusBadge> : null}
+        {active ? <StatusBadge tone="green">Default</StatusBadge> : <StatusBadge tone="blue">Preset</StatusBadge>}
       </div>
-      <p className="mt-2 text-[12px] leading-5 text-[#64748b]">{body}</p>
+      <MockTextarea label="Column preset notes" value={body} />
+      <button
+        type="button"
+        disabled
+        className="mt-3 h-8 rounded-md bg-[#e5e7eb] px-3 text-[11px] font-black text-[#94a3b8]"
+      >
+        Edit columns coming soon
+      </button>
     </article>
+  );
+}
+
+function MockInput({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+        {label}
+      </span>
+      <input
+        disabled
+        value={value}
+        readOnly
+        className="mt-1.5 h-8 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#475569]"
+      />
+    </label>
+  );
+}
+
+function MockTextarea({ label, value }: { label: string; value: string }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+        {label}
+      </span>
+      <textarea
+        disabled
+        value={value}
+        readOnly
+        rows={3}
+        className="mt-1.5 min-h-20 w-full resize-y rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-2.5 py-2 text-[12px] font-semibold leading-5 text-[#475569]"
+      />
+    </label>
+  );
+}
+
+function MockToggle({ label, checked }: { label: string; checked: boolean }) {
+  return (
+    <div className="rounded-lg border border-[#e5e7eb] bg-[#fbfdff] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[12px] font-black text-[#111827]">{label}</p>
+        <span
+          className={`inline-flex h-5 w-9 items-center rounded-full px-0.5 ${
+            checked ? "bg-emerald-500" : "bg-slate-300"
+          }`}
+        >
+          <span
+            className={`h-4 w-4 rounded-full bg-white transition ${
+              checked ? "translate-x-4" : "translate-x-0"
+            }`}
+          />
+        </span>
+      </div>
+      <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
+        Disabled preview. Future editable setting.
+      </p>
+    </div>
+  );
+}
+
+function DisabledSaveBar() {
+  return (
+    <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#eef2f6] bg-[#f8fafc] px-3 py-2">
+      <p className="text-[11px] font-semibold text-[#64748b]">
+        Mock only. DB settings table not applied yet.
+      </p>
+      <button
+        type="button"
+        disabled
+        className="h-8 rounded-md bg-[#e5e7eb] px-3 text-[11px] font-black text-[#94a3b8]"
+      >
+        Save coming soon
+      </button>
+    </div>
   );
 }
 
@@ -552,23 +634,10 @@ function TechCard({
       <p className="text-[12px] font-black text-[#111827]">{title}</p>
       <div className="mt-3 grid gap-2">
         {rows.map(([label, value]) => (
-          <FieldLabel key={label} label={label} value={value} />
+          <MockInput key={label} label={label} value={value} />
         ))}
       </div>
     </article>
-  );
-}
-
-function FieldLabel({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="rounded-md border border-[#eef2f6] bg-[#f8fafc] px-3 py-2">
-      <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
-        {label}
-      </p>
-      <p className="mt-1 break-words text-[12px] font-semibold leading-5 text-[#111827]">
-        {value}
-      </p>
-    </div>
   );
 }
 
