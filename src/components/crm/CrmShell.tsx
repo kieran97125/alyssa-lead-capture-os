@@ -13,18 +13,19 @@ type CrmSidebarKey =
 
 const sidebarItems: Array<{
   key: CrmSidebarKey;
+  icon: string;
   label: string;
   href: string;
   enabled: boolean;
 }> = [
-  { key: "home", label: "Home / 首頁", href: "/crm", enabled: true },
-  { key: "inbox", label: "Inbox / 工作台", href: "/crm", enabled: true },
-  { key: "bookings", label: "Bookings / 預約", href: "/crm?tab=bookings", enabled: true },
-  { key: "team", label: "Team / 團隊", href: "/crm", enabled: false },
-  { key: "dashboard", label: "Dashboard / 營運總覽", href: "/crm", enabled: false },
-  { key: "reports", label: "Reports / 報表", href: "/crm?tab=reports", enabled: true },
-  { key: "settings", label: "Settings / 設定", href: "/crm/settings", enabled: true },
-  { key: "more", label: "More / 更多", href: "/crm", enabled: false },
+  { key: "home", icon: "H", label: "Home / 首頁", href: "/crm", enabled: true },
+  { key: "inbox", icon: "I", label: "Inbox / 工作台", href: "/crm", enabled: true },
+  { key: "bookings", icon: "B", label: "Bookings / 預約", href: "/crm?tab=bookings", enabled: true },
+  { key: "team", icon: "T", label: "Team / 團隊", href: "/crm", enabled: false },
+  { key: "dashboard", icon: "D", label: "Dashboard / 營運總覽", href: "/crm", enabled: false },
+  { key: "reports", icon: "R", label: "Reports / 報表", href: "/crm?tab=reports", enabled: true },
+  { key: "settings", icon: "S", label: "Settings / 設定", href: "/crm/settings", enabled: true },
+  { key: "more", icon: "+", label: "More / 更多", href: "/crm", enabled: false },
 ];
 
 export function CrmShell({
@@ -35,67 +36,65 @@ export function CrmShell({
   active?: CrmSidebarKey;
 }) {
   return (
-    <main className="min-h-screen bg-[#f5f6f8] text-[#1f2933]">
+    <main className="min-h-screen bg-[#f6f7fb] text-[#1f2933]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[216px] shrink-0 border-r border-[#dfe4ea] bg-[#111827] text-white lg:flex lg:flex-col">
-          <div className="border-b border-white/10 px-4 py-3">
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#9ca3af]">
+        <aside className="hidden w-[218px] shrink-0 border-r border-[#e5e7eb] bg-white text-[#111827] lg:flex lg:flex-col">
+          <div className="border-b border-[#eef2f6] px-4 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5cf6]">
               LeadOps
             </p>
-            <h1 className="mt-1 text-base font-bold">CRM</h1>
+            <h1 className="mt-1 text-[15px] font-black">CRM</h1>
           </div>
-          <nav className="flex-1 space-y-1 px-2.5 py-3">
+          <nav className="flex-1 space-y-0.5 px-2.5 py-3">
             {sidebarItems.map((item) =>
               item.enabled ? (
                 <Link
                   key={item.key}
                   href={item.href}
-                  className={`flex h-9 items-center rounded-lg px-3 text-[13px] font-semibold transition ${
+                  className={`flex h-8 items-center gap-2 rounded-lg px-2.5 text-[12px] font-bold transition ${
                     item.key === active
-                      ? "bg-white text-[#111827]"
-                      : "text-[#d1d5db] hover:bg-white/10 hover:text-white"
+                      ? "bg-[#eef2ff] text-[#4338ca]"
+                      : "text-[#475569] hover:bg-[#f8fafc] hover:text-[#111827]"
                   }`}
                 >
-                  {item.label}
+                  <SidebarIcon active={item.key === active}>{item.icon}</SidebarIcon>
+                  <span className="truncate">{item.label}</span>
                 </Link>
               ) : (
                 <span
                   key={item.key}
-                  className="flex h-9 cursor-not-allowed items-center justify-between rounded-lg px-3 text-[13px] font-semibold text-[#6b7280]"
+                  className="flex h-8 cursor-not-allowed items-center gap-2 rounded-lg px-2.5 text-[12px] font-bold text-[#94a3b8]"
                 >
-                  {item.label}
-                  <span className="text-[9px] uppercase tracking-[0.12em] text-[#4b5563]">
+                  <SidebarIcon>{item.icon}</SidebarIcon>
+                  <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                  <span className="text-[9px] uppercase tracking-[0.12em] text-[#cbd5e1]">
                     Soon
                   </span>
                 </span>
               )
             )}
           </nav>
-          <div className="border-t border-white/10 p-2.5">
-            <div className="mb-2 rounded-lg border border-emerald-400/20 bg-emerald-400/10 px-3 py-2">
-              <div className="flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-emerald-400" />
-                <span className="text-[11px] font-bold text-emerald-100">
-                  Online status / 上線狀態
-                </span>
-              </div>
-              <p className="mt-1 text-[10px] font-semibold leading-4 text-[#9ca3af]">
-                Manual WhatsApp only. No API sending.
-              </p>
+          <div className="border-t border-[#eef2f6] px-2.5 py-2">
+            <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#475569]">
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
+              <span className="truncate">Online status / 上線狀態</span>
             </div>
+            <p className="px-2.5 pb-1 text-[10px] font-semibold leading-4 text-[#94a3b8]">
+              Manual WhatsApp only. No API sending.
+            </p>
             <Link
               href="/dashboard"
-              className="block rounded-lg px-3 py-2 text-[12px] font-semibold text-[#d1d5db] transition hover:bg-white/10 hover:text-white"
+              className="mt-1 block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]"
             >
               Back to LaunchHub
             </Link>
           </div>
         </aside>
 
-        <aside className="flex w-[64px] shrink-0 flex-col items-center border-r border-[#dfe4ea] bg-[#111827] py-3 text-white lg:hidden">
+        <aside className="flex w-[60px] shrink-0 flex-col items-center border-r border-[#e5e7eb] bg-white py-3 text-[#111827] lg:hidden">
           <Link
             href="/crm"
-            className="grid h-9 w-9 place-items-center rounded-lg bg-white text-[12px] font-black text-[#111827]"
+            className="grid h-9 w-9 place-items-center rounded-lg bg-[#eef2ff] text-[12px] font-black text-[#4338ca]"
             title="CRM Inbox"
           >
             C
@@ -111,8 +110,10 @@ export function CrmShell({
               <Link
                 key={item.key}
                 href={item.href}
-                className={`grid h-8 w-8 place-items-center rounded-lg text-[10px] font-bold ${
-                  item.key === active ? "bg-white text-[#111827]" : "bg-white/8 text-[#9ca3af]"
+                className={`grid h-8 w-8 place-items-center rounded-lg text-[10px] font-black ${
+                  item.key === active
+                    ? "bg-[#eef2ff] text-[#4338ca]"
+                    : "text-[#94a3b8] hover:bg-[#f8fafc]"
                 }`}
                 title={item.title}
               >
@@ -125,5 +126,23 @@ export function CrmShell({
         <section className="min-w-0 flex-1">{children}</section>
       </div>
     </main>
+  );
+}
+
+function SidebarIcon({
+  children,
+  active = false,
+}: {
+  children: ReactNode;
+  active?: boolean;
+}) {
+  return (
+    <span
+      className={`grid h-5 w-5 shrink-0 place-items-center rounded-md text-[10px] font-black ${
+        active ? "bg-white text-[#4338ca]" : "bg-[#f1f5f9] text-[#64748b]"
+      }`}
+    >
+      {children}
+    </span>
   );
 }

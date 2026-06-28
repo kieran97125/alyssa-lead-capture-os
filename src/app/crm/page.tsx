@@ -27,7 +27,6 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type SummaryTone = "blue" | "emerald" | "amber" | "red" | "purple" | "orange" | "slate";
 type ConversionTone = "blue" | "emerald" | "purple" | "red" | "slate";
 type TrackingQualityKey = "strong" | "partial" | "direct" | "missing";
 type ReadinessKey = "ready" | "needs_stronger_tracking" | "crm_only" | "missing_identifiers";
@@ -64,6 +63,14 @@ const inboxSubTabs = [
   { label: "Follow-up / 跟進", queue: "follow_up_today" },
   { label: "Completed / 已完成", queue: "showed" },
   { label: "All / 全部", queue: "" },
+];
+
+const bookingSubTabs = [
+  { label: "今日預約", queue: "today_bookings" },
+  { label: "待標記結果", queue: "pending_show_outcome" },
+  { label: "已預約", queue: "booked" },
+  { label: "No-show", queue: "no_show" },
+  { label: "全部", queue: "" },
 ];
 
 export default async function CrmPage({
@@ -147,6 +154,8 @@ export default async function CrmPage({
     activeTab === "bookings"
       ? bookingCases
       : workbenchCases;
+  const activeSubTabs = activeTab === "bookings" ? bookingSubTabs : inboxSubTabs;
+  const activeQueueOptions = activeTab === "bookings" ? bookingQueueOptions : queueOptions;
 
   return (
     <CrmShell
@@ -160,59 +169,136 @@ export default async function CrmPage({
     >
       <div className="flex h-screen min-w-0 flex-col">
         <header className="shrink-0 border-b border-[#e5e7eb] bg-white">
-          <div className="flex flex-col gap-2.5 px-4 py-2.5 xl:flex-row xl:items-center xl:justify-between">
-            <div>
-              <div className="flex items-center gap-2.5">
-                <h1 className="text-lg font-bold text-[#111827]">
+          <div className="border-b border-[#eef2f6] px-4 py-3">
+            <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <div className="flex items-center gap-2.5">
+                  <h1 className="text-[17px] font-black text-[#111827]">
+                    {activeTab === "reports"
+                      ? "Marketing Reports / 報表"
+                      : activeTab === "bookings"
+                        ? "Bookings / 預約"
+                        : "Inbox / 工作台"}
+                  </h1>
+                  <span className="rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-black text-[#047857]">
+                    {runtime.actionsEnabled ? "Actions on" : "Read-only"}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
                   {activeTab === "reports"
-                    ? "Marketing Reports / 報表"
+                    ? "管理層及 Marketing 用報表；CS 日常工作只需要使用工作台及預約。"
                     : activeTab === "bookings"
-                      ? "Bookings / 預約"
-                      : "Inbox / 工作台"}
-                </h1>
-                <span className="rounded-md bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-[#047857]">
-                  {runtime.actionsEnabled ? "Actions enabled" : "Read-only"}
-                </span>
+                      ? "今日預約、待標記到店結果及已確認預約的操作隊列。"
+                      : "CS 每日跟進 Lead、手動開 WhatsApp、確認預約及更新狀態。"}
+                </p>
               </div>
-              <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-                {activeTab === "reports"
-                  ? "管理層及 Marketing 用報表；CS 日常工作只需要使用工作台及預約。"
-                  : activeTab === "bookings"
-                    ? "集中處理今日預約、待標記到店結果及已確認預約。"
-                    : "CS 每日跟進 Lead、手動開 WhatsApp、確認預約及更新狀態。"}
-              </p>
+              {activeTab !== "reports" ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <CountChip label="待跟進" value={summary.newLeads} />
+                  <CountChip label="今日要跟" value={summary.todayFollowUp} tone="amber" />
+                  <CountChip label="過期" value={summary.overdueFollowUp} tone="red" />
+                  <CountChip label="已預約" value={summary.booked} tone="purple" />
+                </div>
+              ) : null}
             </div>
+
+            {activeTab !== "reports" ? (
+              <div className="mt-3 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
+                <nav className="flex gap-1 overflow-x-auto">
+                  {activeSubTabs.map((item) => {
+                    const href = item.queue
+                      ? `/crm?tab=${activeTab}&queue=${item.queue}`
+                      : activeTab === "bookings"
+                        ? "/crm?tab=bookings"
+                        : "/crm";
+                    const active = queue === item.queue || (!queue && item.queue === "");
+                    return (
+                      <a
+                        key={item.label}
+                        href={href}
+                        className={`flex h-8 items-center whitespace-nowrap rounded-full border px-3 text-[12px] font-bold ${
+                          active
+                            ? "border-[#6366f1] bg-[#eef2ff] text-[#4338ca]"
+                            : "border-[#e2e8f0] bg-white text-[#64748b] hover:bg-[#f8fafc]"
+                        }`}
+                      >
+                        {item.label}
+                      </a>
+                    );
+                  })}
+                </nav>
+
+                <form className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  <input type="hidden" name="tab" value={activeTab} />
+                  <button
+                    type="submit"
+                    className="grid h-8 w-8 place-items-center rounded-md border border-[#dbe2ea] bg-white text-[12px] font-black text-[#475569]"
+                    title="Filter"
+                  >
+                    F
+                  </button>
+                  <select
+                    name="range"
+                    defaultValue={range}
+                    className="h-8 rounded-md border border-[#dbe2ea] bg-white px-2 text-[12px] font-semibold text-[#334155]"
+                  >
+                    {dateRangeOptions.map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    name="queue"
+                    defaultValue={queue}
+                    className="h-8 rounded-md border border-[#dbe2ea] bg-white px-2 text-[12px] font-semibold text-[#334155]"
+                  >
+                    {activeQueueOptions.map(([value, label]) => (
+                      <option key={value} value={value}>
+                        {label}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="w-[220px] lg:w-[280px]">
+                    <span className="sr-only">Search CRM inbox</span>
+                    <input
+                      name="search"
+                      type="search"
+                      defaultValue={search}
+                      placeholder="Search name, phone, treatment..."
+                      className="h-8 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#6366f1] focus:bg-white"
+                    />
+                  </label>
+                  <select
+                    name="view"
+                    defaultValue={viewPreset}
+                    className="h-8 rounded-md border border-[#dbe2ea] bg-white px-2 text-[12px] font-semibold text-[#334155]"
+                    title="Column preset"
+                  >
+                    {crmInboxPresets.map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    className="h-8 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-bold text-[#475569]"
+                    title="Columns"
+                  >
+                    Columns
+                  </button>
+                  {(queue || search || viewPreset !== "cs_booking") ? (
+                    <span className="inline-flex h-8 items-center rounded-full bg-[#fef3c7] px-2.5 text-[11px] font-bold text-[#92400e]">
+                      Filter applied
+                    </span>
+                  ) : null}
+                </form>
+              </div>
+            ) : null}
           </div>
 
-          {activeTab === "leads" && (
-          <div className="grid gap-2 border-t border-[#f1f5f9] px-4 py-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-9">
-            <SummaryCard label="待跟進" value={summary.newLeads} tone="blue" />
-            <SummaryCard label="已聯絡" value={summary.contacting} tone="slate" />
-            <SummaryCard label="已預約" value={summary.booked} tone="emerald" />
-            <SummaryCard label="今日要跟" value={summary.todayFollowUp} tone="amber" />
-            <SummaryCard label="過期未跟" value={summary.overdueFollowUp} tone="red" />
-            <SummaryCard label="今日預約" value={summary.todayBookings} tone="purple" />
-            <SummaryCard label="待標記到店結果" value={summary.pendingShowOutcome} tone="orange" />
-            <SummaryCard label="Lost" value={summary.lost} tone="slate" />
-            <SummaryCard label="Invalid" value={summary.invalid} tone="slate" />
-          </div>
-          )}
-
-          {activeTab === "bookings" && (
-            <div className="grid gap-2 border-t border-[#f1f5f9] px-4 py-2 sm:grid-cols-2 lg:grid-cols-4">
-              <SummaryCard label="今日預約" value={summary.todayBookings} tone="purple" />
-              <SummaryCard label="待標記到店結果" value={summary.pendingShowOutcome} tone="orange" />
-              <SummaryCard label="已預約" value={summary.booked} tone="emerald" />
-              <SummaryCard
-                label="No-show"
-                value={baseFilteredCases.filter((item) => item.status === "no_show").length}
-                tone="red"
-              />
-            </div>
-          )}
-
-          {activeTab === "reports" && (
-            <>
+          {activeTab === "reports" && (            <>
           <section className="border-t border-[#f1f5f9] px-4 py-3">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -418,131 +504,6 @@ export default async function CrmPage({
             </>
           )}
 
-          <div className="flex min-w-0 flex-col gap-2 border-t border-[#f1f5f9] px-4 py-2">
-            <div className="flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-              <nav className="flex gap-0.5 overflow-x-auto">
-                {tabs.map((tab) => (
-                  <a
-                    key={tab.key}
-                    href={crmTabHref(tab.key)}
-                    className={`flex h-8 items-center whitespace-nowrap rounded-md px-2.5 text-[13px] font-semibold ${
-                      activeTab === tab.key
-                        ? "bg-[#111827] text-white"
-                        : "text-[#64748b] hover:bg-[#f8fafc]"
-                    }`}
-                  >
-                    {tab.label}
-                  </a>
-                ))}
-              </nav>
-
-              {activeTab === "leads" && (
-                <nav className="flex gap-1 overflow-x-auto">
-                  {inboxSubTabs.map((item) => {
-                    const href = item.queue ? `/crm?queue=${item.queue}` : "/crm";
-                    const active = queue === item.queue || (!queue && item.label.startsWith("Chats"));
-                    return (
-                      <a
-                        key={item.label}
-                        href={href}
-                        className={`flex h-8 items-center whitespace-nowrap rounded-full border px-3 text-[12px] font-bold ${
-                          active
-                            ? "border-[#111827] bg-[#111827] text-white"
-                            : "border-[#e2e8f0] bg-white text-[#64748b] hover:bg-[#f8fafc]"
-                        }`}
-                      >
-                        {item.label}
-                      </a>
-                    );
-                  })}
-                </nav>
-              )}
-            </div>
-
-            <form className="flex min-w-0 flex-wrap items-center gap-2">
-              <input type="hidden" name="tab" value={activeTab} />
-              <button
-                type="submit"
-                className="h-9 whitespace-nowrap rounded-md border border-[#dbe2ea] bg-white px-3 text-[12px] font-black text-[#111827]"
-              >
-                Filter
-              </button>
-              <select
-                name="range"
-                defaultValue={range}
-                className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-              >
-                {dateRangeOptions.map((item) => (
-                  <option key={item.key} value={item.key}>
-                    {item.label}
-                  </option>
-                ))}
-              </select>
-              {activeTab !== "reports" && (
-                <select
-                  name="queue"
-                  defaultValue={queue}
-                  className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-                >
-                  {(activeTab === "bookings" ? bookingQueueOptions : queueOptions).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              )}
-              <label className="min-w-[220px] flex-1 xl:w-[320px] xl:flex-none">
-                <span className="sr-only">Search CRM inbox</span>
-                <input
-                  name="search"
-                  type="search"
-                  defaultValue={search}
-                  placeholder={
-                    activeTab === "reports"
-                      ? "Search report rows..."
-                      : "Search name, phone, treatment..."
-                  }
-                  className="h-9 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-3 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#2563eb] focus:bg-white"
-                />
-              </label>
-              <input
-                name="brand"
-                defaultValue={firstQueryValue(query?.brand) || ""}
-                placeholder="Brand"
-                className="h-9 w-[120px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-              />
-              <input
-                name="treatment"
-                defaultValue={firstQueryValue(query?.treatment) || ""}
-                placeholder="Treatment"
-                className="h-9 w-[140px] rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-              />
-              {activeTab !== "reports" && (
-                <select
-                  name="view"
-                  defaultValue={viewPreset}
-                  className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-semibold text-[#334155]"
-                  title="Columns / 欄位"
-                >
-                  {crmInboxPresets.map((item) => (
-                    <option key={item.key} value={item.key}>
-                      {item.label}
-                    </option>
-                  ))}
-                </select>
-              )}
-              {activeTab !== "reports" && (
-                <span className="inline-flex h-9 items-center rounded-md bg-[#eff6ff] px-2.5 text-[11px] font-bold text-[#1d4ed8]">
-                  Columns / 欄位: {crmInboxPresets.find((item) => item.key === viewPreset)?.label}
-                </span>
-              )}
-              {(queue || search || brand || treatment || viewPreset !== "cs_booking") && activeTab !== "reports" ? (
-                <span className="inline-flex h-9 items-center rounded-md bg-[#fef3c7] px-2.5 text-[11px] font-bold text-[#92400e]">
-                  Filter applied
-                </span>
-              ) : null}
-            </form>
-          </div>
 
           {!runtime.actionsEnabled && (
             <p className="border-t border-amber-100 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-800">
@@ -558,30 +519,12 @@ export default async function CrmPage({
         </header>
 
         {activeTab === "reports" ? null : (
-          <>
-            {activeTab === "bookings" && (
-              <TabNotice
-                title="預約工作"
-                body="顯示今日已確認預約、待標記到店結果，以及已預約 Leads。"
-              />
-            )}
-            <CrmInboxTable cases={visibleCases} preset={viewPreset} />
-          </>
+          <CrmInboxTable cases={visibleCases} preset={viewPreset} />
         )}
       </div>
     </CrmShell>
   );
 }
-
-function TabNotice({ title, body }: { title: string; body: string }) {
-  return (
-    <div className="border-b border-[#e5e7eb] bg-[#f8fafc] px-4 py-2">
-      <p className="text-[12px] font-black text-[#111827]">{title}</p>
-      <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">{body}</p>
-    </div>
-  );
-}
-
 function SourceQualityTable({ rows }: { rows: SourceQualityRow[] }) {
   return (
     <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
@@ -913,32 +856,29 @@ function getCommandCenterSummary(cases: CrmLeadCase[]) {
   };
 }
 
-function SummaryCard({
+function CountChip({
   label,
   value,
-  tone,
+  tone = "slate",
 }: {
   label: string;
   value: number;
-  tone: SummaryTone;
+  tone?: "slate" | "amber" | "red" | "purple";
 }) {
-  const toneClass: Record<SummaryTone, string> = {
-    blue: "border-blue-100 bg-blue-50 text-blue-800",
-    emerald: "border-emerald-100 bg-emerald-50 text-emerald-800",
-    amber: "border-amber-100 bg-amber-50 text-amber-800",
-    red: "border-red-100 bg-red-50 text-red-800",
-    purple: "border-purple-100 bg-purple-50 text-purple-800",
-    orange: "border-orange-100 bg-orange-50 text-orange-800",
-    slate: "border-slate-100 bg-slate-50 text-slate-700",
+  const toneClass = {
+    slate: "border-[#e2e8f0] bg-white text-[#475569]",
+    amber: "border-amber-100 bg-amber-50 text-amber-700",
+    red: "border-red-100 bg-red-50 text-red-700",
+    purple: "border-purple-100 bg-purple-50 text-purple-700",
   };
 
   return (
-    <div className={`rounded-lg border px-3 py-2 ${toneClass[tone]}`}>
-      <p className="text-[10px] font-black uppercase tracking-[0.08em] opacity-75">
-        {label}
-      </p>
-      <p className="mt-1 text-xl font-black leading-none">{value}</p>
-    </div>
+    <span
+      className={`inline-flex h-7 items-center gap-1.5 rounded-full border px-2.5 text-[11px] font-black ${toneClass[tone]}`}
+    >
+      <span>{label}</span>
+      <span className="tabular-nums">{value}</span>
+    </span>
   );
 }
 
@@ -1734,10 +1674,6 @@ function normalizeCrmTab(value: string | string[] | undefined): CrmTabKey {
   const tab = Array.isArray(value) ? value[0] : value;
   if (tab === "reports") return "reports";
   return tabs.some((item) => item.key === tab) ? (tab as CrmTabKey) : "leads";
-}
-
-function crmTabHref(tab: CrmTabKey) {
-  return tab === "leads" ? "/crm" : `/crm?tab=${tab}`;
 }
 
 function firstQueryValue(value: string | string[] | undefined) {
