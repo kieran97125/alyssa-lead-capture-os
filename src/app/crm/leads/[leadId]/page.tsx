@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
-import { ReplyTemplateCopyButton } from "@/components/crm/ReplyTemplateCopyButton";
+import { ReplyComposer } from "@/components/crm/ReplyComposer";
 import { formatDateTime, getLeadRows } from "@/lib/data/businessMetrics";
 import {
   crmPipelineStatuses,
@@ -14,10 +14,7 @@ import {
   getCrmAiReplyDraftsFromSettings,
   getCrmSettings,
 } from "@/lib/crm/settingsLoader";
-import {
-  optionTuples,
-  type CrmReplyTemplate,
-} from "@/lib/crm/settingsConfig";
+import { optionTuples } from "@/lib/crm/settingsConfig";
 import {
   assignCsAction,
   confirmBookingAction,
@@ -121,6 +118,7 @@ export default async function CrmLeadDetailPage({
       confirmedAppointment: confirmedAppointmentLabel,
     }
   );
+  const latestContactNote = getLatestContactNote(bundle.interactions);
 
   return (
     <CrmShell>
@@ -349,12 +347,20 @@ export default async function CrmLeadDetailPage({
                 </section>
 
                 <section id="reply-templates" className="grid gap-3.5">
-                  <QuickReplyPanel
-                    templates={crmSettings.quickReplyTemplates}
-                    status={leadCase.status}
-                    whatsappUrl={leadCase.whatsappUrl}
+                  <ReplyComposer
+                    quickReplies={crmSettings.quickReplyTemplates}
+                    aiDrafts={aiReplyDrafts}
+                    context={{
+                      customerName: leadCase.customerName,
+                      brandName: leadCase.brandName,
+                      treatmentOffer: leadCase.treatmentOffer,
+                      statusLabel: leadCase.statusLabel,
+                      appointmentPreference: leadCase.appointmentLabel,
+                      confirmedAppointment: confirmedAppointmentLabel,
+                      latestContactNote,
+                      whatsappUrl: leadCase.whatsappUrl,
+                    }}
                   />
-                  <AiDraftPanel drafts={aiReplyDrafts} />
                 </section>
 
                 <section id="timeline">
@@ -517,6 +523,13 @@ function getCrmFeedback(
   }
 
   return null;
+}
+
+function getLatestContactNote(interactions: CrmInteractionRecord[]) {
+  const contactInteraction = interactions.find((item) =>
+    ["contact_attempt", "note", "status_change"].includes(item.interaction_type)
+  );
+  return contactInteraction?.body?.trim().slice(0, 180) ?? "";
 }
 
 function firstQueryValue(value: string | string[] | undefined) {
@@ -783,176 +796,6 @@ function ActionPanel({
       </form>
     </section>
   );
-}
-
-function AiDraftPanel({
-  drafts,
-}: {
-  drafts: Array<{ key: string; title: string; body: string }>;
-}) {
-  return (
-    <section className="rounded-lg border border-[#dbeafe] bg-white p-3.5 xl:col-span-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[13px] font-bold text-[#111827]">
-            AI 回覆草稿 / 需人手發送
-          </h2>
-          <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-            暫時是本地模板草稿，未接外部 AI，亦不會自動發送 WhatsApp。
-          </p>
-        </div>
-        <span className="rounded-md bg-[#eff6ff] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#1d4ed8]">
-          Draft only
-        </span>
-      </div>
-      <div className="mt-3 grid gap-2 lg:grid-cols-2">
-        {drafts.map((draft) => (
-          <article key={draft.key} className="rounded-md border border-[#e5e7eb] bg-[#f8fafc] p-3">
-            <p className="text-[11px] font-black text-[#111827]">{draft.title}</p>
-            <p className="mt-1 whitespace-pre-line text-[12px] font-semibold leading-5 text-[#475569]">
-              {draft.body}
-            </p>
-            <div className="mt-2">
-              <ReplyTemplateCopyButton text={draft.body} />
-            </div>
-          </article>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function QuickReplyPanel({
-  templates,
-  status,
-  whatsappUrl,
-}: {
-  templates: CrmReplyTemplate[];
-  status: string;
-  whatsappUrl: string | null;
-}) {
-  const groups = groupReplyTemplates(templates);
-  const recommendedCount = templates.filter((template) =>
-    template.recommendedStatuses?.includes(status)
-  ).length;
-
-  return (
-    <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5 xl:col-span-3">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-[13px] font-bold text-[#111827]">
-            CS Reply Templates / 手動回覆草稿
-          </h2>
-          <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-            按情境複製文字，再人手貼到 WhatsApp。系統不會自動發送，亦未連接 WhatsApp API。
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          {recommendedCount > 0 && (
-            <span className="rounded-md bg-[#eff6ff] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#1d4ed8]">
-              {recommendedCount} suggested
-            </span>
-          )}
-          <span className="rounded-md bg-[#f0fdf4] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#15803d]">
-            Manual send
-          </span>
-        </div>
-      </div>
-      <p className="mt-3 rounded-md bg-[#f8fafc] px-3 py-2 text-[11px] font-semibold text-[#475569]">
-        手動開啟 WhatsApp，訊息需人手發送。Copy / Open WhatsApp 不會建立 API 發送或對話同步。
-      </p>
-      <div className="mt-3 grid gap-3">
-        {groups.map(({ group, items }) => (
-          <div key={group} className="rounded-lg border border-[#eef2f6] bg-[#fbfdff] p-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-[12px] font-black text-[#111827]">{group}</h3>
-              {items.some((template) => template.recommendedStatuses?.includes(status)) && (
-                <span className="rounded-md bg-[#fff7ed] px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-[#c2410c]">
-                  Recommended now
-                </span>
-              )}
-            </div>
-            <div className="mt-2 grid gap-2 lg:grid-cols-2">
-              {items.map((template) => {
-                const recommended = template.recommendedStatuses?.includes(status);
-
-                return (
-                  <article
-                    key={template.key}
-                    className={`rounded-md border p-3 ${
-                      recommended
-                        ? "border-[#fed7aa] bg-[#fff7ed]"
-                        : "border-[#e5e7eb] bg-white"
-                    }`}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-2">
-                      <div>
-                        <p className="text-[11px] font-black text-[#111827]">
-                          {template.title}
-                        </p>
-                        <p className="mt-1 text-[10px] font-semibold leading-4 text-[#64748b]">
-                          {template.useCase}
-                        </p>
-                      </div>
-                      {recommended && (
-                        <span className="rounded-md bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-[#c2410c]">
-                          建議
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-2 whitespace-pre-line rounded-md bg-[#f8fafc] px-3 py-2 text-[12px] font-semibold leading-5 text-[#475569]">
-                      {template.body}
-                    </p>
-                    <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <ReplyTemplateCopyButton text={template.body} />
-                      {whatsappUrl && (
-                        <a
-                          href={whatsappUrl}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="inline-flex h-7 items-center justify-center rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2.5 text-[10px] font-black text-[#15803d] transition hover:bg-[#dcfce7]"
-                        >
-                          Open WhatsApp
-                        </a>
-                      )}
-                    </div>
-                  </article>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
-
-function groupReplyTemplates(templates: CrmReplyTemplate[]) {
-  const preferredOrder = [
-    "首次跟進",
-    "確認預約",
-    "更改時間",
-    "未回覆跟進",
-    "價錢疑問",
-    "位置 / 分店查詢",
-    "已預約提醒",
-    "No-show follow-up",
-    "Lost / 暫不處理",
-  ];
-  const groupMap = new Map<string, CrmReplyTemplate[]>();
-
-  templates.forEach((template) => {
-    const groupItems = groupMap.get(template.group) ?? [];
-    groupItems.push(template);
-    groupMap.set(template.group, groupItems);
-  });
-
-  return preferredOrder
-    .filter((group) => groupMap.has(group))
-    .map((group) => ({
-      group,
-      items: groupMap.get(group) ?? [],
-    }));
 }
 
 function MarketingTrackingPanel({

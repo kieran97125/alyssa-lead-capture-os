@@ -38,7 +38,7 @@ const overviewItems = [
     "Brand setup",
     "Mock only",
     "品牌資料會以現有設定展示，暫時未能在此頁儲存修改。",
-    "Next: Review active DB-backed defaults.",
+    "Next: Review current brand setup.",
     "blue",
   ],
   [
@@ -64,16 +64,16 @@ const overviewItems = [
   ],
   [
     "Booking workflow",
-    "DB settings loaded",
-    "CRM 狀態、lost / invalid reason 及跟進選項目前由 DB settings 讀取，code defaults 保持 fallback。",
-    "Next: Keep these settings read-only until a later phase.",
+    "Active",
+    "CRM 狀態、lost / invalid reason 及跟進選項已套用目前設定。",
+    "Next: Keep these settings view-only until a later phase.",
     "green",
   ],
   [
     "Inbox presets",
-    "DB settings loaded",
-    "CS Booking View 等欄位 preset 目前由 DB settings 讀取，code defaults 保持 fallback。",
-    "Next: Keep presets read-only until a later phase.",
+    "Active",
+    "CS Booking View 等欄位 preset 已套用目前設定。",
+    "Next: Keep presets view-only until a later phase.",
     "green",
   ],
   [
@@ -84,9 +84,9 @@ const overviewItems = [
     "slate",
   ],
   [
-    "DB editable settings",
+    "Editable settings",
     "Quick Replies editable",
-    "crm_app_settings 已套用並完成 default seed；目前只開放 Quick Replies 儲存。",
+    "目前只開放 Quick Replies 儲存，其餘設定仍然只供查看。",
     "Next: Enable more admin save flows later.",
     "green",
   ],
@@ -127,7 +127,7 @@ const teamPermissionRows = [
   ["CS role", "Follow up leads, confirm bookings, mark outcomes, use manual replies"],
   ["Marketing role", "Review simple reports and source ranking"],
   ["Admin role", "Future settings editor access"],
-  ["Who can edit settings", "Future admin-only mutation boundary"],
+  ["Who can edit settings", "Future admin-only save boundary"],
   ["Who can view technical audit", "Future admin / marketing permission"],
   ["Who can connect WhatsApp API", "Future owner/admin-only permission"],
   ["Who can send messages", "No API sending exists yet"],
@@ -170,8 +170,8 @@ export default async function CrmSettingsPage({
   const settingsModeBadge =
     crmSettings.status.activeSource === "db_defaults" ||
     crmSettings.status.activeSource === "db_override"
-      ? "DB settings loaded"
-      : "Code defaults fallback";
+      ? "Current settings active"
+      : "Default settings active";
 
   return (
     <CrmShell active="settings">
@@ -186,18 +186,15 @@ export default async function CrmSettingsPage({
                 Settings Editor
               </h1>
               <p className="mt-1 text-[12px] font-semibold text-[#64748b]">
-                DB default settings 已可讀取；Quick Replies 可以儲存，其他設定仍然 read-only。
+                Quick Replies 可以儲存，其他設定目前只供查看，方便之後逐步開放管理。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge tone="green">{settingsModeBadge}</StatusBadge>
               <StatusBadge tone="green">Quick Replies editable</StatusBadge>
-              <StatusBadge tone="amber">Other settings read-only</StatusBadge>
+              <StatusBadge tone="amber">Other settings view only</StatusBadge>
               <StatusBadge tone={runtime.actionsEnabled ? "green" : "amber"}>
                 {runtime.actionsEnabled ? "CS actions enabled" : "Writes disabled"}
-              </StatusBadge>
-              <StatusBadge tone={settingsSourceTone(crmSettings.status.activeSource)}>
-                {crmSettings.status.label}
               </StatusBadge>
             </div>
           </div>
@@ -230,7 +227,7 @@ export default async function CrmSettingsPage({
                   Partial save enabled
                 </p>
                 <p className="mt-1 text-[11px] leading-4 text-[#92400e]">
-                  Only Quick Replies can be saved. Other settings remain read-only; code defaults remain fallback.
+                  Only Quick Replies can be saved. Other settings remain view-only for now.
                 </p>
               </div>
             </div>
@@ -262,9 +259,9 @@ export default async function CrmSettingsPage({
                 id="overview"
                 eyebrow="Control Center"
                 title="Overview"
-                description="Admin-friendly readiness view. It shows DB-backed defaults, Quick Replies edit status, and the safest setup order."
+                description="Admin-friendly readiness view. It shows which areas are active, which are view-only, and the safest setup order."
                 statusItems={[
-                  ["DB settings loaded", "green"],
+                  ["Current settings active", "green"],
                   ["Quick Replies editable", "green"],
                 ]}
               >
@@ -289,7 +286,7 @@ export default async function CrmSettingsPage({
                 id="brand"
                 eyebrow="Brand"
                 title="Brand Profile & Branch Setup"
-                description="Brand profile, legal entity, contact display, and branch setup preview. Existing data is read-only here."
+                description="Brand profile, legal entity, contact display, and branch setup preview. Existing data is view-only here."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
                   {brands.map((brand) => (
@@ -329,7 +326,7 @@ export default async function CrmSettingsPage({
                 id="whatsapp"
                 eyebrow="Messaging"
                 title="WhatsApp Mode, Connection & Templates"
-                description="Connection, template, and manual/API mode preview. Manual WhatsApp open is the only active behavior."
+                description="Connection, template, and manual mode preview. Manual WhatsApp open is the only active behavior."
               >
                 <ImportantNotice>
                   目前只會協助 CS 開啟 WhatsApp，訊息仍需人手複製及發送。
@@ -337,9 +334,9 @@ export default async function CrmSettingsPage({
                 <StatusRow
                   items={[
                     ["Manual only", "blue"],
-                    ["API not connected", "amber"],
+                    ["Connection not enabled", "amber"],
                     ["Auto-send off", "slate"],
-                    ["AI settings read-only", "amber"],
+                    ["AI settings view only", "amber"],
                   ]}
                 />
                 <div className="grid gap-3 xl:grid-cols-2">
@@ -358,10 +355,10 @@ export default async function CrmSettingsPage({
                 id="ai"
                 eyebrow="AI Assist"
                 title="AI Reply Tone, Knowledge & Safety"
-                description="Tone, reply knowledge, safety rules, and template draft preview. Quick Replies are the only editable settings in this phase."
+                description="Quick Replies are preset replies CS can use directly. AI Assist is future smart reply behavior and remains draft-only."
                 statusItems={[
                   ["Quick Replies editable", "green"],
-                  ["Other settings read-only", "amber"],
+                  ["Other settings view only", "amber"],
                 ]}
               >
                 <ImportantNotice>
@@ -370,13 +367,13 @@ export default async function CrmSettingsPage({
                 <StatusRow
                   items={[
                     ["Manual only", "blue"],
-                    ["API not connected", "amber"],
+                    ["External AI not connected", "amber"],
                     ["Auto-send off", "slate"],
-                    ["Save not enabled", "amber"],
+                    ["Manual review required", "amber"],
                   ]}
                 />
                 <div className="mb-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-[12px] font-semibold leading-5 text-emerald-800">
-                  Quick Replies 目前可以儲存到 DB settings。其他 AI / WhatsApp / workflow settings 仍然 read-only。
+                  Quick Replies 是可直接使用的標準回覆範本；AI Assist 是另一個較自然的草稿工具，目前仍需人手檢查及發送。
                 </div>
                 <div className="grid gap-3 xl:grid-cols-2">
                   {aiMockFields.map(([label, value]) => (
@@ -424,7 +421,7 @@ export default async function CrmSettingsPage({
                 id="inbox"
                 eyebrow="Inbox"
                 title="Inbox Column Presets & CS View Preferences"
-                description="Inbox column presets and future CS view preferences. Presets are loaded from DB settings with code fallback."
+                description="Inbox column presets and future CS view preferences. Current presets are active and view-only here."
               >
                 <div className="grid gap-3 lg:grid-cols-3">
                   {crmSettings.inboxColumnPresets.map((preset) => (
@@ -846,7 +843,7 @@ function MockToggle({ label, checked }: { label: string; checked: boolean }) {
         </span>
       </div>
       <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-        Read-only preview. Changes cannot be saved yet.
+        View-only preview. Changes cannot be saved yet.
       </p>
     </div>
   );
@@ -856,7 +853,7 @@ function DisabledSaveBar() {
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#eef2f6] bg-[#f8fafc] px-3 py-2">
       <p className="text-[11px] font-semibold text-[#64748b]">
-        Read-only in this phase. Changes cannot be saved here; DB settings and code defaults remain safe fallbacks.
+        View-only in this section. Changes cannot be saved here yet.
       </p>
       <button
         type="button"
@@ -918,13 +915,6 @@ function StatusBadge({
   );
 }
 
-function settingsSourceTone(source: string): StatusTone {
-  if (source === "db_override") return "green";
-  if (source === "db_defaults") return "green";
-  if (source === "db_unavailable_code_defaults") return "amber";
-  return "blue";
-}
-
 function getActiveSection(value: string | string[] | undefined): SettingsSectionKey {
   const raw = firstParam(value);
   const match = sections.find(([key]) => key === raw);
@@ -945,7 +935,7 @@ function getSettingsFeedback(
     return {
       tone: "green" as const,
       title: "Quick Reply saved",
-      body: "Quick reply title and message have been updated in DB settings. Lead detail templates will reflect the new wording after refresh.",
+      body: "Quick reply title and message have been updated. Lead detail templates will reflect the new wording after refresh.",
     };
   }
 

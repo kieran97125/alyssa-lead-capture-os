@@ -17,11 +17,11 @@ export function QuickRepliesSettingsTable({
         <div>
           <p className="text-[12px] font-black text-[#111827]">Quick Replies</p>
           <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-            Compact editor. Only title and message body are editable.
+            Preset replies CS can insert into the reply composer and edit before sending.
           </p>
         </div>
         <span className="inline-flex rounded-md border border-emerald-100 bg-emerald-50 px-2 py-1 text-[10px] font-black text-emerald-700">
-          DB save enabled
+          Save enabled
         </span>
       </div>
 
