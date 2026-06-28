@@ -199,7 +199,7 @@ export default async function CrmLeadDetailPage({
           )}
         </header>
 
-        <div className="min-h-0 flex-1 overflow-auto p-3.5">
+        <div className="min-h-0 flex-1 overflow-auto bg-[#f8fafc] p-3.5">
           <div className="grid gap-3.5">
             <BookingSummaryPanel
               leadCase={leadCase}
@@ -211,12 +211,57 @@ export default async function CrmLeadDetailPage({
               canMarkAttendance={canMarkAttendance}
             />
 
-            <div className="grid gap-3.5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="grid gap-3.5 xl:grid-cols-[minmax(0,1fr)_390px]">
               <div className="grid gap-3.5">
-                <section id="contact-actions" className="grid gap-3.5 xl:grid-cols-2">
+                <ConversationPanel
+                  interactions={bundle.interactions}
+                  leadCase={leadCase}
+                  confirmedAppointmentLabel={confirmedAppointmentLabel}
+                />
+
+                <ReplyComposer
+                  quickReplies={crmSettings.quickReplyTemplates}
+                  aiDrafts={aiReplyDrafts}
+                  context={{
+                    customerName: leadCase.customerName,
+                    brandName: leadCase.brandName,
+                    treatmentOffer: leadCase.treatmentOffer,
+                    statusLabel: leadCase.statusLabel,
+                    appointmentPreference: leadCase.appointmentLabel,
+                    confirmedAppointment: confirmedAppointmentLabel,
+                    latestContactNote,
+                    whatsappUrl: leadCase.whatsappUrl,
+                  }}
+                />
+
+                <section id="timeline">
+                  <TimelinePanel interactions={bundle.interactions} />
+                </section>
+              </div>
+
+              <aside className="grid content-start gap-3.5">
+                <Panel title="Customer">
+                  <InfoLine label="Name" value={leadCase.customerName} />
+                  <InfoLine label="Phone" value={leadCase.phone} />
+                  <InfoLine label="Email" value={leadCase.email} />
+                  <InfoLine label="Brand" value={leadCase.brandName} />
+                  <InfoLine label="Assigned to" value={leadCase.assignedCsLabel} />
+                </Panel>
+
+                <Panel title="Booking Details">
+                  <InfoLine label="Treatment / offer" value={leadCase.treatmentOffer} />
+                  <InfoLine label="Package" value={leadCase.packagePrice} />
+                  <InfoLine label="Branch" value={leadCase.branchName} />
+                  <InfoLine label="Preferred time" value={leadCase.appointmentLabel} />
+                  <InfoLine label="Confirmed time" value={confirmedAppointmentLabel} />
+                  <InfoLine label="Room" value={bookingMeta.roomArrangement || "-"} />
+                  <InfoLine label="Paid status" value={bookingMeta.paidStatusLabel} />
+                </Panel>
+
+                <section id="contact-actions" className="grid gap-3.5">
                   <ManualWhatsAppPanel leadCase={leadCase} />
                   <ActionPanel
-                    title="Contact Attempt"
+                    title="Log contact attempt"
                     enabled={runtime.actionsEnabled}
                     action={recordContactAttemptAction.bind(null, leadId)}
                     submitLabel="Save contact attempt"
@@ -249,7 +294,7 @@ export default async function CrmLeadDetailPage({
 
                 <section id="confirm-booking">
                   <ActionPanel
-                    title="CS 確認預約"
+                    title="Confirm booking"
                     enabled={runtime.actionsEnabled}
                     action={confirmBookingAction.bind(null, leadId)}
                     submitLabel="Confirm booking"
@@ -299,7 +344,7 @@ export default async function CrmLeadDetailPage({
                   </ActionPanel>
                 </section>
 
-                <section id="booking-outcomes" className="grid gap-3.5 xl:grid-cols-3">
+                <section id="booking-outcomes" className="grid gap-3.5">
                   <QuickActionsPanel
                     canMarkAttendance={canMarkAttendance}
                     showedAction={markShowedAction.bind(null, leadId)}
@@ -307,7 +352,7 @@ export default async function CrmLeadDetailPage({
                   />
 
                   <ActionPanel
-                    title="Lost Reason"
+                    title="Mark lost"
                     enabled={runtime.actionsEnabled}
                     action={saveLostReasonAction.bind(null, leadId)}
                     submitLabel="Save lost reason"
@@ -327,7 +372,7 @@ export default async function CrmLeadDetailPage({
                   </ActionPanel>
 
                   <ActionPanel
-                    title="Invalid Reason"
+                    title="Mark invalid"
                     enabled={runtime.actionsEnabled}
                     action={markInvalidAction.bind(null, leadId)}
                     submitLabel="Mark invalid"
@@ -345,54 +390,6 @@ export default async function CrmLeadDetailPage({
                     />
                   </ActionPanel>
                 </section>
-
-                <section id="reply-templates" className="grid gap-3.5">
-                  <ReplyComposer
-                    quickReplies={crmSettings.quickReplyTemplates}
-                    aiDrafts={aiReplyDrafts}
-                    context={{
-                      customerName: leadCase.customerName,
-                      brandName: leadCase.brandName,
-                      treatmentOffer: leadCase.treatmentOffer,
-                      statusLabel: leadCase.statusLabel,
-                      appointmentPreference: leadCase.appointmentLabel,
-                      confirmedAppointment: confirmedAppointmentLabel,
-                      latestContactNote,
-                      whatsappUrl: leadCase.whatsappUrl,
-                    }}
-                  />
-                </section>
-
-                <section id="timeline">
-                  <TimelinePanel interactions={bundle.interactions} />
-                </section>
-
-                <MarketingTrackingPanel
-                  leadCase={leadCase}
-                  formToken={bundle.caseRecord?.form_token || "-"}
-                  lostReason={bundle.caseRecord?.lost_reason || "-"}
-                  hasCtwa={hasCtwa}
-                />
-              </div>
-
-              <aside className="grid content-start gap-3.5">
-                <Panel title="Customer">
-                  <InfoLine label="Name" value={leadCase.customerName} />
-                  <InfoLine label="Phone" value={leadCase.phone} />
-                  <InfoLine label="Email" value={leadCase.email} />
-                  <InfoLine label="Brand" value={leadCase.brandName} />
-                  <InfoLine label="Assigned to" value={leadCase.assignedCsLabel} />
-                </Panel>
-
-                <Panel title="Booking Details">
-                  <InfoLine label="Treatment / offer" value={leadCase.treatmentOffer} />
-                  <InfoLine label="Package" value={leadCase.packagePrice} />
-                  <InfoLine label="Branch" value={leadCase.branchName} />
-                  <InfoLine label="Preferred time" value={leadCase.appointmentLabel} />
-                  <InfoLine label="Confirmed time" value={confirmedAppointmentLabel} />
-                  <InfoLine label="Room" value={bookingMeta.roomArrangement || "-"} />
-                  <InfoLine label="Paid status" value={bookingMeta.paidStatusLabel} />
-                </Panel>
 
                 <ActionPanel
                   title="CS 跟進狀態"
@@ -451,6 +448,12 @@ export default async function CrmLeadDetailPage({
                 <Placeholder title="Next Best Action" body="Future CRM can recommend WhatsApp follow-up, booking confirmation, or payment reminders." />
               </aside>
             </div>
+            <MarketingTrackingPanel
+              leadCase={leadCase}
+              formToken={bundle.caseRecord?.form_token || "-"}
+              lostReason={bundle.caseRecord?.lost_reason || "-"}
+              hasCtwa={hasCtwa}
+            />
           </div>
         </div>
       </div>
@@ -575,7 +578,7 @@ function BookingSummaryPanel({
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div className="min-w-0">
           <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#64748b]">
-            CS Booking Operation Card
+            Booking summary
           </p>
           <div className="mt-2 flex flex-wrap items-center gap-2">
             <h2 className="truncate text-xl font-black text-[#111827]">
@@ -705,6 +708,131 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
+function ConversationPanel({
+  interactions,
+  leadCase,
+  confirmedAppointmentLabel,
+}: {
+  interactions: CrmInteractionRecord[];
+  leadCase: CrmLeadCase;
+  confirmedAppointmentLabel: string;
+}) {
+  const contextEvents = buildConversationContextEvents(
+    interactions,
+    leadCase,
+    confirmedAppointmentLabel
+  );
+
+  return (
+    <section className="min-h-[360px] rounded-lg border border-[#e5e7eb] bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eef2f6] px-3.5 py-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#64748b]">
+            Conversation
+          </p>
+          <h2 className="mt-1 text-[15px] font-black text-[#111827]">
+            WhatsApp 對話工作區
+          </h2>
+          <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
+            完成 WhatsApp 連接後，對話紀錄會顯示喺呢度。現階段下方只顯示內部跟進脈絡，方便 CS 回覆前參考。
+          </p>
+        </div>
+        <span className="rounded-md bg-[#f8fafc] px-2 py-1 text-[10px] font-black text-[#64748b]">
+          Manual WhatsApp
+        </span>
+      </div>
+
+      <div className="grid gap-3 p-3.5">
+        <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-3 py-4 text-center">
+          <p className="text-[13px] font-black text-[#111827]">
+            完成 WhatsApp 連接後，對話紀錄會顯示喺呢度。
+          </p>
+          <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
+            目前仍需人手開啟 WhatsApp；智能回覆只會填入草稿，需同事確認。
+          </p>
+        </div>
+
+        <div>
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <h3 className="text-[12px] font-black text-[#111827]">
+              Internal context
+            </h3>
+            <span className="text-[10px] font-bold text-[#94a3b8]">
+              Not synced messages
+            </span>
+          </div>
+          <ol className="grid gap-2">
+            {contextEvents.map((event) => (
+              <li
+                key={`${event.label}-${event.time}-${event.body}`}
+                className="rounded-lg border border-[#eef2f6] bg-[#fbfdff] px-3 py-2"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] font-black text-[#111827]">
+                    {event.label}
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#64748b]">
+                    {event.time}
+                  </span>
+                </div>
+                <p className="mt-1 text-[12px] font-semibold leading-5 text-[#475569]">
+                  {event.body}
+                </p>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function buildConversationContextEvents(
+  interactions: CrmInteractionRecord[],
+  leadCase: CrmLeadCase,
+  confirmedAppointmentLabel: string
+) {
+  const initialEvent = {
+    label: "Form submission",
+    time: leadCase.createdLabel,
+    body: `${leadCase.customerName} submitted interest in ${leadCase.treatmentOffer}. Preferred appointment: ${leadCase.appointmentLabel}.`,
+  };
+
+  const internalEvents = interactions.slice(0, 6).map((item) => ({
+    label: interactionLabel(item.interaction_type),
+    time: formatDateTime(item.created_at),
+    body: item.body || "Internal CRM activity recorded.",
+  }));
+
+  const bookingEvent =
+    confirmedAppointmentLabel && !confirmedAppointmentLabel.includes("未")
+      ? [
+          {
+            label: "Confirmed booking",
+            time: leadCase.lastActivityLabel,
+            body: `CS confirmed appointment: ${confirmedAppointmentLabel}.`,
+          },
+        ]
+      : [];
+
+  return [initialEvent, ...bookingEvent, ...internalEvents];
+}
+
+function interactionLabel(type: string) {
+  const labels: Record<string, string> = {
+    contact_attempt: "Contact attempt",
+    status_change: "Status update",
+    note: "Internal note",
+    booking_confirmed: "Booking confirmed",
+    showed: "Marked showed",
+    no_show: "Marked no-show",
+    lost: "Marked lost",
+    invalid: "Marked invalid",
+  };
+
+  return labels[type] ?? "Internal activity";
+}
+
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 rounded-md bg-[#f8fafc] px-2.5 py-2 sm:grid-cols-[118px_1fr]">
@@ -744,7 +872,7 @@ function ManualWhatsAppPanel({ leadCase }: { leadCase: CrmLeadCase }) {
         </a>
       ) : (
         <p className="mt-3 rounded-md bg-white/80 px-3 py-2 text-[11px] font-semibold text-[#64748b]">
-          未有可用 WhatsApp link。這不是 WhatsApp API integration。
+          未有可用 WhatsApp link。請先用電話或其他方式聯絡客人。
         </p>
       )}
     </section>
@@ -860,7 +988,7 @@ function MarketingTrackingPanel({
             </>
           ) : (
             <p className="text-[12px] leading-5 text-[#64748b]">
-              No CTWA referral data yet. WhatsApp webhook/API can enrich this block later.
+              No WhatsApp ad referral data yet. Future connection can enrich this block later.
             </p>
           )}
         </Panel>
@@ -1028,7 +1156,7 @@ function TimelinePanel({ interactions }: { interactions: CrmInteractionRecord[] 
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-[13px] font-bold text-[#111827]">Timeline</h2>
         <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
-          crm_interactions
+          Internal log
         </span>
       </div>
       {interactions.length > 0 ? (

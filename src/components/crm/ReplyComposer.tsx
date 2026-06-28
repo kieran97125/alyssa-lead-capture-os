@@ -80,7 +80,7 @@ export function ReplyComposer({
       <div className="mt-3 rounded-md border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-3 py-2">
         <p className="text-[11px] font-black text-[#334155]">Conversation context</p>
         <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
-          WhatsApp 對話同步尚未連接。暫時請 CS 以手動 WhatsApp 內容、最新跟進紀錄及下方客人資料作判斷。
+          完成 WhatsApp 連接後，對話紀錄會自動顯示。暫時請 CS 以手動 WhatsApp 內容、最新跟進紀錄及下方客人資料作判斷。
         </p>
         <div className="mt-2 grid gap-1 text-[11px] font-semibold text-[#475569] sm:grid-cols-2">
           <span>狀態：{context.statusLabel}</span>
@@ -134,7 +134,7 @@ export function ReplyComposer({
               </span>
             </div>
             <p className="mt-1 text-[11px] font-semibold leading-5 text-[#475569]">
-              目前只會根據客人狀態、療程及預約資料產生本地草稿，不會連接外部 AI。
+              目前只會根據客人狀態、療程及預約資料產生草稿，智能回覆只會填入草稿，需同事確認。
             </p>
             <button
               type="button"
@@ -182,7 +182,7 @@ export function ReplyComposer({
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#fef3c7] bg-[#fffbeb] px-3 py-2">
             <p className="text-[11px] font-semibold leading-5 text-[#92400e]">
-              WhatsApp 尚未連接自動發送。請 CS 人手複製訊息，或手動開啟 WhatsApp 後自行發送。
+              完成 WhatsApp 連接後可直接發送；目前仍需人手開啟 WhatsApp，再由同事確認及發送。
             </p>
             <div className="flex flex-wrap items-center gap-2">
               {context.whatsappUrl ? (
