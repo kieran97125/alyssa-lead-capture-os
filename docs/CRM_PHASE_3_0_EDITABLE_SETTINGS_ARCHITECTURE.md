@@ -31,10 +31,15 @@ No WhatsApp API, external AI API, Meta API, or auto-send behavior is connected.
 Future flow after reviewed schema is applied:
 
 1. Load global defaults from code.
-2. Load enabled app settings from a future `crm_app_settings` table.
-3. Apply brand-level overrides when a lead has a brand context.
-4. Fall back to code defaults when a setting is missing, disabled, malformed, or unsafe.
-5. Render the resolved settings in lead detail and CRM settings UI.
+2. Load enabled global settings from a future `crm_app_settings` table.
+3. Load enabled brand-level overrides when a lead has a brand context.
+4. Validate DB records by `config_group`, `config_key`, `enabled`, and `value_json` shape.
+5. Merge settings in this order:
+   - code defaults
+   - valid global DB settings
+   - valid brand DB overrides
+6. Fall back to code defaults when a setting is missing, disabled, malformed, locked in an unsafe way, or unavailable.
+7. Render the resolved settings in lead detail, inbox, booking views, and CRM settings UI.
 
 The first implementation should be read-mostly and conservative. Editing can be added after audit and permission rules are reviewed.
 
@@ -54,6 +59,7 @@ Recommended configurable groups:
 - `treatment_faq_replies`
 - `room_options`
 - `paid_status_labels`
+- `inbox_column_presets`
 
 ## Brand-Level Override Strategy
 
@@ -65,10 +71,12 @@ Settings should support:
 
 Resolution order:
 
-1. brand-specific enabled setting by `brand_id`
-2. brand-specific enabled setting by `brand_slug`
-3. global enabled setting
-4. code default
+1. code default
+2. global enabled setting
+3. brand-specific enabled setting by `brand_slug`
+4. brand-specific enabled setting by `brand_id`
+
+When both `brand_id` and `brand_slug` are available, `brand_id` should win because it is stable against slug edits. `brand_slug` remains useful for preview, imports, and fallback matching.
 
 ## Fallback Strategy
 
@@ -116,6 +124,42 @@ Editable settings must not trigger:
 
 Settings must not drive whether a form lead is considered booked. Booking remains an explicit CS operational action.
 
+## Inbox Column Preset Consumption
+
+Inbox column presets should start as code defaults and later move into DB-backed settings under `inbox_column_presets`.
+
+Recommended preset keys:
+
+- `cs_booking`
+- `marketing`
+- `technical`
+
+Future `value_json` shape can contain:
+
+- `columns`: ordered column keys
+- `label`: display label override
+- `description`: admin-facing description
+- `enabled`: UI visibility hint
+- `locked_columns`: columns that cannot be removed from operational views
+
+The default CS booking preset must remain booking-first. Marketing and technical presets can expose source, campaign, CTWA, fbclid/fbp/fbc, landing page, form token, parent URL, and referrer fields when needed, but those fields should not be forced into the default CS workflow.
+
+Column preferences can later be saved per user or team after the settings table is proven safe. Until then, presets should remain code-based or brand-level settings only.
+
+## Admin Mutation Boundary
+
+Editable settings should be changed only from admin-oriented routes such as `/crm/settings`.
+
+Until a full user/role model exists:
+
+- Browser clients must not receive service-role credentials.
+- Settings mutation should use server-only actions.
+- Public routes must never read or mutate CRM settings.
+- No anon/public RLS policies should allow direct mutation.
+- Audit rows should be written for every future create/update/enable/disable/lock/unlock/delete action.
+
+The SQL proposal enables RLS but intentionally does not add broad anon policies. Future implementation can use the server-side admin client for controlled mutations behind the LaunchHub admin password gate.
+
 ## Avoiding Booking Workflow Breakage
 
 The business rules remain fixed:
@@ -131,8 +175,9 @@ Any future settings editor should validate that required status values still map
 ## Future Implementation Steps
 
 1. Review and apply a settings table migration only after approval.
-2. Add a server-only settings reader that merges code defaults and DB overrides.
+2. Add a server-only settings reader that merges code defaults, global DB settings, and brand DB overrides.
 3. Add a read-only resolved-config debug view in `/crm/settings`.
-4. Add admin edit forms for low-risk groups first, such as quick replies and lost reasons.
-5. Add audit fields before enabling broader editing.
+4. Add admin edit forms for low-risk groups first, such as quick replies, lost reasons, invalid reasons, and inbox column presets.
+5. Write audit rows before enabling broader editing.
 6. Keep all public lead capture and embed behavior isolated from CRM settings.
+7. Add user/team preference persistence only after brand-level settings are stable.

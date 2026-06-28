@@ -2,6 +2,8 @@ begin;
 
 -- CRM Phase 2.7 App Settings Config Plan
 -- Proposal only. Do not execute without review and explicit approval.
+-- Historical draft. For any future reviewed migration, prefer the strengthened
+-- Phase 3.1 proposal in docs/CRM_PHASE_3_0_EDITABLE_SETTINGS_PLAN.sql.
 --
 -- Goal:
 -- Move CRM operational settings from code defaults into a brand-scoped,

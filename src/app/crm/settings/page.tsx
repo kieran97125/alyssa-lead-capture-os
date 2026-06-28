@@ -61,6 +61,7 @@ const editableSettingsRoadmap = [
   ["Booking confirmation templates", "Template direction only", "Future approved message drafts"],
   ["Treatment FAQ replies", "Planning only", "Future treatment-specific reply library"],
   ["Paid status labels", "Read-only dropdown defaults now", "Future editable labels"],
+  ["Inbox column presets", "Code-based CS / Marketing / Technical presets now", "Future editable by brand or team"],
 ];
 
 const fallbackRules = [
