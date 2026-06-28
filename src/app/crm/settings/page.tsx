@@ -31,33 +31,83 @@ const sections = [
 ] as const;
 
 const overviewItems = [
-  ["Brand setup", "Preview only", "blue"],
-  ["Treatment setup", "Preview only", "blue"],
-  ["WhatsApp connection", "Not connected", "amber"],
-  ["AI replies", "Template draft only", "green"],
-  ["Booking workflow", "Code defaults active", "green"],
-  ["Inbox presets", "Code defaults active", "green"],
-  ["Team permissions", "Planned", "slate"],
-  ["DB editable settings", "Not applied", "amber"],
+  [
+    "Brand setup",
+    "Mock only",
+    "品牌資料會以現有設定展示，暫時未能在此頁儲存修改。",
+    "Next: Apply settings DB first.",
+    "blue",
+  ],
+  [
+    "Treatment setup",
+    "Mock only",
+    "療程、優惠、分店及 FAQ 會用現有設定預覽。",
+    "Next: Enable editable config later.",
+    "blue",
+  ],
+  [
+    "WhatsApp connection",
+    "API not connected",
+    "目前只支援手動開啟 WhatsApp，沒有自動發送或同步對話。",
+    "Next: Connect WhatsApp API later.",
+    "amber",
+  ],
+  [
+    "AI replies",
+    "Manual only",
+    "回覆內容來自預設草稿，CS 需要人手檢查、複製及發送。",
+    "Next: Connect AI API later if approved.",
+    "green",
+  ],
+  [
+    "Booking workflow",
+    "Active from code defaults",
+    "CRM 狀態、lost / invalid reason 及跟進選項目前由 code defaults 提供。",
+    "Next: Keep using defaults until DB settings are applied.",
+    "green",
+  ],
+  [
+    "Inbox presets",
+    "Active from code defaults",
+    "CS Booking View 等欄位 preset 目前由 code defaults 控制。",
+    "Next: Save presets in settings DB later.",
+    "green",
+  ],
+  [
+    "Team permissions",
+    "Coming soon",
+    "現階段只展示未來權限方向，未改動任何 access control。",
+    "Next: Define admin-only editing boundary.",
+    "slate",
+  ],
+  [
+    "DB editable settings",
+    "DB not applied",
+    "crm_app_settings 仍未套用，設定頁不會寫入資料庫。",
+    "Next: Review and apply SQL proposal first.",
+    "amber",
+  ],
 ] as const;
 
 const whatsappMockFields = [
-  ["Connection mode", "Manual open currently active"],
-  ["API provider", "Not connected"],
-  ["WhatsApp phone number", "Future setting"],
-  ["Business Account ID", "Not connected"],
-  ["Webhook URL", "Not connected"],
-  ["Message templates", "Planned"],
+  ["Current mode", "Manual WhatsApp open"],
+  ["API status", "Not connected"],
+  ["Auto-send", "Off"],
+  ["Human approval", "Required"],
+  ["Template sending", "Not enabled"],
+  ["Webhook sync", "Not connected"],
 ] as const;
 
 const aiMockFields = [
-  ["AI mode", "Template draft only"],
+  ["Current mode", "Template drafts only"],
+  ["External AI API", "Not connected"],
+  ["Auto-send", "Off"],
+  ["Human approval", "Required"],
   ["Brand tone", "Friendly, concise, Hong Kong Traditional Chinese"],
   ["Reply language", "Traditional Chinese"],
   ["Forbidden claims", "No guaranteed treatment results"],
   ["Price handling rules", "Use approved offer/package wording only"],
   ["Treatment FAQ knowledge source", "Future treatment settings"],
-  ["External AI API", "Not connected"],
 ] as const;
 
 const teamPermissionRows = [
@@ -107,11 +157,13 @@ export default async function CrmSettingsPage() {
                 Settings Editor Mock UX
               </h1>
               <p className="mt-1 text-[12px] font-semibold text-[#64748b]">
-                設定中心預覽。欄位以可編輯介面展示，但目前全部為 mock only，未儲存到 DB。
+                設定中心預覽。現時 CRM 仍使用 code defaults；此頁只展示未來可編輯設定，不會儲存任何改動。
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <StatusBadge tone="amber">Mock only / 未啟用儲存</StatusBadge>
+              <StatusBadge tone="green">Active from code defaults</StatusBadge>
+              <StatusBadge tone="amber">Mock only</StatusBadge>
+              <StatusBadge tone="amber">Save not enabled</StatusBadge>
               <StatusBadge tone={runtime.actionsEnabled ? "green" : "amber"}>
                 {runtime.actionsEnabled ? "CS actions enabled" : "Writes disabled"}
               </StatusBadge>
@@ -139,10 +191,10 @@ export default async function CrmSettingsPage() {
                   Safe mode
                 </p>
                 <p className="mt-1 text-[12px] font-bold text-[#111827]">
-                  No DB save
+                  Save not enabled
                 </p>
                 <p className="mt-1 text-[11px] leading-4 text-[#92400e]">
-                  crm_app_settings table is not required. Code defaults remain the safety net.
+                  Changes cannot be saved yet. Code defaults remain active until the settings DB is applied.
                 </p>
               </div>
             </div>
@@ -154,14 +206,16 @@ export default async function CrmSettingsPage() {
                 id="overview"
                 eyebrow="Control Center"
                 title="Overview"
-                description="高層次 readiness cards。全部狀態只供 admin preview，不會執行任何設定更新。"
+                description="Admin-friendly readiness view. It explains what is active today, what is mock-only, and what needs future setup."
               >
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {overviewItems.map(([label, status, tone]) => (
+                  {overviewItems.map(([label, status, explanation, nextAction, tone]) => (
                     <ReadinessCard
                       key={label}
                       title={label}
                       status={status}
+                      explanation={explanation}
+                      nextAction={nextAction}
                       tone={tone}
                     />
                   ))}
@@ -172,7 +226,7 @@ export default async function CrmSettingsPage() {
                 id="brands"
                 eyebrow="Brand"
                 title="Brand Settings"
-                description="Mock editor for brand-level settings. Existing data is shown where available; save is disabled."
+                description="Brand settings preview. Existing brand data is shown as read-only fields; changes cannot be saved yet."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
                   {brands.map((brand) => (
@@ -189,7 +243,7 @@ export default async function CrmSettingsPage() {
                 id="treatments"
                 eyebrow="Treatment"
                 title="Treatment Settings"
-                description="Mock editor for offer, booking, room, FAQ, pre-treatment, and aftercare settings."
+                description="Treatment settings preview for offers, room needs, FAQ replies, pre-treatment notes, and aftercare notes."
               >
                 <div className="grid gap-3">
                   {treatmentRows.map(({ treatment, brand, packages, branches }) => (
@@ -208,11 +262,19 @@ export default async function CrmSettingsPage() {
                 id="whatsapp"
                 eyebrow="Messaging"
                 title="WhatsApp Settings"
-                description="Future-ready WhatsApp API settings UI. Manual WhatsApp open remains the only active behavior."
+                description="WhatsApp setup preview. Manual WhatsApp open is the only active behavior."
               >
                 <ImportantNotice>
-                  目前只支援手動開啟 WhatsApp，並未連接 WhatsApp API；訊息仍需人手複製及發送。
+                  目前只會協助 CS 開啟 WhatsApp，訊息仍需人手複製及發送。
                 </ImportantNotice>
+                <StatusRow
+                  items={[
+                    ["Manual only", "blue"],
+                    ["API not connected", "amber"],
+                    ["Auto-send off", "slate"],
+                    ["Save not enabled", "amber"],
+                  ]}
+                />
                 <div className="grid gap-3 xl:grid-cols-2">
                   {whatsappMockFields.map(([label, value]) => (
                     <MockInput key={label} label={label} value={value} />
@@ -227,11 +289,19 @@ export default async function CrmSettingsPage() {
                 id="ai"
                 eyebrow="AI Assist"
                 title="AI Reply Settings"
-                description="Template draft settings UI only. No external AI API, no auto-send."
+                description="Reply draft settings preview. Templates are manual drafts only."
               >
                 <ImportantNotice>
-                  AI 回覆只係草稿，必須由 CS 人手檢查、複製及發送。
+                  目前 AI 回覆只係預設草稿，不會自動回覆客人。
                 </ImportantNotice>
+                <StatusRow
+                  items={[
+                    ["Manual only", "blue"],
+                    ["API not connected", "amber"],
+                    ["Auto-send off", "slate"],
+                    ["Save not enabled", "amber"],
+                  ]}
+                />
                 <div className="grid gap-3 xl:grid-cols-2">
                   {aiMockFields.map(([label, value]) => (
                     <MockInput key={label} label={label} value={value} />
@@ -255,7 +325,7 @@ export default async function CrmSettingsPage() {
                 id="booking"
                 eyebrow="Workflow"
                 title="Booking Settings"
-                description="Mock editor for CRM status labels, booking rules, paid status, room options, lost/invalid reasons, and follow-up outcomes."
+                description="Booking workflow preview for status labels, paid status, room options, lost/invalid reasons, and follow-up outcomes."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
                   <MockTextarea
@@ -281,7 +351,7 @@ export default async function CrmSettingsPage() {
                 id="inbox"
                 eyebrow="Inbox"
                 title="Inbox Settings"
-                description="Mock editor for column presets and future user/team preferences."
+                description="Inbox preset preview. Current CS Booking View still comes from code defaults."
               >
                 <div className="grid gap-3 lg:grid-cols-3">
                   {crmSettings.inboxColumnPresets.map((preset) => (
@@ -308,7 +378,7 @@ export default async function CrmSettingsPage() {
                 id="team"
                 eyebrow="Access"
                 title="Team & Permissions"
-                description="Future-ready permission settings UI. No real auth or permission logic changes in this phase."
+                description="Future team settings preview. This phase does not change login, roles, or permissions."
               >
                 <div className="grid gap-3 xl:grid-cols-2">
                   {teamPermissionRows.map(([label, value]) => (
@@ -339,7 +409,7 @@ export default async function CrmSettingsPage() {
                     title="Apply status"
                     rows={[
                       ["crm_app_settings SQL proposal", "docs/CRM_PHASE_3_0_EDITABLE_SETTINGS_PLAN.sql"],
-                      ["DB settings table", "Not required yet"],
+                      ["DB settings table", "Not applied"],
                       ["Live mutation", "Disabled"],
                       ["Code defaults", "Safety net active"],
                       ["WhatsApp API", "Not connected"],
@@ -382,7 +452,10 @@ function SettingsSection({
             {description}
           </p>
         </div>
-        <StatusBadge tone="amber">Mock editor / Coming soon</StatusBadge>
+        <div className="flex flex-wrap gap-2">
+          <StatusBadge tone="amber">Mock only</StatusBadge>
+          <StatusBadge tone="amber">Save not enabled</StatusBadge>
+        </div>
       </div>
       <div className="p-4">{children}</div>
     </section>
@@ -392,10 +465,14 @@ function SettingsSection({
 function ReadinessCard({
   title,
   status,
+  explanation,
+  nextAction,
   tone,
 }: {
   title: string;
   status: string;
+  explanation: string;
+  nextAction: string;
   tone: StatusTone;
 }) {
   return (
@@ -404,7 +481,25 @@ function ReadinessCard({
       <div className="mt-2">
         <StatusBadge tone={tone}>{status}</StatusBadge>
       </div>
+      <p className="mt-2 text-[11px] font-semibold leading-5 text-[#475569]">
+        {explanation}
+      </p>
+      <p className="mt-2 rounded-md bg-white px-2 py-1.5 text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+        {nextAction}
+      </p>
     </article>
+  );
+}
+
+function StatusRow({ items }: { items: Array<[string, StatusTone]> }) {
+  return (
+    <div className="mb-3 flex flex-wrap gap-2">
+      {items.map(([label, tone]) => (
+        <StatusBadge key={label} tone={tone}>
+          {label}
+        </StatusBadge>
+      ))}
+    </div>
   );
 }
 
@@ -426,7 +521,7 @@ function BrandEditorCard({
             {brand.slug}
           </p>
         </div>
-        <StatusBadge tone="blue">Preview only</StatusBadge>
+        <StatusBadge tone="blue">Mock only</StatusBadge>
       </div>
       <div className="mt-3 grid gap-3 sm:grid-cols-2">
         <MockInput label="Brand name" value={brand.name} />
@@ -471,7 +566,7 @@ function TreatmentEditorCard({
             {brand?.name ?? "Unknown brand"} / {treatment.slug}
           </p>
         </div>
-        <StatusBadge tone="blue">Preview only</StatusBadge>
+        <StatusBadge tone="blue">Mock only</StatusBadge>
       </div>
       <div className="mt-3 grid gap-3 xl:grid-cols-3">
         <MockInput label="Treatment name" value={treatment.name} />
@@ -507,7 +602,7 @@ function OptionEditor({
     <article className="rounded-lg border border-[#e5e7eb] bg-white p-3">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[12px] font-black text-[#111827]">{title}</p>
-        <StatusBadge tone="green">Code defaults</StatusBadge>
+        <StatusBadge tone="green">Active from code defaults</StatusBadge>
       </div>
       <div className="mt-3 grid gap-2">
         {values.map(([value, label]) => (
@@ -534,7 +629,11 @@ function PresetEditorCard({
     <article className="rounded-lg border border-[#e5e7eb] bg-white p-3">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[12px] font-black text-[#111827]">{title}</p>
-        {active ? <StatusBadge tone="green">Default</StatusBadge> : <StatusBadge tone="blue">Preset</StatusBadge>}
+        {active ? (
+          <StatusBadge tone="green">Active from code defaults</StatusBadge>
+        ) : (
+          <StatusBadge tone="blue">Mock only</StatusBadge>
+        )}
       </div>
       <MockTextarea label="Column preset notes" value={body} />
       <button
@@ -542,7 +641,7 @@ function PresetEditorCard({
         disabled
         className="mt-3 h-8 rounded-md bg-[#e5e7eb] px-3 text-[11px] font-black text-[#94a3b8]"
       >
-        Edit columns coming soon
+        儲存尚未啟用
       </button>
     </article>
   );
@@ -599,7 +698,7 @@ function MockToggle({ label, checked }: { label: string; checked: boolean }) {
         </span>
       </div>
       <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
-        Disabled preview. Future editable setting.
+        Read-only preview. Changes cannot be saved yet.
       </p>
     </div>
   );
@@ -609,14 +708,14 @@ function DisabledSaveBar() {
   return (
     <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#eef2f6] bg-[#f8fafc] px-3 py-2">
       <p className="text-[11px] font-semibold text-[#64748b]">
-        Mock only. DB settings table not applied yet.
+        Mock only. Changes cannot be saved yet; active CRM still uses code defaults.
       </p>
       <button
         type="button"
         disabled
         className="h-8 rounded-md bg-[#e5e7eb] px-3 text-[11px] font-black text-[#94a3b8]"
       >
-        Save coming soon
+        儲存尚未啟用
       </button>
     </div>
   );
