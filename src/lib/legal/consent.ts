@@ -1,5 +1,5 @@
 export const LEGAL_CONSENT_TEXT =
-  "我已閱讀並同意相關條款，並同意你們使用我提交的資料作預約、客戶服務及相關跟進用途。";
+  "我已閱讀並同意相關條款。";
 
 export const LEGAL_CONSENT_HELPER_TEXT =
   "提交資料前，請確認你已閱讀並同意相關條款。";
@@ -21,6 +21,8 @@ export type BrandLegalSettingsInput = {
   name?: string | null;
   legalPageUrl?: string | null;
   legalLinkLabel?: string | null;
+  privacyUrl?: string | null;
+  disclaimerUrl?: string | null;
   operatorName?: string | null;
   operatingCompanyName?: string | null;
 };
@@ -34,6 +36,7 @@ export type BrandLegalProfile = {
   privacyPolicyUrl: string;
   termsUrl: string;
   disclaimerUrl: string;
+  hasSeparateLegalLinks: boolean;
   legalPageUrl: string | null;
   legalLinkLabel: string;
 };
@@ -51,16 +54,20 @@ const brandLegalProfiles: Record<
     | "operatingCompanyName"
     | "contactLabel"
     | "lastUpdated"
+    | "privacyPolicyUrl"
+    | "disclaimerUrl"
     | "legalPageUrl"
     | "legalLinkLabel"
   >
 > = {
   alyssa: {
     brandName: "Alyssa",
-    operatingCompanyName: "YISSA GROUP LIMITED",
+    operatingCompanyName: "Alyssa Group Limited",
     contactLabel:
       "如有查詢，請透過品牌官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: "2026年6月",
+    privacyPolicyUrl: "https://www.alyssa.hk/privacy",
+    disclaimerUrl: "https://www.alyssa.hk/disclaimer",
     legalPageUrl: null,
     legalLinkLabel: DEFAULT_SINGLE_LEGAL_LINK_LABEL,
   },
@@ -70,6 +77,8 @@ const brandLegalProfiles: Record<
     contactLabel:
       "如有查詢，請透過 Ineffable Beauty 官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: "2026年6月",
+    privacyPolicyUrl: "/legal/ineffable/privacy",
+    disclaimerUrl: "/legal/ineffable/disclaimer",
     legalPageUrl: INEFFABLE_LEGAL_PAGE_URL,
     legalLinkLabel: DEFAULT_SINGLE_LEGAL_LINK_LABEL,
   },
@@ -79,6 +88,8 @@ const brandLegalProfiles: Record<
     contactLabel:
       "如有查詢，請透過 Ineffable Beauty 官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: "2026年6月",
+    privacyPolicyUrl: "/legal/ineffable/privacy",
+    disclaimerUrl: "/legal/ineffable/disclaimer",
     legalPageUrl: INEFFABLE_LEGAL_PAGE_URL,
     legalLinkLabel: DEFAULT_SINGLE_LEGAL_LINK_LABEL,
   },
@@ -88,6 +99,8 @@ const brandLegalProfiles: Record<
     contactLabel:
       "如有查詢，請透過品牌官方 WhatsApp 或客服渠道聯絡我們。",
     lastUpdated: "2026年6月",
+    privacyPolicyUrl: "/legal/skin-light/privacy",
+    disclaimerUrl: "/legal/skin-light/disclaimer",
     legalPageUrl: null,
     legalLinkLabel: DEFAULT_SINGLE_LEGAL_LINK_LABEL,
   },
@@ -125,6 +138,8 @@ export function getBrandLegalProfile({
   brandName = "Alyssa",
   legalPageUrl,
   legalLinkLabel,
+  privacyUrl,
+  disclaimerUrl,
   operatorName,
   operatingCompanyName,
 }: {
@@ -132,6 +147,8 @@ export function getBrandLegalProfile({
   brandName?: string | null;
   legalPageUrl?: string | null;
   legalLinkLabel?: string | null;
+  privacyUrl?: string | null;
+  disclaimerUrl?: string | null;
   operatorName?: string | null;
   operatingCompanyName?: string | null;
 } = {}): BrandLegalProfile {
@@ -139,8 +156,22 @@ export function getBrandLegalProfile({
   const profile = brandLegalProfiles[normalizedSlug];
   const displayName = profile?.brandName || clean(brandName) || "品牌";
   const legalLinks = getLegalLinks(normalizedSlug);
-  const singleLegalPageUrl =
+  const configuredSingleLegalPageUrl =
     normalizeUrl(legalPageUrl) ?? normalizeUrl(profile?.legalPageUrl);
+  const explicitPrivacyUrl = normalizeUrl(privacyUrl);
+  const explicitDisclaimerUrl = normalizeUrl(disclaimerUrl);
+  const shouldPreferSeparateLinks =
+    normalizedSlug === "alyssa" &&
+    Boolean(explicitPrivacyUrl || explicitDisclaimerUrl || profile?.privacyPolicyUrl);
+  const singleLegalPageUrl = shouldPreferSeparateLinks
+    ? null
+    : configuredSingleLegalPageUrl;
+  const explicitOperatorName = clean(operatorName);
+  const explicitOperatingCompanyName = clean(operatingCompanyName);
+  const operatorFromSettings =
+    normalizedSlug === "alyssa" && explicitOperatorName === "YISSA GROUP LIMITED"
+      ? ""
+      : explicitOperatorName;
   const singleLegalLinkLabel =
     clean(legalLinkLabel) ||
     clean(profile?.legalLinkLabel) ||
@@ -150,8 +181,8 @@ export function getBrandLegalProfile({
     brandSlug: normalizedSlug,
     brandName: displayName,
     operatingCompanyName:
-      clean(operatorName) ||
-      clean(operatingCompanyName) ||
+      operatorFromSettings ||
+      explicitOperatingCompanyName ||
       profile?.operatingCompanyName ||
       null,
     contactLabel:
@@ -160,7 +191,20 @@ export function getBrandLegalProfile({
     lastUpdated: profile?.lastUpdated || "2026年6月",
     legalPageUrl: singleLegalPageUrl,
     legalLinkLabel: singleLegalLinkLabel,
-    ...legalLinks,
+    privacyPolicyUrl:
+      explicitPrivacyUrl ||
+      normalizeUrl(profile?.privacyPolicyUrl) ||
+      legalLinks.privacyPolicyUrl,
+    termsUrl: legalLinks.termsUrl,
+    disclaimerUrl:
+      explicitDisclaimerUrl ||
+      normalizeUrl(profile?.disclaimerUrl) ||
+      legalLinks.disclaimerUrl,
+    hasSeparateLegalLinks: Boolean(
+      explicitPrivacyUrl ||
+        explicitDisclaimerUrl ||
+        shouldPreferSeparateLinks
+    ),
   };
 }
 
@@ -172,6 +216,8 @@ export function getBrandLegalProfileFromSettings(
     brandName: brand?.name,
     legalPageUrl: brand?.legalPageUrl,
     legalLinkLabel: brand?.legalLinkLabel,
+    privacyUrl: brand?.privacyUrl,
+    disclaimerUrl: brand?.disclaimerUrl,
     operatorName: brand?.operatorName,
     operatingCompanyName: brand?.operatingCompanyName,
   });
@@ -184,6 +230,13 @@ export function getLegalFooterLinks(profile: BrandLegalProfile): LegalFooterLink
         label: profile.legalLinkLabel || DEFAULT_SINGLE_LEGAL_LINK_LABEL,
         href: profile.legalPageUrl,
       },
+    ];
+  }
+
+  if (profile.hasSeparateLegalLinks) {
+    return [
+      { label: "私隱政策", href: profile.privacyPolicyUrl },
+      { label: "免責聲明", href: profile.disclaimerUrl },
     ];
   }
 

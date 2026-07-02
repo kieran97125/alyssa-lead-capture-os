@@ -271,13 +271,18 @@
     try {
       var url = new URL(cleaned);
       var path = url.pathname.replace(/\/+$/, "");
-      var allowedOrigin =
-        safeBrand === "ineffable" || safeBrand === "ineffable-beauty"
+      var isAlyssa = safeBrand === "alyssa" || safeBrand.indexOf("alyssa-") === 0;
+      var isIneffable = safeBrand === "ineffable" || safeBrand === "ineffable-beauty";
+      var allowedOrigin = isAlyssa
+        ? url.origin === "https://www.alyssa.hk" ||
+          url.origin === "https://alyssa.hk"
+        : isIneffable
           ? url.origin === "https://www.ineffablebeautyhk.com" ||
             url.origin === "https://ineffablebeautyhk.com"
           : false;
+      var allowedPath = isAlyssa ? path === "/thankyou" : path === "/thank-you";
 
-      return url.protocol === "https:" && allowedOrigin && path === "/thank-you";
+      return url.protocol === "https:" && allowedOrigin && allowedPath;
     } catch {
       return false;
     }

@@ -124,6 +124,8 @@ type BrandOption = FormOption & {
   slug: string;
   legalPageUrl?: string | null;
   legalLinkLabel?: string | null;
+  privacyUrl?: string | null;
+  disclaimerUrl?: string | null;
   operatorName?: string | null;
 };
 
@@ -222,6 +224,11 @@ function getAllowedRedirectOrigins(brandSlug: string | null | undefined) {
   const slug = (brandSlug || "").trim().toLowerCase();
   const origins = new Set<string>();
 
+  if (slug === "alyssa" || slug.startsWith("alyssa-")) {
+    origins.add("https://www.alyssa.hk");
+    origins.add("https://alyssa.hk");
+  }
+
   if (slug === "ineffable" || slug === "ineffable-beauty") {
     origins.add("https://www.ineffablebeautyhk.com");
     origins.add("https://ineffablebeautyhk.com");
@@ -241,7 +248,13 @@ function sanitizeSuccessRedirectUrl(
     const url = new URL(cleaned);
     if (url.protocol !== "https:") return null;
     if (!getAllowedRedirectOrigins(brandSlug).has(url.origin)) return null;
-    if (url.pathname.replace(/\/+$/, "") !== "/thank-you") return null;
+    const slug = (brandSlug || "").trim().toLowerCase();
+    const path = url.pathname.replace(/\/+$/, "");
+    const allowedPath =
+      slug === "alyssa" || slug.startsWith("alyssa-")
+        ? path === "/thankyou"
+        : path === "/thank-you";
+    if (!allowedPath) return null;
     return url;
   } catch {
     return null;
@@ -832,6 +845,9 @@ function normalizeBrand(raw: Record<string, unknown>): BrandOption {
     legalPageUrl: getString(raw.legalPageUrl) || getString(raw.legal_page_url) || null,
     legalLinkLabel:
       getString(raw.legalLinkLabel) || getString(raw.legal_link_label) || null,
+    privacyUrl: getString(raw.privacyUrl) || getString(raw.privacy_url) || null,
+    disclaimerUrl:
+      getString(raw.disclaimerUrl) || getString(raw.disclaimer_url) || null,
     operatorName: getString(raw.operatorName) || getString(raw.operator_name) || null,
   };
 }
@@ -991,13 +1007,17 @@ export function PublicLeadForm({
       brandName: brand.name || resolvedSlug,
       legalPageUrl: brand.legalPageUrl,
       legalLinkLabel: brand.legalLinkLabel,
+      privacyUrl: brand.privacyUrl,
+      disclaimerUrl: brand.disclaimerUrl,
       operatorName: brand.operatorName,
     });
   }, [
+    brand.disclaimerUrl,
     brand.legalLinkLabel,
     brand.legalPageUrl,
     brand.name,
     brand.operatorName,
+    brand.privacyUrl,
     brand.slug,
     brandSlug,
   ]);
@@ -1021,13 +1041,17 @@ export function PublicLeadForm({
 
   function buildThankYouRedirectUrl({
     leadId,
+    eventId,
     eventAttribution,
+    successRedirectUrl,
   }: {
     leadId: string;
+    eventId: string;
     eventAttribution: AttributionEnvelope;
+    successRedirectUrl?: string | null;
   }) {
     const baseUrl = sanitizeSuccessRedirectUrl(
-      effectiveSuccessRedirectUrl,
+      successRedirectUrl || effectiveSuccessRedirectUrl,
       brand.slug || brandSlug
     );
     if (!baseUrl || !leadId) return null;
@@ -1048,7 +1072,7 @@ export function PublicLeadForm({
     }
     baseUrl.searchParams.set("form_id", formId || publicForm.id);
     baseUrl.searchParams.set("lead_id", leadId);
-    baseUrl.searchParams.set("event_id", leadId);
+    if (eventId) baseUrl.searchParams.set("event_id", eventId);
 
     THANK_YOU_REDIRECT_KEYS.forEach((key) => {
       const value = getString(submittedTouch[key]);
@@ -1117,13 +1141,37 @@ export function PublicLeadForm({
         },
         "*"
       );
-      return;
     }
 
     try {
-      window.location.assign(finalRedirectUrl);
+      if (window.top) {
+        window.top.location.href = finalRedirectUrl;
+        return;
+      }
     } catch {
+      logConversionDebug("top redirect blocked", { finalRedirectUrl });
+    }
+
+    try {
+      if (window.parent && window.parent !== window) {
+        window.parent.location.href = finalRedirectUrl;
+        return;
+      }
+    } catch {
+      logConversionDebug("parent redirect blocked", { finalRedirectUrl });
+    }
+
+    try {
       window.open(finalRedirectUrl, "_top");
+      return;
+    } catch {
+      logConversionDebug("open _top redirect blocked", { finalRedirectUrl });
+    }
+
+    try {
+      window.location.href = finalRedirectUrl;
+    } catch {
+      logConversionDebug("window redirect blocked", { finalRedirectUrl });
     }
   }
 
@@ -1501,16 +1549,31 @@ export function PublicLeadForm({
           }
         : liveAttribution;
       const leadId = getString(result.lead_id);
+      const eventId =
+        getString(result.event_id) ||
+        getString(successAttribution.submitted_touch_json?.client_event_id) ||
+        leadId;
+      const apiFinalRedirectUrl = sanitizeSuccessRedirectUrl(
+        getString(result.final_redirect_url),
+        brand.slug || brandSlug
+      )?.toString();
       const finalRedirectUrl =
         effectiveConversionMode === "thank_you_redirect"
-          ? buildThankYouRedirectUrl({
+          ? apiFinalRedirectUrl ||
+            buildThankYouRedirectUrl({
               leadId,
+              eventId,
               eventAttribution: successAttribution,
+              successRedirectUrl: getString(result.success_redirect_url),
             })
           : null;
 
-      setState("success");
       handleSuccessfulRegistrationEvent(successAttribution, finalRedirectUrl);
+      setState(
+        effectiveConversionMode === "thank_you_redirect" && finalRedirectUrl
+          ? "loading"
+          : "success"
+      );
       setMessage(
         finalRedirectUrl
           ? "已收到你的登記，正在前往確認頁。"

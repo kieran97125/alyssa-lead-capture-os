@@ -72,6 +72,13 @@ export async function GET(
     return publicFormJson({ ok: false, error: "invalid_form" }, 404);
   }
 
+  if (String(form.status ?? "").toLowerCase() !== "active") {
+    return publicFormJson(
+      { ok: false, error: "form_unavailable", message: "Form is unavailable." },
+      410
+    );
+  }
+
   const [{ data: brand }, { data: treatments }, { data: branches }] =
     await Promise.all([
       supabase.from("brands").select("*").eq("id", form.brand_id).single(),

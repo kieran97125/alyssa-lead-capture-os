@@ -745,6 +745,39 @@ function isReasonableTime(value: string | null) {
   return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
 }
 
+function normalizeConversionMode(value: unknown) {
+  return value === "thank_you_redirect"
+    ? "thank_you_redirect"
+    : "form_submit_pixel";
+}
+
+function buildFinalSuccessRedirectUrl({
+  successRedirectUrl,
+  leadId,
+  eventId,
+  formId,
+}: {
+  successRedirectUrl: unknown;
+  leadId: string;
+  eventId: string;
+  formId: string;
+}) {
+  const cleaned =
+    typeof successRedirectUrl === "string" ? successRedirectUrl.trim() : "";
+  if (!cleaned || !leadId || !formId) return null;
+
+  try {
+    const url = new URL(cleaned);
+    if (url.protocol !== "https:") return null;
+    url.searchParams.set("lead_id", leadId);
+    if (eventId) url.searchParams.set("event_id", eventId);
+    url.searchParams.set("form_id", formId);
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 async function getAllowedFormBranchIds(
   supabase: ReturnType<typeof createSupabaseAdminClient>,
   form: Record<string, unknown>
@@ -794,12 +827,19 @@ async function createLocalResponse(
   const submittedTouch =
     submittedTouchOverride ?? payload.submitted_touch_json ?? {};
   const classification = classifySubmittedTouch(submittedTouch);
+  const leadId = randomUUID();
+  const eventId = cleanText(submittedTouch.client_event_id, 120) || leadId;
 
   return NextResponse.json(
     {
       ok: true,
       mode: "local_noop",
-      lead_id: randomUUID(),
+      lead_id: leadId,
+      event_id: eventId,
+      form_id: payload.form_id || alyssaDefaultForm.id,
+      conversion_mode: "form_submit_pixel",
+      success_redirect_url: null,
+      final_redirect_url: null,
       contact_id: randomUUID(),
       source_snapshot_id: randomUUID(),
       source_type: classification.sourceType,
@@ -946,6 +986,16 @@ export async function POST(request: NextRequest) {
       request,
       403,
       "invalid_form",
+      publicMessages.unavailable,
+      { formToken, normalizedPhone }
+    );
+  }
+
+  if (String(form.status ?? "").toLowerCase() !== "active") {
+    return rejectPublicSubmit(
+      request,
+      403,
+      "form_unavailable",
       publicMessages.unavailable,
       { formToken, normalizedPhone }
     );
@@ -1473,10 +1523,31 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const eventId = cleanText(submittedTouch.client_event_id, 120) || lead.id;
+  const conversionMode = normalizeConversionMode(form.conversion_mode);
+  const successRedirectUrl =
+    typeof form.success_redirect_url === "string"
+      ? form.success_redirect_url
+      : null;
+  const finalRedirectUrl =
+    conversionMode === "thank_you_redirect"
+      ? buildFinalSuccessRedirectUrl({
+          successRedirectUrl,
+          leadId: lead.id,
+          eventId,
+          formId: form.id,
+        })
+      : null;
+
   return NextResponse.json(
     {
       ok: true,
       lead_id: lead.id,
+      event_id: eventId,
+      form_id: form.id,
+      conversion_mode: conversionMode,
+      success_redirect_url: successRedirectUrl,
+      final_redirect_url: finalRedirectUrl,
       contact_id: contact.id,
       source_snapshot_id: snapshot.id,
       source_type: classification.sourceType,
