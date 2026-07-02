@@ -1556,32 +1556,32 @@ export function PublicLeadForm({
   return (
     <section
       data-launchhub-form-root
-      className={`${className} box-border w-full max-w-full min-w-0 overflow-x-hidden [&_button]:box-border [&_button]:block [&_button]:min-h-[46px] [&_button]:max-w-full [&_input]:box-border [&_input]:block [&_input]:!h-[44px] [&_input]:!min-h-[44px] [&_input]:min-w-0 [&_input]:max-w-full [&_input]:!rounded-[14px] [&_input]:!px-3.5 [&_input]:!py-2 [&_input]:!text-base sm:[&_input]:!h-auto sm:[&_input]:!min-h-[48px] sm:[&_input]:!rounded-2xl sm:[&_input]:!px-4 sm:[&_input]:!py-3 sm:[&_input]:!text-sm [&_select]:box-border [&_select]:block [&_select]:!h-[44px] [&_select]:!min-h-[44px] [&_select]:min-w-0 [&_select]:max-w-full [&_select]:truncate [&_select]:!rounded-[14px] [&_select]:!px-3.5 [&_select]:!py-2 [&_select]:!text-base sm:[&_select]:!h-auto sm:[&_select]:!min-h-[48px] sm:[&_select]:!rounded-2xl sm:[&_select]:!px-4 sm:[&_select]:!py-3 sm:[&_select]:!text-sm [&_textarea]:box-border [&_textarea]:block [&_textarea]:min-w-0 [&_textarea]:max-w-full [&_textarea]:!rounded-[14px] [&_textarea]:!px-3.5 [&_textarea]:!py-2 [&_textarea]:!text-base sm:[&_textarea]:!rounded-2xl sm:[&_textarea]:!px-4 sm:[&_textarea]:!py-3 sm:[&_textarea]:!text-sm ${
+      className={`${className} box-border w-full max-w-full min-w-0 overflow-x-hidden [&_button]:box-border [&_button]:block [&_button]:min-h-[44px] [&_button]:max-w-full [&_input]:box-border [&_input]:block [&_input]:!h-[42px] [&_input]:!min-h-[42px] [&_input]:min-w-0 [&_input]:max-w-full [&_input]:!rounded-[12px] [&_input]:!px-3.5 [&_input]:!py-2 [&_input]:!text-base sm:[&_input]:!h-auto sm:[&_input]:!min-h-[44px] sm:[&_input]:!rounded-[14px] sm:[&_input]:!px-3.5 sm:[&_input]:!py-2.5 sm:[&_input]:!text-sm [&_select]:box-border [&_select]:block [&_select]:!h-[42px] [&_select]:!min-h-[42px] [&_select]:min-w-0 [&_select]:max-w-full [&_select]:truncate [&_select]:!rounded-[12px] [&_select]:!px-3.5 [&_select]:!py-2 [&_select]:!text-base sm:[&_select]:!h-auto sm:[&_select]:!min-h-[44px] sm:[&_select]:!rounded-[14px] sm:[&_select]:!px-3.5 sm:[&_select]:!py-2.5 sm:[&_select]:!text-sm [&_textarea]:box-border [&_textarea]:block [&_textarea]:min-w-0 [&_textarea]:max-w-full [&_textarea]:!rounded-[12px] [&_textarea]:!px-3.5 [&_textarea]:!py-2 [&_textarea]:!text-base sm:[&_textarea]:!rounded-[14px] sm:[&_textarea]:!px-3.5 sm:[&_textarea]:!py-2.5 sm:[&_textarea]:!text-sm ${
         isEmbed
-          ? "w-full max-w-none px-2.5 py-2 sm:mx-auto sm:max-w-[min(36rem,calc(100vw-8px))] sm:px-3 sm:py-3"
+          ? "w-full max-w-none px-2 py-1.5 sm:mx-auto sm:max-w-[min(34rem,calc(100vw-8px))] sm:px-2.5 sm:py-2.5"
           : ""
       }`}
       style={themeStyle}
     >
-      <div className="box-border w-full max-w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none sm:rounded-[30px] sm:border sm:border-[var(--public-border)] sm:bg-[var(--public-card)] sm:shadow-[0_24px_70px_rgba(216,91,163,0.14)]">
-        <div className="bg-transparent px-0 py-2 sm:bg-gradient-to-br sm:from-[#FFF1F7] sm:via-white sm:to-[#F6F2FF] sm:px-6 sm:py-6">
+      <div className="box-border w-full max-w-full overflow-hidden rounded-none border-0 bg-transparent shadow-none sm:rounded-[22px] sm:border sm:border-[var(--public-border)] sm:bg-[var(--public-card)]">
+        <div className="bg-transparent px-0 py-1.5 sm:bg-white sm:px-4 sm:py-4">
           <div className="flex min-w-0 items-center justify-between gap-2 sm:gap-4">
-            <p className="min-w-0 truncate text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--public-accent)] sm:text-xs sm:tracking-[0.18em]">
+            <p className="min-w-0 truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--public-accent)] sm:text-[11px] sm:tracking-[0.14em]">
               {brand.name}
             </p>
-            <span className="hidden rounded-full border border-[var(--public-border)] bg-white px-3 py-1 text-xs font-bold text-[var(--public-accent)] sm:inline-flex">
+            <span className="hidden rounded-full border border-[var(--public-border)] bg-white px-2.5 py-1 text-[11px] font-bold text-[var(--public-accent)] sm:inline-flex">
               WhatsApp 跟進
             </span>
           </div>
-          <h2 className="mt-2 text-lg font-bold text-[var(--public-heading)] sm:mt-4 sm:text-2xl">
+          <h2 className="mt-1.5 text-base font-bold text-[var(--public-heading)] sm:mt-2 sm:text-xl">
             預約療程體驗
           </h2>
-          <p className="mt-1 text-[13px] leading-5 text-[var(--public-muted)] sm:mt-2 sm:text-sm sm:leading-6">
+          <p className="mt-1 text-xs leading-5 text-[var(--public-muted)] sm:text-[13px]">
             請填寫預約資料，{brand.name} 團隊會透過 WhatsApp 跟進確認。
           </p>
         </div>
 
-        <div className="p-0 sm:p-6">
+        <div className="p-0 sm:p-4">
           {configMessage ? (
             <Notice tone="warning" title="表格暫時未能使用">
               <p>{configMessage}</p>
@@ -1614,33 +1614,33 @@ export function PublicLeadForm({
             </div>
           ) : (
             <>
-              <section className="box-border w-full max-w-full rounded-[14px] border border-[#f3e5ec] bg-white p-3 sm:rounded-3xl sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-4">
-                <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--public-accent)] sm:text-xs sm:tracking-[0.16em]">
+              <section className="box-border w-full max-w-full rounded-[12px] border border-[#f3e5ec] bg-white p-2.5 sm:rounded-[18px] sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-3">
+                <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--public-accent)] sm:text-[11px] sm:tracking-[0.12em]">
                   已選療程
                 </p>
-                <div className="mt-2.5 flex min-w-0 items-start justify-between gap-2 sm:mt-3 sm:gap-4">
+                <div className="mt-1.5 flex min-w-0 items-center justify-between gap-2 sm:mt-2 sm:gap-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-[var(--public-heading)] sm:text-base">
+                    <p className="truncate text-sm font-bold text-[var(--public-heading)] sm:text-[15px]">
                       {selectedTreatment?.name}
                     </p>
                     {selectedTreatment?.description && (
-                      <p className="mt-1 line-clamp-2 text-[13px] leading-5 text-[var(--public-muted)] sm:text-sm sm:leading-6">
+                      <p className="mt-0.5 line-clamp-1 text-xs leading-5 text-[var(--public-muted)] sm:text-[13px]">
                         {selectedTreatment.description}
                       </p>
                     )}
                   </div>
-                  <p className="max-w-[42%] shrink-0 truncate rounded-full bg-[#fff8fc] px-2.5 py-1.5 text-xs font-bold text-[var(--public-cta)] sm:max-w-none sm:bg-white sm:px-4 sm:py-2 sm:text-sm">
+                  <p className="max-w-[40%] shrink-0 truncate rounded-full bg-[#fff8fc] px-2.5 py-1 text-xs font-bold text-[var(--public-cta)] sm:max-w-none sm:bg-white sm:px-3 sm:py-1.5 sm:text-[13px]">
                     {priceLabel(selectedPackage)}
                   </p>
                 </div>
               </section>
 
-              <div className="mt-4 hidden min-w-0 grid-cols-1 gap-2 sm:grid sm:grid-cols-3">
+              <div className="mt-2 hidden min-w-0 grid-cols-3 gap-1.5 sm:grid">
                 {["WhatsApp 專人跟進", "清楚預約安排", "資料只作跟進"].map(
                   (item) => (
                     <p
                       key={item}
-                      className="rounded-2xl border border-[var(--public-border)] bg-white px-3 py-2 text-center text-xs font-bold text-[var(--public-accent)]"
+                      className="truncate rounded-full border border-[var(--public-border)] bg-white px-2.5 py-1 text-center text-[11px] font-bold text-[var(--public-accent)]"
                     >
                       {item}
                     </p>
@@ -1648,7 +1648,7 @@ export function PublicLeadForm({
                 )}
               </div>
 
-              <form onSubmit={submitForm} className="mt-3.5 w-full max-w-full space-y-3 overflow-x-hidden sm:mt-5 sm:space-y-5">
+              <form onSubmit={submitForm} className="mt-3 w-full max-w-full space-y-2.5 overflow-x-hidden sm:mt-3.5 sm:space-y-3">
                 <input
                   name="website"
                   aria-hidden="true"
@@ -1662,7 +1662,7 @@ export function PublicLeadForm({
                 <FormSection title="療程資料">
                   <Field label="療程">
                     <select
-                      className="mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                      className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                       value={formData.treatment_id}
                       onChange={(event) =>
                         updateField("treatment_id", event.target.value)
@@ -1678,7 +1678,7 @@ export function PublicLeadForm({
 
                   <Field label="套餐">
                     <select
-                      className="mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                      className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                       value={selectedPackage?.id || ""}
                       onChange={(event) =>
                         updateField("package_id", event.target.value)
@@ -1695,7 +1695,7 @@ export function PublicLeadForm({
                   {selectedPackage?.paymentRequired && (
                     <Field label="付款方式">
                       <select
-                        className="mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                        className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                         value={formData.payment_option}
                         onChange={(event) =>
                           updateField("payment_option", event.target.value)
@@ -1709,11 +1709,11 @@ export function PublicLeadForm({
                 </FormSection>
 
                 <FormSection title="客人資料">
-                  <div className="grid min-w-0 grid-cols-1 gap-3.5 sm:grid-cols-2 sm:gap-4">
+                  <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-2 sm:gap-3">
                     <Field label="姓名">
                       <input
                         required
-                        className="mt-2 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                        className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                         value={formData.customer_name}
                         onChange={(event) =>
                           updateField("customer_name", event.target.value)
@@ -1725,7 +1725,7 @@ export function PublicLeadForm({
                       <input
                         required
                         inputMode="tel"
-                        className="mt-2 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                        className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                         value={formData.phone}
                         onChange={(event) => updateField("phone", event.target.value)}
                         placeholder="9123 4567"
@@ -1736,7 +1736,7 @@ export function PublicLeadForm({
                   <Field label="Email">
                     <input
                       type="email"
-                      className="mt-2 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                      className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                       value={formData.email}
                       onChange={(event) => updateField("email", event.target.value)}
                       placeholder="name@example.com"
@@ -1745,12 +1745,12 @@ export function PublicLeadForm({
                 </FormSection>
 
                 <FormSection title="預約安排">
-                  <div className="grid min-w-0 grid-cols-1 gap-3.5 sm:grid-cols-3 sm:gap-4">
+                  <div className="grid min-w-0 grid-cols-1 gap-2.5 sm:grid-cols-3 sm:gap-3">
                     <Field label="分店">
                       {branches.length > 1 ? (
                         <select
                           required
-                          className="mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                          className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                           value={formData.branch_id}
                           onChange={(event) =>
                             updateField("branch_id", event.target.value)
@@ -1764,7 +1764,7 @@ export function PublicLeadForm({
                           ))}
                         </select>
                       ) : (
-                        <div className="mt-2 rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm font-semibold text-[var(--public-heading)]">
+                        <div className="mt-1.5 truncate rounded-[12px] border border-[var(--public-border)] bg-white px-3.5 py-2.5 text-sm font-semibold text-[var(--public-heading)] sm:rounded-[14px]">
                           {branches[0]?.name || "分店稍後確認"}
                         </div>
                       )}
@@ -1779,7 +1779,7 @@ export function PublicLeadForm({
                     </Field>
                     <Field label="預約時間">
                       <select
-                        className="mt-2 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                        className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                         value={formData.appointment_time}
                         onChange={(event) =>
                           updateField("appointment_time", event.target.value)
@@ -1795,14 +1795,14 @@ export function PublicLeadForm({
                   </div>
                 </FormSection>
 
-                <section className="box-border w-full max-w-full rounded-[14px] border border-[#f3e5ec] bg-white p-3 sm:rounded-3xl sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-4">
-                  <p className="text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--public-accent)] sm:text-xs sm:tracking-[0.16em]">
+                <section className="box-border w-full max-w-full rounded-[12px] border border-[#f3e5ec] bg-white p-2.5 sm:rounded-[18px] sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-3">
+                  <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--public-accent)] sm:text-[11px] sm:tracking-[0.12em]">
                     條款確認
                   </p>
-                  <p className="mt-2 text-xs font-semibold leading-5 text-[var(--public-muted)]">
+                  <p className="mt-1.5 text-[11px] font-semibold leading-4 text-[var(--public-muted)] sm:text-xs sm:leading-5">
                     {LEGAL_CONSENT_HELPER_TEXT}
                   </p>
-                  <label className="mt-3 flex items-start gap-2.5 text-[13px] font-semibold leading-5 text-[var(--public-heading)] sm:gap-3 sm:text-sm sm:leading-6">
+                  <label className="mt-2.5 flex items-start gap-2.5 text-[13px] font-semibold leading-5 text-[var(--public-heading)] sm:text-[13px] sm:leading-5">
                     <input
                       required
                       type="checkbox"
@@ -1834,7 +1834,7 @@ export function PublicLeadForm({
 
                 <button
                   disabled={state === "loading"}
-                  className="w-full rounded-[14px] bg-[var(--public-cta)] px-5 py-3 text-sm font-bold text-[var(--public-cta-text)] shadow-none transition hover:bg-[var(--public-cta-hover)] disabled:opacity-60 sm:rounded-full sm:py-3.5 sm:shadow-[0_14px_30px_rgba(216,91,163,0.28)]"
+                  className="w-full rounded-[14px] bg-[var(--public-cta)] px-5 py-2.5 text-sm font-bold text-[var(--public-cta-text)] shadow-none transition hover:bg-[var(--public-cta-hover)] disabled:opacity-60 sm:rounded-full sm:py-3"
                 >
                   {state === "loading" ? "正在提交..." : "提交預約資料"}
                 </button>
@@ -1846,7 +1846,7 @@ export function PublicLeadForm({
                 </div>
               )}
 
-              <p className="mt-4 text-center text-xs leading-5 text-[var(--public-muted)]">
+              <p className="mt-3 text-center text-[11px] leading-4 text-[var(--public-muted)] sm:text-xs sm:leading-5">
                 資料只會用作預約、客戶服務及相關跟進用途。
               </p>
               {isEmbed && (
@@ -1948,21 +1948,21 @@ function Notice({
 
 function FormLoadingSkeleton() {
   return (
-    <section className="box-border w-full max-w-full rounded-[18px] border border-[#f3e5ec] bg-white p-4 text-left sm:rounded-[26px] sm:p-6">
-      <p className="text-[11px] font-bold uppercase tracking-[0.16em] text-[#d85ba3]">
+    <section className="box-border w-full max-w-full rounded-[14px] border border-[#f3e5ec] bg-white p-3 text-left sm:rounded-[22px] sm:p-4">
+      <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#d85ba3]">
         LaunchHub
       </p>
-      <h2 className="mt-3 text-lg font-bold text-[#5a2348]">
+      <h2 className="mt-2 text-base font-bold text-[#5a2348]">
         表格載入中...
       </h2>
-      <p className="mt-2 text-sm font-semibold leading-6 text-[#8d6a82]">
+      <p className="mt-1 text-xs font-semibold leading-5 text-[#8d6a82]">
         請稍候，正在載入登記表格。
       </p>
-      <div className="mt-5 grid gap-3">
+      <div className="mt-3 grid gap-2">
         {[0, 1, 2].map((item) => (
           <div
             key={item}
-            className="h-11 animate-pulse rounded-[14px] bg-[#f8edf4]"
+            className="h-9 animate-pulse rounded-[12px] bg-[#f8edf4]"
           />
         ))}
       </div>
@@ -1980,8 +1980,8 @@ function MobileDateField({
   const displayValue = formatSelectedDate(value);
 
   return (
-    <div className="relative mt-2 min-w-0">
-      <div className="pointer-events-none flex h-11 min-h-11 w-full items-center justify-between rounded-[14px] border border-[var(--public-border)] bg-white px-3.5 py-2 text-base font-semibold text-[var(--public-heading)] sm:h-12 sm:min-h-12 sm:rounded-2xl sm:px-4 sm:text-sm">
+    <div className="relative mt-1.5 min-w-0">
+      <div className="pointer-events-none flex h-[42px] min-h-[42px] w-full items-center justify-between rounded-[12px] border border-[var(--public-border)] bg-white px-3.5 py-2 text-base font-semibold text-[var(--public-heading)] sm:h-11 sm:min-h-11 sm:rounded-[14px] sm:text-sm">
         <span className={displayValue ? "" : "text-[var(--public-muted)]"}>
           {displayValue || "選擇預約日期"}
         </span>
@@ -2003,18 +2003,18 @@ function MobileDateField({
 
 function FormSection({ title, children }: { title: string; children: ReactNode }) {
   return (
-    <section className="box-border w-full max-w-full min-w-0 rounded-[14px] border border-[#f3e5ec] bg-white p-3 sm:rounded-3xl sm:border-[var(--public-border)] sm:bg-white sm:p-4">
-      <p className="mb-2.5 text-[11px] font-bold uppercase tracking-[0.12em] text-[var(--public-accent)] sm:mb-4 sm:text-xs sm:tracking-[0.16em]">
+    <section className="box-border w-full max-w-full min-w-0 rounded-[12px] border border-[#f3e5ec] bg-white p-2.5 sm:rounded-[18px] sm:border-[var(--public-border)] sm:bg-white sm:p-3">
+      <p className="mb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--public-accent)] sm:mb-2.5 sm:text-[11px] sm:tracking-[0.12em]">
         {title}
       </p>
-      <div className="min-w-0 space-y-3 sm:space-y-4">{children}</div>
+      <div className="min-w-0 space-y-2.5 sm:space-y-3">{children}</div>
     </section>
   );
 }
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
-    <label className="block min-w-0 text-[13px] font-semibold text-[var(--public-heading)] sm:text-sm sm:font-bold">
+    <label className="block min-w-0 text-[13px] font-semibold text-[var(--public-heading)] sm:text-[13px] sm:font-bold">
       {label}
       {children}
     </label>
@@ -2029,10 +2029,10 @@ function PublicLegalFooter({
   links: Array<{ label: string; href: string }>;
 }) {
   return (
-    <footer className="mt-4 border-t border-[var(--public-border)] pt-3 text-center text-[11px] font-semibold leading-5 text-[var(--public-muted)] sm:mt-5 sm:pt-4 sm:text-xs">
+    <footer className="mt-3 border-t border-[var(--public-border)] pt-2.5 text-center text-[10px] font-semibold leading-4 text-[var(--public-muted)] sm:mt-4 sm:pt-3 sm:text-[11px] sm:leading-5">
       <p>{footerText}</p>
       <p className="mt-1">{IMAGE_REFERENCE_FOOTER_NOTE}</p>
-      <nav className="mt-2 flex flex-wrap justify-center gap-x-4 gap-y-2">
+      <nav className="mt-1.5 flex flex-wrap justify-center gap-x-3 gap-y-1">
         {links.map((link) => (
           <a
             key={`${link.label}:${link.href}`}

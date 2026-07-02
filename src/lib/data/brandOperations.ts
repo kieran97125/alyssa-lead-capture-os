@@ -107,7 +107,7 @@ export function buildWixEmbedCode({
   eventValue,
   conversionMode,
   successRedirectUrl,
-  version = "20260626-no-default-form-flash",
+  version = "20260626-form-compact",
 }: {
   form: FormSetting;
   brandSlug: string;
@@ -124,7 +124,7 @@ export function buildWixEmbedCode({
   const isThankYouRedirect =
     conversionMode === "thank_you_redirect" && Boolean(successRedirectUrl);
   const scriptVersion = isThankYouRedirect
-    ? "20260626-no-default-form-flash"
+    ? "20260626-form-compact"
     : version;
   const lines = isThankYouRedirect
     ? [

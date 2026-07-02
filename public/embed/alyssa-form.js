@@ -220,8 +220,8 @@
 
   function clampEmbedHeight(value) {
     var parsed = Number(value);
-    if (!Number.isFinite(parsed)) return 500;
-    return Math.max(420, Math.min(Math.ceil(parsed), 2200));
+    if (!Number.isFinite(parsed)) return 420;
+    return Math.max(380, Math.min(Math.ceil(parsed), 2200));
   }
 
   function getPixelLandingUrl(parentPageUrl) {
@@ -411,7 +411,7 @@
     var conversionBeaconSent = false;
     var successRedirectStarted = false;
     var iframeLoaded = false;
-    var height = clampEmbedHeight(script.getAttribute("data-height") || "460");
+    var height = clampEmbedHeight(script.getAttribute("data-height") || "420");
     var scriptOrigin = new URL(script.src).origin;
     var embedOrigin = scriptOrigin;
     var parentPageUrl = getRealParentPageUrl();
