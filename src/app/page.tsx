@@ -18,6 +18,11 @@ const homeCards = [
     body: "跟進最新登記紀錄、客人資料和預約狀態。",
   },
   {
+    href: "/crm",
+    title: "CRM 工作台",
+    body: "跟進客人、更新狀態、記錄 CS 對話、確認預約及追蹤 Show / No-show。",
+  },
+  {
     href: "/settings#brand-library",
     title: "Brand Library",
     body: "整理品牌、療程、優惠套餐和分店資料。",
@@ -49,6 +54,12 @@ export default function HomePage() {
               className="rounded-full border border-[#d9b66f] bg-white/70 px-5 py-3 text-sm font-bold text-[#5a2348]"
             >
               查看 Dashboard
+            </Link>
+            <Link
+              href="/crm"
+              className="rounded-full border border-[#ead9cf] bg-white/70 px-5 py-3 text-sm font-bold text-[#5a2348]"
+            >
+              進入 CRM 工作台
             </Link>
           </div>
         </div>
