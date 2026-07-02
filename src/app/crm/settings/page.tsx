@@ -137,15 +137,42 @@ const whatsappTemplateRows = [
 ] as const;
 
 const aiMockFields = [
-  ["Current mode", "Template drafts only"],
-  ["External AI API", "Not connected"],
-  ["Auto-send", "Off"],
-  ["Human approval", "Required"],
-  ["Brand tone", "Friendly, concise, Hong Kong Traditional Chinese"],
+  ["Reply style", "Natural, concise, helpful"],
+  ["Brand tone", "Friendly Hong Kong Traditional Chinese"],
   ["Reply language", "Traditional Chinese"],
+  ["Future AI provider connection", "稍後設定"],
+  ["Human approval", "Required"],
+  ["Auto-send", "Off"],
+] as const;
+
+const aiKnowledgeSourceTypes = [
+  ["Website URL", "可用作品牌及療程知識來源"],
+  ["Manual note", "由管理員整理的品牌或 CS 指引"],
+  ["Treatment FAQ", "療程常見問題及標準答案"],
+  ["Brand policy", "價錢、療程限制及合規指引"],
+  ["File upload / document source", "Planned"],
+  ["Sitemap / full site scan", "Planned"],
+] as const;
+
+const aiWebsiteSourceFields = [
+  ["Source name", "Ineffable Beauty website"],
+  ["Website URL", "https://www.ineffablebeautyhk.com"],
+  ["Source type", "Website"],
+  ["Scan mode", "Single page / Full website / Sitemap"],
+] as const;
+
+const aiKnowledgeSourceRows = [
+  ["Brand website", "Website", "https://www.ineffablebeautyhk.com", "Full website", "Ready to connect", "0", "-"],
+  ["Treatment FAQ", "Treatment FAQ", "-", "Approved FAQ", "Waiting for scan", "0", "-"],
+  ["Brand policy notes", "Brand policy", "-", "Manual notes", "Needs review", "0", "-"],
+] as const;
+
+const aiSafetyRuleRows = [
   ["Forbidden claims", "No guaranteed treatment results"],
   ["Price handling rules", "Use approved offer/package wording only"],
-  ["Treatment FAQ knowledge source", "Future treatment settings"],
+  ["Treatment limitation notes", "Explain that suitability and results depend on individual condition"],
+  ["Medical / beauty compliance reminders", "No diagnosis or medical promise"],
+  ["Human approval required", "Every AI suggestion must be reviewed by CS before sending"],
 ] as const;
 
 const recommendedSetupOrder = [
@@ -474,21 +501,21 @@ export default async function CrmSettingsPage({
               {activeSection === "ai" ? (
               <SettingsSection
                 id="ai"
-                eyebrow="AI Assist"
-                title="AI Reply Tone, Knowledge & Safety"
-                description="Quick Replies are preset replies CS can use directly. AI Assist is future smart reply behavior and remains draft-only."
+                eyebrow="AI Reply Assistant"
+                title="AI Reply Assistant / 智能回覆助手"
+                description="Future smart reply setup for brand tone, approved knowledge sources, safety rules, and human review."
                 statusItems={[
                   ["Quick Replies editable", "green"],
                   ["Other settings view only", "amber"],
                 ]}
               >
                 <ImportantNotice>
-                  目前 AI 回覆只係預設草稿，不會自動回覆客人。
+                  之後 AI 回覆會根據已核准嘅品牌、療程及 FAQ 資料生成建議。所有 AI 建議仍需同事確認後先可發送。
                 </ImportantNotice>
                 <StatusRow
                   items={[
-                    ["Manual only", "blue"],
-                    ["External AI not connected", "amber"],
+                    ["Draft suggestions only", "blue"],
+                    ["Future connection", "amber"],
                     ["Auto-send off", "slate"],
                     ["Manual review required", "amber"],
                   ]}
@@ -496,13 +523,128 @@ export default async function CrmSettingsPage({
                 <div className="mb-3 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-[12px] font-semibold leading-5 text-emerald-800">
                   Quick Replies 是可直接使用的標準回覆範本；AI Assist 是另一個較自然的草稿工具，目前仍需人手檢查及發送。
                 </div>
-                <div className="grid gap-3 xl:grid-cols-2">
-                  {aiMockFields.map(([label, value]) => (
-                    <MockInput key={label} label={label} value={value} />
-                  ))}
-                  <MockToggle label="Human approval required" checked />
-                  <MockToggle label="Auto-send" checked={false} />
+
+                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
+                  <div className="grid gap-3">
+                    <SettingsSubsection
+                      title="Reply style"
+                      description="Tone and reply behavior for future AI suggestions."
+                    >
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {aiMockFields.map(([label, value]) => (
+                          <MockInput key={label} label={label} value={value} />
+                        ))}
+                        <MockToggle label="Human approval required" checked />
+                        <MockToggle label="Auto-send" checked={false} />
+                      </div>
+                    </SettingsSubsection>
+
+                    <SettingsSubsection
+                      title="Knowledge Sources / 知識來源"
+                      description="網站來源可用嚟建立品牌知識，但正式掃描功能尚未啟用。"
+                    >
+                      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                        {aiKnowledgeSourceTypes.map(([title, body]) => (
+                          <div
+                            key={title}
+                            className="rounded-lg border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2"
+                          >
+                            <p className="text-[12px] font-black text-[#111827]">{title}</p>
+                            <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
+                              {body}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </SettingsSubsection>
+
+                    <SettingsSubsection
+                      title="Website URL source"
+                      description="Prepare a website knowledge source. This does not fetch or scan any URL yet."
+                    >
+                      <div className="grid gap-3 md:grid-cols-2">
+                        {aiWebsiteSourceFields.map(([label, value]) => (
+                          <MockInput key={label} label={label} value={value} />
+                        ))}
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                        {["Single page", "Full website", "Sitemap"].map((mode, index) => (
+                          <ProviderOption
+                            key={mode}
+                            label={mode}
+                            selected={index === 0}
+                          />
+                        ))}
+                      </div>
+                      <button
+                        type="button"
+                        disabled
+                        className="mt-3 h-9 rounded-md bg-[#e5e7eb] px-3 text-[12px] font-black text-[#94a3b8]"
+                      >
+                        Add source 尚未啟用
+                      </button>
+                    </SettingsSubsection>
+                  </div>
+
+                  <div className="grid content-start gap-3">
+                    <SettingsSubsection
+                      title="Safety rules"
+                      description="Approved guardrails for future AI suggestions."
+                    >
+                      <div className="grid gap-3">
+                        {aiSafetyRuleRows.map(([label, value]) => (
+                          <MockTextarea key={label} label={label} value={value} />
+                        ))}
+                      </div>
+                    </SettingsSubsection>
+                  </div>
                 </div>
+
+                <SettingsSubsection
+                  title="Source scan status"
+                  description="Setup preview only. No website scan, URL fetch, or external service call happens in this phase."
+                  className="mt-3"
+                >
+                  <div className="overflow-x-auto rounded-lg border border-[#e5e7eb]">
+                    <table className="w-full min-w-[860px] text-left text-[12px]">
+                      <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                        <tr>
+                          <th className="px-3 py-2">Source</th>
+                          <th className="px-3 py-2">Type</th>
+                          <th className="px-3 py-2">URL</th>
+                          <th className="px-3 py-2">Scope</th>
+                          <th className="px-3 py-2">Status</th>
+                          <th className="px-3 py-2">Pages</th>
+                          <th className="px-3 py-2">Last scanned</th>
+                          <th className="px-3 py-2 text-right">Action</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#eef2f6]">
+                        {aiKnowledgeSourceRows.map(([source, type, url, scope, status, pages, lastScanned]) => (
+                          <tr key={source}>
+                            <td className="px-3 py-2 font-black text-[#111827]">{source}</td>
+                            <td className="px-3 py-2 font-semibold text-[#475569]">{type}</td>
+                            <td className="px-3 py-2 font-mono text-[11px] font-semibold text-[#64748b]">{url}</td>
+                            <td className="px-3 py-2 font-semibold text-[#475569]">{scope}</td>
+                            <td className="px-3 py-2"><StatusBadge tone="slate">{status}</StatusBadge></td>
+                            <td className="px-3 py-2 font-semibold text-[#475569]">{pages}</td>
+                            <td className="px-3 py-2 font-semibold text-[#475569]">{lastScanned}</td>
+                            <td className="px-3 py-2 text-right">
+                              <button
+                                type="button"
+                                disabled
+                                className="h-7 rounded-md bg-[#e5e7eb] px-2.5 text-[10px] font-black text-[#94a3b8]"
+                              >
+                                Review later
+                              </button>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </SettingsSubsection>
+
                 <div className="mt-3">
                   <QuickRepliesSettingsTable templates={crmSettings.quickReplyTemplates} />
                 </div>
