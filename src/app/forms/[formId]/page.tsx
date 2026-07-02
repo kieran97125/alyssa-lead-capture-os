@@ -178,6 +178,12 @@ export default async function FormConfigPage({
                 <InfoCell label="Updated" value={formatDate(form.updatedAt)} />
                 <InfoCell label="Branch" value={ops.branchLabel} />
                 <InfoCell label="Preview URL" value={ops.previewUrl} mono />
+                <InfoCell label="Conversion mode" value={ops.conversionMode} />
+                <InfoCell
+                  label="Success redirect"
+                  value={ops.successRedirectUrl || "Not configured"}
+                  mono
+                />
                 <InfoCell
                   label="Landing Pages"
                   value={

@@ -11,6 +11,13 @@ import {
   type FormSetting,
 } from "@/lib/data/configuration";
 import {
+  buildBrandSuccessRedirectUrl,
+  getBrandLaunchDefaults,
+  getOfferValueForRedirect,
+  getTreatmentSlugForRedirect,
+  isValidBrandSuccessRedirectUrl,
+} from "@/lib/data/brandDefaults";
+import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
@@ -45,6 +52,9 @@ function slugify(value: string) {
 function shortId() {
   return randomBytes(3).toString("hex");
 }
+
+const uuidPattern =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export function buildPublicFormTokenBase(formName: string, brandSlug: string) {
   const selectedBrandSlug = slugify(brandSlug)
@@ -91,6 +101,47 @@ function normalizeOrigin(value: string) {
       return null;
     }
   }
+}
+
+function resolveBrandFormConversionDefaults({
+  brandSlug,
+  treatment,
+  selectedPackage,
+  existingSuccessRedirectUrl,
+}: {
+  brandSlug: string;
+  treatment: ReturnType<typeof getTreatment>;
+  selectedPackage: ReturnType<typeof getPackage>;
+  existingSuccessRedirectUrl?: string | null;
+}) {
+  const defaults = getBrandLaunchDefaults(brandSlug);
+  if (!defaults) {
+    return {
+      conversionMode: "form_submit_pixel" as const,
+      successRedirectUrl: existingSuccessRedirectUrl || null,
+    };
+  }
+
+  if (
+    existingSuccessRedirectUrl &&
+    isValidBrandSuccessRedirectUrl(brandSlug, existingSuccessRedirectUrl)
+  ) {
+    return {
+      conversionMode: defaults.defaultConversionMode,
+      successRedirectUrl: existingSuccessRedirectUrl,
+    };
+  }
+
+  const generatedUrl = buildBrandSuccessRedirectUrl({
+    brandSlug,
+    treatmentSlug: getTreatmentSlugForRedirect(treatment),
+    value: getOfferValueForRedirect(selectedPackage),
+  });
+
+  return {
+    conversionMode: defaults.defaultConversionMode,
+    successRedirectUrl: generatedUrl || null,
+  };
 }
 
 export function parseAllowedDomains(value: string) {
@@ -285,6 +336,11 @@ export async function createForm(
   if (!validation.ok) return { ok: false, message: validation.message };
   const brand = getBrand(config, validation.input.brandId);
   if (!brand) return { ok: false, message: "請選擇有效品牌。" };
+  const conversionDefaults = resolveBrandFormConversionDefaults({
+    brandSlug: brand.slug,
+    treatment: getTreatment(config, validation.input.defaultTreatmentId),
+    selectedPackage: getPackage(config, validation.input.defaultPackageId),
+  });
 
   const supabase = createSupabaseAdminClient();
   const token = await createUniqueToken(validation.input.formName, brand.slug);
@@ -299,6 +355,8 @@ export async function createForm(
       default_treatment_id: validation.input.defaultTreatmentId,
       default_package_id: validation.input.defaultPackageId,
       default_branch_id: validation.input.defaultBranchId,
+      conversion_mode: conversionDefaults.conversionMode,
+      success_redirect_url: conversionDefaults.successRedirectUrl,
     })
     .select("*")
     .single();
@@ -336,6 +394,14 @@ export async function updateForm(
 
   const { form } = await getFormByIdOrSlug(formId);
   if (!form) return { ok: false, message: "找不到表格。" };
+  const updateBrand = getBrand(config, validation.input.brandId);
+  if (!updateBrand) return { ok: false, message: "請選擇有效品牌。" };
+  const conversionDefaults = resolveBrandFormConversionDefaults({
+    brandSlug: updateBrand.slug,
+    treatment: getTreatment(config, validation.input.defaultTreatmentId),
+    selectedPackage: getPackage(config, validation.input.defaultPackageId),
+    existingSuccessRedirectUrl: form.successRedirectUrl,
+  });
 
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
@@ -348,6 +414,8 @@ export async function updateForm(
       default_treatment_id: validation.input.defaultTreatmentId,
       default_package_id: validation.input.defaultPackageId,
       default_branch_id: validation.input.defaultBranchId,
+      conversion_mode: conversionDefaults.conversionMode,
+      success_redirect_url: conversionDefaults.successRedirectUrl,
       updated_at: new Date().toISOString(),
     })
     .eq("id", form.id)
@@ -382,6 +450,12 @@ export async function duplicateForm(formId: string): Promise<FormMutationResult>
   if (!form) return { ok: false, message: "找不到表格。" };
   const brand = getBrand(config, form.brandId);
   if (!brand) return { ok: false, message: "請選擇有效品牌。" };
+  const conversionDefaults = resolveBrandFormConversionDefaults({
+    brandSlug: brand.slug,
+    treatment: getTreatment(config, form.defaultTreatmentId),
+    selectedPackage: getPackage(config, form.defaultPackageId),
+    existingSuccessRedirectUrl: form.successRedirectUrl,
+  });
 
   const supabase = createSupabaseAdminClient();
   const name = `${form.formName} Copy`;
@@ -397,6 +471,8 @@ export async function duplicateForm(formId: string): Promise<FormMutationResult>
       default_treatment_id: form.defaultTreatmentId,
       default_package_id: form.defaultPackageId,
       default_branch_id: form.defaultBranchId,
+      conversion_mode: conversionDefaults.conversionMode,
+      success_redirect_url: conversionDefaults.successRedirectUrl,
     })
     .select("*")
     .single();
@@ -424,5 +500,208 @@ export async function duplicateForm(formId: string): Promise<FormMutationResult>
     ok: true,
     message: branchSyncMessage("Form duplicated.", branchSync.ok),
     form: asForm(data),
+  };
+}
+
+type PersistedFormIdentity = {
+  id: string;
+  public_form_token: string;
+};
+
+type CountCheckResult = {
+  ok: boolean;
+  count: number;
+  label: string;
+  errorMessage?: string;
+};
+
+function getFormIdentityFilter(form: FormSetting) {
+  if (uuidPattern.test(form.id)) {
+    return { column: "id", value: form.id };
+  }
+
+  return { column: "public_form_token", value: form.publicFormToken };
+}
+
+async function getPersistedFormIdentity(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  form: FormSetting
+) {
+  const identity = getFormIdentityFilter(form);
+  const { data, error } = await supabase
+    .from("forms")
+    .select("id,public_form_token")
+    .eq(identity.column, identity.value)
+    .maybeSingle<PersistedFormIdentity>();
+
+  if (error) {
+    console.warn("form_identity_lookup_failed", {
+      code: error.code,
+      message: error.message,
+      form_id: form.id,
+      form_token: form.publicFormToken,
+    });
+    return null;
+  }
+
+  return data ?? null;
+}
+
+async function countDependency(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  table: string,
+  column: string,
+  value: string | null | undefined,
+  label: string
+): Promise<CountCheckResult> {
+  if (!value) return { ok: true, count: 0, label };
+
+  const { count, error } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq(column, value);
+
+  if (error) {
+    console.warn("form_dependency_count_failed", {
+      table,
+      column,
+      code: error.code,
+      message: error.message,
+    });
+    return {
+      ok: false,
+      count: 0,
+      label,
+      errorMessage: error.message,
+    };
+  }
+
+  return { ok: true, count: count ?? 0, label };
+}
+
+export async function archiveForm(formId: string): Promise<FormMutationResult> {
+  if (!hasSupabaseAdminEnv()) {
+    return {
+      ok: false,
+      message: "Form archive is unavailable because the admin database client is not configured.",
+    };
+  }
+
+  const { form } = await getFormByIdOrSlug(formId);
+  if (!form) return { ok: false, message: "Form not found." };
+
+  const supabase = createSupabaseAdminClient();
+  const persisted = await getPersistedFormIdentity(supabase, form);
+  if (!persisted) {
+    return {
+      ok: false,
+      message: "Form could not be matched to a database record. No change was made.",
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("forms")
+    .update({
+      status: "archived",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", persisted.id)
+    .select("*")
+    .single();
+
+  if (error || !data) {
+    console.warn("form_archive_failed", {
+      code: error?.code,
+      message: error?.message,
+      form_id: persisted.id,
+    });
+    return { ok: false, message: "Form archive failed. No change was made." };
+  }
+
+  return {
+    ok: true,
+    message: "Form archived. Existing leads remain viewable, and the form is hidden from the default active list.",
+    form: asForm(data),
+  };
+}
+
+export async function deleteFormSafely(formId: string): Promise<FormMutationResult> {
+  if (!hasSupabaseAdminEnv()) {
+    return {
+      ok: false,
+      message: "Form delete is unavailable because the admin database client is not configured.",
+    };
+  }
+
+  const { form } = await getFormByIdOrSlug(formId);
+  if (!form) return { ok: false, message: "Form not found." };
+
+  const supabase = createSupabaseAdminClient();
+  const persisted = await getPersistedFormIdentity(supabase, form);
+  if (!persisted) {
+    return {
+      ok: false,
+      message: "Form could not be matched to a database record. Use archive instead.",
+    };
+  }
+
+  const checks = await Promise.all([
+    countDependency(supabase, "leads", "form_id", persisted.id, "lead records"),
+    countDependency(
+      supabase,
+      "landing_pages",
+      "form_id",
+      persisted.id,
+      "linked landing pages"
+    ),
+  ]);
+  const blockers = checks.flatMap((check) => {
+    if (!check.ok) return [`${check.label} could not be verified`];
+    if (check.count > 0) return [`${check.count} ${check.label}`];
+    return [];
+  });
+
+  if (blockers.length > 0) {
+    return {
+      ok: false,
+      message: `Safe delete blocked because this form has dependencies: ${blockers.join(
+        ", "
+      )}. Archive it instead.`,
+    };
+  }
+
+  const branchDelete = await supabase
+    .from("form_branches")
+    .delete()
+    .eq("form_id", persisted.id);
+
+  if (branchDelete.error && branchDelete.error.code !== "42P01") {
+    console.warn("form_branch_delete_failed", {
+      code: branchDelete.error.code,
+      message: branchDelete.error.message,
+      form_id: persisted.id,
+    });
+    return {
+      ok: false,
+      message: "Safe delete blocked because form branch links could not be cleared. Archive it instead.",
+    };
+  }
+
+  const { error } = await supabase.from("forms").delete().eq("id", persisted.id);
+  if (error) {
+    console.warn("form_safe_delete_failed", {
+      code: error.code,
+      message: error.message,
+      form_id: persisted.id,
+    });
+    return {
+      ok: false,
+      message: "Safe delete failed. No further action was taken.",
+    };
+  }
+
+  return {
+    ok: true,
+    message: "Form permanently deleted. No linked leads or landing pages were found.",
   };
 }

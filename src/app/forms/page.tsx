@@ -1,12 +1,24 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { CopyButton } from "@/components/alyssa/CopyButton";
-import { duplicateFormAction } from "@/app/forms/actions";
+import {
+  archiveFormAction,
+  deleteFormAction,
+  duplicateFormAction,
+} from "@/app/forms/actions";
 import { getFormOperations } from "@/lib/data/brandOperations";
 import {
   getConfigurationData,
   type FormSetting,
 } from "@/lib/data/configuration";
+import {
+  isArchivedStatus,
+  isLegacyFormCandidate,
+  legacyReasonLabel,
+  matchesArchiveView,
+  parseArchiveView,
+  type ArchiveView,
+} from "@/lib/data/legacyCleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -15,6 +27,7 @@ type FormsSearchParams = {
   treatment?: string | string[];
   branch?: string | string[];
   status?: string | string[];
+  archive?: string | string[];
   q?: string | string[];
   form_status?: string | string[];
 };
@@ -33,6 +46,38 @@ function formMatchesSearch(form: FormSetting, search: string) {
   );
 }
 
+function archiveViewLabel(view: ArchiveView) {
+  if (view === "archived") return "Archived / legacy";
+  if (view === "all") return "All";
+  return "Active";
+}
+
+function formStatusLabel(status: string, isLegacy: boolean) {
+  if (isArchivedStatus(status)) return "Archived";
+  if (isLegacy) return "Legacy cleanup";
+  return status || "Active";
+}
+
+function buildFormsHref(
+  view: ArchiveView,
+  params: {
+    brand: string;
+    treatment: string;
+    branch: string;
+    status: string;
+    search: string;
+  }
+) {
+  const searchParams = new URLSearchParams();
+  searchParams.set("archive", view);
+  if (params.brand) searchParams.set("brand", params.brand);
+  if (params.treatment) searchParams.set("treatment", params.treatment);
+  if (params.branch) searchParams.set("branch", params.branch);
+  if (params.status) searchParams.set("status", params.status);
+  if (params.search) searchParams.set("q", params.search);
+  return `/forms?${searchParams.toString()}`;
+}
+
 export default async function FormsPage({
   searchParams,
 }: {
@@ -44,6 +89,7 @@ export default async function FormsPage({
   const selectedTreatment = firstParam(query?.treatment);
   const selectedBranch = firstParam(query?.branch);
   const selectedStatus = firstParam(query?.status);
+  const selectedArchive = parseArchiveView(firstParam(query?.archive));
   const search = firstParam(query?.q).trim();
   const message = firstParam(query?.form_status);
   const brand =
@@ -51,6 +97,10 @@ export default async function FormsPage({
     null;
   const filteredForms = config.forms.filter((form) => {
     const ops = getFormOperations(config, form);
+    const isLegacy = isLegacyFormCandidate(form);
+    if (!matchesArchiveView(selectedArchive, { status: form.status, isLegacy })) {
+      return false;
+    }
     if (brand && form.brandId !== brand.id) return false;
     if (selectedTreatment && form.defaultTreatmentId !== selectedTreatment) {
       return false;
@@ -63,6 +113,20 @@ export default async function FormsPage({
     }
     if (selectedStatus && form.status !== selectedStatus) return false;
     return formMatchesSearch(form, search);
+  });
+  const archivedCount = config.forms.filter((form) =>
+    matchesArchiveView("archived", {
+      status: form.status,
+      isLegacy: isLegacyFormCandidate(form),
+    })
+  ).length;
+  const activeCount = config.forms.length - archivedCount;
+  const currentListPath = buildFormsHref(selectedArchive, {
+    brand: selectedBrand,
+    treatment: selectedTreatment,
+    branch: selectedBranch,
+    status: selectedStatus,
+    search,
   });
 
   return (
@@ -104,7 +168,43 @@ export default async function FormsPage({
         )}
 
         <section className="mt-6 rounded-[28px] border border-[#ead9cf] bg-white/86 p-5">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-bold text-[#321428]">
+                View: {archiveViewLabel(selectedArchive)}
+              </p>
+              <p className="mt-1 text-xs font-semibold text-[#7b5a6a]">
+                Active hides archived forms and known Alyssa UXV2/test/demo records by default.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {([
+                ["active", `Active (${activeCount})`],
+                ["archived", `Archived / legacy (${archivedCount})`],
+                ["all", `All (${config.forms.length})`],
+              ] as Array<[ArchiveView, string]>).map(([view, label]) => (
+                <Link
+                  key={view}
+                  href={buildFormsHref(view, {
+                    brand: selectedBrand,
+                    treatment: selectedTreatment,
+                    branch: selectedBranch,
+                    status: selectedStatus,
+                    search,
+                  })}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                    selectedArchive === view
+                      ? "border-[#5a2348] bg-[#5a2348] text-white"
+                      : "border-[#ead9cf] bg-white text-[#5a2348]"
+                  }`}
+                >
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </div>
           <form className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_1.2fr_auto]" method="get">
+            <input type="hidden" name="archive" value={selectedArchive} />
             <FilterSelect
               label="Brand"
               name="brand"
@@ -163,7 +263,7 @@ export default async function FormsPage({
                   {[
                     "Form name",
                     "Brand",
-                    "Treatment / package",
+                    "Treatment / Campaign Offer",
                     "Branch",
                     "Form token",
                     "Status",
@@ -179,6 +279,9 @@ export default async function FormsPage({
               <tbody>
                 {filteredForms.map((form) => {
                   const ops = getFormOperations(config, form);
+                  const isLegacy = isLegacyFormCandidate(form);
+                  const status = formStatusLabel(form.status, isLegacy);
+                  const legacyReason = legacyReasonLabel(isLegacy);
                   return (
                     <tr
                       key={form.id}
@@ -216,8 +319,13 @@ export default async function FormsPage({
                       </td>
                       <td className="border-t border-[#f1e3dc] px-4 py-4">
                         <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
-                          可使用
+                          {status}
                         </span>
+                        {legacyReason && (
+                          <p className="mt-2 text-xs font-semibold text-[#9a5d76]">
+                            {legacyReason}
+                          </p>
+                        )}
                       </td>
                       <td className="border-t border-[#f1e3dc] px-4 py-4 text-xs font-semibold text-[#7b5a6a]">
                         {form.updatedAt || form.createdAt || "-"}
@@ -252,6 +360,57 @@ export default async function FormsPage({
                               Duplicate
                             </button>
                           </form>
+                          <details>
+                            <summary className="cursor-pointer rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348]">
+                              Archive / Delete
+                            </summary>
+                            <div className="mt-2 w-72 rounded-2xl border border-[#ead9cf] bg-white p-3 shadow-[0_18px_42px_rgba(90,35,72,0.12)]">
+                              <p className="text-xs font-semibold leading-5 text-[#7b5a6a]">
+                                Archive hides this form from active lists. Safe delete only works when no linked leads or landing pages are found.
+                              </p>
+                              <form action={archiveFormAction} className="mt-3 grid gap-2">
+                                <input type="hidden" name="formId" value={form.id} />
+                                <input type="hidden" name="returnTo" value={currentListPath} />
+                                <label className="flex items-center gap-2 text-xs font-bold text-[#5a2348]">
+                                  <input
+                                    type="checkbox"
+                                    name="confirmArchive"
+                                    value="yes"
+                                    className="h-4 w-4"
+                                  />
+                                  Confirm archive
+                                </label>
+                                <button
+                                  type="submit"
+                                  className="rounded-full bg-[#5a2348] px-3 py-1.5 text-xs font-bold text-white"
+                                >
+                                  Archive
+                                </button>
+                              </form>
+                              <form
+                                action={deleteFormAction}
+                                className="mt-3 grid gap-2 border-t border-[#f1e3dc] pt-3"
+                              >
+                                <input type="hidden" name="formId" value={form.id} />
+                                <input type="hidden" name="returnTo" value={currentListPath} />
+                                <label className="flex items-center gap-2 text-xs font-bold text-[#8a2732]">
+                                  <input
+                                    type="checkbox"
+                                    name="confirmDelete"
+                                    value="yes"
+                                    className="h-4 w-4"
+                                  />
+                                  Confirm permanent delete
+                                </label>
+                                <button
+                                  type="submit"
+                                  className="rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-3 py-1.5 text-xs font-bold text-[#8a2732]"
+                                >
+                                  Safe delete
+                                </button>
+                              </form>
+                            </div>
+                          </details>
                         </div>
                       </td>
                     </tr>

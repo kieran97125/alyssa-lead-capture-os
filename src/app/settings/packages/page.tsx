@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
 import {
@@ -7,6 +8,7 @@ import {
 } from "@/app/settings/actions";
 import {
   getConfigurationData,
+  getBrand,
   getTreatment,
   packagePriceLabel,
 } from "@/lib/data/configuration";
@@ -27,10 +29,15 @@ function valueText(value: number | string | null) {
   return value === null || value === undefined ? "" : String(value);
 }
 
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value || "";
+}
+
 export default async function PackageSettingsPage({
   searchParams,
 }: {
   searchParams?: Promise<{
+    brand?: string | string[];
     settings_status?: string | string[];
     message?: string | string[];
   }>;
@@ -39,12 +46,24 @@ export default async function PackageSettingsPage({
     getConfigurationData(),
     searchParams,
   ]);
+  const selectedBrandParam = firstParam(query?.brand);
+  const selectedBrand =
+    config.brands.find(
+      (brand) => brand.slug === selectedBrandParam || brand.id === selectedBrandParam
+    ) ?? config.brands[0];
+  const visibleTreatments = config.treatments.filter(
+    (treatment) => treatment.brandId === selectedBrand?.id
+  );
+  const visibleTreatmentIds = new Set(visibleTreatments.map((item) => item.id));
+  const visiblePackages = config.packages.filter((item) =>
+    visibleTreatmentIds.has(item.treatmentId)
+  );
   const message = typeof query?.message === "string" ? query.message : null;
   const status =
     query?.settings_status === "success" ? "success" : query?.settings_status;
-  const treatmentOptions = config.treatments.map((treatment) => ({
+  const treatmentOptions = visibleTreatments.map((treatment) => ({
     value: treatment.id,
-    label: `${treatment.name} (${config.brands.find((brand) => brand.id === treatment.brandId)?.name ?? "品牌"})`,
+    label: `${treatment.name} (${getBrand(config, treatment.brandId)?.name ?? "品牌"})`,
   }));
 
   return (
@@ -60,12 +79,30 @@ export default async function PackageSettingsPage({
             管理登記表格和 Campaign 使用的套餐、優惠價和付款要求。
           </p>
           <SettingsNav />
+          <div className="mt-5 flex flex-wrap gap-2">
+            {config.brands.map((brand) => (
+              <Link
+                key={brand.id}
+                href={`/settings/packages?brand=${brand.slug}`}
+                className={`rounded-full border px-4 py-2 text-sm font-bold ${
+                  brand.id === selectedBrand?.id
+                    ? "border-[#e46f64] bg-[#e46f64] text-white"
+                    : "border-[#ead9cf] bg-white text-[#5a2348]"
+                }`}
+              >
+                {brand.name}
+              </Link>
+            ))}
+          </div>
         </section>
 
         {message && <StatusMessage tone={status}>{message}</StatusMessage>}
 
         <section className="mt-6 rounded-[28px] border border-[#ead9cf] bg-white/86 p-5 shadow-[0_18px_50px_rgba(90,35,72,0.08)]">
           <h2 className="text-xl font-bold text-[#321428]">新增套餐</h2>
+          <p className="mt-2 text-sm font-semibold text-[#6d4a5c]">
+            只顯示 {selectedBrand?.name || "所選品牌"} 的 Treatment / Campaign Offer，避免 Alyssa 和 Ineffable Beauty 混用。
+          </p>
           <form action={createPackageAction} className="mt-4 grid gap-4 lg:grid-cols-6">
             <SelectInput label="連接療程" name="treatmentId" options={treatmentOptions} />
             <TextInput label="套餐名稱" name="name" />
@@ -85,7 +122,7 @@ export default async function PackageSettingsPage({
         </section>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-2">
-          {config.packages.map((item) => {
+          {visiblePackages.map((item) => {
             const treatment = getTreatment(config, item.treatmentId);
             const linkedForms = config.forms.filter(
               (form) => form.defaultPackageId === item.id

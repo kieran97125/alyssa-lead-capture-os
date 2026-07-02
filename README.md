@@ -1160,6 +1160,25 @@ Launch principle: save valid customer registrations first, then review or filter
 
 This is suitable for early real campaign trials. It is not yet a high-volume enterprise anti-abuse layer, full bot management system, or CRM authentication layer.
 
+## LaunchHub Archive / Delete Controls
+
+Landing Pages and Forms now support an Active / Archived / All view. The default Active view hides records with `status = archived` and known legacy Alyssa UXV2/test/demo records so old experiments do not clutter daily LaunchHub work.
+
+Archive is the preferred cleanup path for records with any uncertainty. Safe delete actions check for linked leads, landing pages, page versions, and lead source snapshots before deleting; if dependencies exist or cannot be verified, the UI blocks hard delete and tells the admin to archive instead.
+
+Reviewed cleanup SQL is available at `docs/ARCHIVE_LEGACY_ALYSSA_FORMS_AND_LANDING_PAGES_APPLY.sql`. It is non-destructive, rollback-only by default, and archives the exact legacy Alyssa form/page candidates without touching active Ineffable production forms or landing pages.
+
+## Alyssa / Ineffable Brand Defaults
+
+LaunchHub now keeps brand launch defaults for Alyssa and Ineffable Beauty in code so generated Wix embeds follow the same thank-you redirect model.
+
+- Alyssa: `https://www.alyssa.hk`, thank-you URL `https://www.alyssa.hk/thankyou`, default conversion mode `thank_you_redirect`, currency `HKD`, Pixel reference `1076420440840443`.
+- Ineffable Beauty: `https://www.ineffablebeautyhk.com`, thank-you URL `https://www.ineffablebeautyhk.com/thank-you`, default conversion mode `thank_you_redirect`, currency `HKD`, Pixel reference `1020143980486592`.
+
+Generated thank-you redirect embeds include `data-conversion-mode`, `data-success-redirect-url`, `data-pixel-event-value`, `data-pixel-currency`, `data-lazy-load`, and `data-lazy-root-margin`. They intentionally omit `data-pixel-id` because CompleteRegistration is owned by the Wix thank-you page.
+
+Reviewed DB alignment SQL is available at `docs/APPLY_ALYSSA_INEFFABLE_BRAND_DEFAULTS_REVIEW.sql`. It is rollback-only by default and should be reviewed manually before applying.
+
 ## Verification
 
 ```bash

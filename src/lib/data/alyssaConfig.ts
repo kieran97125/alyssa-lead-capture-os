@@ -6,7 +6,7 @@ export const alyssaBrand = {
   primaryColor: "#5a2348",
   secondaryColor: "#c9828e",
   whatsappNumber: "+85200000000",
-  defaultThankYouUrl: "/thank-you",
+  defaultThankYouUrl: "/thankyou",
 };
 
 export const alyssaTreatments = [

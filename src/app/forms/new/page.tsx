@@ -7,6 +7,7 @@ import {
   getBrandPixelId,
   getBrandSuggestedDomains,
 } from "@/lib/data/brandOperations";
+import { getBrandDisplayDefaults } from "@/lib/data/brandDefaults";
 import {
   getConfigurationData,
   packagePriceLabel,
@@ -52,6 +53,7 @@ export default async function NewFormPage({
   const firstBranch = brandBranches[0];
   const pixelId = getBrandPixelId(selectedBrand?.slug);
   const suggestedDomains = getBrandSuggestedDomains(selectedBrand?.slug);
+  const brandDefaults = getBrandDisplayDefaults(selectedBrand);
 
   return (
     <main className="alyssa-shell">
@@ -135,7 +137,7 @@ export default async function NewFormPage({
                 }))}
               />
               <SelectField
-                label="Package / price"
+                label="Campaign Offer / value"
                 name="defaultPackageId"
                 defaultValue={firstPackage?.id}
                 options={brandPackages.map((item) => ({
@@ -187,7 +189,10 @@ export default async function NewFormPage({
             </label>
             <div className="grid gap-3 md:grid-cols-3">
               <ReadonlyInfo label="Legal consent" value="Enabled" />
-              <ReadonlyInfo label="Thank-you handling" value="Default brand flow" />
+              <ReadonlyInfo
+                label="Thank-you handling"
+                value={`${brandDefaults.conversionMode} → ${brandDefaults.thankYouUrl || "Default brand flow"}`}
+              />
               <ReadonlyInfo label="Status" value="可使用" />
             </div>
           </section>
@@ -201,16 +206,24 @@ export default async function NewFormPage({
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <ReadonlyInfo
-                label="Brand Pixel"
-                value={pixelId ? `Configured: ${pixelId}` : "Missing - form can still be created"}
-                warning={!pixelId}
+                label="Brand Pixel reference"
+                value={
+                  brandDefaults.conversionMode === "thank_you_redirect"
+                    ? `${brandDefaults.pixelIdReference || pixelId || "Not set"} - handled on Wix thank-you page`
+                    : pixelId
+                      ? `Configured: ${pixelId}`
+                      : "Missing - form can still be created"
+                }
+                warning={!pixelId && !brandDefaults.pixelIdReference}
               />
               <ReadonlyInfo
                 label="Wix embed"
                 value={
-                  pixelId
-                    ? "Embed snippet will include data-pixel-id"
-                    : "Embed snippet will omit data-pixel-id"
+                  brandDefaults.conversionMode === "thank_you_redirect"
+                    ? "Embed redirects to brand thank-you page and omits data-pixel-id"
+                    : pixelId
+                      ? "Embed snippet will include data-pixel-id"
+                      : "Embed snippet will omit data-pixel-id"
                 }
               />
             </div>

@@ -1454,6 +1454,210 @@ export async function getLandingPageList() {
   };
 }
 
+type LandingPageCountCheckResult = {
+  ok: boolean;
+  count: number;
+  label: string;
+  errorMessage?: string;
+};
+
+async function countLandingPageDependency(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  table: string,
+  column: string,
+  value: string | null | undefined,
+  label: string
+): Promise<LandingPageCountCheckResult> {
+  if (!value) return { ok: true, count: 0, label };
+
+  const { count, error } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .eq(column, value);
+
+  if (error) {
+    console.warn("landing_page_dependency_count_failed", {
+      table,
+      column,
+      code: error.code,
+      message: error.message,
+    });
+    return {
+      ok: false,
+      count: 0,
+      label,
+      errorMessage: error.message,
+    };
+  }
+
+  return { ok: true, count: count ?? 0, label };
+}
+
+async function countLandingPageUrlDependency(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  column: string,
+  slug: string,
+  label: string
+): Promise<LandingPageCountCheckResult> {
+  const { count, error } = await supabase
+    .from("lead_source_snapshots")
+    .select("id", { count: "exact", head: true })
+    .ilike(column, `%/lp/${slug}%`);
+
+  if (error) {
+    console.warn("landing_page_url_dependency_count_failed", {
+      column,
+      code: error.code,
+      message: error.message,
+      slug,
+    });
+    return {
+      ok: false,
+      count: 0,
+      label,
+      errorMessage: error.message,
+    };
+  }
+
+  return { ok: true, count: count ?? 0, label };
+}
+
+export async function archiveLandingPage(
+  pageId: string
+): Promise<LandingPageMutationResult> {
+  if (!hasSupabaseAdminEnv()) {
+    return {
+      ok: false,
+      source: "local_config",
+      message:
+        "Landing Page archive is unavailable because the admin database client is not configured.",
+    };
+  }
+
+  const row = await findLandingPageRow(pageId);
+  if (!row) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "Landing Page not found. No change was made.",
+    };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("landing_pages")
+    .update({
+      status: "archived",
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", row.id);
+
+  if (error) {
+    console.warn("landing_page_archive_failed", {
+      code: error.code,
+      message: error.message,
+      page_id: row.id,
+      slug: row.slug,
+    });
+    return {
+      ok: false,
+      source: "supabase",
+      message: "Landing Page archive failed. No change was made.",
+    };
+  }
+
+  return {
+    ok: true,
+    source: "supabase",
+    message:
+      "Landing Page archived. It is hidden from the default active list, but existing leads remain viewable.",
+  };
+}
+
+export async function deleteLandingPageSafely(
+  pageId: string
+): Promise<LandingPageMutationResult> {
+  if (!hasSupabaseAdminEnv()) {
+    return {
+      ok: false,
+      source: "local_config",
+      message:
+        "Landing Page delete is unavailable because the admin database client is not configured.",
+    };
+  }
+
+  const row = await findLandingPageRow(pageId);
+  if (!row) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "Landing Page not found. No change was made.",
+    };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const checks = await Promise.all([
+    countLandingPageDependency(
+      supabase,
+      "landing_page_versions",
+      "page_id",
+      row.id,
+      "landing page versions"
+    ),
+    countLandingPageUrlDependency(
+      supabase,
+      "current_page_url",
+      row.slug,
+      "lead source snapshots by current URL"
+    ),
+    countLandingPageUrlDependency(
+      supabase,
+      "landing_page_url",
+      row.slug,
+      "lead source snapshots by landing URL"
+    ),
+  ]);
+  const blockers = checks.flatMap((check) => {
+    if (!check.ok) return [`${check.label} could not be verified`];
+    if (check.count > 0) return [`${check.count} ${check.label}`];
+    return [];
+  });
+
+  if (row.form_id) blockers.push("linked form");
+  if (row.published_version_id) blockers.push("published version");
+
+  if (blockers.length > 0) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: `Safe delete blocked because this Landing Page has dependencies: ${blockers.join(
+        ", "
+      )}. Archive it instead.`,
+    };
+  }
+
+  const { error } = await supabase.from("landing_pages").delete().eq("id", row.id);
+  if (error) {
+    console.warn("landing_page_safe_delete_failed", {
+      code: error.code,
+      message: error.message,
+      page_id: row.id,
+      slug: row.slug,
+    });
+    return {
+      ok: false,
+      source: "supabase",
+      message: "Safe delete failed. No further action was taken.",
+    };
+  }
+
+  return {
+    ok: true,
+    source: "supabase",
+    message: "Landing Page permanently deleted. No linked form, versions, or lead snapshots were found.",
+  };
+}
+
 export async function createLandingPageDraft(input: CreateLandingPageDraftInput) {
   if (!hasSupabaseAdminEnv()) {
     return {

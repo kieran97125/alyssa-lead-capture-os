@@ -3,7 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
+  archiveForm,
   createForm,
+  deleteFormSafely,
   duplicateForm,
   parseAllowedDomains,
   updateForm,
@@ -22,7 +24,15 @@ function readStringArray(formData: FormData, key: string) {
 }
 
 function redirectWithMessage(path: string, message: string): never {
-  redirect(`${path}?form_status=${encodeURIComponent(message)}`);
+  const [pathname, query = ""] = path.split("?");
+  const params = new URLSearchParams(query);
+  params.set("form_status", message);
+  redirect(`${pathname}?${params.toString()}`);
+}
+
+function safeReturnTo(value: string, fallback: string) {
+  if (value.startsWith("/forms") && !value.startsWith("//")) return value;
+  return fallback;
 }
 
 function parseFormInput(formData: FormData) {
@@ -88,4 +98,33 @@ export async function duplicateFormAction(formData: FormData) {
   }
 
   redirectWithMessage(`/forms/${result.form.id}`, result.message);
+}
+
+export async function archiveFormAction(formData: FormData) {
+  const formId = readString(formData, "formId");
+  const confirmed = readString(formData, "confirmArchive") === "yes";
+  const returnTo = safeReturnTo(readString(formData, "returnTo"), "/forms?archive=active");
+
+  if (!confirmed) {
+    redirectWithMessage(returnTo, "Archive not applied. Tick the confirmation checkbox first.");
+  }
+
+  const result = await archiveForm(formId);
+  revalidatePath("/forms");
+  revalidatePath(`/forms/${formId}`);
+  redirectWithMessage(returnTo, result.message);
+}
+
+export async function deleteFormAction(formData: FormData) {
+  const formId = readString(formData, "formId");
+  const confirmed = readString(formData, "confirmDelete") === "yes";
+  const returnTo = safeReturnTo(readString(formData, "returnTo"), "/forms?archive=active");
+
+  if (!confirmed) {
+    redirectWithMessage(returnTo, "Delete not applied. Tick the permanent delete confirmation first.");
+  }
+
+  const result = await deleteFormSafely(formId);
+  revalidatePath("/forms");
+  redirectWithMessage(returnTo, result.message);
 }

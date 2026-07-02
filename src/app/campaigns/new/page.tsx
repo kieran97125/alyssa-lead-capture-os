@@ -10,28 +10,54 @@ import {
   packagePriceLabel,
   type FormSetting,
 } from "@/lib/data/configuration";
+import {
+  isLegacyFormCandidate,
+  matchesArchiveView,
+} from "@/lib/data/legacyCleanup";
 
 export const dynamic = "force-dynamic";
+
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value || "";
+}
 
 export default async function NewCampaignPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ campaign_status?: string | string[] }>;
+  searchParams?: Promise<{ brand?: string | string[]; campaign_status?: string | string[] }>;
 }) {
   const config = await getConfigurationData();
   const query = await searchParams;
+  const selectedBrandParam = firstParam(query?.brand);
   const message =
     typeof query?.campaign_status === "string" ? query.campaign_status : null;
-  const firstBrand = config.brands[0];
-  const firstTreatment = config.treatments.find(
+  const firstBrand =
+    config.brands.find(
+      (brand) => brand.slug === selectedBrandParam || brand.id === selectedBrandParam
+    ) ?? config.brands[0];
+  const brandTreatments = config.treatments.filter(
     (item) => item.brandId === firstBrand?.id
   );
-  const firstPackage = config.packages.find(
-    (item) => item.treatmentId === firstTreatment?.id
+  const brandTreatmentIds = new Set(brandTreatments.map((item) => item.id));
+  const brandPackages = config.packages.filter((item) =>
+    brandTreatmentIds.has(item.treatmentId)
   );
-  const firstBranch = config.branches.find(
+  const brandBranches = config.branches.filter(
     (item) => item.brandId === firstBrand?.id
   );
+  const brandForms = config.forms.filter(
+    (form) =>
+      form.brandId === firstBrand?.id &&
+      matchesArchiveView("active", {
+        status: form.status,
+        isLegacy: isLegacyFormCandidate(form),
+      })
+  );
+  const firstTreatment = brandTreatments[0];
+  const firstPackage =
+    brandPackages.find((item) => item.treatmentId === firstTreatment?.id) ??
+    brandPackages[0];
+  const firstBranch = brandBranches[0];
 
   return (
     <main className="alyssa-shell">
@@ -74,6 +100,31 @@ export default async function NewCampaignPage({
         )}
 
         <form action={createCampaignAction} className="mt-6 grid gap-6">
+          <section className="alyssa-premium-card p-5">
+            <p className="alyssa-kicker">Brand first</p>
+            <h2 className="mt-2 text-xl font-bold text-[#321428]">
+              Choose brand before selecting offers
+            </h2>
+            <p className="mt-2 text-sm font-semibold leading-6 text-[#6d4a5c]">
+              Treatments, campaign offers, existing forms, and landing pages are filtered by the selected brand to avoid cross-brand setup mistakes.
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {config.brands.map((brand) => (
+                <Link
+                  key={brand.id}
+                  href={`/campaigns/new?brand=${brand.slug}`}
+                  className={`rounded-full border px-4 py-2 text-sm font-bold ${
+                    brand.id === firstBrand?.id
+                      ? "border-[#e46f64] bg-[#e46f64] text-white"
+                      : "border-[#ead9cf] bg-white text-[#5a2348]"
+                  }`}
+                >
+                  {brand.name}
+                </Link>
+              ))}
+            </div>
+          </section>
+
           <section className="alyssa-premium-card p-5">
             <p className="alyssa-kicker">1. 選擇建立方式</p>
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -123,7 +174,7 @@ export default async function NewCampaignPage({
                 label="療程"
                 name="defaultTreatmentId"
                 defaultValue={firstTreatment?.id}
-                options={config.treatments.map((treatment) => ({
+                options={brandTreatments.map((treatment) => ({
                   value: treatment.id,
                   label: `${treatment.name} (${
                     getBrand(config, treatment.brandId)?.name ?? "未設定品牌"
@@ -134,7 +185,7 @@ export default async function NewCampaignPage({
                 label="優惠 / 套餐"
                 name="defaultPackageId"
                 defaultValue={firstPackage?.id}
-                options={config.packages.map((item) => ({
+                options={brandPackages.map((item) => ({
                   value: item.id,
                   label: `${packagePriceLabel(item)} (${
                     getTreatment(config, item.treatmentId)?.name ?? "未設定療程"
@@ -145,7 +196,7 @@ export default async function NewCampaignPage({
                 label="分店"
                 name="defaultBranchId"
                 defaultValue={firstBranch?.id}
-                options={config.branches.map((branch) => ({
+                options={brandBranches.map((branch) => ({
                   value: branch.id,
                   label: `${branch.name} (${
                     getBrand(config, branch.brandId)?.name ?? "未設定品牌"
@@ -172,20 +223,20 @@ export default async function NewCampaignPage({
             <h2 className="mt-2 text-xl font-bold text-[#321428]">
               如選擇重用表格，請指定要連接的登記表格
             </h2>
-            {config.forms.length > 0 ? (
+            {brandForms.length > 0 ? (
               <>
                 <SelectField
                   label="選擇現有表格"
                   name="existingFormId"
-                  defaultValue={config.forms[0]?.id}
+                  defaultValue={brandForms[0]?.id}
                   required={false}
-                  options={config.forms.map((form) => ({
+                  options={brandForms.map((form) => ({
                     value: form.id,
                     label: form.formName,
                   }))}
                 />
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  {config.forms.slice(0, 4).map((form) => (
+                  {brandForms.slice(0, 4).map((form) => (
                     <ExistingFormSummary
                       key={form.id}
                       form={form}

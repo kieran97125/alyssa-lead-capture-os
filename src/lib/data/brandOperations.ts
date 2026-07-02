@@ -10,6 +10,13 @@ import {
   type FormSetting,
 } from "@/lib/data/configuration";
 import { getPublicEmbedPreviewUrl, getPublicPathUrl } from "@/lib/data/appUrl";
+import {
+  buildBrandSuccessRedirectUrl,
+  getBrandLaunchDefaults,
+  getOfferValueForRedirect,
+  getTreatmentSlugForRedirect,
+  isValidBrandSuccessRedirectUrl,
+} from "@/lib/data/brandDefaults";
 
 export const META_URL_PARAMETER_GUIDE =
   "utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&utm_term={{adset.name}}&campaign_id={{campaign.id}}&adset_id={{adset.id}}&ad_id={{ad.id}}&placement={{placement}}&lh_source=meta&lh_medium=paid_social&lh_campaign={{campaign.name}}&lh_content={{ad.name}}&lh_term={{adset.name}}&lh_campaign_id={{campaign.id}}&lh_adset_id={{adset.id}}&lh_ad_id={{ad.id}}&lh_placement={{placement}}";
@@ -201,13 +208,31 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
       : branch?.name || "未設定";
   const brandSlug = brand?.slug || "brand";
   const pixelId = getBrandPixelId(brandSlug);
+  const brandDefaults = getBrandLaunchDefaults(brandSlug);
+  const offerValue = getOfferValueForRedirect(selectedPackage);
+  const generatedSuccessRedirectUrl = buildBrandSuccessRedirectUrl({
+    brandSlug,
+    treatmentSlug: getTreatmentSlugForRedirect(treatment),
+    value: offerValue,
+  });
+  const explicitSuccessRedirectUrl = form.successRedirectUrl?.trim() || "";
+  const effectiveSuccessRedirectUrl =
+    explicitSuccessRedirectUrl &&
+    (!brandDefaults ||
+      isValidBrandSuccessRedirectUrl(brandSlug, explicitSuccessRedirectUrl))
+      ? explicitSuccessRedirectUrl
+      : generatedSuccessRedirectUrl;
+  const effectiveConversionMode =
+    form.conversionMode ||
+    brandDefaults?.defaultConversionMode ||
+    "form_submit_pixel";
   const embedCode = buildWixEmbedCode({
     form,
     brandSlug,
     pixelId,
-    eventValue: selectedPackage?.promoPrice,
-    conversionMode: form.conversionMode,
-    successRedirectUrl: form.successRedirectUrl,
+    eventValue: offerValue || selectedPackage?.promoPrice,
+    conversionMode: effectiveConversionMode,
+    successRedirectUrl: effectiveSuccessRedirectUrl,
   });
 
   return {
@@ -221,8 +246,14 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
     brandSlug,
     pixelId,
     pixelConfigured: Boolean(pixelId),
-    conversionMode: form.conversionMode || "form_submit_pixel",
-    successRedirectUrl: form.successRedirectUrl || "",
+    conversionMode: effectiveConversionMode,
+    successRedirectUrl: effectiveSuccessRedirectUrl,
+    generatedSuccessRedirectUrl,
+    hasValidExplicitSuccessRedirectUrl:
+      Boolean(explicitSuccessRedirectUrl) &&
+      (!brandDefaults ||
+        isValidBrandSuccessRedirectUrl(brandSlug, explicitSuccessRedirectUrl)),
+    brandLaunchDefaults: brandDefaults,
     embedCode,
     previewUrl: getPublicEmbedPreviewUrl(form.publicFormToken),
     packageLabel: packagePriceLabel(selectedPackage),

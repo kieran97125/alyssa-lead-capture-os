@@ -8,12 +8,18 @@ import {
   getBrandSuggestedDomains,
   getFormOperations,
 } from "@/lib/data/brandOperations";
+import { getBrandDisplayDefaults } from "@/lib/data/brandDefaults";
 import {
   getConfigurationData,
   packagePriceLabel,
 } from "@/lib/data/configuration";
 import { getLeadRows } from "@/lib/data/businessMetrics";
 import { getLandingPageList } from "@/lib/data/landingPageStore";
+import {
+  isLegacyFormCandidate,
+  isLegacyLandingPageCandidate,
+  matchesArchiveView,
+} from "@/lib/data/legacyCleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +44,14 @@ export default async function BrandWorkspacePage({
       (brand) => brand.slug === requestedBrand || brand.id === requestedBrand
     ) ?? config.brands[0];
 
-  const forms = config.forms.filter((form) => form.brandId === selectedBrand?.id);
+  const forms = config.forms.filter(
+    (form) =>
+      form.brandId === selectedBrand?.id &&
+      matchesArchiveView("active", {
+        status: form.status,
+        isLegacy: isLegacyFormCandidate(form),
+      })
+  );
   const treatments = config.treatments.filter(
     (treatment) => treatment.brandId === selectedBrand?.id
   );
@@ -46,7 +59,12 @@ export default async function BrandWorkspacePage({
     (branch) => branch.brandId === selectedBrand?.id
   );
   const pages = landingPages.pages.filter(
-    (page) => page.brandId === selectedBrand?.id
+    (page) =>
+      page.brandId === selectedBrand?.id &&
+      matchesArchiveView("active", {
+        status: page.status,
+        isLegacy: isLegacyLandingPageCandidate(page),
+      })
   );
   const leads = monthLeads.leads.filter(
     (lead) =>
@@ -55,6 +73,7 @@ export default async function BrandWorkspacePage({
   );
   const pixelId = getBrandPixelId(selectedBrand?.slug);
   const suggestedDomains = getBrandSuggestedDomains(selectedBrand?.slug);
+  const brandDefaults = getBrandDisplayDefaults(selectedBrand);
 
   return (
     <main className="alyssa-shell">
@@ -128,6 +147,11 @@ export default async function BrandWorkspacePage({
                   title="Branch Library"
                   body="查看此品牌分店資料，確保表格只顯示正確分店。"
                 />
+                <ActionCard
+                  href="/crm"
+                  title="CRM 工作台"
+                  body="跟進客人、確認預約、記錄 CS 對話及追蹤 Show / No-show。"
+                />
               </div>
             </section>
           </MotionReveal>
@@ -141,7 +165,13 @@ export default async function BrandWorkspacePage({
               <div className="mt-4 grid gap-3">
                 <SetupRow
                   label="Meta Pixel"
-                  value={pixelId ? `已設定：${pixelId}` : "未設定，embed 會省略 data-pixel-id"}
+                  value={
+                    brandDefaults.conversionMode === "thank_you_redirect"
+                      ? `${brandDefaults.pixelIdReference || pixelId || "Not set"} · Wix thank-you owns CompleteRegistration`
+                      : pixelId
+                        ? `已設定：${pixelId}`
+                        : "未設定，embed 會省略 data-pixel-id"
+                  }
                   good={Boolean(pixelId)}
                 />
                 <SetupRow
@@ -150,9 +180,14 @@ export default async function BrandWorkspacePage({
                   good
                 />
                 <SetupRow
-                  label="Default Wix host"
-                  value={suggestedDomains[0] || "未設定"}
+                  label="Website / thank-you"
+                  value={`${brandDefaults.websiteDomain || suggestedDomains[0] || "未設定"} → ${brandDefaults.thankYouUrl || "Default brand flow"}`}
                   good={Boolean(suggestedDomains[0])}
+                />
+                <SetupRow
+                  label="Default conversion mode"
+                  value={brandDefaults.conversionMode}
+                  good
                 />
                 <SetupRow
                   label="Google Sheet Sync"

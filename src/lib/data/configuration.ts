@@ -193,8 +193,9 @@ function localConfiguration(): ConfigurationData {
         defaultTreatmentId: alyssaDefaultForm.defaultTreatmentId,
         defaultPackageId: alyssaDefaultForm.defaultPackageId,
         defaultBranchId: alyssaDefaultForm.defaultBranchId,
-        conversionMode: "form_submit_pixel",
-        successRedirectUrl: null,
+        conversionMode: "thank_you_redirect",
+        successRedirectUrl:
+          "https://www.alyssa.hk/thankyou?submitted=1&treatment=medical-beauty-trial&value=388",
         createdAt: null,
         updatedAt: null,
       },
