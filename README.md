@@ -738,7 +738,7 @@ For Ineffable thank-you redirect mode, use HTTPS and the approved thank-you path
 <div id="launchhub-ineffable-form-form-4f4a18"></div>
 
 <script
-  src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260626-form-compact"
+  src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=stable"
   data-form-token="ineffable-beauty-388-3-form-4f4a18"
   data-brand="ineffable"
   data-form-id="19df814b-a47e-4c56-878d-d58198ada82c"
@@ -756,7 +756,7 @@ Do not add `data-pixel-id` to a `thank_you_redirect` snippet. The redirect URL i
 
 Wix HTML Embed elements can still reserve the manual box height and visible width set in Wix Editor. LaunchHub now starts embedded iframes with a compact fallback height, resizes the internal iframe to the measured form content, and constrains the embedded form to the available mobile width. The public form also uses a compact mobile layout with lighter framing and fewer decorative rows inside narrow embeds. The outer Wix HTML component should still be set close to the form content width/height and should not sit inside an oversized or narrow clipped Wix box. For Wix pages where the form is not visible in the first screen, use `data-lazy-load="true"` so the iframe loads only when the user scrolls near the form. If the form is immediately above the fold, lazy loading can be disabled by omitting that attribute.
 
-For mobile Wix performance, keep treatment-page sections practical: avoid stacking multiple large decorative cards before the form, hide non-essential decorative images on mobile, lazy-load below-the-fold images, and keep the Wix HTML Embed wrapper full-width without a narrow fixed mobile box. The LaunchHub embed script version `20260626-form-compact` is the recommended version for the compact embedded form UI, lighter pre-resize iframe height, shorter header/section spacing, and neutral loading state before the requested form config is resolved. `/embed/alyssa-form.js` is served with `Cache-Control: no-store, max-age=0`, so routine embedded-form UI fixes should deploy centrally without changing Wix snippets; keep the query string only as an emergency cache-buster if a browser or Wix layer has already cached an older URL.
+For mobile Wix performance, keep treatment-page sections practical: avoid stacking multiple large decorative cards before the form, hide non-essential decorative images on mobile, lazy-load below-the-fold images, and keep the Wix HTML Embed wrapper full-width without a narrow fixed mobile box. The LaunchHub embed script version `stable` is the recommended version for the compact embedded form UI, lighter pre-resize iframe height, shorter header/section spacing, and neutral loading state before the requested form config is resolved. `/embed/alyssa-form.js` is served with `Cache-Control: no-store, max-age=0`, so routine embedded-form UI fixes should deploy centrally without changing Wix snippets; keep the query string only as an emergency cache-buster if a browser or Wix layer has already cached an older URL.
 
 The compact public form layout keeps the same submitted field names, consent requirement, thank-you redirect behavior, attribution capture, Pixel behavior, and Google Sheets / CRM sync. It only reduces customer-facing whitespace: header padding is smaller, the selected treatment card is a short summary, trust chips are compressed, form sections use tighter spacing, and legal/footer copy is shorter on screen.
 
@@ -769,7 +769,7 @@ Ineffable generated embed examples:
   <div id="launchhub-ineffable-form-form-4f4a18"></div>
 
   <script
-    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260626-form-compact"
+    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=stable"
     data-form-token="ineffable-beauty-388-3-form-4f4a18"
     data-brand="ineffable"
     data-form-id="19df814b-a47e-4c56-878d-d58198ada82c"
@@ -790,7 +790,7 @@ Ineffable generated embed examples:
   <div id="launchhub-ineffable-form-form-f50cfb"></div>
 
   <script
-    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=20260626-form-compact"
+    src="https://go.beautytrialhk.com/embed/alyssa-form.js?v=stable"
     data-form-token="ineffable-588-dep-combo-form-f50cfb"
     data-brand="ineffable"
     data-form-id="22bc6034-6d2b-4e55-8da6-a29be086756b"
@@ -1082,8 +1082,10 @@ All public lead forms require visitors to tick a legal consent checkbox before s
 - Brand-level legal settings are the source of truth for public legal links.
 - If a brand has `legal_page_url`, public forms and public Landing Pages show one legal footer link using `legal_link_label`.
 - Ineffable Beauty should use one single legal page: `https://www.ineffablebeautyhk.com/legal`, with link label `法律條款`.
-- If a brand does not have `legal_page_url`, LaunchHub keeps the existing fallback links for Privacy Policy, Terms & Conditions, and Disclaimer.
-- Apply `docs/BRAND_LEGAL_SETTINGS_APPLY.sql` in Supabase before expecting Legal / Operator edits to persist in the database.
+- Alyssa should use `operator_name = Alyssa Group Limited`, `privacy_url = https://www.alyssa.hk/privacy`, and `disclaimer_url = https://www.alyssa.hk/disclaimer`.
+- If a brand has separate `privacy_url` / `disclaimer_url` and no `legal_page_url`, public forms and public Landing Pages show those separate legal links.
+- If a brand does not have `legal_page_url`, `privacy_url`, or `disclaimer_url`, LaunchHub keeps the existing fallback links for Privacy Policy, Terms & Conditions, and Disclaimer.
+- Review and apply `docs/APPLY_BRAND_LEGAL_SETTINGS_REVIEW.sql` in Supabase before expecting separate Privacy / Disclaimer URL edits to persist in the database.
 - Public legal pages now contain first-pass Traditional Chinese placeholder content for Privacy Policy, Terms & Conditions, and Disclaimer for brands that still use fallback internal legal pages.
 - Company and legal review is required before official launch or larger paid campaign use.
 - Current fallback placeholder legal routes are `/legal/alyssa/privacy`, `/legal/alyssa/terms`, and `/legal/alyssa/disclaimer`.
@@ -1098,6 +1100,8 @@ Current brand legal profile fields:
 
 - `legal_page_url`
 - `legal_link_label`
+- `privacy_url`
+- `disclaimer_url`
 - `operator_name`
 
 ## Google Sheets Lead Sync V1

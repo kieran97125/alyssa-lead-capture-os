@@ -107,6 +107,10 @@ function escapeHtmlAttr(value: string | number | null | undefined) {
     .replace(/>/g, "&gt;");
 }
 
+function resolvePixelEventValue(value: number | string | null | undefined) {
+  return value === null || value === undefined || value === "" ? 388 : value;
+}
+
 export function buildWixEmbedCode({
   form,
   brandSlug,
@@ -114,7 +118,7 @@ export function buildWixEmbedCode({
   eventValue,
   conversionMode,
   successRedirectUrl,
-  version = "20260626-form-compact",
+  version = "stable",
 }: {
   form: FormSetting;
   brandSlug: string;
@@ -130,9 +134,7 @@ export function buildWixEmbedCode({
   )}`;
   const isThankYouRedirect =
     conversionMode === "thank_you_redirect" && Boolean(successRedirectUrl);
-  const scriptVersion = isThankYouRedirect
-    ? "20260626-form-compact"
-    : version;
+  const scriptVersion = version || "stable";
   const lines = isThankYouRedirect
     ? [
         `<div class="ib-launchhub-form-card">`,
@@ -157,7 +159,7 @@ export function buildWixEmbedCode({
     lines.push(`${scriptIndent}data-pixel-id="${escapeHtmlAttr(pixelId)}"`);
     lines.push(
       `${scriptIndent}data-pixel-event-value="${escapeHtmlAttr(
-        eventValue || 388
+        resolvePixelEventValue(eventValue)
       )}"`
     );
     lines.push(`${scriptIndent}data-pixel-currency="HKD"`);
@@ -166,7 +168,7 @@ export function buildWixEmbedCode({
   if (isThankYouRedirect) {
     lines.push(
       `${scriptIndent}data-pixel-event-value="${escapeHtmlAttr(
-        eventValue || 388
+        resolvePixelEventValue(eventValue)
       )}"`
     );
     lines.push(`${scriptIndent}data-pixel-currency="HKD"`);
