@@ -891,9 +891,9 @@ function getPrimaryPackage(
     (item) => item.id === form.defaultPackageId
   );
 
-  if (defaultPackage && isDisplayPackage(defaultPackage)) return defaultPackage;
+  if (defaultPackage) return defaultPackage;
 
-  return packageOptions.find(isDisplayPackage) || defaultPackage || packageOptions[0];
+  return packageOptions.find(isDisplayPackage) || packageOptions[0];
 }
 
 async function logPublicEvent(
