@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getCrmSettings } from "@/lib/crm/settingsLoader";
 import { getCrmRuntimeStatus } from "@/lib/crm/store";
@@ -393,6 +394,26 @@ export default async function CrmSettingsPage({
                 <ImportantNotice>
                   目前仍使用手動開啟 WhatsApp。完成連接後，系統可協助同事直接發送已確認訊息；訊息發送前仍需同事確認。
                 </ImportantNotice>
+
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-sm font-black text-emerald-900">
+                        Real connection setup is ready for Ineffable Beauty.
+                      </p>
+                      <p className="mt-1 text-xs font-semibold text-emerald-800">
+                        Add WABA ID, Phone Number ID, App Secret, Access Token,
+                        webhook verify token, and run test send from one page.
+                      </p>
+                    </div>
+                    <Link
+                      href="/crm/settings/whatsapp"
+                      className="inline-flex h-9 items-center justify-center rounded-md bg-emerald-700 px-3 text-xs font-black text-white"
+                    >
+                      Open WhatsApp Connection
+                    </Link>
+                  </div>
+                </div>
 
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   {whatsappOverviewCards.map(([title, status, body, tone]) => (

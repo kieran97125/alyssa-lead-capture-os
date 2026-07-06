@@ -5,6 +5,7 @@ import {
 } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getCrmSettings } from "@/lib/crm/settingsLoader";
+import { getWhatsAppConnectionByBrandSlug } from "@/lib/crm/whatsapp";
 import { cleanAttributionText } from "@/lib/attribution/display";
 import {
   summarizeCrmCases,
@@ -169,6 +170,8 @@ export default async function CrmPage({
     { label: "Booked", value: summary.booked, href: "/crm?tab=bookings&queue=booked" },
     { label: "Showed / No-show", value: conversion.showed + conversion.noShow, href: "/crm?tab=reports" },
   ];
+  const whatsappConnectionView =
+    await getWhatsAppConnectionByBrandSlug("ineffable");
 
   return (
     <CrmShell
@@ -313,6 +316,18 @@ export default async function CrmPage({
                     </span>
                   ) : null}
                 </form>
+              </div>
+            ) : null}
+
+            {!whatsappConnectionView.connection ? (
+              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-900">
+                Ineffable WhatsApp is not connected yet.{" "}
+                <a
+                  href="/crm/settings/whatsapp"
+                  className="font-black underline underline-offset-2"
+                >
+                  Open WhatsApp Connection
+                </a>
               </div>
             ) : null}
           </div>

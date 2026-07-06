@@ -135,6 +135,7 @@ CS write actions:
 - CRM Phase 4.3 plans the future conversation history data model in `docs/CRM_PHASE_4_3_CONVERSATION_HISTORY_PLAN.md` and `docs/CRM_PHASE_4_3_CONVERSATION_HISTORY_SCHEMA_PLAN.sql`. This is proposal-only: no WhatsApp API is connected, no messages are sent, and no conversation schema has been applied.
 - CRM Phase 4.4 prepares the `/crm/settings?section=whatsapp` connection settings UX with future provider choices, connection fields, webhook readiness, message templates, and a disabled test connection button. Manual WhatsApp remains active, no WhatsApp API is connected, and no messages are sent.
 - CRM Phase 4.5 prepares the `/crm/settings?section=ai` AI Reply Assistant UX with reply style, knowledge sources, website URL source setup, scan status preview, and safety rules. This is setup UI only: no website crawling, URL fetching, external AI API, or auto-send behavior is connected.
+- CRM WhatsApp Connection Ready MVP adds `/crm/settings/whatsapp`, a Meta WhatsApp Cloud API connection page for Ineffable Beauty, server-only credential encryption, webhook verification/receive routes, a server-side send endpoint, and a lead-detail WhatsApp panel. It requires the reviewed SQL file `docs/CRM_WHATSAPP_CONNECTION_MVP_APPLY.sql` to be applied before live use and still does not alter public forms, Pixel, attribution, Sheets, or booking semantics.
 - CRM IA reset keeps a product-style sidebar with Dashboard / 首頁, Inbox / 工作台, Bookings / 預約, Team, Reports / 報表, Settings, More, and online status. CS working screens remain booking-first, while technical tracking audit, source-quality detail, campaign detail, Meta readiness, and identifier coverage stay hidden under the collapsed Technical Audit section in reports. No backend tracking logic was removed.
 - CRM sidebar uses `Dashboard / 首頁` as the CRM home overview at `/crm?tab=dashboard`; the duplicate unused Home item was removed. `Inbox / 工作台` remains the CS working queue at `/crm?tab=leads`, and `Bookings / 預約` remains `/crm?tab=bookings`.
 - CRM Inbox now uses a support-inbox style layout with compact tabs, filters, checkbox selection, customer avatar, manual WhatsApp open, and column presets. The default `CS Booking View` stays booking-first; `Marketing View` and `Technical Audit View` can expose source, campaign, CTWA, and tracking-adjacent fields when needed. Future persisted column preferences should move into App Settings. WhatsApp remains manual open only.
@@ -463,6 +464,7 @@ Open:
 - `/crm` - LeadOps CRM inbox using phone-first brand/customer identity.
 - `/crm/leads/[leadId]` - CRM case detail with contact, source, CTWA, notes, status, booking outcome, and follow-up controls when CRM writes are enabled.
 - `/crm/settings` - WhatsApp Channel Settings architecture; no API connection or raw token display.
+- `/crm/settings/whatsapp` - Brand-specific Meta WhatsApp Cloud API connection setup for Ineffable Beauty, including webhook URL, verify token, encrypted credentials, and test send.
 - `/performance` - Brand, source/campaign, treatment/package, and branch performance analysis.
 - `/forms` - Form connection layer showing selected brand, treatment, package, branch, allowed domains, embed code, and landing page relationship.
 - `/forms/[formId]` - Form-level configuration detail for form-only embed and landing page mode reuse.
@@ -486,6 +488,8 @@ Open:
 - `/api/public/thank-you` - Thank-you tracking endpoint.
 - `/api/webhooks/payment` - Payment outcome webhook placeholder; updates `payment_status` and logs payment events after authentication is added.
 - `/api/webhooks/whatsapp` - WhatsApp inbound / CTWA attribution webhook placeholder; creates or updates shared contact/source records after authentication is added.
+- `/api/webhooks/whatsapp/meta` - Meta WhatsApp Cloud API webhook verification and inbound/status receiver for the CRM WhatsApp connection MVP.
+- `/api/crm/whatsapp/send` - Internal server-side CRM WhatsApp text send endpoint; requires the admin session and never exposes access tokens to the browser.
 
 ## Internal Access Boundary
 
@@ -1050,7 +1054,8 @@ Payment status semantics:
 - `LAUNCHHUB_ADMIN_SESSION_SECRET` - required for signing the admin session cookie.
 - `PAYMENT_WEBHOOK_SECRET` - pending; must be added before production payment webhook use.
 - Legacy internal auth env vars are deprecated and not required: `INTERNAL_ACCESS_USERS`, `INTERNAL_AUTH_SESSION_SECRET`, `INTERNAL_AUTH_COOKIE_DOMAIN`, and `INTERNAL_AUTH_DISABLED`.
-- Future WhatsApp webhook secret / verification token - pending; must be added before production WhatsApp webhook use.
+- `WHATSAPP_CREDENTIAL_ENCRYPTION_KEY` - required before saving WhatsApp access tokens or app secrets; used server-side for AES-256-GCM credential encryption.
+- `WHATSAPP_WEBHOOK_VERIFY_TOKEN` - optional fallback verify token for Meta webhook verification before a DB connection row exists.
 
 ## Future Vercel Deployment
 

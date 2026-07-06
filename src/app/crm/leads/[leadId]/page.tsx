@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
 import { ReplyComposer } from "@/components/crm/ReplyComposer";
+import { WhatsAppSendBox } from "@/components/crm/WhatsAppSendBox";
 import { formatDateTime, getLeadRows } from "@/lib/data/businessMetrics";
 import {
   crmPipelineStatuses,
@@ -34,6 +35,12 @@ import {
   getCrmRuntimeStatus,
   type CrmInteractionRecord,
 } from "@/lib/crm/store";
+import {
+  getWhatsAppConnectionByBrandSlug,
+  getWhatsAppMessagesForLead,
+  type WhatsAppConnectionView,
+  type WhatsAppMessageRecord,
+} from "@/lib/crm/whatsapp";
 
 export const dynamic = "force-dynamic";
 
@@ -119,6 +126,10 @@ export default async function CrmLeadDetailPage({
     }
   );
   const latestContactNote = getLatestContactNote(bundle.interactions);
+  const [whatsappConnectionView, whatsappMessagesResult] = await Promise.all([
+    getWhatsAppConnectionByBrandSlug(leadCase.brandSlug),
+    getWhatsAppMessagesForLead(lead.id, 20),
+  ]);
 
   return (
     <CrmShell>
@@ -217,6 +228,15 @@ export default async function CrmLeadDetailPage({
                   interactions={bundle.interactions}
                   leadCase={leadCase}
                   confirmedAppointmentLabel={confirmedAppointmentLabel}
+                />
+
+                <WhatsAppConnectionPanel
+                  leadId={lead.id}
+                  brandId={lead.brand_id || ""}
+                  phone={leadCase.normalizedPhone || leadCase.phone}
+                  connectionView={whatsappConnectionView}
+                  messages={whatsappMessagesResult.messages}
+                  messagesTableReady={whatsappMessagesResult.tableReady}
                 />
 
                 <ReplyComposer
@@ -782,6 +802,107 @@ function ConversationPanel({
             ))}
           </ol>
         </div>
+      </div>
+    </section>
+  );
+}
+
+function WhatsAppConnectionPanel({
+  leadId,
+  brandId,
+  phone,
+  connectionView,
+  messages,
+  messagesTableReady,
+}: {
+  leadId: string;
+  brandId: string;
+  phone: string;
+  connectionView: WhatsAppConnectionView;
+  messages: WhatsAppMessageRecord[];
+  messagesTableReady: boolean;
+}) {
+  const connected = Boolean(
+    connectionView.connection &&
+      connectionView.tableReady &&
+      connectionView.connection.access_token_encrypted
+  );
+
+  return (
+    <section className="rounded-lg border border-[#e5e7eb] bg-white shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eef2f6] px-3.5 py-3">
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#64748b]">
+            WhatsApp API
+          </p>
+          <h2 className="mt-1 text-[15px] font-black text-[#111827]">
+            WhatsApp messages
+          </h2>
+          <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
+            Synced WhatsApp messages appear here after the Meta Cloud API
+            connection and SQL migration are active.
+          </p>
+        </div>
+        <Link
+          href="/crm/settings/whatsapp"
+          className="rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-1.5 text-[11px] font-black text-[#111827]"
+        >
+          Open WhatsApp Settings
+        </Link>
+      </div>
+      <div className="grid gap-3 p-3.5">
+        <div className="grid gap-2 rounded-lg border border-[#eef2f6] bg-[#f8fafc] px-3 py-2 text-[12px] font-semibold text-[#475569] sm:grid-cols-3">
+          <InfoLine label="Customer phone" value={phone || "-"} />
+          <InfoLine label="Connection" value={connectionView.statusLabel} />
+          <InfoLine
+            label="Message table"
+            value={messagesTableReady ? "Ready" : "SQL required"}
+          />
+        </div>
+
+        {!connected && (
+          <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-900">
+            WhatsApp is not ready yet. Apply the SQL migration, set
+            `WHATSAPP_CREDENTIAL_ENCRYPTION_KEY`, then save the Ineffable
+            connection in settings.
+          </div>
+        )}
+
+        <div className="grid gap-2">
+          {messages.length > 0 ? (
+            messages.map((message) => (
+              <div
+                key={message.id}
+                className={`rounded-lg border px-3 py-2 ${
+                  message.direction === "outbound"
+                    ? "ml-8 border-emerald-100 bg-emerald-50"
+                    : "mr-8 border-[#e5e7eb] bg-white"
+                }`}
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="text-[11px] font-black text-[#111827]">
+                    {message.direction} · {message.message_type || "text"}
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#64748b]">
+                    {formatDateTime(message.created_at)}
+                  </span>
+                </div>
+                <p className="mt-1 whitespace-pre-wrap text-[12px] font-semibold leading-5 text-[#475569]">
+                  {message.body || "-"}
+                </p>
+                <p className="mt-1 text-[10px] font-bold text-[#94a3b8]">
+                  Status: {message.status || "-"}
+                </p>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-3 py-4 text-center text-[12px] font-semibold text-[#64748b]">
+              No synced WhatsApp messages yet.
+            </div>
+          )}
+        </div>
+
+        <WhatsAppSendBox leadId={leadId} brandId={brandId} disabled={!connected} />
       </div>
     </section>
   );
