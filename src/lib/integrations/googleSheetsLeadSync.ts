@@ -1,4 +1,10 @@
 import type { TouchPayload } from "@/lib/attribution/types";
+import {
+  campaignDisplayLabel,
+  contentDisplayLabel,
+  preferredPageUrl,
+  sourceDisplayLabel,
+} from "@/lib/attribution/display";
 
 type SyncStatus = "enabled" | "disabled" | "missing_config";
 
@@ -147,18 +153,11 @@ function formatTreatmentOffer(
 }
 
 function formatSource(touch: TouchPayload) {
-  const source = touch.utm_source?.trim() || "";
-  const medium = touch.utm_medium?.trim() || "";
-
-  if (source) {
-    return `${source} / ${medium || "-"}`;
-  }
-
-  return "直接 / 無追蹤";
+  return sourceDisplayLabel(touch);
 }
 
 function formatCampaignAd(touch: TouchPayload) {
-  return [touch.utm_campaign, touch.utm_content].filter(Boolean).join(" / ");
+  return [campaignDisplayLabel(touch), contentDisplayLabel(touch)].join(" / ");
 }
 
 export function buildGoogleSheetsLeadPayload(
@@ -166,7 +165,7 @@ export function buildGoogleSheetsLeadPayload(
 ): GoogleSheetsLeadWebhookPayload {
   const touch = input.touch;
   const pageUrl =
-    input.pageUrl || touch.current_page_url || touch.landing_page_url || "";
+    preferredPageUrl(touch) || input.pageUrl || "";
 
   return {
     secret: env("GOOGLE_SHEETS_WEBHOOK_SECRET"),

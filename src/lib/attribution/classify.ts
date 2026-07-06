@@ -1,4 +1,10 @@
 import { AttributionClassification, TouchPayload } from "./types";
+import {
+  cleanAttributionText,
+  hasAttributionText,
+  hasExplicitCtwaEvidence,
+  hasTrackedAttribution,
+} from "@/lib/attribution/display";
 
 const utmKeys = [
   "utm_source",
@@ -20,10 +26,6 @@ const clickIdKeys = [
   "gbraid",
 ] as const;
 
-function hasValue(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0;
-}
-
 export function classifyAttribution(
   touch: TouchPayload,
   options?: {
@@ -40,19 +42,14 @@ export function classifyAttribution(
     };
   }
 
-  const utmCount = utmKeys.filter((key) => hasValue(touch[key])).length;
-  const hasClickId = clickIdKeys.some((key) => hasValue(touch[key]));
-  const hasCtwa =
-    hasValue(touch.ctwa_id) ||
-    hasValue(touch.whatsapp_referral_source_id) ||
-    hasValue(touch.whatsapp_message_id) ||
-    hasValue(touch.meta_ad_id) ||
-    hasValue(touch.meta_adset_id) ||
-    hasValue(touch.meta_campaign_id);
+  const utmCount = utmKeys.filter((key) => hasAttributionText(touch[key])).length;
+  const hasClickId = clickIdKeys.some((key) => hasAttributionText(touch[key]));
+  const hasCtwa = hasExplicitCtwaEvidence(touch);
+  const hasTrackedIds = hasTrackedAttribution(touch);
   const hasReferrer =
-    hasValue(touch.referrer) ||
-    hasValue(touch.landing_page_url) ||
-    hasValue(touch.current_page_url);
+    hasAttributionText(touch.referrer) ||
+    hasAttributionText(touch.landing_page_url) ||
+    hasAttributionText(touch.current_page_url);
 
   if (utmCount >= 3) {
     return {
@@ -102,6 +99,15 @@ export function classifyAttribution(
     };
   }
 
+  if (hasTrackedIds) {
+    return {
+      sourceType: "reg_form_utm",
+      attributionQuality: "click_id_only",
+      trackingStatus: "click_id_only",
+      auditReason: "campaign_or_ad_id_found_without_utm",
+    };
+  }
+
   if (hasReferrer) {
     return {
       sourceType: "organic_unknown",
@@ -129,7 +135,5 @@ export function normalizePhone(value: string) {
 }
 
 export function cleanText(value: unknown, maxLength = 500) {
-  if (typeof value !== "string") return null;
-  const cleaned = value.trim();
-  return cleaned ? cleaned.slice(0, maxLength) : null;
+  return cleanAttributionText(value, maxLength);
 }

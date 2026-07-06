@@ -5,6 +5,7 @@ import {
   cleanText,
   normalizePhone,
 } from "@/lib/attribution/classify";
+import { preferredPageUrl } from "@/lib/attribution/display";
 import {
   PUBLIC_ATTRIBUTION_CLIENT_COOKIE_NAME,
   PUBLIC_ATTRIBUTION_COOKIE_NAME,
@@ -1001,7 +1002,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const currentPageUrl = cleanText(submittedTouch.current_page_url, 2000);
+  const currentPageUrl = preferredPageUrl(submittedTouch);
   const allowedDomains = (form.allowed_domains ?? []) as string[];
   const originValidation = getOriginValidation(allowedDomains, [
     request.headers.get("origin"),

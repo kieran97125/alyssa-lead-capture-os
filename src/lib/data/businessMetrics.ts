@@ -2,6 +2,13 @@ import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
+import {
+  campaignDisplayLabel,
+  cleanAttributionText,
+  contentDisplayLabel,
+  preferredPageUrl,
+  sourceDisplayLabel,
+} from "@/lib/attribution/display";
 
 export type DateRangeKey = "today" | "yesterday" | "last7" | "month" | "custom" | "all";
 
@@ -186,6 +193,16 @@ export function formatAppointment(
   return [appointmentDate, appointmentTime].filter(Boolean).join(" ");
 }
 
+function sourceTouch(lead: LeadRow): Record<string, unknown> {
+  const snapshot = (lead.sourceSnapshot ?? {}) as Record<string, unknown>;
+  return {
+    ...((snapshot.first_touch_json as Record<string, unknown> | null) ?? {}),
+    ...((snapshot.latest_touch_json as Record<string, unknown> | null) ?? {}),
+    ...((snapshot.submitted_touch_json as Record<string, unknown> | null) ?? {}),
+    ...snapshot,
+  };
+}
+
 function hkDateToUtcIso(year: number, monthIndex: number, day: number) {
   return new Date(Date.UTC(year, monthIndex, day) - 8 * 60 * 60 * 1000).toISOString();
 }
@@ -249,26 +266,26 @@ export function parseRange(value: string | string[] | undefined): DateRangeKey {
 }
 
 export function sourceLabel(lead: LeadRow) {
-  const snapshot = lead.sourceSnapshot;
-  const source = snapshot?.utm_source?.trim();
-  const medium = snapshot?.utm_medium?.trim();
+  const rawSourceType =
+    cleanAttributionText(lead.source_type) ||
+    cleanAttributionText(lead.sourceSnapshot?.source_type);
 
-  if (source) return `${source} / ${medium || "-"}`;
+  if (rawSourceType === "manual") return "人手建立";
+  if (rawSourceType === "imported") return "匯入資料";
 
-  if (lead.source_type === "whatsapp_ctwa") return "WhatsApp CTWA";
-  if (lead.source_type === "organic_unknown") return "直接 / 無追蹤";
-  if (lead.source_type === "manual") return "人手建立";
-  if (lead.source_type === "imported") return "匯入資料";
-
-  return "直接 / 無追蹤";
+  return sourceDisplayLabel(sourceTouch(lead));
 }
 
 export function campaignLabel(lead: LeadRow) {
-  return lead.sourceSnapshot?.utm_campaign || "未標記廣告系列";
+  return campaignDisplayLabel(sourceTouch(lead));
 }
 
 export function contentLabel(lead: LeadRow) {
-  return lead.sourceSnapshot?.utm_content || "未標記素材";
+  return contentDisplayLabel(sourceTouch(lead));
+}
+
+export function sourcePageUrl(lead: LeadRow) {
+  return preferredPageUrl(sourceTouch(lead));
 }
 
 export function businessStatus(lead: LeadRow) {

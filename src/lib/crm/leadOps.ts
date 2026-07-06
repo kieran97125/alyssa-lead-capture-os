@@ -1,14 +1,20 @@
 import {
   asNumber,
   campaignLabel,
+  contentLabel,
   displayCustomerName,
   displayPhone,
   formatAppointment,
   formatDateTime,
   money,
   sourceLabel as businessSourceLabel,
+  sourcePageUrl,
   type LeadRow,
 } from "@/lib/data/businessMetrics";
+import {
+  cleanAttributionText,
+  hasExplicitCtwaEvidence,
+} from "@/lib/attribution/display";
 
 export type CrmSourceType =
   | "landing_form"
@@ -95,9 +101,7 @@ export type CrmLeadCase = {
 const unknownLabel = "未有資料";
 
 function value(input: unknown): string | null {
-  if (typeof input !== "string") return null;
-  const trimmed = input.trim();
-  return trimmed.length > 0 ? trimmed : null;
+  return cleanAttributionText(input);
 }
 
 function slugify(input: string | null | undefined) {
@@ -152,7 +156,10 @@ function getCtwa(lead: LeadRow): CrmCtwaFields {
 }
 
 function hasCtwa(ctwa: CrmCtwaFields) {
-  return Object.values(ctwa).some(Boolean);
+  return hasExplicitCtwaEvidence({
+    ctwa_id: ctwa.ctwa_source_id,
+    whatsapp_referral_source_id: ctwa.ctwa_source_id,
+  });
 }
 
 export function mapCrmSourceType(lead: LeadRow, ctwa = getCtwa(lead)): CrmSourceType {
@@ -161,7 +168,8 @@ export function mapCrmSourceType(lead: LeadRow, ctwa = getCtwa(lead)): CrmSource
 
   if (raw === "manual") return "manual";
   if (raw === "imported") return "import";
-  if (raw === "whatsapp_ctwa" || hasCtwa(ctwa)) return "whatsapp_ad";
+  if (raw === "whatsapp_ctwa") return hasCtwa(ctwa) ? "whatsapp_ad" : "unknown";
+  if (hasCtwa(ctwa)) return "whatsapp_ad";
   if (raw.includes("whatsapp")) return "whatsapp_direct";
   if (
     raw === "reg_form_utm" ||
@@ -178,7 +186,7 @@ export function mapCrmSourceType(lead: LeadRow, ctwa = getCtwa(lead)): CrmSource
 export function crmSourceTypeLabel(type: CrmSourceType) {
   const labels: Record<CrmSourceType, string> = {
     landing_form: "Landing Page / 網站表格",
-    whatsapp_ad: "WhatsApp 廣告",
+    whatsapp_ad: "WhatsApp CTWA",
     whatsapp_direct: "WhatsApp 直接查詢",
     manual: "手動建立",
     import: "匯入資料",
@@ -247,17 +255,12 @@ export function toCrmLeadCase(lead: LeadRow): CrmLeadCase {
   const brandName = lead.brand?.name || unknownLabel;
   const brandSlug = slugify(brandName);
   const pageUrl =
-    lead.sourceSnapshot?.current_page_url ||
-    lead.sourceSnapshot?.landing_page_url ||
+    sourcePageUrl(lead) ||
     null;
   const treatmentOffer =
     compact([lead.treatment?.name, lead.package?.name]) || unknownLabel;
   const campaign = campaignLabel(lead);
-  const ad =
-    lead.sourceSnapshot?.utm_content ||
-    lead.sourceSnapshot?.meta_ad_id ||
-    lead.sourceSnapshot?.fbclid ||
-    unknownLabel;
+  const ad = contentLabel(lead);
   const activityAt = lead.submitted_at || lead.created_at;
 
   return {

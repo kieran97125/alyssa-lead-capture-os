@@ -5,6 +5,7 @@ import {
 } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getCrmSettings } from "@/lib/crm/settingsLoader";
+import { cleanAttributionText } from "@/lib/attribution/display";
 import {
   summarizeCrmCases,
   toCrmLeadCase,
@@ -1490,10 +1491,10 @@ function getTrackingCaptureAudit(cases: CrmLeadCase[], leadById: Map<string, Lea
 
   const hasUtm = (lead: LeadRow | null) =>
     Boolean(
-      lead?.sourceSnapshot?.utm_source ||
-        lead?.sourceSnapshot?.utm_medium ||
-        lead?.sourceSnapshot?.utm_campaign ||
-        lead?.sourceSnapshot?.utm_content
+      cleanAttributionText(lead?.sourceSnapshot?.utm_source) ||
+        cleanAttributionText(lead?.sourceSnapshot?.utm_medium) ||
+        cleanAttributionText(lead?.sourceSnapshot?.utm_campaign) ||
+        cleanAttributionText(lead?.sourceSnapshot?.utm_content)
     );
   const hasMetaId = (
     item: CrmLeadCase,
@@ -1501,16 +1502,27 @@ function getTrackingCaptureAudit(cases: CrmLeadCase[], leadById: Map<string, Lea
     field: "campaign" | "adset" | "ad"
   ) => {
     if (field === "campaign") {
-      return Boolean(item.ctwa.campaign_id || lead?.sourceSnapshot?.meta_campaign_id);
+      return Boolean(
+        cleanAttributionText(item.ctwa.campaign_id) ||
+          cleanAttributionText(lead?.sourceSnapshot?.meta_campaign_id)
+      );
     }
     if (field === "adset") {
-      return Boolean(item.ctwa.adset_id || lead?.sourceSnapshot?.meta_adset_id);
+      return Boolean(
+        cleanAttributionText(item.ctwa.adset_id) ||
+          cleanAttributionText(lead?.sourceSnapshot?.meta_adset_id)
+      );
     }
-    return Boolean(item.ctwa.ad_id || lead?.sourceSnapshot?.meta_ad_id);
+    return Boolean(
+      cleanAttributionText(item.ctwa.ad_id) ||
+        cleanAttributionText(lead?.sourceSnapshot?.meta_ad_id)
+    );
   };
 
   const withUtm = rows.filter(({ lead }) => hasUtm(lead)).length;
-  const withFbclid = rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.fbclid)).length;
+  const withFbclid = rows.filter(({ lead }) =>
+    Boolean(cleanAttributionText(lead?.sourceSnapshot?.fbclid))
+  ).length;
   const withFbp = rows.filter(({ lead }) => Boolean(sourceSnapshotExtra(lead, "fbp"))).length;
   const withFbc = rows.filter(({ lead }) => Boolean(sourceSnapshotExtra(lead, "fbc"))).length;
   const withMetaCampaignId = rows.filter(({ item, lead }) =>
@@ -1552,10 +1564,10 @@ function getTrackingCaptureAudit(cases: CrmLeadCase[], leadById: Map<string, Lea
       missingTrackingRate: safeRate(missingTracking, total),
     },
     coverageRows: [
-      coverageRow("utm_source", total, rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.utm_source)).length, "主要來源，例如 meta / google。"),
-      coverageRow("utm_medium", total, rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.utm_medium)).length, "媒介，例如 paid_social。"),
-      coverageRow("utm_campaign", total, rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.utm_campaign)).length, "Campaign 報表與廣告組合分析。"),
-      coverageRow("utm_content", total, rows.filter(({ lead }) => Boolean(lead?.sourceSnapshot?.utm_content)).length, "廣告內容 / hook / creative。"),
+      coverageRow("utm_source", total, rows.filter(({ lead }) => Boolean(cleanAttributionText(lead?.sourceSnapshot?.utm_source))).length, "主要來源，例如 meta / google。"),
+      coverageRow("utm_medium", total, rows.filter(({ lead }) => Boolean(cleanAttributionText(lead?.sourceSnapshot?.utm_medium))).length, "媒介，例如 paid_social。"),
+      coverageRow("utm_campaign", total, rows.filter(({ lead }) => Boolean(cleanAttributionText(lead?.sourceSnapshot?.utm_campaign))).length, "Campaign 報表與廣告組合分析。"),
+      coverageRow("utm_content", total, rows.filter(({ lead }) => Boolean(cleanAttributionText(lead?.sourceSnapshot?.utm_content))).length, "廣告內容 / hook / creative。"),
       coverageRow("fbclid", total, withFbclid, "Meta click ID，對未來 matching 較重要。"),
       coverageRow("fbp", total, withFbp, "目前未見固定 typed source snapshot 欄位；建議未來安全保存。"),
       coverageRow("fbc", total, withFbc, "目前未見固定 typed source snapshot 欄位；可由 fbclid 建立。"),
@@ -1634,14 +1646,14 @@ function normalizeCampaignLabel(label: string, item: CrmLeadCase) {
 }
 
 function cleanLabel(value: string | null | undefined) {
-  const text = (value ?? "").trim();
+  const text = cleanAttributionText(value) || "";
   if (!text || text === "-" || text.toLowerCase() === "unknown") return "";
   if (text.includes("未有") || text.includes("直接 / 無追蹤")) return "";
   return text;
 }
 
 function stringValue(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+  return cleanAttributionText(value) || "";
 }
 
 function isDirectNoTracking(item: CrmLeadCase) {

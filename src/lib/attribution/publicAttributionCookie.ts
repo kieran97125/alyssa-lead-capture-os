@@ -1,3 +1,5 @@
+import { cleanAttributionText } from "@/lib/attribution/display";
+
 export const PUBLIC_ATTRIBUTION_COOKIE_NAME = "launchhub_public_attribution";
 export const PUBLIC_ATTRIBUTION_CLIENT_COOKIE_NAME =
   "launchhub_public_attribution_client";
@@ -71,7 +73,7 @@ export type PublicAttributionCookiePayload = Partial<
 };
 
 function stringValue(value: unknown) {
-  return typeof value === "string" && value.trim() ? value.trim() : null;
+  return cleanAttributionText(value);
 }
 
 export function normalizePublicAttributionFields<
@@ -156,7 +158,7 @@ export function createPublicAttributionCookiePayload(
     {};
 
   publicAttributionParamKeys.forEach((key) => {
-    const value = url.searchParams.get(key);
+    const value = cleanAttributionText(url.searchParams.get(key));
     if (value) tracking[key] = value;
   });
 

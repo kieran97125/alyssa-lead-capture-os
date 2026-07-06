@@ -17,6 +17,7 @@ import {
   money,
   parseRange,
   sourceLabel,
+  sourcePageUrl,
 } from "@/lib/data/businessMetrics";
 import { getConfigurationData } from "@/lib/data/configuration";
 
@@ -63,11 +64,7 @@ function buildLeadsHref(
 }
 
 function pageUrl(lead: Awaited<ReturnType<typeof getLeadRows>>["leads"][number]) {
-  return (
-    lead.sourceSnapshot?.current_page_url ||
-    lead.sourceSnapshot?.landing_page_url ||
-    "-"
-  );
+  return sourcePageUrl(lead) || "-";
 }
 
 export default async function LeadsPage({
