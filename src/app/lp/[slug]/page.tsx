@@ -342,6 +342,8 @@ export default async function PublicLandingPage({
   const publicBrandLegalSettings = publicBrand as typeof publicBrand & {
     legalPageUrl?: string | null;
     legalLinkLabel?: string | null;
+    privacyUrl?: string | null;
+    disclaimerUrl?: string | null;
     operatorName?: string | null;
   };
   const legalProfile = getBrandLegalProfile({
@@ -349,6 +351,8 @@ export default async function PublicLandingPage({
     brandName: brandDisplayName,
     legalPageUrl: publicBrandLegalSettings.legalPageUrl,
     legalLinkLabel: publicBrandLegalSettings.legalLinkLabel,
+    privacyUrl: publicBrandLegalSettings.privacyUrl,
+    disclaimerUrl: publicBrandLegalSettings.disclaimerUrl,
     operatorName: publicBrandLegalSettings.operatorName,
   });
   const contentSections = getResolvedLandingPageContentSections(page).filter(

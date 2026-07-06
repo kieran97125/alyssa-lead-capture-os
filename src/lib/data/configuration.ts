@@ -22,6 +22,8 @@ export type BrandSetting = {
   defaultThankYouUrl: string | null;
   legalPageUrl?: string | null;
   legalLinkLabel?: string | null;
+  privacyUrl?: string | null;
+  disclaimerUrl?: string | null;
   operatorName?: string | null;
 };
 
@@ -152,7 +154,9 @@ function localConfiguration(): ConfigurationData {
         defaultThankYouUrl: alyssaBrand.defaultThankYouUrl,
         legalPageUrl: null,
         legalLinkLabel: null,
-        operatorName: "YISSA GROUP LIMITED",
+        privacyUrl: "https://www.alyssa.hk/privacy",
+        disclaimerUrl: "https://www.alyssa.hk/disclaimer",
+        operatorName: "Alyssa Group Limited",
       },
     ],
     treatments: alyssaTreatments.map((treatment) => ({
@@ -413,6 +417,8 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
           defaultThankYouUrl: row.default_thank_you_url ?? null,
           legalPageUrl: row.legal_page_url ?? null,
           legalLinkLabel: row.legal_link_label ?? null,
+          privacyUrl: row.privacy_url ?? null,
+          disclaimerUrl: row.disclaimer_url ?? null,
           operatorName: row.operator_name ?? null,
         };
       }),

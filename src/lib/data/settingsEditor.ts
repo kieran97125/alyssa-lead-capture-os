@@ -20,6 +20,8 @@ export type BrandInput = {
   defaultThankYouUrl: string;
   legalPageUrl?: string;
   legalLinkLabel?: string;
+  privacyUrl?: string;
+  disclaimerUrl?: string;
   operatorName?: string;
 };
 
@@ -100,6 +102,8 @@ function hasLegalInput(input: BrandInput) {
   return Boolean(
     clean(input.legalPageUrl) ||
       clean(input.legalLinkLabel) ||
+      clean(input.privacyUrl) ||
+      clean(input.disclaimerUrl) ||
       clean(input.operatorName)
   );
 }
@@ -111,8 +115,48 @@ function isMissingBrandLegalColumnError(error: { code?: string; message?: string
     error.code === "PGRST204" ||
     message.includes("legal_page_url") ||
     message.includes("legal_link_label") ||
+    message.includes("privacy_url") ||
+    message.includes("disclaimer_url") ||
     message.includes("operator_name")
   );
+}
+
+function validateHttpsUrl(value: string | undefined | null, label: string) {
+  const cleaned = clean(value, 2000);
+  if (!cleaned) return null;
+
+  try {
+    const url = new URL(cleaned);
+    if (url.protocol !== "https:") {
+      return `${label} must be an https URL.`;
+    }
+    return null;
+  } catch {
+    return `${label} must be a valid https URL.`;
+  }
+}
+
+function validateBrandLegalInput(input: BrandInput): SettingsMutationResult | null {
+  const operator = clean(input.operatorName, 200);
+  const hasAnyLegalUrl = Boolean(
+    clean(input.legalPageUrl) ||
+      clean(input.privacyUrl) ||
+      clean(input.disclaimerUrl)
+  );
+
+  if (hasAnyLegalUrl && !operator) {
+    return {
+      ok: false,
+      message: "Operator / company is required when legal links are configured.",
+    };
+  }
+
+  const urlError =
+    validateHttpsUrl(input.legalPageUrl, "Legal page URL") ||
+    validateHttpsUrl(input.privacyUrl, "Privacy Policy URL") ||
+    validateHttpsUrl(input.disclaimerUrl, "Disclaimer URL");
+
+  return urlError ? { ok: false, message: urlError } : null;
 }
 
 function brandPayload(input: BrandInput, includeLegal: boolean) {
@@ -128,6 +172,8 @@ function brandPayload(input: BrandInput, includeLegal: boolean) {
       ? {
           legal_page_url: nullableText(input.legalPageUrl ?? ""),
           legal_link_label: nullableText(input.legalLinkLabel ?? ""),
+          privacy_url: nullableText(input.privacyUrl ?? ""),
+          disclaimer_url: nullableText(input.disclaimerUrl ?? ""),
           operator_name: nullableText(input.operatorName ?? ""),
         }
       : {}),
@@ -226,6 +272,8 @@ export async function createBrand(input: BrandInput): Promise<SettingsMutationRe
   const name = clean(input.name, 160);
   const slug = slugify(input.slug || name);
   if (!name) return { ok: false, message: "請輸入品牌名稱。" };
+  const legalValidation = validateBrandLegalInput(input);
+  if (legalValidation) return legalValidation;
   if (await slugExists("brands", slug)) {
     return { ok: false, message: "品牌代號已經存在，請使用另一個代號。" };
   }
@@ -237,7 +285,7 @@ export async function createBrand(input: BrandInput): Promise<SettingsMutationRe
       return {
         ok: false,
         message:
-          "請先在 Supabase 執行 docs/BRAND_LEGAL_SETTINGS_APPLY.sql，然後再儲存法律設定。",
+          "請先 review 並在 Supabase 執行 docs/APPLY_BRAND_LEGAL_SETTINGS_REVIEW.sql，然後再儲存法律設定。",
       };
     }
 
@@ -262,6 +310,8 @@ export async function updateBrand(input: BrandInput): Promise<SettingsMutationRe
   const slug = slugify(input.slug || name);
   if (!id) return { ok: false, message: "找不到要更新的品牌。" };
   if (!name) return { ok: false, message: "請輸入品牌名稱。" };
+  const legalValidation = validateBrandLegalInput(input);
+  if (legalValidation) return legalValidation;
   if (await slugExists("brands", slug, id)) {
     return { ok: false, message: "品牌代號已經存在，請使用另一個代號。" };
   }
@@ -279,7 +329,7 @@ export async function updateBrand(input: BrandInput): Promise<SettingsMutationRe
       return {
         ok: false,
         message:
-          "請先在 Supabase 執行 docs/BRAND_LEGAL_SETTINGS_APPLY.sql，然後再儲存法律設定。",
+          "請先 review 並在 Supabase 執行 docs/APPLY_BRAND_LEGAL_SETTINGS_REVIEW.sql，然後再儲存法律設定。",
       };
     }
 

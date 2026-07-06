@@ -51,6 +51,8 @@ export default async function BrandSettingsPage({
             <TextInput label="Thank You Page" name="defaultThankYouUrl" placeholder="/thank-you" required={false} />
             <TextInput label="Legal page URL" name="legalPageUrl" placeholder="https://www.ineffablebeautyhk.com/legal" required={false} />
             <TextInput label="Legal link label" name="legalLinkLabel" placeholder="法律條款" required={false} />
+            <TextInput label="Privacy Policy URL" name="privacyUrl" placeholder="https://www.alyssa.hk/privacy" required={false} />
+            <TextInput label="Disclaimer URL" name="disclaimerUrl" placeholder="https://www.alyssa.hk/disclaimer" required={false} />
             <TextInput label="Operator / company" name="operatorName" placeholder="YISSA GROUP LIMITED" required={false} />
             <TextInput label="Logo URL" name="logoUrl" required={false} />
             <TextInput label="主色" name="primaryColor" placeholder="#5a2348" required={false} />
@@ -113,6 +115,20 @@ export default async function BrandSettingsPage({
                     name="legalLinkLabel"
                     defaultValue={brand.legalLinkLabel ?? ""}
                     placeholder="法律條款"
+                    required={false}
+                  />
+                  <TextInput
+                    label="Privacy Policy URL"
+                    name="privacyUrl"
+                    defaultValue={brand.privacyUrl ?? ""}
+                    placeholder="https://www.alyssa.hk/privacy"
+                    required={false}
+                  />
+                  <TextInput
+                    label="Disclaimer URL"
+                    name="disclaimerUrl"
+                    defaultValue={brand.disclaimerUrl ?? ""}
+                    placeholder="https://www.alyssa.hk/disclaimer"
                     required={false}
                   />
                   <TextInput

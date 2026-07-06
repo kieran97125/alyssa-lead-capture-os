@@ -19,7 +19,11 @@ function firstParam(value: string | string[] | undefined) {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams?: Promise<{ brand?: string | string[] }>;
+  searchParams?: Promise<{
+    brand?: string | string[];
+    settings_status?: string | string[];
+    message?: string | string[];
+  }>;
 }) {
   const [config, query] = await Promise.all([
     getConfigurationData(),
@@ -27,6 +31,8 @@ export default async function SettingsPage({
   ]);
   const visibleBrands = getVisibleBrands(config.brands);
   const selectedBrandParam = firstParam(query?.brand);
+  const message = firstParam(query?.message);
+  const status = firstParam(query?.settings_status);
   const selectedBrand =
     visibleBrands.find(
       (brand) => brand.slug === selectedBrandParam || brand.id === selectedBrandParam
@@ -126,6 +132,8 @@ export default async function SettingsPage({
           <SettingsNav />
         </section>
 
+        {message && <StatusMessage tone={status}>{message}</StatusMessage>}
+
         <section id="brand-library" className="mt-6 scroll-mt-28">
           <div className="mb-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
             <div>
@@ -214,17 +222,17 @@ export default async function SettingsPage({
                   className="mt-5 grid gap-4 lg:grid-cols-3"
                 >
                   <input type="hidden" name="id" value={selectedBrand.id} />
+                  <input
+                    type="hidden"
+                    name="returnPath"
+                    value={`/settings?brand=${selectedBrand.slug}`}
+                  />
                   <input type="hidden" name="name" value={selectedBrand.name} />
                   <input type="hidden" name="slug" value={selectedBrand.slug} />
                   <input
                     type="hidden"
                     name="whatsappNumber"
                     value={selectedBrand.whatsappNumber ?? ""}
-                  />
-                  <input
-                    type="hidden"
-                    name="defaultThankYouUrl"
-                    value={selectedBrand.defaultThankYouUrl ?? ""}
                   />
                   <input
                     type="hidden"
@@ -243,8 +251,43 @@ export default async function SettingsPage({
                   />
 
                   <TextInput
+                    label="Operator / company"
+                    name="operatorName"
+                    defaultValue={legalProfile.operatingCompanyName || ""}
+                    placeholder={
+                      selectedBrand.slug === "alyssa"
+                        ? "Alyssa Group Limited"
+                        : "YISSA GROUP LIMITED"
+                    }
+                  />
+                  <TextInput
+                    label="Privacy Policy URL"
+                    name="privacyUrl"
+                    type="url"
+                    defaultValue={
+                      selectedBrand.privacyUrl ||
+                      legalProfile.privacyPolicyUrl ||
+                      ""
+                    }
+                    placeholder="https://www.alyssa.hk/privacy"
+                    required={false}
+                  />
+                  <TextInput
+                    label="Disclaimer URL"
+                    name="disclaimerUrl"
+                    type="url"
+                    defaultValue={
+                      selectedBrand.disclaimerUrl ||
+                      legalProfile.disclaimerUrl ||
+                      ""
+                    }
+                    placeholder="https://www.alyssa.hk/disclaimer"
+                    required={false}
+                  />
+                  <TextInput
                     label="Legal page URL"
                     name="legalPageUrl"
+                    type="url"
                     defaultValue={legalProfile.legalPageUrl ?? ""}
                     placeholder="https://www.ineffablebeautyhk.com/legal"
                     required={false}
@@ -261,14 +304,10 @@ export default async function SettingsPage({
                     required={false}
                   />
                   <TextInput
-                    label="Operator / company"
-                    name="operatorName"
-                    defaultValue={
-                      selectedBrand.operatorName ||
-                      legalProfile.operatingCompanyName ||
-                      ""
-                    }
-                    placeholder="YISSA GROUP LIMITED"
+                    label="Default thank-you URL"
+                    name="defaultThankYouUrl"
+                    defaultValue={selectedBrand.defaultThankYouUrl ?? ""}
+                    placeholder="https://www.alyssa.hk/thankyou"
                     required={false}
                   />
                   <div className="flex items-end lg:col-span-3">
@@ -286,15 +325,38 @@ export default async function SettingsPage({
   );
 }
 
+function StatusMessage({
+  tone,
+  children,
+}: {
+  tone: string | string[] | undefined;
+  children: string;
+}) {
+  const isSuccess = tone === "success";
+  return (
+    <div
+      className={`mt-5 rounded-2xl border px-4 py-3 text-sm font-bold ${
+        isSuccess
+          ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+          : "border-[#d9b66f] bg-[#fff6f0] text-[#5a2348]"
+      }`}
+    >
+      {children}
+    </div>
+  );
+}
+
 function TextInput({
   label,
   name,
+  type = "text",
   defaultValue = "",
   placeholder,
   required = true,
 }: {
   label: string;
   name: string;
+  type?: string;
   defaultValue?: string;
   placeholder?: string;
   required?: boolean;
@@ -305,6 +367,7 @@ function TextInput({
         {label}
       </span>
       <input
+        type={type}
         name={name}
         required={required}
         defaultValue={defaultValue}

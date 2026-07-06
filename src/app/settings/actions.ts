@@ -39,11 +39,18 @@ function readBoolean(formData: FormData, key: string) {
 
 function redirectBack(path: string, result: SettingsMutationResult): never {
   const status = result.ok ? "success" : "error";
+  const [pathAndQuery, hash] = path.split("#", 2);
+  const separator = pathAndQuery.includes("?") ? "&" : "?";
   redirect(
-    `${path}?settings_status=${status}&message=${encodeURIComponent(
+    `${pathAndQuery}${separator}settings_status=${status}&message=${encodeURIComponent(
       result.message
-    )}`
+    )}${hash ? `#${hash}` : ""}`
   );
+}
+
+function readReturnPath(formData: FormData, fallback: string) {
+  const path = readString(formData, "returnPath");
+  return path.startsWith("/settings") ? path : fallback;
 }
 
 function revalidateSettings() {
@@ -77,6 +84,8 @@ function brandInput(formData: FormData): BrandInput {
     defaultThankYouUrl: readString(formData, "defaultThankYouUrl"),
     legalPageUrl: readString(formData, "legalPageUrl"),
     legalLinkLabel: readString(formData, "legalLinkLabel"),
+    privacyUrl: readString(formData, "privacyUrl"),
+    disclaimerUrl: readString(formData, "disclaimerUrl"),
     operatorName: readString(formData, "operatorName"),
   };
 }
@@ -124,14 +133,14 @@ export async function createBrandAction(formData: FormData) {
   await ensureSettingsAction("/settings/brands");
   const result = await createBrand(brandInput(formData));
   revalidateSettings();
-  redirectBack("/settings/brands", result);
+  redirectBack(readReturnPath(formData, "/settings/brands"), result);
 }
 
 export async function updateBrandAction(formData: FormData) {
   await ensureSettingsAction("/settings/brands");
   const result = await updateBrand(brandInput(formData));
   revalidateSettings();
-  redirectBack("/settings/brands", result);
+  redirectBack(readReturnPath(formData, "/settings/brands"), result);
 }
 
 export async function deleteBrandAction(formData: FormData) {
