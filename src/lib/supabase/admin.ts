@@ -10,11 +10,6 @@ export type SupabaseAdminEnvStatus = {
   serviceRoleKeyRole: string | null;
 };
 
-type BaseAdminClient = ReturnType<typeof createClient>;
-type MigrationAwareAdminClient = BaseAdminClient & {
-  from(relation: "whatsapp_conversations"): any;
-};
-
 export function hasSupabaseAdminEnv() {
   return getSupabaseAdminEnvStatus().ready;
 }
@@ -73,12 +68,7 @@ export function getSupabaseAdminEnvStatus(): SupabaseAdminEnvStatus {
   };
 }
 
-/**
- * `whatsapp_conversations` is introduced by the reviewed Phase 2B migration
- * before the generated database type snapshot is refreshed. Only that table is
- * dynamically typed; all existing tables keep their normal Supabase inference.
- */
-export function createSupabaseAdminClient(): MigrationAwareAdminClient {
+export function createSupabaseAdminClient() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const status = getSupabaseAdminEnvStatus();
@@ -92,7 +82,7 @@ export function createSupabaseAdminClient(): MigrationAwareAdminClient {
       autoRefreshToken: false,
       persistSession: false,
     },
-  }) as MigrationAwareAdminClient;
+  });
 }
 
 function getJwtRole(value: string) {
