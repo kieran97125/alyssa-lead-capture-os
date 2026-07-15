@@ -19,6 +19,19 @@ import {
 
 export const dynamic = "force-dynamic";
 
+type LeadSendRecord = {
+  id: string;
+  brand_id: string;
+  phone: string | null;
+  normalized_phone: string | null;
+  contact_id: string | null;
+};
+
+type ContactPhoneRecord = {
+  phone: string | null;
+  normalized_phone: string | null;
+};
+
 export async function POST(request: NextRequest) {
   const cookieStore = await cookies();
   const session = await verifySignedAdminSession(
@@ -164,26 +177,28 @@ async function getLeadSendContext(leadId: string) {
     .maybeSingle();
 
   if (!lead) return null;
-  if (lead.normalized_phone || lead.phone) {
+  const typedLead = lead as LeadSendRecord;
+  if (typedLead.normalized_phone || typedLead.phone) {
     return {
-      brand_id: lead.brand_id as string,
-      phone: (lead.normalized_phone || lead.phone || "") as string,
+      brand_id: typedLead.brand_id,
+      phone: typedLead.normalized_phone || typedLead.phone || "",
     };
   }
 
-  if (!lead.contact_id) {
-    return { brand_id: lead.brand_id as string, phone: "" };
+  if (!typedLead.contact_id) {
+    return { brand_id: typedLead.brand_id, phone: "" };
   }
 
   const { data: contact } = await supabase
     .from("contacts")
     .select("phone,normalized_phone")
-    .eq("id", lead.contact_id)
+    .eq("id", typedLead.contact_id)
     .maybeSingle();
+  const typedContact = (contact as ContactPhoneRecord | null) || null;
 
   return {
-    brand_id: lead.brand_id as string,
-    phone: ((contact?.normalized_phone || contact?.phone || "") as string) || "",
+    brand_id: typedLead.brand_id,
+    phone: typedContact?.normalized_phone || typedContact?.phone || "",
   };
 }
 
