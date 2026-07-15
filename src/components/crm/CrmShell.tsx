@@ -1,5 +1,6 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
+import "./crm-shell.css";
 
 type CrmSidebarKey =
   | "dashboard"
@@ -36,7 +37,7 @@ export function CrmShell({
   active?: CrmSidebarKey;
 }) {
   return (
-    <main className="min-h-screen bg-[#f6f7fb] text-[#1f2933]">
+    <main className="crm-shell min-h-screen bg-[#f6f7fb] text-[#1f2933]">
       <div className="flex min-h-screen">
         <aside className="hidden w-[218px] shrink-0 border-r border-[#e5e7eb] bg-white text-[#111827] lg:flex lg:flex-col">
           <div className="border-b border-[#eef2f6] px-4 py-3">
