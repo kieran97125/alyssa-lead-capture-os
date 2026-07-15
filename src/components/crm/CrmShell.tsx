@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 type CrmSidebarKey =
   | "dashboard"
   | "inbox"
+  | "whatsapp"
   | "bookings"
   | "team"
   | "reports"
@@ -19,6 +20,7 @@ const sidebarItems: Array<{
 }> = [
   { key: "dashboard", icon: "D", label: "Dashboard / 首頁", href: "/crm?tab=dashboard", enabled: true },
   { key: "inbox", icon: "I", label: "Inbox / 工作台", href: "/crm?tab=leads", enabled: true },
+  { key: "whatsapp", icon: "W", label: "WhatsApp / 對話", href: "/crm/whatsapp", enabled: true },
   { key: "bookings", icon: "B", label: "Bookings / 預約", href: "/crm?tab=bookings", enabled: true },
   { key: "team", icon: "T", label: "Team / 團隊", href: "/crm", enabled: false },
   { key: "reports", icon: "R", label: "Reports / 報表", href: "/crm?tab=reports", enabled: true },
@@ -78,7 +80,7 @@ export function CrmShell({
               <span className="truncate">Online status / 上線狀態</span>
             </div>
             <p className="px-2.5 pb-1 text-[10px] font-semibold leading-4 text-[#94a3b8]">
-              Manual WhatsApp only. No API sending.
+              WhatsApp Cloud API workspace ready after connection setup.
             </p>
             <Link
               href="/dashboard"
@@ -101,6 +103,7 @@ export function CrmShell({
             {[
               { label: "首", href: "/crm?tab=dashboard", key: "dashboard", title: "Dashboard / 首頁" },
               { label: "工", href: "/crm?tab=leads", key: "inbox", title: "Inbox / 工作台" },
+              { label: "W", href: "/crm/whatsapp", key: "whatsapp", title: "WhatsApp / 對話" },
               { label: "約", href: "/crm?tab=bookings", key: "bookings", title: "Bookings / 預約" },
               { label: "報", href: "/crm?tab=reports", key: "reports", title: "Reports / 報表" },
               { label: "設", href: "/crm/settings", key: "settings", title: "Settings / 設定" },
