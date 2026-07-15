@@ -141,9 +141,10 @@ export async function POST(request: NextRequest) {
         .select("id")
         .eq("whatsapp_message_id", result.whatsapp_message_id)
         .maybeSingle();
-      if (message?.id) {
+      const storedMessageId = (message as { id?: string } | null)?.id || "";
+      if (storedMessageId) {
         await attachWhatsAppMessageToConversation(
-          message.id,
+          storedMessageId,
           conversationUpdate.conversationId
         );
       }
