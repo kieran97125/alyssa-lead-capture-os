@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@supabase/supabase-js";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 
 export type SupabaseAdminEnvStatus = {
   ready: boolean;
@@ -68,7 +68,13 @@ export function getSupabaseAdminEnvStatus(): SupabaseAdminEnvStatus {
   };
 }
 
-export function createSupabaseAdminClient() {
+/**
+ * The admin client intentionally uses a dynamic schema type.
+ * Several operational tables are introduced by reviewed SQL migrations before
+ * generated database types are refreshed. Runtime access remains protected by
+ * the service-role environment checks above and by server-only imports.
+ */
+export function createSupabaseAdminClient(): SupabaseClient<any, "public", any> {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const status = getSupabaseAdminEnvStatus();
@@ -82,7 +88,7 @@ export function createSupabaseAdminClient() {
       autoRefreshToken: false,
       persistSession: false,
     },
-  });
+  }) as SupabaseClient<any, "public", any>;
 }
 
 function getJwtRole(value: string) {
