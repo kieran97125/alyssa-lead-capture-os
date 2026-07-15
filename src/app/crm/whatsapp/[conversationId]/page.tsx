@@ -5,6 +5,7 @@ import { WhatsAppConversationComposer } from "@/components/crm/WhatsAppConversat
 import {
   findLeadCandidatesForConversation,
   getWhatsAppConversationWorkspace,
+  getWhatsAppServiceWindowState,
   markWhatsAppConversationRead,
 } from "@/lib/crm/whatsappInbox";
 import {
@@ -50,6 +51,9 @@ export default async function WhatsAppConversationPage({
     : await findLeadCandidatesForConversation(conversationId);
   const feedback = firstParam(query?.success) || firstParam(query?.error) || "";
   const conversation = workspace.conversation;
+  const serviceWindowState = getWhatsAppServiceWindowState(
+    conversation.last_inbound_at
+  );
 
   return (
     <CrmShell active="whatsapp">
@@ -71,7 +75,7 @@ export default async function WhatsAppConversationPage({
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <ServiceWindowBadge state={workspace.serviceWindowState || "unknown"} />
+              <ServiceWindowBadge state={serviceWindowState} />
               {conversation.lead_id ? (
                 <Link
                   href={`/crm/leads/${conversation.lead_id}`}
@@ -150,7 +154,7 @@ export default async function WhatsAppConversationPage({
               conversationId={conversation.id}
               brandId={conversation.brand_id}
               leadId={conversation.lead_id}
-              serviceWindowState={workspace.serviceWindowState || "unknown"}
+              serviceWindowState={serviceWindowState}
               templates={workspace.templates.map((template) => ({
                 id: template.id,
                 template_name: template.template_name,
@@ -264,7 +268,14 @@ function ServiceWindowBadge({
 
 function MessageStatus({ status }: { status: string | null }) {
   const normalized = status || "queued";
-  const label = normalized === "read" ? "✓✓ Read" : normalized === "delivered" ? "✓✓ Delivered" : normalized === "failed" ? "Failed" : normalized;
+  const label =
+    normalized === "read"
+      ? "✓✓ Read"
+      : normalized === "delivered"
+        ? "✓✓ Delivered"
+        : normalized === "failed"
+          ? "Failed"
+          : normalized;
   return (
     <span className={normalized === "failed" ? "text-red-600" : "text-[#64748b]"}>
       {label}
