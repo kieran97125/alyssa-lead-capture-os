@@ -8,10 +8,17 @@ declare module "@supabase/postgrest-js" {
     Relationships = unknown
   > {
     /**
-     * Operational tables can land through reviewed SQL before generated client
-     * types are refreshed. This overload keeps runtime validation in the domain
-     * service while avoiding false-negative insert unions during that window.
+     * `whatsapp_conversations` is introduced by the reviewed Phase 2B SQL
+     * migration before the generated client types are refreshed. This overload
+     * is only available for that relation; all existing tables retain strict
+     * Supabase inference.
      */
-    insert(values: Record<string, unknown> | Array<Record<string, unknown>>, options?: Record<string, unknown>): any;
+    insert(
+      this: RelationName extends "whatsapp_conversations"
+        ? PostgrestQueryBuilder<Schema, Relation, RelationName, Relationships>
+        : never,
+      values: Record<string, unknown> | Array<Record<string, unknown>>,
+      options?: Record<string, unknown>
+    ): any;
   }
 }
