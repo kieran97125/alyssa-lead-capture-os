@@ -6,9 +6,13 @@ import {
   insertWhatsAppMessage,
   markWhatsAppConnectionVerified,
   normalizeWhatsAppPhone,
-  updateWhatsAppMessageStatus,
   verifyMetaSignature,
 } from "@/lib/crm/whatsapp";
+import {
+  attachWhatsAppMessageToConversation,
+  recordWhatsAppMessageStatus,
+  upsertWhatsAppConversation,
+} from "@/lib/crm/whatsappInbox";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -102,9 +106,25 @@ export async function POST(request: NextRequest) {
         const messageId = stringValue(status?.id);
         const nextStatus = stringValue(status?.status) || "unknown";
         if (messageId) {
-          await updateWhatsAppMessageStatus(messageId, nextStatus, status);
+          await recordWhatsAppMessageStatus({
+            whatsappMessageId: messageId,
+            status: nextStatus,
+            rawPayload: status,
+          });
         }
         results.push({ ok: true, status_update: nextStatus, whatsapp_message_id: messageId });
+      }
+
+      if (hasSupabaseAdminEnv()) {
+        const supabase = createSupabaseAdminClient();
+        await supabase
+          .from("whatsapp_connections")
+          .update({
+            last_webhook_at: new Date().toISOString(),
+            last_error: null,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", connection.id);
       }
     }
   }
@@ -138,6 +158,8 @@ async function handleInboundMessage(
   const normalizedPhone = normalizeWhatsAppPhone(fromPhone);
   const leadId = await findLeadIdByPhone(normalizedPhone);
   const parsed = parseMessage(message);
+  const customerName = getCustomerName(value, fromPhone);
+  const timestamp = parseMetaTimestamp(stringValue(message.timestamp));
 
   const inserted = await insertWhatsAppMessage({
     brand_id: connection.brand_id,
@@ -157,10 +179,33 @@ async function handleInboundMessage(
     sent_by_user_id: null,
   });
 
+  const conversation = await upsertWhatsAppConversation({
+    brandId: connection.brand_id,
+    connectionId: connection.id,
+    leadId,
+    customerPhone: normalizedPhone || fromPhone,
+    customerName,
+    direction: "inbound",
+    body: parsed.body,
+    messageAt: timestamp,
+  });
+
+  const insertedMessageId =
+    inserted.ok && inserted.data && typeof inserted.data.id === "string"
+      ? inserted.data.id
+      : "";
+  if (insertedMessageId && conversation.conversationId) {
+    await attachWhatsAppMessageToConversation(
+      insertedMessageId,
+      conversation.conversationId
+    );
+  }
+
   return {
     ok: inserted.ok,
-    tableReady: inserted.tableReady,
+    tableReady: inserted.tableReady && conversation.tableReady,
     lead_id: leadId,
+    conversation_id: conversation.conversationId,
     from_phone: normalizedPhone || fromPhone,
     message_type: parsed.type,
     message: inserted.message,
@@ -170,14 +215,49 @@ async function handleInboundMessage(
 function parseMessage(message: Record<string, unknown>) {
   const type = stringValue(message.type) || "unknown";
   if (type === "text") {
-    const text = message.text as Record<string, unknown> | undefined;
-    return { type, body: stringValue(text?.body) || "" };
+    const text = asRecord(message.text);
+    return { type, body: stringValue(text.body) || "" };
+  }
+  if (type === "interactive") {
+    const interactive = asRecord(message.interactive);
+    const buttonReply = asRecord(interactive.button_reply);
+    const listReply = asRecord(interactive.list_reply);
+    const label =
+      stringValue(buttonReply.title) ||
+      stringValue(listReply.title) ||
+      stringValue(listReply.description);
+    return { type, body: label || "[interactive message]" };
+  }
+  if (type === "location") {
+    const location = asRecord(message.location);
+    const label = [stringValue(location.name), stringValue(location.address)]
+      .filter(Boolean)
+      .join(" · ");
+    return { type, body: label ? `[location] ${label}` : "[location message]" };
   }
   if (type === "image") return { type, body: "[image message]" };
   if (type === "document") return { type, body: "[document message]" };
   if (type === "audio") return { type, body: "[audio message]" };
-  if (type === "interactive") return { type, body: "[interactive message]" };
+  if (type === "video") return { type, body: "[video message]" };
+  if (type === "contacts") return { type, body: "[contacts message]" };
   return { type: "unknown", body: `[${type || "unknown"} message]` };
+}
+
+function getCustomerName(value: Record<string, unknown>, fromPhone: string) {
+  const contacts = Array.isArray(value.contacts) ? value.contacts : [];
+  const matched = contacts.find((contact) => {
+    const record = asRecord(contact);
+    return !fromPhone || stringValue(record.wa_id) === fromPhone;
+  });
+  const profile = asRecord(asRecord(matched).profile);
+  return stringValue(profile.name) || null;
+}
+
+function parseMetaTimestamp(value: string) {
+  if (!value) return new Date().toISOString();
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds)) return new Date().toISOString();
+  return new Date(seconds * 1000).toISOString();
 }
 
 function safeJson(value: string) {
