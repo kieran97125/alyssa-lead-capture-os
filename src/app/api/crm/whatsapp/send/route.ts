@@ -12,6 +12,7 @@ import { sendWhatsAppTextMessage } from "@/lib/crm/whatsapp";
 import {
   attachWhatsAppMessageToConversation,
   getWhatsAppConversationWorkspace,
+  getWhatsAppServiceWindowState,
   sendWhatsAppTemplateMessage,
   upsertWhatsAppConversation,
 } from "@/lib/crm/whatsappInbox";
@@ -53,6 +54,9 @@ export async function POST(request: NextRequest) {
     ? await getWhatsAppConversationWorkspace(conversationId)
     : null;
   const conversation = conversationWorkspace?.conversation || null;
+  const serviceWindowState = getWhatsAppServiceWindowState(
+    conversation?.last_inbound_at || null
+  );
   const leadContext = leadId ? await getLeadSendContext(leadId) : null;
   const brandId = explicitBrandId || conversation?.brand_id || leadContext?.brand_id || "";
   const resolvedLeadId = leadId || conversation?.lead_id || null;
@@ -98,13 +102,12 @@ export async function POST(request: NextRequest) {
   }
 
   // First contact and closed/unknown service windows require an approved template.
-  if (!conversation || conversationWorkspace?.serviceWindowState !== "open") {
+  if (!conversation || serviceWindowState !== "open") {
     return NextResponse.json(
       {
         ok: false,
         error: "template_required",
-        service_window_state:
-          conversationWorkspace?.serviceWindowState || "unknown",
+        service_window_state: serviceWindowState,
       },
       { status: 400 }
     );
@@ -124,7 +127,7 @@ export async function POST(request: NextRequest) {
   if (result.ok && result.whatsapp_message_id) {
     const conversationUpdate = await upsertWhatsAppConversation({
       brandId,
-      connectionId: connection.connection_id,
+      connectionId: conversation.connection_id,
       leadId: resolvedLeadId,
       customerPhone: toPhone,
       customerName: conversation.customer_name,
