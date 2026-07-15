@@ -10,6 +10,12 @@ export type SupabaseAdminEnvStatus = {
   serviceRoleKeyRole: string | null;
 };
 
+type BaseAdminClient = ReturnType<typeof createClient>;
+type MigrationAwareAdminClient = Omit<BaseAdminClient, "from"> &
+  Pick<BaseAdminClient, "from"> & {
+    from(relation: "whatsapp_conversations"): any;
+  };
+
 export function hasSupabaseAdminEnv() {
   return getSupabaseAdminEnvStatus().ready;
 }
@@ -69,13 +75,11 @@ export function getSupabaseAdminEnvStatus(): SupabaseAdminEnvStatus {
 }
 
 /**
- * Operational tables can be introduced by reviewed SQL migrations before the
- * generated database type snapshot is refreshed. The admin client therefore
- * remains dynamically typed at this boundary. Runtime safety still comes from
- * server-only usage, service-role validation and explicit query validation in
- * each domain service.
+ * `whatsapp_conversations` is introduced by the reviewed Phase 2B migration
+ * before the generated database type snapshot is refreshed. Only that table is
+ * dynamically typed; all existing tables keep their normal Supabase inference.
  */
-export function createSupabaseAdminClient(): any {
+export function createSupabaseAdminClient(): MigrationAwareAdminClient {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   const status = getSupabaseAdminEnvStatus();
@@ -89,7 +93,7 @@ export function createSupabaseAdminClient(): any {
       autoRefreshToken: false,
       persistSession: false,
     },
-  });
+  }) as MigrationAwareAdminClient;
 }
 
 function getJwtRole(value: string) {
