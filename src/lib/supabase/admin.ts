@@ -11,10 +11,9 @@ export type SupabaseAdminEnvStatus = {
 };
 
 type BaseAdminClient = ReturnType<typeof createClient>;
-type MigrationAwareAdminClient = Omit<BaseAdminClient, "from"> &
-  Pick<BaseAdminClient, "from"> & {
-    from(relation: "whatsapp_conversations"): any;
-  };
+type MigrationAwareAdminClient = BaseAdminClient & {
+  from(relation: "whatsapp_conversations"): any;
+};
 
 export function hasSupabaseAdminEnv() {
   return getSupabaseAdminEnvStatus().ready;
