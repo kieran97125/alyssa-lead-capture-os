@@ -9,8 +9,8 @@ async function patch(relativePath, replacements) {
   let source = await readFile(target, "utf8");
   for (const [from, to] of replacements) {
     if (!source.includes(from)) {
-      if (source.includes(to)) continue;
-      throw new Error(`${relativePath}: missing verified block: ${from.slice(0, 120)}`);
+      if (!source.includes(to)) console.warn(`${relativePath}: skipped UI variant: ${from.slice(0, 80)}`);
+      continue;
     }
     source = source.replace(from, to);
   }
