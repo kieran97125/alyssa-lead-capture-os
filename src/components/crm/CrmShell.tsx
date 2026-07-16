@@ -21,8 +21,7 @@ const sidebarItems: Array<{
   enabled: boolean;
 }> = [
   { key: "dashboard", icon: "D", label: "Dashboard / 首頁", href: "/crm?tab=dashboard", enabled: true },
-  { key: "inbox", icon: "I", label: "Inbox / 工作台", href: "/crm?tab=leads", enabled: true },
-  { key: "whatsapp", icon: "W", label: "WhatsApp / 對話", href: "/crm/whatsapp", enabled: true },
+  { key: "inbox", icon: "C", label: "Conversations / 對話", href: "/crm?tab=leads", enabled: true },
   { key: "bookings", icon: "B", label: "Bookings / 預約", href: "/crm?tab=bookings", enabled: true },
   { key: "operations", icon: "O", label: "Operations / 營運", href: "/crm/operations", enabled: true },
   { key: "team", icon: "T", label: "Team / 團隊", href: "/crm", enabled: false },
@@ -71,22 +70,19 @@ export function CrmShell({
             )}
           </nav>
           <div className="border-t border-[#eef2f6] px-2.5 py-2">
-            <div className="flex items-center gap-2 rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#475569]">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />
-              <span className="truncate">Online status / 上線狀態</span>
-            </div>
-            <p className="px-2.5 pb-1 text-[10px] font-semibold leading-4 text-[#94a3b8]">Lead-to-Revenue workspace ready; WhatsApp goes live after connection approval.</p>
-            <Link href="/dashboard" className="mt-1 block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]">Back to LaunchHub</Link>
+            <Link href="/crm/settings/whatsapp" className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]">
+              WhatsApp 連接設定
+            </Link>
+            <Link href="/dashboard" className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]">Back to LaunchHub</Link>
           </div>
         </aside>
 
-        <aside className="flex w-[60px] shrink-0 flex-col items-center border-r border-[#e5e7eb] bg-white py-3 text-[#111827] lg:hidden">
-          <Link href="/crm?tab=dashboard" className="grid h-9 w-9 place-items-center rounded-lg bg-[#eef2ff] text-[12px] font-black text-[#4338ca]" title="CRM Dashboard">C</Link>
+        <aside className="flex w-[52px] shrink-0 flex-col items-center border-r border-[#e5e7eb] bg-white py-3 text-[#111827] lg:hidden">
+          <Link href="/crm?tab=dashboard" className="grid h-8 w-8 place-items-center rounded-lg bg-[#eef2ff] text-[11px] font-black text-[#4338ca]" title="CRM Dashboard">C</Link>
           <div className="mt-4 grid gap-2">
             {[
               { label: "首", href: "/crm?tab=dashboard", key: "dashboard", title: "Dashboard / 首頁" },
-              { label: "工", href: "/crm?tab=leads", key: "inbox", title: "Inbox / 工作台" },
-              { label: "W", href: "/crm/whatsapp", key: "whatsapp", title: "WhatsApp / 對話" },
+              { label: "聊", href: "/crm?tab=leads", key: "inbox", title: "Conversations / 對話" },
               { label: "約", href: "/crm?tab=bookings", key: "bookings", title: "Bookings / 預約" },
               { label: "營", href: "/crm/operations", key: "operations", title: "Operations / 營運" },
               { label: "報", href: "/crm?tab=reports", key: "reports", title: "Reports / 報表" },
