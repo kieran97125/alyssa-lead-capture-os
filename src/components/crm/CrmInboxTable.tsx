@@ -78,9 +78,15 @@ export function CrmInboxTable({
   const colSpan = defaultHeadings.length + extraHeadings.length;
 
   return (
-    <div className="min-h-0 flex-1 overflow-hidden border-t border-[#e5e7eb] bg-white">
+    <div
+      data-testid="crm-inbox-layout"
+      className="min-h-0 flex-1 overflow-hidden border-t border-[#e5e7eb] bg-white"
+    >
       <div className="h-full overflow-auto">
-        <table className="min-w-[1380px] table-fixed border-separate border-spacing-0 text-left text-[12px] leading-5">
+        <table
+          data-testid="crm-inbox-table"
+          className="min-w-[1380px] table-fixed border-separate border-spacing-0 text-left text-[12px] leading-5"
+        >
           <thead className="sticky top-0 z-10 bg-[#f9fafb]">
             <tr className="h-9 text-[10px] font-bold uppercase tracking-[0.08em] text-[#6b7280]">
               {[...defaultHeadings, ...extraHeadings].map((heading, index) => (
@@ -95,6 +101,7 @@ export function CrmInboxTable({
               cases.map((item) => (
                 <tr
                   key={item.id}
+                  data-testid="crm-inbox-row"
                   className="h-[54px] align-middle text-[#1f2933] transition hover:bg-[#f8fafc]"
                 >
                   <Cell narrow>

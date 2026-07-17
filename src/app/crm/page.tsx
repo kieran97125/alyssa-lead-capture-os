@@ -185,7 +185,10 @@ export default async function CrmPage({
             : "inbox"
       }
     >
-      <div className="flex h-screen min-w-0 flex-col">
+      <div
+        data-testid="crm-conversations-screen"
+        className="flex h-screen min-w-0 flex-col"
+      >
         <header className="shrink-0 border-b border-[#e5e7eb] bg-white">
           <div className="border-b border-[#eef2f6] px-4 py-3">
             <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">

@@ -6,7 +6,9 @@
     "dev": "next dev",
     "build": "node scripts/prepare-whatsapp-phase2b.mjs && node scripts/prepare-crm-lead-detail-ui.mjs && node scripts/prepare-crm-compact-operations-ui.mjs && next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "test:e2e": "playwright test",
+    "test:e2e:update": "playwright test --update-snapshots"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
@@ -16,6 +18,7 @@
     "react-dom": "19.2.4"
   },
   "devDependencies": {
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
     "@types/react": "^19",
