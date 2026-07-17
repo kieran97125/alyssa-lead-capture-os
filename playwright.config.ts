@@ -40,6 +40,7 @@ export default defineConfig({
         timeout: 120_000,
         env: {
           ...process.env,
+          ALYSSA_E2E_FIXTURES: "1",
           LAUNCHHUB_ADMIN_PASSWORD: ciPassword,
           LAUNCHHUB_ADMIN_SESSION_SECRET: ciSessionSecret,
         },

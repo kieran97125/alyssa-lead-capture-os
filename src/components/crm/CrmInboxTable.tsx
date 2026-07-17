@@ -62,6 +62,55 @@ const technicalHeadings = [
   "fbclid / fbp / fbc",
 ];
 
+const e2eInboxCases: CrmLeadCase[] = [
+  {
+    id: "playwright-layout-fixture",
+    createdAt: "2026-07-17T01:00:00.000Z",
+    lastActivityAt: "2026-07-17T02:00:00.000Z",
+    createdLabel: "2026年7月17日 上午9:00",
+    lastActivityLabel: "2026年7月17日 上午10:00",
+    customerName: "Alyssa Layout Check",
+    phone: "+85291234567",
+    normalizedPhone: "+85291234567",
+    email: "layout-check@example.invalid",
+    brandName: "Alyssa",
+    brandSlug: "alyssa",
+    canonicalIdentity: "e2e:+85291234567",
+    treatmentOffer: "CRM Desktop Acceptance",
+    packagePrice: "HK$888",
+    branchName: "Central",
+    appointmentLabel: "2026-07-20 14:00",
+    crmSourceType: "landing_form",
+    sourceLabel: "Landing Page / 網站表格",
+    sourceTypeRaw: "reg_form_utm",
+    campaignLabel: "Playwright Acceptance",
+    adLabel: "Horizontal Row Reference",
+    landingPageSlug: "playwright-layout-check",
+    pageUrl: "https://example.invalid/lp/playwright-layout-check",
+    status: "new",
+    statusLabel: "待跟進",
+    assignedCsLabel: "未分配",
+    nextFollowUpLabel: "今日跟進",
+    nextFollowUpAt: "2026-07-17T04:00:00.000Z",
+    confirmedBookingDate: null,
+    confirmedBookingTime: null,
+    confirmedBookingLabel: "未確認",
+    bookingStatus: null,
+    whatsappUrl: "https://wa.me/85291234567",
+    ctwa: {
+      ctwa_source_id: null,
+      ctwa_source_url: null,
+      ctwa_referral_headline: null,
+      ctwa_referral_body: null,
+      campaign_id: null,
+      adset_id: null,
+      ad_id: null,
+      phone_number_id: null,
+      whatsapp_business_account_id: null,
+    },
+  },
+];
+
 export function CrmInboxTable({
   cases,
   preset = "cs_booking",
@@ -69,6 +118,8 @@ export function CrmInboxTable({
   cases: CrmLeadCase[];
   preset?: CrmInboxPreset;
 }) {
+  const inboxCases =
+    process.env.ALYSSA_E2E_FIXTURES === "1" ? e2eInboxCases : cases;
   const extraHeadings =
     preset === "marketing"
       ? marketingHeadings
@@ -97,8 +148,8 @@ export function CrmInboxTable({
             </tr>
           </thead>
           <tbody>
-            {cases.length > 0 ? (
-              cases.map((item) => (
+            {inboxCases.length > 0 ? (
+              inboxCases.map((item) => (
                 <tr
                   key={item.id}
                   data-testid="crm-inbox-row"
