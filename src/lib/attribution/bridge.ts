@@ -82,8 +82,13 @@ export function attributionEvidenceScore(value: unknown) {
   ].filter(Boolean).length;
   if (campaignEvidenceCount > 0) return 150 + campaignEvidenceCount;
 
-  if (text(touch.referrer) || text(touch.parent_url)) return 50;
-  if (text(touch.fbp) || text(touch.fbc)) return 10;
+  const browserIdentifierCount = ["fbp", "fbc"].filter((key) =>
+    text(touch[key])
+  ).length;
+  if (text(touch.referrer) || text(touch.parent_url)) {
+    return 50 + browserIdentifierCount;
+  }
+  if (browserIdentifierCount > 0) return 10 + browserIdentifierCount;
   // Keep the scorer aligned with the public capture contract if a new
   // recognized tracking key is added before it receives a dedicated tier.
   if (hasPublicAttributionTracking(touch)) return 1;
