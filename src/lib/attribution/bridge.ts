@@ -3,6 +3,10 @@ import {
   hasPublicAttributionTracking,
   normalizePublicAttributionFields,
 } from "@/lib/attribution/publicAttributionCookie";
+import {
+  cleanAttributionText,
+  hasExplicitCtwaEvidence,
+} from "@/lib/attribution/display";
 
 export const ATTRIBUTION_BRIDGE_SCHEMA_VERSION = 1;
 
@@ -37,7 +41,7 @@ function normalizeTouch(value: unknown) {
 }
 
 function text(value: unknown) {
-  return typeof value === "string" ? value.trim() : "";
+  return cleanAttributionText(value) || "";
 }
 
 /**
@@ -47,12 +51,7 @@ function text(value: unknown) {
  */
 export function attributionEvidenceScore(value: unknown) {
   const touch = normalizeTouch(value);
-  const hasCtwa = Boolean(
-    text(touch.ctwa_id) ||
-      text(touch.ctwa_clid) ||
-      text(touch.whatsapp_referral_source_id)
-  );
-  if (hasCtwa) return 500;
+  if (hasExplicitCtwaEvidence(touch)) return 500;
 
   const utmCount = [
     "utm_source",
@@ -75,18 +74,19 @@ export function attributionEvidenceScore(value: unknown) {
   ].filter((key) => text(touch[key])).length;
   if (clickIdCount > 0) return 200 + clickIdCount;
 
-  const campaignIdCount = [
-    "campaign_id",
-    "adset_id",
-    "ad_id",
-    "meta_campaign_id",
-    "meta_adset_id",
-    "meta_ad_id",
-  ].filter((key) => text(touch[key])).length;
-  if (campaignIdCount > 0) return 150 + campaignIdCount;
+  const campaignEvidenceCount = [
+    text(touch.campaign_id) || text(touch.meta_campaign_id),
+    text(touch.adset_id) || text(touch.meta_adset_id),
+    text(touch.ad_id) || text(touch.meta_ad_id),
+    text(touch.placement),
+  ].filter(Boolean).length;
+  if (campaignEvidenceCount > 0) return 150 + campaignEvidenceCount;
 
   if (text(touch.referrer) || text(touch.parent_url)) return 50;
   if (text(touch.fbp) || text(touch.fbc)) return 10;
+  // Keep the scorer aligned with the public capture contract if a new
+  // recognized tracking key is added before it receives a dedicated tier.
+  if (hasPublicAttributionTracking(touch)) return 1;
   return 0;
 }
 
@@ -211,6 +211,15 @@ function writeStorage(storage: Storage, key: string, value: unknown) {
   }
 }
 
+function readStorageTouch(storage: Storage, key: string) {
+  try {
+    const raw = storage.getItem(key);
+    return raw ? normalizeTouch(JSON.parse(raw)) : {};
+  } catch {
+    return {};
+  }
+}
+
 export function persistAttributionEnvelope(
   envelopeValue: LaunchHubAttributionEnvelope
 ) {
@@ -220,6 +229,14 @@ export function persistAttributionEnvelope(
   const latest = normalizeTouch(envelope.latest_touch_json);
   const submitted = normalizeTouch(envelope.submitted_touch_json);
   const lockedCandidates = [
+    readStorageTouch(
+      window.localStorage,
+      LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY
+    ),
+    readStorageTouch(
+      window.sessionStorage,
+      LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY
+    ),
     first,
     latest,
     submitted,
