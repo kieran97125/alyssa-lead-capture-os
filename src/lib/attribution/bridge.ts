@@ -36,6 +36,60 @@ function normalizeTouch(value: unknown) {
     : ({} as Record<string, unknown>);
 }
 
+function text(value: unknown) {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+/**
+ * Scores acquisition evidence, deliberately treating _fbp/_fbc as supporting
+ * browser identifiers rather than a marketing touch. This prevents a clean
+ * follow-up URL with only browser cookies from replacing a real UTM first touch.
+ */
+export function attributionEvidenceScore(value: unknown) {
+  const touch = normalizeTouch(value);
+  const hasCtwa = Boolean(
+    text(touch.ctwa_id) ||
+      text(touch.ctwa_clid) ||
+      text(touch.whatsapp_referral_source_id)
+  );
+  if (hasCtwa) return 500;
+
+  const utmCount = [
+    "utm_source",
+    "utm_medium",
+    "utm_campaign",
+    "utm_id",
+    "utm_content",
+    "utm_term",
+  ].filter((key) => text(touch[key])).length;
+  if (utmCount >= 3) return 400 + utmCount;
+  if (utmCount > 0) return 300 + utmCount;
+
+  const clickIdCount = [
+    "fbclid",
+    "gclid",
+    "ttclid",
+    "msclkid",
+    "wbraid",
+    "gbraid",
+  ].filter((key) => text(touch[key])).length;
+  if (clickIdCount > 0) return 200 + clickIdCount;
+
+  const campaignIdCount = [
+    "campaign_id",
+    "adset_id",
+    "ad_id",
+    "meta_campaign_id",
+    "meta_adset_id",
+    "meta_ad_id",
+  ].filter((key) => text(touch[key])).length;
+  if (campaignIdCount > 0) return 150 + campaignIdCount;
+
+  if (text(touch.referrer) || text(touch.parent_url)) return 50;
+  if (text(touch.fbp) || text(touch.fbc)) return 10;
+  return 0;
+}
+
 function mergeTouch(
   baseValue: Record<string, unknown> | undefined,
   incomingValue: Record<string, unknown> | undefined
@@ -99,9 +153,14 @@ export function mergeAttributionEnvelopes(
   const incoming = normalizeAttributionEnvelope(incomingValue);
   const incomingFirst = normalizeTouch(incoming.first_touch_json);
   const baseFirst = normalizeTouch(base.first_touch_json);
-  const firstTouch = hasPublicAttributionTracking(incomingFirst)
-    ? incomingFirst
-    : baseFirst;
+  const baseFirstScore = attributionEvidenceScore(baseFirst);
+  const incomingFirstScore = attributionEvidenceScore(incomingFirst);
+  const firstTouch =
+    baseFirstScore > 0 && baseFirstScore >= incomingFirstScore
+      ? baseFirst
+      : incomingFirstScore > 0
+        ? incomingFirst
+        : baseFirst;
   const latestTouch = mergeTouch(
     base.latest_touch_json,
     incoming.latest_touch_json
@@ -110,11 +169,19 @@ export function mergeAttributionEnvelopes(
     mergeTouch(base.submitted_touch_json, base.latest_touch_json),
     mergeTouch(incoming.latest_touch_json, incoming.submitted_touch_json)
   );
-  const lockedTouch = hasPublicAttributionTracking(incoming.locked_touch_json)
-    ? normalizeTouch(incoming.locked_touch_json)
-    : hasPublicAttributionTracking(incomingFirst)
-      ? incomingFirst
-      : normalizeTouch(base.locked_touch_json);
+  const lockedCandidates = [
+    normalizeTouch(base.locked_touch_json),
+    baseFirst,
+    normalizeTouch(incoming.locked_touch_json),
+    incomingFirst,
+  ];
+  const lockedTouch = lockedCandidates.reduce<Record<string, unknown>>(
+    (best, candidate) =>
+      attributionEvidenceScore(candidate) > attributionEvidenceScore(best)
+        ? candidate
+        : best,
+    {}
+  );
 
   return {
     first_touch_json: firstTouch,
@@ -152,24 +219,40 @@ export function persistAttributionEnvelope(
   const first = normalizeTouch(envelope.first_touch_json);
   const latest = normalizeTouch(envelope.latest_touch_json);
   const submitted = normalizeTouch(envelope.submitted_touch_json);
-  const locked = hasPublicAttributionTracking(envelope.locked_touch_json)
-    ? normalizeTouch(envelope.locked_touch_json)
-    : hasPublicAttributionTracking(submitted)
-      ? submitted
-      : hasPublicAttributionTracking(latest)
-        ? latest
-        : first;
+  const lockedCandidates = [
+    first,
+    latest,
+    submitted,
+    normalizeTouch(envelope.locked_touch_json),
+  ];
+  const locked = lockedCandidates.reduce<Record<string, unknown>>(
+    (best, candidate) =>
+      attributionEvidenceScore(candidate) > attributionEvidenceScore(best)
+        ? candidate
+        : best,
+    {}
+  );
 
-  if (hasPublicAttributionTracking(first)) {
-    const existing = window.localStorage.getItem("alyssa_first_touch");
-    if (!existing) writeStorage(window.localStorage, "alyssa_first_touch", first);
+  if (attributionEvidenceScore(first) > 0) {
+    const existingRaw = window.localStorage.getItem("alyssa_first_touch");
+    let existing: Record<string, unknown> = {};
+    try {
+      existing = existingRaw ? normalizeTouch(JSON.parse(existingRaw)) : {};
+    } catch {
+      existing = {};
+    }
+    if (
+      attributionEvidenceScore(first) > attributionEvidenceScore(existing)
+    ) {
+      writeStorage(window.localStorage, "alyssa_first_touch", first);
+    }
   }
 
   if (hasPublicAttributionTracking(latest)) {
     writeStorage(window.sessionStorage, "alyssa_latest_touch", latest);
   }
 
-  if (hasPublicAttributionTracking(locked)) {
+  if (attributionEvidenceScore(locked) > 0) {
     writeStorage(
       window.sessionStorage,
       LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
