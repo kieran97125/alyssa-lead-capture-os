@@ -26,6 +26,25 @@ const clickIdKeys = [
   "gbraid",
 ] as const;
 
+function getCaptureAuditReason(
+  touch: TouchPayload,
+  directReason: string,
+  parentReason: string,
+  storageReason: string
+) {
+  const method = cleanAttributionText(touch.source_capture_method, 120) || "";
+
+  if (method.includes("storage_recovered")) return storageReason;
+  if (
+    method.includes("parent") ||
+    method.includes("wix") ||
+    hasAttributionText(touch.parent_url)
+  ) {
+    return parentReason;
+  }
+  return directReason;
+}
+
 export function classifyAttribution(
   touch: TouchPayload,
   options?: {
@@ -33,15 +52,6 @@ export function classifyAttribution(
     recoveredFromStorage?: "local" | "session" | null;
   }
 ): AttributionClassification {
-  if (options?.parentPayloadMissing) {
-    return {
-      sourceType: "organic_unknown",
-      attributionQuality: "missing",
-      trackingStatus: "missing",
-      auditReason: "iframe_missing_parent_payload",
-    };
-  }
-
   const utmCount = utmKeys.filter((key) => hasAttributionText(touch[key])).length;
   const hasClickId = clickIdKeys.some((key) => hasAttributionText(touch[key]));
   const hasCtwa = hasExplicitCtwaEvidence(touch);
@@ -50,15 +60,6 @@ export function classifyAttribution(
     hasAttributionText(touch.referrer) ||
     hasAttributionText(touch.landing_page_url) ||
     hasAttributionText(touch.current_page_url);
-
-  if (utmCount >= 3) {
-    return {
-      sourceType: "reg_form_utm",
-      attributionQuality: "complete_utm",
-      trackingStatus: "complete_utm",
-      auditReason: "utm_found_on_parent_url",
-    };
-  }
 
   if (hasCtwa) {
     return {
@@ -69,15 +70,19 @@ export function classifyAttribution(
     };
   }
 
-  if (options?.recoveredFromStorage && (utmCount > 0 || hasClickId)) {
+  if (utmCount >= 3) {
     return {
       sourceType: "reg_form_utm",
-      attributionQuality: "storage_recovered",
-      trackingStatus: "storage_recovered",
-      auditReason:
-        options.recoveredFromStorage === "local"
-          ? "recovered_from_local_storage"
-          : "recovered_from_session_storage",
+      attributionQuality: "complete_utm",
+      trackingStatus: "complete_utm",
+      auditReason: getCaptureAuditReason(
+        touch,
+        "utm_captured_from_landing_page",
+        "utm_captured_from_parent_embed_page",
+        options?.recoveredFromStorage === "local"
+          ? "utm_recovered_from_local_storage"
+          : "utm_recovered_from_session_storage"
+      ),
     };
   }
 
@@ -86,7 +91,14 @@ export function classifyAttribution(
       sourceType: "reg_form_utm",
       attributionQuality: "partial_utm",
       trackingStatus: "partial_utm",
-      auditReason: "iframe_received_parent_payload",
+      auditReason: getCaptureAuditReason(
+        touch,
+        "partial_utm_captured_from_landing_page",
+        "partial_utm_captured_from_parent_embed_page",
+        options?.recoveredFromStorage === "local"
+          ? "partial_utm_recovered_from_local_storage"
+          : "partial_utm_recovered_from_session_storage"
+      ),
     };
   }
 
@@ -95,7 +107,14 @@ export function classifyAttribution(
       sourceType: "reg_form_utm",
       attributionQuality: "click_id_only",
       trackingStatus: "click_id_only",
-      auditReason: "fbclid_found_without_utm",
+      auditReason: getCaptureAuditReason(
+        touch,
+        "click_id_captured_from_landing_page",
+        "click_id_captured_from_parent_embed_page",
+        options?.recoveredFromStorage === "local"
+          ? "click_id_recovered_from_local_storage"
+          : "click_id_recovered_from_session_storage"
+      ),
     };
   }
 
@@ -104,7 +123,23 @@ export function classifyAttribution(
       sourceType: "reg_form_utm",
       attributionQuality: "click_id_only",
       trackingStatus: "click_id_only",
-      auditReason: "campaign_or_ad_id_found_without_utm",
+      auditReason: getCaptureAuditReason(
+        touch,
+        "campaign_or_ad_id_captured_from_landing_page",
+        "campaign_or_ad_id_captured_from_parent_embed_page",
+        options?.recoveredFromStorage === "local"
+          ? "campaign_or_ad_id_recovered_from_local_storage"
+          : "campaign_or_ad_id_recovered_from_session_storage"
+      ),
+    };
+  }
+
+  if (options?.parentPayloadMissing && !hasReferrer) {
+    return {
+      sourceType: "organic_unknown",
+      attributionQuality: "missing",
+      trackingStatus: "missing",
+      auditReason: "iframe_missing_parent_payload",
     };
   }
 
@@ -113,7 +148,7 @@ export function classifyAttribution(
       sourceType: "organic_unknown",
       attributionQuality: "referrer_only",
       trackingStatus: "referrer_only",
-      auditReason: "organic_assigned_due_to_no_tracking_signal",
+      auditReason: "referrer_captured_without_utm_or_click_id",
     };
   }
 
