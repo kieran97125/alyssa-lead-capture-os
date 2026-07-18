@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/prepare-whatsapp-phase2b.mjs && node scripts/prepare-crm-lead-detail-ui.mjs && node scripts/prepare-crm-compact-operations-ui.mjs && node scripts/run-attribution-preparation.mjs && next build",
+    "build": "node scripts/prepare-whatsapp-phase2b.mjs && node scripts/prepare-crm-lead-detail-ui.mjs && node scripts/prepare-crm-compact-operations-ui.mjs && node scripts/run-attribution-preparation.mjs && node scripts/prepare-attribution-e2e-isolation.mjs && next build",
     "start": "next start",
     "lint": "eslint",
     "test:e2e": "playwright test",
