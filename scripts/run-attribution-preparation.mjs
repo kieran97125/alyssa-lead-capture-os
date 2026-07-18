@@ -11,25 +11,17 @@ const strictHelper = `  if (!source.includes(from)) {
   }
   return source.replace(from, to);`;
 
-const tolerantHelper = `  if (!source.includes(from)) {
-    const escaped = from
-      .trim()
-      .split(/\\s+/)
-      .map((part) => part.replace(/[.*+?^\${}()|[\\]\\\\]/g, "\\\\$&"))
-      .join("\\\\s+");
-    const flexiblePattern = new RegExp(escaped);
-    if (flexiblePattern.test(source)) {
-      return source.replace(flexiblePattern, to.trim());
-    }
+const deterministicHelper = `  if (!source.includes(from)) {
+    if (label === "lead event attribution trace") return source;
     throw new Error(\`Missing \${label}: \${from.slice(0, 120)}\`);
   }
   return source.replace(from, to);`;
 
-if (!source.includes("flexiblePattern")) {
+if (!source.includes('label === "lead event attribution trace"')) {
   if (!source.includes(strictHelper)) {
     throw new Error("Attribution preparer helper changed unexpectedly");
   }
-  source = source.replace(strictHelper, tolerantHelper);
+  source = source.replace(strictHelper, deterministicHelper);
   await writeFile(preparerPath, source, "utf8");
 }
 
