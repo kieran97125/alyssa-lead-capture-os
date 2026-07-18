@@ -25,7 +25,10 @@ export default async function LoginPage({
   const gateEnabled = isAdminPasswordGateEnabled();
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_18%_10%,#fff1f7_0,#fff9f3_34%,#f6f2ff_100%)] px-5 py-10 text-[#321428]">
+    <main
+      data-testid="login-screen"
+      className="min-h-screen bg-[radial-gradient(circle_at_18%_10%,#fff1f7_0,#fff9f3_34%,#f6f2ff_100%)] px-5 py-10 text-[#321428]"
+    >
       <section className="mx-auto grid min-h-[calc(100vh-80px)] max-w-5xl place-items-center">
         <div className="w-full max-w-xl rounded-[32px] border border-[#ead9cf] bg-white/90 p-8 shadow-[0_30px_90px_rgba(90,35,72,0.14)]">
           <div className="text-center">

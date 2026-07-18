@@ -106,7 +106,7 @@ export default async function LandingPagesPage({
   const currentListPath = buildLandingPagesHref(selectedArchive, selectedBrandParam);
 
   return (
-    <main className="alyssa-shell">
+    <main data-testid="landing-pages-screen" className="alyssa-shell">
       <AppNav />
       <div className="mx-auto max-w-7xl px-5 py-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -195,7 +195,7 @@ export default async function LandingPagesPage({
           </div>
         </section>
 
-        <section className="mt-6 grid gap-5">
+        <section data-testid="landing-page-list" className="mt-6 grid gap-5">
           {filteredPages.map((page, index) => {
             const context = getLandingPageContext(page);
             const selectedPackage =
@@ -210,7 +210,10 @@ export default async function LandingPagesPage({
 
             return (
               <MotionReveal key={page.id} delay={0.04 + index * 0.06}>
-                <article className="alyssa-premium-card alyssa-interactive-card min-w-0 p-5">
+                <article
+                  data-testid="landing-page-row"
+                  className="alyssa-premium-card alyssa-interactive-card min-w-0 p-5"
+                >
                   <div className="grid min-w-0 gap-5 xl:grid-cols-[1fr_0.78fr]">
                     <div className="min-w-0">
                       <div className="flex flex-wrap gap-2">
