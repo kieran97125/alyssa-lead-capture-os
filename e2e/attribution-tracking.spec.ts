@@ -66,6 +66,26 @@ test("placement-only parent evidence is preserved as first touch", () => {
   expect(merged.locked_touch_json?.placement).toBe("instagram_feed");
 });
 
+test("browser identifiers break a tie against URL-only parent metadata", () => {
+  const merged = mergeAttributionEnvelopes(
+    {
+      first_touch_json: {
+        parent_url: "https://brand.example/clean",
+      },
+    },
+    {
+      first_touch_json: {
+        parent_url: "https://brand.example/clean",
+        fbp: "fb.1.parent-browser",
+        fbc: "fb.1.parent-click",
+      },
+    }
+  );
+
+  expect(merged.first_touch_json?.fbp).toBe("fb.1.parent-browser");
+  expect(merged.first_touch_json?.fbc).toBe("fb.1.parent-click");
+});
+
 test("evidence tiers and earliest-on-tie behavior remain stable", () => {
   const scores = {
     ctwa: attributionEvidenceScore({ utm_medium: "ctwa" }),
