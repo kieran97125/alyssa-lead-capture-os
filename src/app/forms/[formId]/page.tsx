@@ -109,8 +109,12 @@ export default async function FormConfigPage({
           />
         </section>
 
-        <section className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.82fr]">
-          <form action={updateFormAction} className="alyssa-premium-card grid min-w-0 gap-5 p-5">
+        <section className="mt-6 grid items-start gap-6 xl:grid-cols-[1fr_0.82fr]">
+          <form
+            action={updateFormAction}
+            className="alyssa-premium-card grid min-w-0 self-start gap-5 p-5"
+            data-testid="form-settings-card"
+          >
             <input type="hidden" name="formId" value={form.id} />
 
             <div>
@@ -195,7 +199,10 @@ export default async function FormConfigPage({
               </dl>
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div
+              className="flex flex-wrap items-center gap-3"
+              data-testid="form-settings-actions"
+            >
               <button
                 type="submit"
                 className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 hover:bg-[#d95f55]"
