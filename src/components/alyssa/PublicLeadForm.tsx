@@ -112,6 +112,7 @@ type TreatmentOption = FormOption & {
 
 type PackageOption = FormOption & {
   treatmentId: string;
+  originalPrice: number;
   promoPrice: number;
   paymentRequired: boolean;
 };
@@ -810,6 +811,7 @@ function normalizePackage(raw: Record<string, unknown>): PackageOption {
     id: getString(raw.id),
     name: getString(raw.name),
     treatmentId: getString(raw.treatmentId) || getString(raw.treatment_id),
+    originalPrice: getNumber(raw.originalPrice ?? raw.original_price),
     promoPrice: getNumber(raw.promoPrice ?? raw.promo_price),
     paymentRequired: Boolean(raw.paymentRequired ?? raw.payment_required),
   };
@@ -919,7 +921,9 @@ async function logPublicEvent(
 
 function priceLabel(item: PackageOption | undefined) {
   if (!item) return "";
-  return item.promoPrice > 0 ? `HK$${item.promoPrice}` : "預約查詢";
+  const configuredPrice =
+    item.promoPrice > 0 ? item.promoPrice : item.originalPrice;
+  return configuredPrice > 0 ? `HK$${configuredPrice}` : "預約查詢";
 }
 
 function formatSelectedDate(value: string) {
@@ -1033,6 +1037,7 @@ export function PublicLeadForm({
     () => publicThemeStyle(publicTheme) as CSSProperties,
     [publicTheme]
   );
+  const isCompactPublicForm = publicTheme.formLayout === "compact";
   const isEmbed = mode === "embed";
   const effectiveConversionMode =
     conversionMode ?? publicForm.conversionMode ?? "form_submit_pixel";
@@ -1335,12 +1340,20 @@ export function PublicLeadForm({
         setBranches(nextBranches);
 
         const primaryPackage = getPrimaryPackage(nextForm, nextPackages);
+        const nextPublicTheme = resolvePublicBrandTheme({
+          brandSlug: nextBrand.slug,
+          brandName: nextBrand.name,
+        });
 
         setFormData((current) => ({
           ...current,
           treatment_id: primaryPackage?.treatmentId || nextForm.defaultTreatmentId,
           package_id: primaryPackage?.id || nextForm.defaultPackageId,
           branch_id: resolveDefaultBranchId(nextForm, nextBranches),
+          appointment_time:
+            nextPublicTheme.formLayout === "compact"
+              ? ""
+              : current.appointment_time,
         }));
         setConfigStatus("ready");
       } catch (error) {
@@ -1485,6 +1498,17 @@ export function PublicLeadForm({
       return;
     }
 
+    if (isCompactPublicForm && !formData.appointment_time) {
+      setState("error");
+      setMessage("請選擇預約時間。");
+      await logPublicEvent(
+        "form_submit_failed",
+        { error: "appointment_time_required" },
+        liveAttribution
+      );
+      return;
+    }
+
     setState("loading");
     setMessage("正在提交預約資料...");
     setAttributionDebug(null);
@@ -1611,6 +1635,226 @@ export function PublicLeadForm({
               </Notice>
             )}
           </div>
+        </div>
+      </section>
+    );
+  }
+
+  if (isCompactPublicForm) {
+    return (
+      <section
+        data-launchhub-form-root
+        data-public-form-layout="compact"
+        className={`${className} box-border w-full max-w-full min-w-0 overflow-x-hidden bg-[var(--public-bg)] px-3 py-4 text-[var(--public-text)] sm:px-5 sm:py-6 ${
+          isEmbed
+            ? "mx-auto max-w-[min(48rem,calc(100vw-8px))]"
+            : "mx-auto max-w-3xl"
+        }`}
+        style={themeStyle}
+      >
+        <div className="relative box-border w-full max-w-full overflow-hidden rounded-[24px] border border-[var(--public-border)] bg-[var(--public-card)] px-4 py-5 shadow-[0_18px_56px_rgba(93,55,30,0.08)] sm:rounded-[30px] sm:px-8 sm:py-7">
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute -right-20 -top-24 h-52 w-52 rounded-full bg-[var(--public-accent-soft)] blur-3xl"
+          />
+
+          {state === "success" ? (
+            <div className="relative">
+              <Notice tone="success" title="已收到你的預約">
+                <p>{message}</p>
+                <p className="mt-3">
+                  {brand.name} 預約專員會透過 WhatsApp 聯絡你確認時段。
+                </p>
+                {redirectFallbackUrl && (
+                  <p className="mt-4">
+                    <a
+                      href={redirectFallbackUrl}
+                      target="_top"
+                      className="inline-flex rounded-full bg-[var(--public-cta)] px-5 py-3 text-sm font-bold text-[var(--public-cta-text)]"
+                    >
+                      前往確認頁
+                    </a>
+                  </p>
+                )}
+              </Notice>
+              {attributionDebug && (
+                <AttributionDebugPanel debug={attributionDebug} />
+              )}
+            </div>
+          ) : (
+            <div className="relative">
+              <header>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-[var(--public-accent)] sm:text-xs">
+                  {brand.name} · New client
+                </p>
+                <h2 className="mt-2 text-[26px] font-semibold leading-tight tracking-[-0.025em] text-[var(--public-heading)] sm:mt-3 sm:text-[34px]">
+                  輕鬆預約你的護理
+                </h2>
+                <p className="mt-2 text-sm leading-6 text-[var(--public-muted)] sm:text-[15px]">
+                  只需填寫基本資料，我哋會盡快為你確認時段。
+                </p>
+              </header>
+
+              <section
+                aria-label="預約項目"
+                className="mt-4 rounded-[14px] border border-[var(--public-border)] bg-[var(--public-soft-bg)] px-3.5 py-3 sm:mt-5 sm:flex sm:items-center sm:justify-between sm:gap-5 sm:px-4"
+              >
+                <div className="min-w-0">
+                  <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[var(--public-accent)]">
+                    預約項目
+                  </p>
+                  <p className="mt-1 break-words text-sm font-bold leading-5 text-[var(--public-heading)] sm:text-[15px]">
+                    {selectedTreatment?.name || "療程稍後確認"}
+                  </p>
+                  {selectedPackage?.name && (
+                    <p className="mt-0.5 break-words text-xs font-semibold leading-5 text-[var(--public-muted)] sm:text-[13px]">
+                      {selectedPackage.name}
+                    </p>
+                  )}
+                </div>
+                <p className="mt-2 inline-flex shrink-0 rounded-full bg-white px-3 py-1.5 text-sm font-extrabold text-[var(--public-accent)] sm:mt-0">
+                  {priceLabel(selectedPackage)}
+                </p>
+              </section>
+
+              <form
+                onSubmit={submitForm}
+                className="mt-4 w-full max-w-full overflow-x-hidden sm:mt-5"
+              >
+                <input
+                  name="website"
+                  aria-hidden="true"
+                  autoComplete="off"
+                  className="hidden"
+                  tabIndex={-1}
+                  value={formData.honeypot}
+                  onChange={(event) =>
+                    updateField("honeypot", event.target.value)
+                  }
+                />
+
+                <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-3.5">
+                  <Field label="姓名">
+                    <input
+                      required
+                      autoComplete="name"
+                      className="mt-1.5 block h-12 w-full min-w-0 rounded-[13px] border border-[var(--public-border)] bg-white px-3.5 text-base outline-none transition focus:border-[var(--public-accent)] focus:ring-3 focus:ring-[var(--public-accent-soft)] sm:text-sm"
+                      value={formData.customer_name}
+                      onChange={(event) =>
+                        updateField("customer_name", event.target.value)
+                      }
+                      placeholder="你的稱呼"
+                    />
+                  </Field>
+
+                  <Field label="聯絡電話">
+                    <input
+                      required
+                      autoComplete="tel"
+                      inputMode="tel"
+                      className="mt-1.5 block h-12 w-full min-w-0 rounded-[13px] border border-[var(--public-border)] bg-white px-3.5 text-base outline-none transition focus:border-[var(--public-accent)] focus:ring-3 focus:ring-[var(--public-accent-soft)] sm:text-sm"
+                      value={formData.phone}
+                      onChange={(event) =>
+                        updateField("phone", event.target.value)
+                      }
+                      placeholder="例如：9123 4567"
+                    />
+                  </Field>
+
+                  <Field label="預約日期">
+                    <MobileDateField
+                      compact
+                      value={formData.appointment_date}
+                      onChange={(value) =>
+                        updateField("appointment_date", value)
+                      }
+                    />
+                  </Field>
+
+                  <Field label="預約時間">
+                    <select
+                      required
+                      aria-label="預約時間"
+                      className="mt-1.5 block h-12 w-full min-w-0 rounded-[13px] border border-[var(--public-border)] bg-white px-3.5 text-base outline-none transition focus:border-[var(--public-accent)] focus:ring-3 focus:ring-[var(--public-accent-soft)] sm:text-sm"
+                      value={formData.appointment_time}
+                      onChange={(event) =>
+                        updateField("appointment_time", event.target.value)
+                      }
+                    >
+                      <option value="">選擇時間</option>
+                      {[
+                        "11:00",
+                        "12:00",
+                        "14:00",
+                        "16:00",
+                        "18:00",
+                        "19:30",
+                      ].map((time) => (
+                        <option key={time} value={time}>
+                          {time}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                </div>
+
+                <label className="mt-4 flex items-start gap-2.5 text-[13px] font-semibold leading-5 text-[var(--public-heading)]">
+                  <input
+                    required
+                    type="checkbox"
+                    aria-label={LEGAL_CONSENT_TEXT}
+                    checked={formData.legalConsentAccepted}
+                    onChange={(event) => {
+                      event.currentTarget.setCustomValidity("");
+                      setFormData((current) => ({
+                        ...current,
+                        legalConsentAccepted: event.target.checked,
+                      }));
+                      if (event.target.checked && state === "error") {
+                        setMessage("");
+                        setState("idle");
+                      }
+                    }}
+                    onInvalid={(event) => {
+                      event.currentTarget.setCustomValidity(
+                        LEGAL_CONSENT_REQUIRED_MESSAGE
+                      );
+                      setState("error");
+                      setMessage(LEGAL_CONSENT_REQUIRED_MESSAGE);
+                    }}
+                    className="mt-0.5 h-4 w-4 shrink-0 rounded border-[var(--public-border)] accent-[var(--public-cta)]"
+                  />
+                  <span>{LEGAL_CONSENT_TEXT}</span>
+                </label>
+
+                <button
+                  disabled={state === "loading"}
+                  className="mt-4 block min-h-12 w-full rounded-[14px] bg-[var(--public-cta)] px-5 py-3 text-base font-bold text-[var(--public-cta-text)] shadow-[0_10px_24px_rgba(255,90,31,0.2)] transition hover:bg-[var(--public-cta-hover)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--public-accent-soft)] disabled:opacity-60"
+                >
+                  {state === "loading" ? "正在提交..." : "提交預約  →"}
+                </button>
+              </form>
+
+              {message && state === "error" && (
+                <div
+                  role="alert"
+                  className="mt-3 rounded-[12px] border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm font-semibold text-red-700"
+                >
+                  {message}
+                </div>
+              )}
+
+              <p className="mt-3 text-center text-xs leading-5 text-[var(--public-muted)]">
+                提交後，預約專員會與你確認時段。
+              </p>
+              {isEmbed && (
+                <PublicLegalFooter
+                  footerText={getLegalFooterText(legalProfile)}
+                  links={getLegalFooterLinks(legalProfile)}
+                />
+              )}
+            </div>
+          )}
         </div>
       </section>
     );
@@ -2034,9 +2278,11 @@ function FormLoadingSkeleton() {
 }
 
 function MobileDateField({
+  compact = false,
   value,
   onChange,
 }: {
+  compact?: boolean;
   value: string;
   onChange: (value: string) => void;
 }) {
@@ -2044,7 +2290,13 @@ function MobileDateField({
 
   return (
     <div className="relative mt-1.5 min-w-0">
-      <div className="pointer-events-none flex h-[42px] min-h-[42px] w-full items-center justify-between rounded-[12px] border border-[var(--public-border)] bg-white px-3.5 py-2 text-base font-semibold text-[var(--public-heading)] sm:h-11 sm:min-h-11 sm:rounded-[14px] sm:text-sm">
+      <div
+        className={`pointer-events-none flex w-full items-center justify-between border border-[var(--public-border)] bg-white px-3.5 py-2 text-base font-semibold text-[var(--public-heading)] sm:text-sm ${
+          compact
+            ? "h-12 min-h-12 rounded-[13px]"
+            : "h-[42px] min-h-[42px] rounded-[12px] sm:h-11 sm:min-h-11 sm:rounded-[14px]"
+        }`}
+      >
         <span className={displayValue ? "" : "text-[var(--public-muted)]"}>
           {displayValue || "選擇預約日期"}
         </span>

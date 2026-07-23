@@ -1,6 +1,7 @@
 export type PublicBrandTheme = {
-  key: "alyssa" | "ineffable" | "fallback";
+  key: "alyssa" | "ineffable" | "gos" | "fallback";
   brandName: string;
+  formLayout: "standard" | "compact";
   colors: {
     background: string;
     softBackground: string;
@@ -22,6 +23,7 @@ export type PublicBrandTheme = {
 const alyssaTheme: PublicBrandTheme = {
   key: "alyssa",
   brandName: "Alyssa",
+  formLayout: "standard",
   colors: {
     background: "#fff9f3",
     softBackground: "#fff6f0",
@@ -43,6 +45,7 @@ const alyssaTheme: PublicBrandTheme = {
 const ineffableTheme: PublicBrandTheme = {
   key: "ineffable",
   brandName: "Ineffable Beauty",
+  formLayout: "standard",
   colors: {
     background: "#FFF8FC",
     softBackground: "#F6F2FF",
@@ -58,6 +61,28 @@ const ineffableTheme: PublicBrandTheme = {
     ctaText: "#FFFFFF",
     dark: "#5A2348",
     darkMuted: "rgba(90,35,72,0.72)",
+  },
+};
+
+const gosTheme: PublicBrandTheme = {
+  key: "gos",
+  brandName: "GOS Beauty",
+  formLayout: "compact",
+  colors: {
+    background: "#FFF9F4",
+    softBackground: "#FFF4EA",
+    card: "#FFFFFF",
+    border: "#EAD8C8",
+    text: "#292725",
+    heading: "#292725",
+    muted: "#746E69",
+    accent: "#FF5A1F",
+    accentSoft: "#FFF1E7",
+    cta: "#FF5A1F",
+    ctaHover: "#E94C14",
+    ctaText: "#FFFFFF",
+    dark: "#292725",
+    darkMuted: "rgba(41,39,37,0.68)",
   },
 };
 
@@ -95,6 +120,17 @@ export function resolvePublicBrandTheme({
 
   if (slug === "alyssa" || name === "alyssa") {
     return alyssaTheme;
+  }
+
+  if (
+    slug === "gos" ||
+    slug === "gos-beauty" ||
+    slug === "gosbeauty" ||
+    name === "gos" ||
+    name === "gos-beauty" ||
+    name === "gosbeauty"
+  ) {
+    return gosTheme;
   }
 
   return fallbackTheme;
