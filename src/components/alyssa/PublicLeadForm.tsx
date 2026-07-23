@@ -112,6 +112,7 @@ type TreatmentOption = FormOption & {
 
 type PackageOption = FormOption & {
   treatmentId: string;
+  originalPrice: number;
   promoPrice: number;
   paymentRequired: boolean;
 };
@@ -810,6 +811,7 @@ function normalizePackage(raw: Record<string, unknown>): PackageOption {
     id: getString(raw.id),
     name: getString(raw.name),
     treatmentId: getString(raw.treatmentId) || getString(raw.treatment_id),
+    originalPrice: getNumber(raw.originalPrice ?? raw.original_price),
     promoPrice: getNumber(raw.promoPrice ?? raw.promo_price),
     paymentRequired: Boolean(raw.paymentRequired ?? raw.payment_required),
   };
@@ -919,7 +921,9 @@ async function logPublicEvent(
 
 function priceLabel(item: PackageOption | undefined) {
   if (!item) return "";
-  return item.promoPrice > 0 ? `HK$${item.promoPrice}` : "預約查詢";
+  const configuredPrice =
+    item.promoPrice > 0 ? item.promoPrice : item.originalPrice;
+  return configuredPrice > 0 ? `HK$${configuredPrice}` : "預約查詢";
 }
 
 function formatSelectedDate(value: string) {
