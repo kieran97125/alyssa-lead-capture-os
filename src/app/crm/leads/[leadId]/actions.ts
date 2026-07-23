@@ -15,6 +15,11 @@ import {
   type CrmLeadCaseRecord,
 } from "@/lib/crm/store";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createDemandSignal } from "@/lib/demandSignals/service";
+import {
+  demandSignalTypes,
+  type DemandSignalType,
+} from "@/lib/demandSignals/types";
 import type { CrmStatus } from "@/lib/crm/leadOps";
 import {
   contactChannelOptions,
@@ -104,6 +109,36 @@ export async function assignCsAction(leadId: string, formData: FormData) {
         ? `Assigned CS changed to ${assignedTo}.`
         : "Assigned CS cleared.",
     });
+  });
+}
+
+export async function captureWhatsAppDemandSignalAction(
+  leadId: string,
+  formData: FormData
+) {
+  await runCrmAction(leadId, "demand_signal_created", async () => {
+    const brandId = safeText(formData.get("brand_id"), 100);
+    const sourceRecordId = safeText(formData.get("source_record_id"), 200);
+    const signalType = safeText(formData.get("signal_type"), 40) as DemandSignalType;
+    const normalizedTag = safeText(formData.get("normalized_tag"), 100);
+
+    if (!demandSignalTypes.includes(signalType)) {
+      throw new Error("Invalid Demand Signal type.");
+    }
+
+    const result = await createDemandSignal({
+      brandId,
+      leadId,
+      signalType,
+      normalizedTag,
+      exactQuote: "Validated from inbound WhatsApp message",
+      sourceType: "whatsapp",
+      sourceRecordId,
+    });
+
+    if (!result.ok) {
+      throw new Error(`Demand Signal could not be captured: ${result.message}`);
+    }
   });
 }
 

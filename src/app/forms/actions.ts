@@ -51,6 +51,11 @@ function parseFormInput(formData: FormData) {
     branchIds: readStringArray(formData, "branchIds"),
     allowedDomains: parsedDomains.domains,
     status: "active",
+    demandSignalQuestionEnabled:
+      readString(formData, "demandSignalQuestionEnabled") === "yes",
+    demandSignalQuestion: readString(formData, "demandSignalQuestion").slice(0, 300),
+    demandSignalQuestionRequired:
+      readString(formData, "demandSignalQuestionRequired") === "yes",
   };
 
   return { input, error: null };

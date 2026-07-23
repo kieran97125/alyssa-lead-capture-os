@@ -136,6 +136,9 @@ type PublicFormConfig = {
   defaultTreatmentId: string;
   defaultPackageId: string;
   defaultBranchId: string;
+  demandSignalQuestionEnabled: boolean;
+  demandSignalQuestion: string | null;
+  demandSignalQuestionRequired: boolean;
   allowedDomains: string[];
   successRedirectUrl?: string | null;
   conversionMode?: ConversionMode | null;
@@ -785,6 +788,16 @@ function normalizeForm(raw: Record<string, unknown>): PublicFormConfig {
       getString(raw.defaultBranchId) ||
       getString(raw.default_branch_id) ||
       alyssaDefaultForm.defaultBranchId,
+    demandSignalQuestionEnabled: Boolean(
+      raw.demandSignalQuestionEnabled ?? raw.demand_signal_question_enabled
+    ),
+    demandSignalQuestion:
+      getString(raw.demandSignalQuestion) ||
+      getString(raw.demand_signal_question) ||
+      null,
+    demandSignalQuestionRequired: Boolean(
+      raw.demandSignalQuestionRequired ?? raw.demand_signal_question_required
+    ),
     successRedirectUrl:
       getString(raw.successRedirectUrl) ||
       getString(raw.success_redirect_url) ||
@@ -982,6 +995,7 @@ export function PublicLeadForm({
     appointment_date: "",
     appointment_time: "12:00",
     payment_option: "booking_only",
+    demand_signal_answer: "",
     legalConsentAccepted: false,
   });
 
@@ -2101,6 +2115,30 @@ export function PublicLeadForm({
                     </Field>
                   </div>
                 </FormSection>
+
+                {publicForm.demandSignalQuestionEnabled &&
+                  publicForm.demandSignalQuestion && (
+                    <FormSection title="你嘅需要">
+                      <Field label={publicForm.demandSignalQuestion}>
+                        <textarea
+                          required={publicForm.demandSignalQuestionRequired}
+                          rows={3}
+                          maxLength={2000}
+                          className="mt-1.5 w-full resize-y rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
+                          value={formData.demand_signal_answer}
+                          onChange={(event) =>
+                            updateField("demand_signal_answer", event.target.value)
+                          }
+                          placeholder="用你自己嘅說話話俾我哋知"
+                        />
+                      </Field>
+                      {!publicForm.demandSignalQuestionRequired && (
+                        <p className="text-[11px] font-semibold text-[var(--public-muted)]">
+                          選填；答案只會用作了解客人需要及改善服務內容。
+                        </p>
+                      )}
+                    </FormSection>
+                  )}
 
                 <section className="box-border w-full max-w-full rounded-[12px] border border-[#f3e5ec] bg-white p-2.5 sm:rounded-[18px] sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-3">
                   <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-[var(--public-accent)] sm:text-[11px] sm:tracking-[0.12em]">

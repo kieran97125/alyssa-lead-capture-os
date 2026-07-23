@@ -127,7 +127,7 @@ const replacements = [
   [
 `            <div className="grid gap-3.5 xl:grid-cols-[minmax(0,1fr)_390px]">
 `,
-`            <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+`            <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_360px]">
 `
   ],
 ];

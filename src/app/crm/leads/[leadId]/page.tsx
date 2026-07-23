@@ -18,6 +18,7 @@ import {
 import { optionTuples } from "@/lib/crm/settingsConfig";
 import {
   assignCsAction,
+  captureWhatsAppDemandSignalAction,
   confirmBookingAction,
   createFollowUpTaskAction,
   markInvalidAction,
@@ -27,6 +28,16 @@ import {
   saveLostReasonAction,
   updateStatusAction,
 } from "./actions";
+import { getDemandSignalsForLead } from "@/lib/demandSignals/service";
+import {
+  demandSignalSourceLabels,
+  demandSignalStatusLabels,
+  demandSignalTypeLabels,
+  demandSignalTypes,
+  type DemandSignalSource,
+  type DemandSignalStatus,
+  type DemandSignalType,
+} from "@/lib/demandSignals/types";
 import {
   applyCrmRecordToLeadCase,
   bootstrapCrmLeadCaseFromLead,
@@ -126,9 +137,10 @@ export default async function CrmLeadDetailPage({
     }
   );
   const latestContactNote = getLatestContactNote(bundle.interactions);
-  const [whatsappConnectionView, whatsappMessagesResult] = await Promise.all([
+  const [whatsappConnectionView, whatsappMessagesResult, demandSignals] = await Promise.all([
     getWhatsAppConnectionByBrandSlug(leadCase.brandSlug),
     getWhatsAppMessagesForLead(lead.id, 20),
+    getDemandSignalsForLead(lead.brand_id || "", lead.id),
   ]);
 
   return (
@@ -237,6 +249,7 @@ export default async function CrmLeadDetailPage({
                   connectionView={whatsappConnectionView}
                   messages={whatsappMessagesResult.messages}
                   messagesTableReady={whatsappMessagesResult.tableReady}
+                  captureEnabled={runtime.actionsEnabled}
                 />
 
                 <ReplyComposer
@@ -277,6 +290,8 @@ export default async function CrmLeadDetailPage({
                   <InfoLine label="Room" value={bookingMeta.roomArrangement || "-"} />
                   <InfoLine label="Paid status" value={bookingMeta.paidStatusLabel} />
                 </Panel>
+
+                <DemandSignalsPanel signals={demandSignals} />
 
                 <section id="contact-actions" className="grid gap-3.5">
                   <ManualWhatsAppPanel leadCase={leadCase} />
@@ -514,6 +529,7 @@ function getCrmFeedback(
     invalid_saved: "Lead marked as invalid.",
     follow_up_saved: "Follow-up task saved.",
     lost_reason_saved: "Lost reason saved.",
+    demand_signal_created: "Demand Signal captured for human review.",
   };
 
   if (success && successMessages[success]) {
@@ -814,6 +830,7 @@ function WhatsAppConnectionPanel({
   connectionView,
   messages,
   messagesTableReady,
+  captureEnabled,
 }: {
   leadId: string;
   brandId: string;
@@ -821,6 +838,7 @@ function WhatsAppConnectionPanel({
   connectionView: WhatsAppConnectionView;
   messages: WhatsAppMessageRecord[];
   messagesTableReady: boolean;
+  captureEnabled: boolean;
 }) {
   const connected = Boolean(
     connectionView.connection &&
@@ -893,6 +911,45 @@ function WhatsAppConnectionPanel({
                 <p className="mt-1 text-[10px] font-bold text-[#94a3b8]">
                   Status: {message.status || "-"}
                 </p>
+                {message.direction === "inbound" && message.body && (
+                  <form
+                    action={captureWhatsAppDemandSignalAction.bind(null, leadId)}
+                    className="mt-2 grid gap-2 rounded-md border border-[#dbeafe] bg-[#eff6ff] p-2 sm:grid-cols-[150px_minmax(0,1fr)_auto]"
+                  >
+                    <input type="hidden" name="brand_id" value={brandId} />
+                    <input
+                      type="hidden"
+                      name="source_record_id"
+                      value={message.id}
+                    />
+                    <select
+                      name="signal_type"
+                      aria-label="Demand Signal type"
+                      defaultValue="need"
+                      className="h-8 rounded-md border border-[#bfdbfe] bg-white px-2 text-[11px] font-bold text-[#1e3a8a]"
+                    >
+                      {demandSignalTypes.map((type) => (
+                        <option key={type} value={type}>
+                          {demandSignalTypeLabels[type]}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      required
+                      name="normalized_tag"
+                      aria-label="Demand Signal tag"
+                      placeholder="例如：results_timeline"
+                      className="h-8 min-w-0 rounded-md border border-[#bfdbfe] bg-white px-2 text-[11px] font-semibold text-[#111827]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!captureEnabled}
+                      className="h-8 whitespace-nowrap rounded-md bg-[#1d4ed8] px-2.5 text-[10px] font-black text-white disabled:cursor-not-allowed disabled:bg-[#94a3b8]"
+                    >
+                      Capture Signal
+                    </button>
+                  </form>
+                )}
               </div>
             ))
           ) : (
@@ -905,6 +962,60 @@ function WhatsAppConnectionPanel({
         <WhatsAppSendBox leadId={leadId} brandId={brandId} disabled={!connected} />
       </div>
     </section>
+  );
+}
+
+function DemandSignalsPanel({
+  signals,
+}: {
+  signals: Array<{
+    id: string;
+    signal_type: DemandSignalType;
+    exact_quote: string;
+    normalized_tag: string;
+    source_type: DemandSignalSource;
+    status: DemandSignalStatus;
+    occurred_at: string;
+  }>;
+}) {
+  return (
+    <Panel title="Demand Signals">
+      {signals.length ? (
+        <ol className="grid gap-2">
+          {signals.map((signal) => (
+            <li
+              key={signal.id}
+              className="rounded-md border border-[#e0e7ff] bg-[#f8fafc] px-2.5 py-2"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-[10px] font-black text-[#3730a3]">
+                  {demandSignalTypeLabels[signal.signal_type]} · {signal.normalized_tag}
+                </span>
+                <span className="text-[9px] font-bold uppercase text-[#64748b]">
+                  {demandSignalStatusLabels[signal.status]}
+                </span>
+              </div>
+              <p className="mt-1 text-[11px] font-semibold leading-5 text-[#334155]">
+                {signal.exact_quote}
+              </p>
+              <p className="mt-1 text-[9px] font-bold text-[#94a3b8]">
+                {demandSignalSourceLabels[signal.source_type]} · {formatDateTime(signal.occurred_at)}
+              </p>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="rounded-md border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-3 py-3 text-[11px] font-semibold text-[#64748b]">
+          未有 Demand Signal。可由 inbound WhatsApp 訊息或已啟用問題嘅表格擷取。
+        </p>
+      )}
+      <Link
+        href="/growth-intelligence/demand-signals"
+        className="mt-2 inline-flex text-[10px] font-black text-[#1d4ed8]"
+      >
+        Open Demand Signals →
+      </Link>
+    </Panel>
   );
 }
 
