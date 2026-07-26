@@ -6,6 +6,7 @@ type CrmSidebarKey =
   | "dashboard"
   | "inbox"
   | "whatsapp"
+  | "broadcasts"
   | "bookings"
   | "operations"
   | "team"
@@ -22,6 +23,7 @@ const sidebarItems: Array<{
 }> = [
   { key: "dashboard", icon: "D", label: "Dashboard / 首頁", href: "/crm?tab=dashboard", enabled: true },
   { key: "inbox", icon: "C", label: "Conversations / 對話", href: "/crm?tab=leads", enabled: true },
+  { key: "broadcasts", icon: "W", label: "WhatsApp Broadcast / 批量發送", href: "/crm/whatsapp-broadcasts", enabled: true },
   { key: "bookings", icon: "B", label: "Bookings / 預約", href: "/crm?tab=bookings", enabled: true },
   { key: "operations", icon: "O", label: "Operations / 營運", href: "/crm/operations", enabled: true },
   { key: "team", icon: "T", label: "Team / 團隊", href: "/crm", enabled: false },
@@ -83,6 +85,7 @@ export function CrmShell({
             {[
               { label: "首", href: "/crm?tab=dashboard", key: "dashboard", title: "Dashboard / 首頁" },
               { label: "聊", href: "/crm?tab=leads", key: "inbox", title: "Conversations / 對話" },
+              { label: "發", href: "/crm/whatsapp-broadcasts", key: "broadcasts", title: "WhatsApp Broadcast / 批量發送" },
               { label: "約", href: "/crm?tab=bookings", key: "bookings", title: "Bookings / 預約" },
               { label: "營", href: "/crm/operations", key: "operations", title: "Operations / 營運" },
               { label: "報", href: "/crm?tab=reports", key: "reports", title: "Reports / 報表" },
