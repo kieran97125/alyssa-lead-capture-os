@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { processNextWhatsAppCampaigns } from "@/lib/crm/whatsappCampaigns";
+import { processWhatsAppCampaignBatch } from "@/lib/crm/whatsappCampaigns";
+import {
+  evaluateWhatsAppBroadcastHealth,
+  getQueuedWhatsAppBroadcastIds,
+  getSafeWhatsAppBroadcastBatchSize,
+} from "@/lib/crm/whatsappBroadcastSafety";
 
 export const dynamic = "force-dynamic";
 
@@ -22,6 +27,28 @@ async function run(request: NextRequest) {
     return NextResponse.json({ ok: false, message: "unauthorized" }, { status: 401 });
   }
 
-  const result = await processNextWhatsAppCampaigns(3);
-  return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+  const campaignIds = await getQueuedWhatsAppBroadcastIds(3);
+  const processed: Array<Record<string, unknown>> = [];
+
+  for (const campaignId of campaignIds) {
+    const safety = await getSafeWhatsAppBroadcastBatchSize(campaignId, 10);
+    if (!safety.ok || safety.batchSize < 1) {
+      processed.push({ campaignId, ...safety });
+      continue;
+    }
+
+    const result = await processWhatsAppCampaignBatch(
+      campaignId,
+      "broadcast_worker",
+      safety.batchSize
+    );
+    const health = await evaluateWhatsAppBroadcastHealth(campaignId);
+    processed.push({ campaignId, ...result, safety, health });
+  }
+
+  return NextResponse.json({
+    ok: true,
+    message: "broadcast_worker_completed",
+    processed,
+  });
 }
