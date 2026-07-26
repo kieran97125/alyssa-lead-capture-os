@@ -14,6 +14,10 @@ import {
   upsertWhatsAppConversation,
 } from "@/lib/crm/whatsappInbox";
 import {
+  handleWhatsAppCampaignOptOut,
+  recordWhatsAppCampaignRecipientStatus,
+} from "@/lib/crm/whatsappCampaigns";
+import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
@@ -106,11 +110,14 @@ export async function POST(request: NextRequest) {
         const messageId = stringValue(status?.id);
         const nextStatus = stringValue(status?.status) || "unknown";
         if (messageId) {
-          await recordWhatsAppMessageStatus({
-            whatsappMessageId: messageId,
-            status: nextStatus,
-            rawPayload: status,
-          });
+          await Promise.all([
+            recordWhatsAppMessageStatus({
+              whatsappMessageId: messageId,
+              status: nextStatus,
+              rawPayload: status,
+            }),
+            recordWhatsAppCampaignRecipientStatus(messageId, nextStatus, status),
+          ]);
         }
         results.push({ ok: true, status_update: nextStatus, whatsapp_message_id: messageId });
       }
@@ -160,6 +167,7 @@ async function handleInboundMessage(
   const parsed = parseMessage(message);
   const customerName = getCustomerName(value, fromPhone);
   const timestamp = parseMetaTimestamp(stringValue(message.timestamp));
+  const messageId = stringValue(message.id);
 
   const inserted = await insertWhatsAppMessage({
     brand_id: connection.brand_id,
@@ -167,7 +175,7 @@ async function handleInboundMessage(
     connection_id: connection.id,
     direction: "inbound",
     message_type: parsed.type,
-    whatsapp_message_id: stringValue(message.id),
+    whatsapp_message_id: messageId,
     from_phone: normalizedPhone || fromPhone,
     to_phone:
       stringValue(asRecord(value.metadata).display_phone_number) ||
@@ -190,6 +198,13 @@ async function handleInboundMessage(
     messageAt: timestamp,
   });
 
+  const optOut = await handleWhatsAppCampaignOptOut({
+    brandId: connection.brand_id,
+    normalizedPhone: normalizedPhone || fromPhone,
+    body: parsed.body,
+    messageId,
+  });
+
   const insertedMessageId =
     inserted.ok && inserted.data && typeof inserted.data.id === "string"
       ? inserted.data.id
@@ -208,6 +223,7 @@ async function handleInboundMessage(
     conversation_id: conversation.conversationId,
     from_phone: normalizedPhone || fromPhone,
     message_type: parsed.type,
+    opted_out: optOut.optedOut,
     message: inserted.message,
   };
 }
