@@ -14,6 +14,10 @@ import {
   recordWhatsAppMarketingConsent,
   runWhatsAppCampaignDryRun,
 } from "@/lib/crm/whatsappCampaigns";
+import {
+  evaluateWhatsAppBroadcastHealth,
+  getSafeWhatsAppBroadcastBatchSize,
+} from "@/lib/crm/whatsappBroadcastSafety";
 
 export const dynamic = "force-dynamic";
 
@@ -70,15 +74,28 @@ export async function POST(request: NextRequest) {
         ? await queueWhatsAppCampaign(campaignId, actor)
         : { ok: false, message: "campaign_id_required" };
       break;
-    case "process_batch":
-      result = campaignId
-        ? await processWhatsAppCampaignBatch(
-            campaignId,
-            actor,
-            numberValue(body.batch_size, 10)
-          )
-        : { ok: false, message: "campaign_id_required" };
+    case "process_batch": {
+      if (!campaignId) {
+        result = { ok: false, message: "campaign_id_required" };
+        break;
+      }
+      const safety = await getSafeWhatsAppBroadcastBatchSize(
+        campaignId,
+        numberValue(body.batch_size, 10)
+      );
+      if (!safety.ok || safety.batchSize < 1) {
+        result = safety;
+        break;
+      }
+      result = await processWhatsAppCampaignBatch(
+        campaignId,
+        actor,
+        safety.batchSize
+      );
+      const health = await evaluateWhatsAppBroadcastHealth(campaignId);
+      result = { ...result, safety, health };
       break;
+    }
     case "pause":
       result = campaignId
         ? await pauseWhatsAppCampaign(
