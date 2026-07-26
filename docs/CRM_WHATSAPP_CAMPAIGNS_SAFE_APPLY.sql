@@ -1,12 +1,14 @@
 -- Alyssa CRM / Kairvo
--- WhatsApp Campaigns — Permission-based Customer Reactivation
+-- WhatsApp Broadcast Operations — consent-gated execution layer
+-- GrowthRadar owns audience strategy and performance analysis.
+-- CRM owns safe execution, delivery state, opt-out and audit.
 --
 -- Safety contract:
--- 1. No marketing send without explicit brand-scoped consent evidence.
+-- 1. No outbound promotional template without explicit brand-scoped consent evidence.
 -- 2. Active suppressions always win over consent.
 -- 3. Only approved, non-stale Meta templates may be used.
--- 4. Campaign recipients are materialized before approval and sending.
--- 5. Queue claims are atomic and idempotent.
+-- 4. Recipients are materialized before approval and sending.
+-- 5. Queue claims are atomic, idempotent and recover stale workers.
 -- 6. Browser clients receive no direct table grants.
 
 create extension if not exists pgcrypto;
@@ -196,7 +198,7 @@ security definer
 set search_path = public
 as $$
 begin
-  if p_limit is null or p_limit < 1 or p_limit > 50 then
+  if p_limit is null or p_limit < 1 or p_limit > 25 then
     raise exception 'invalid_batch_limit';
   end if;
 
@@ -219,7 +221,13 @@ begin
     from public.whatsapp_campaign_recipients r
     where r.campaign_id = p_campaign_id
       and r.eligibility_status = 'eligible'
-      and r.send_status in ('pending', 'queued')
+      and (
+        r.send_status in ('pending', 'queued')
+        or (
+          r.send_status = 'claimed'
+          and r.claimed_at < now() - interval '15 minutes'
+        )
+      )
       and (r.next_attempt_at is null or r.next_attempt_at <= now())
     order by r.created_at asc
     for update skip locked
