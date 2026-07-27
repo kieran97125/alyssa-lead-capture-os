@@ -308,7 +308,7 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
 test("GOS form uses the brand Pixel from LaunchHub after a successful lead", async ({
   page,
 }) => {
-  await page.route("**/api/public/forms/*", async (route) => {
+  await page.route(`**/api/public/forms/${formToken}`, async (route) => {
     await route.fulfill({
       contentType: "application/json",
       body: JSON.stringify(pixelConfiguredForm()),
@@ -332,9 +332,10 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
     });
   });
 
-  await page.goto("/lp/alyssa-main-trial-offer", {
-    waitUntil: "domcontentloaded",
-  });
+  await page.goto(
+    `/embed/${formToken}?brand=gos-beauty&form_id=${formId}`,
+    { waitUntil: "domcontentloaded" }
+  );
   await page.getByLabel("姓名").fill("GOS Pixel");
   await page.getByLabel("聯絡電話").fill("92345678");
   await page.getByLabel("預約日期").fill("2026-08-09");
