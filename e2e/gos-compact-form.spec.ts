@@ -266,15 +266,16 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
   );
 
   const itemSelect = page.getByLabel("選擇預約項目");
+  const itemSummary = page.getByRole("region", { name: "預約項目" });
   await expect(itemSelect).toBeVisible();
   await expect(itemSelect.locator("option")).toHaveCount(8);
   await expect(itemSelect.locator("optgroup")).toHaveCount(2);
-  await expect(page.getByLabel("預約項目")).toContainText("MEDIUM");
-  await expect(page.getByLabel("預約項目")).toContainText("HK$1390");
+  await expect(itemSummary).toContainText("MEDIUM");
+  await expect(itemSummary).toContainText("HK$1390");
 
   await itemSelect.selectOption("permanent-xl");
-  await expect(page.getByLabel("預約項目")).toContainText("X-LARGE");
-  await expect(page.getByLabel("預約項目")).toContainText("HK$4680");
+  await expect(itemSummary).toContainText("X-LARGE");
+  await expect(itemSummary).toContainText("HK$4680");
 
   await page.getByLabel("姓名").fill("GOS Choice");
   await page.getByLabel("聯絡電話").fill("98765432");
