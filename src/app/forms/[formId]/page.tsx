@@ -3,14 +3,14 @@ import { notFound } from "next/navigation";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { CopyButton } from "@/components/alyssa/CopyButton";
 import { EmbedCodeCard } from "@/components/alyssa/EmbedCodeCard";
+import { FormPackageSelection } from "@/components/alyssa/FormPackageSelection";
 import { duplicateFormAction, updateFormAction } from "@/app/forms/actions";
 import {
   META_URL_PARAMETER_GUIDE,
   getFormOperations,
 } from "@/lib/data/brandOperations";
 import {
-  getTreatment,
-  packagePriceLabel,
+  getFormPackageSettings,
 } from "@/lib/data/configuration";
 import { getFormByIdOrSlug } from "@/lib/data/formManagement";
 
@@ -58,6 +58,12 @@ export default async function FormConfigPage({
   const brandTreatmentIds = new Set(brandTreatments.map((item) => item.id));
   const brandPackages = config.packages.filter((item) =>
     brandTreatmentIds.has(item.treatmentId)
+  );
+  const treatmentNames = Object.fromEntries(
+    brandTreatments.map((item) => [item.id, item.name])
+  );
+  const selectedPackageIds = getFormPackageSettings(config, form).map(
+    (item) => item.packageId
   );
 
   return (
@@ -144,14 +150,12 @@ export default async function FormConfigPage({
                   label: item.name,
                 }))}
               />
-              <SelectField
-                label="Package / price"
-                name="defaultPackageId"
-                value={form.defaultPackageId ?? ""}
-                options={brandPackages.map((item) => ({
-                  value: item.id,
-                  label: `${packagePriceLabel(item)} (${getTreatment(config, item.treatmentId)?.name ?? "療程"})`,
-                }))}
+              <FormPackageSelection
+                packages={brandPackages}
+                defaultPackageId={form.defaultPackageId}
+                selectedPackageIds={selectedPackageIds}
+                selectionMode={form.packageSelectionMode}
+                treatmentNames={treatmentNames}
               />
               <BranchSelection
                 branches={brandBranches}

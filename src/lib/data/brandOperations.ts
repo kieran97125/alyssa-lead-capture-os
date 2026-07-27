@@ -3,6 +3,7 @@ import {
   getBrand,
   getFormBranches,
   getFormBranchSettings,
+  getFormPackages,
   getPackage,
   getTreatment,
   packagePriceLabel,
@@ -196,6 +197,7 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
   const brand = getBrand(config, form.brandId);
   const treatment = getTreatment(config, form.defaultTreatmentId);
   const selectedPackage = getPackage(config, form.defaultPackageId);
+  const formPackages = getFormPackages(config, form);
   const branches = getFormBranches(config, form);
   const branchSettings = getFormBranchSettings(config, form);
   const defaultBranchId =
@@ -258,7 +260,11 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
     brandLaunchDefaults: brandDefaults,
     embedCode,
     previewUrl: getPublicEmbedPreviewUrl(form.publicFormToken),
-    packageLabel: packagePriceLabel(selectedPackage),
+    packageLabel:
+      form.packageSelectionMode === "customer_choice" &&
+      formPackages.length > 1
+        ? `客人選擇（${formPackages.length} 個項目）`
+        : packagePriceLabel(selectedPackage),
     suggestedDomains: getBrandSuggestedDomains(brandSlug),
   };
 }

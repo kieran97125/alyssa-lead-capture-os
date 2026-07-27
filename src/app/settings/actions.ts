@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -21,6 +22,10 @@ import {
   type SettingsMutationResult,
   type TreatmentInput,
 } from "@/lib/data/settingsEditor";
+import {
+  adminSessionCookieName,
+  verifySignedAdminSession,
+} from "@/lib/security/internalAccess";
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -67,9 +72,14 @@ function revalidateSettings() {
   ].forEach((path) => revalidatePath(path));
 }
 
-function ensureSettingsAction(_path: string) {
-  void _path;
-  return;
+async function ensureSettingsAction(path: string) {
+  const cookieStore = await cookies();
+  const session = await verifySignedAdminSession(
+    cookieStore.get(adminSessionCookieName)?.value
+  );
+  if (!session.ok) {
+    redirect(`/login?next=${encodeURIComponent(path)}`);
+  }
 }
 
 function brandInput(formData: FormData): BrandInput {
@@ -103,18 +113,26 @@ function treatmentInput(formData: FormData): TreatmentInput {
 function packageInput(formData: FormData): PackageInput | SettingsMutationResult {
   const originalPrice = readNumber(formData, "originalPrice");
   const promoPrice = readNumber(formData, "promoPrice");
-  if (Number.isNaN(originalPrice) || Number.isNaN(promoPrice)) {
-    return { ok: false, message: "價錢必須是數字。" };
+  const displayOrder = readNumber(formData, "displayOrder") ?? 0;
+  if (
+    Number.isNaN(originalPrice) ||
+    Number.isNaN(promoPrice) ||
+    Number.isNaN(displayOrder)
+  ) {
+    return { ok: false, message: "價錢及排序必須是數字。" };
   }
 
   return {
     id: readString(formData, "id"),
     treatmentId: readString(formData, "treatmentId"),
     name: readString(formData, "name"),
+    groupName: readString(formData, "groupName"),
     originalPrice,
     promoPrice,
     currency: readString(formData, "currency") || "HKD",
     paymentRequired: readBoolean(formData, "paymentRequired"),
+    status: readString(formData, "status") === "inactive" ? "inactive" : "active",
+    displayOrder,
   };
 }
 
@@ -182,7 +200,7 @@ export async function createPackageAction(formData: FormData) {
   const input = packageInput(formData);
   const result = "treatmentId" in input ? await createPackage(input) : input;
   revalidateSettings();
-  redirectBack("/settings/packages", result);
+  redirectBack(readReturnPath(formData, "/settings/packages"), result);
 }
 
 export async function updatePackageAction(formData: FormData) {
@@ -190,7 +208,7 @@ export async function updatePackageAction(formData: FormData) {
   const input = packageInput(formData);
   const result = "treatmentId" in input ? await updatePackage(input) : input;
   revalidateSettings();
-  redirectBack("/settings/packages", result);
+  redirectBack(readReturnPath(formData, "/settings/packages"), result);
 }
 
 export async function deletePackageAction(formData: FormData) {
@@ -200,7 +218,7 @@ export async function deletePackageAction(formData: FormData) {
     readBoolean(formData, "confirmDelete")
   );
   revalidateSettings();
-  redirectBack("/settings/packages", result);
+  redirectBack(readReturnPath(formData, "/settings/packages"), result);
 }
 
 export async function createBranchAction(formData: FormData) {

@@ -113,7 +113,7 @@ export default async function TreatmentSettingsPage({
               <article key={treatment.id} className="alyssa-premium-card min-w-0 p-5">
                 <div className="flex flex-wrap gap-2">
                   <StatusPill>{brand?.name ?? "未設定品牌"}</StatusPill>
-                  <StatusPill>套餐 {linkedPackages.length}</StatusPill>
+                  <StatusPill>定價項目 {linkedPackages.length}</StatusPill>
                 </div>
                 <h2 className="mt-4 text-2xl font-bold text-[#321428]">
                   {treatment.name}
@@ -146,14 +146,22 @@ export default async function TreatmentSettingsPage({
 
                 <div className="mt-5 rounded-[20px] bg-[#fff6f0] p-4">
                   <p className="text-sm font-bold text-[#321428]">
-                    已連接：{linkedForms.length} 張表格、{linkedPackages.length} 個套餐
+                    已連接：{linkedForms.length} 張表格、{linkedPackages.length} 個定價項目
                   </p>
-                  <Link
-                    href={`/forms/new?brand=${brand?.slug || ""}`}
-                    className="mt-3 inline-flex rounded-full bg-[#e46f64] px-4 py-2 text-sm font-bold text-white"
-                  >
-                    Create form for this brand
-                  </Link>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <Link
+                      href={`/settings/packages?brand=${brand?.slug || ""}&treatment=${treatment.slug}`}
+                      className="inline-flex rounded-full bg-[#5a2348] px-4 py-2 text-sm font-bold text-white"
+                    >
+                      管理項目及價錢
+                    </Link>
+                    <Link
+                      href={`/forms/new?brand=${brand?.slug || ""}`}
+                      className="inline-flex rounded-full bg-[#e46f64] px-4 py-2 text-sm font-bold text-white"
+                    >
+                      Create form for this brand
+                    </Link>
+                  </div>
                   <form action={deleteTreatmentAction} className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <input type="hidden" name="id" value={treatment.id} />
                     <label className="flex items-center gap-2 text-sm font-semibold text-[#6d4a5c]">

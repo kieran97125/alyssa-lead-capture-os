@@ -112,9 +112,12 @@ type TreatmentOption = FormOption & {
 
 type PackageOption = FormOption & {
   treatmentId: string;
+  groupName: string;
   originalPrice: number;
   promoPrice: number;
+  currency: string;
   paymentRequired: boolean;
+  displayOrder: number;
 };
 
 type BranchOption = FormOption & {
@@ -136,6 +139,7 @@ type PublicFormConfig = {
   defaultTreatmentId: string;
   defaultPackageId: string;
   defaultBranchId: string;
+  packageSelectionMode: "fixed" | "customer_choice";
   allowedDomains: string[];
   successRedirectUrl?: string | null;
   conversionMode?: ConversionMode | null;
@@ -785,6 +789,11 @@ function normalizeForm(raw: Record<string, unknown>): PublicFormConfig {
       getString(raw.defaultBranchId) ||
       getString(raw.default_branch_id) ||
       alyssaDefaultForm.defaultBranchId,
+    packageSelectionMode:
+      raw.packageSelectionMode === "customer_choice" ||
+      raw.package_selection_mode === "customer_choice"
+        ? "customer_choice"
+        : "fixed",
     successRedirectUrl:
       getString(raw.successRedirectUrl) ||
       getString(raw.success_redirect_url) ||
@@ -811,9 +820,12 @@ function normalizePackage(raw: Record<string, unknown>): PackageOption {
     id: getString(raw.id),
     name: getString(raw.name),
     treatmentId: getString(raw.treatmentId) || getString(raw.treatment_id),
+    groupName: getString(raw.groupName) || getString(raw.group_name),
     originalPrice: getNumber(raw.originalPrice ?? raw.original_price),
     promoPrice: getNumber(raw.promoPrice ?? raw.promo_price),
+    currency: getString(raw.currency) || "HKD",
     paymentRequired: Boolean(raw.paymentRequired ?? raw.payment_required),
+    displayOrder: getNumber(raw.displayOrder ?? raw.display_order),
   };
 }
 
@@ -926,6 +938,10 @@ function priceLabel(item: PackageOption | undefined) {
   return configuredPrice > 0 ? `HK$${configuredPrice}` : "預約查詢";
 }
 
+function packageOptionLabel(item: PackageOption) {
+  return `${item.name} · ${priceLabel(item)}`;
+}
+
 function formatSelectedDate(value: string) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return "";
@@ -1003,6 +1019,19 @@ export function PublicLeadForm({
       availablePackages[0],
     [availablePackages, formData.package_id]
   );
+  const packageGroups = useMemo(
+    () =>
+      Array.from(
+        availablePackages.reduce((map, item) => {
+          const group = item.groupName || "其他項目";
+          const items = map.get(group) ?? [];
+          items.push(item);
+          map.set(group, items);
+          return map;
+        }, new Map<string, PackageOption[]>())
+      ),
+    [availablePackages]
+  );
   const legalProfile = useMemo(() => {
     const resolvedSlug = brand.slug || brandSlug || "alyssa";
 
@@ -1038,6 +1067,9 @@ export function PublicLeadForm({
     [publicTheme]
   );
   const isCompactPublicForm = publicTheme.formLayout === "compact";
+  const allowsPackageChoice =
+    publicForm.packageSelectionMode === "customer_choice" &&
+    availablePackages.length > 1;
   const isEmbed = mode === "embed";
   const effectiveConversionMode =
     conversionMode ?? publicForm.conversionMode ?? "form_submit_pixel";
@@ -1733,6 +1765,31 @@ export function PublicLeadForm({
                   }
                 />
 
+                {allowsPackageChoice && (
+                  <div className="mb-3.5">
+                    <Field label="選擇預約項目">
+                      <select
+                        required
+                        className="mt-1.5 block h-12 w-full min-w-0 rounded-[13px] border border-[var(--public-border)] bg-white px-3.5 text-base font-semibold outline-none transition focus:border-[var(--public-accent)] focus:ring-3 focus:ring-[var(--public-accent-soft)] sm:text-sm"
+                        value={selectedPackage?.id || ""}
+                        onChange={(event) =>
+                          updateField("package_id", event.target.value)
+                        }
+                      >
+                        {packageGroups.map(([groupName, items]) => (
+                          <optgroup key={groupName} label={groupName}>
+                            {items.map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {packageOptionLabel(item)}
+                              </option>
+                            ))}
+                          </optgroup>
+                        ))}
+                      </select>
+                    </Field>
+                  </div>
+                )}
+
                 <div className="grid min-w-0 grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-x-4 sm:gap-y-3.5">
                   <Field label="姓名">
                     <input
@@ -1991,10 +2048,14 @@ export function PublicLeadForm({
                         updateField("package_id", event.target.value)
                       }
                     >
-                      {availablePackages.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name} - {priceLabel(item)}
-                        </option>
+                      {packageGroups.map(([groupName, items]) => (
+                        <optgroup key={groupName} label={groupName}>
+                          {items.map((item) => (
+                            <option key={item.id} value={item.id}>
+                              {packageOptionLabel(item)}
+                            </option>
+                          ))}
+                        </optgroup>
                       ))}
                     </select>
                   </Field>
