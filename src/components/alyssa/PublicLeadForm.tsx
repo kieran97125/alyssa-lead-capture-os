@@ -1233,13 +1233,11 @@ export function PublicLeadForm({
 
     const payload = buildCompleteRegistrationPayload();
 
-    if (isEmbed) {
+    if (isEmbed && window.parent && window.parent !== window) {
       const targetOrigin = normalizeOrigin(expectedParentOrigin);
       const referrerOrigin = normalizeOrigin(document.referrer);
 
       if (
-        !window.parent ||
-        window.parent === window ||
         !targetOrigin ||
         !isAllowedParentOrigin(targetOrigin, publicForm.allowedDomains)
       ) {
