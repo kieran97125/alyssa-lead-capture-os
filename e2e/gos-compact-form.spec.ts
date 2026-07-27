@@ -354,7 +354,7 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
   await page.getByLabel("姓名").fill("GOS Pixel");
   await page.getByLabel("聯絡電話").fill("92345678");
   await page.getByLabel("預約日期").fill("2026-08-09");
-  await page.getByLabel("預約時間").selectOption("17:00");
+  await page.getByLabel("預約時間").selectOption("16:00");
   await page
     .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
     .check();

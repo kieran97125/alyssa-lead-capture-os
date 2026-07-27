@@ -37,7 +37,9 @@ test("treatments and pricing use expandable management rows instead of cards", a
     .getByTestId("treatment-management-list")
     .locator(":scope > details");
   await expect(treatmentRows.first()).toBeVisible();
-  await expect(treatmentRows.first().locator("summary")).toContainText("編輯");
+  await expect(
+    treatmentRows.first().locator(":scope > summary")
+  ).toContainText("編輯");
 
   await page.goto("/settings/packages", {
     waitUntil: "domcontentloaded",
@@ -46,13 +48,15 @@ test("treatments and pricing use expandable management rows instead of cards", a
     .getByTestId("package-management-list")
     .locator(":scope > details");
   await expect(packageRows.first()).toBeVisible();
-  await expect(packageRows.first().locator("summary")).toContainText("編輯");
+  await expect(
+    packageRows.first().locator(":scope > summary")
+  ).toContainText("編輯");
 });
 
 test("form rows expose one primary action and keep utilities under More", async ({
   page,
 }) => {
-  await page.goto("/forms", { waitUntil: "domcontentloaded" });
+  await page.goto("/forms?archive=all", { waitUntil: "domcontentloaded" });
 
   const firstRow = page
     .getByTestId("form-management-list")
