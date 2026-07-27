@@ -175,6 +175,28 @@ export default async function FormConfigPage({
               </span>
             </label>
 
+            <section className="rounded-2xl border border-[#ead9cf] bg-[#fffaf6] p-4">
+              <p className="alyssa-kicker">Demand Signal Question</p>
+              <h3 className="mt-2 text-base font-bold text-[#321428]">可選客人需求問題</h3>
+              <p className="mt-2 text-xs font-semibold leading-5 text-[#7b5a6a]">
+                預設關閉。啟用後，答案會成為待覆核 Signal，並連結到呢張表格、療程同 lead；唔會自動發布成廣告或網頁文案。
+              </p>
+              <div className="mt-4 grid gap-3">
+                <label className="flex items-start gap-3 text-sm font-bold text-[#5a2348]">
+                  <input type="checkbox" name="demandSignalQuestionEnabled" value="yes" defaultChecked={form.demandSignalQuestionEnabled} className="mt-1 h-4 w-4" />
+                  <span>喺呢張表格顯示 Demand Signal 問題</span>
+                </label>
+                <label className="grid gap-1 text-xs font-bold text-[#6d4a5c]">
+                  問題內容
+                  <input name="demandSignalQuestion" maxLength={300} defaultValue={form.demandSignalQuestion || "你而家最想改善，或者最擔心嘅係咩？"} className="rounded-2xl border border-[#ead9cf] bg-white px-4 py-3 text-sm outline-none focus:border-[#e46f64]" />
+                </label>
+                <label className="flex items-start gap-3 text-sm font-bold text-[#5a2348]">
+                  <input type="checkbox" name="demandSignalQuestionRequired" value="yes" defaultChecked={form.demandSignalQuestionRequired} className="mt-1 h-4 w-4" />
+                  <span>設為必填（建議先保持 optional，避免影響轉換率）</span>
+                </label>
+              </div>
+            </section>
+
             <div className="rounded-2xl bg-[#fff6f0] p-4">
               <dl className="grid gap-3 sm:grid-cols-2">
                 <InfoCell label="Form token" value={form.publicFormToken} mono />

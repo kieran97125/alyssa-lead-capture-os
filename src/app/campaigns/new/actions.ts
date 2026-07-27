@@ -50,6 +50,9 @@ function parseNewFormInput(formData: FormData): ManagedFormInput | string {
     branchIds: readStringArray(formData, "branchIds"),
     allowedDomains: parsedDomains.domains,
     status: "active",
+    demandSignalQuestionEnabled: false,
+    demandSignalQuestion: "",
+    demandSignalQuestionRequired: false,
   };
 }
 

@@ -69,6 +69,9 @@ export type FormSetting = {
   defaultBranchId: string | null;
   conversionMode?: "form_submit_pixel" | "thank_you_redirect" | null;
   successRedirectUrl?: string | null;
+  demandSignalQuestionEnabled: boolean;
+  demandSignalQuestion: string | null;
+  demandSignalQuestionRequired: boolean;
   createdAt?: string | null;
   updatedAt?: string | null;
 };
@@ -200,6 +203,9 @@ function localConfiguration(): ConfigurationData {
         conversionMode: "thank_you_redirect",
         successRedirectUrl:
           "https://www.alyssa.hk/thankyou?submitted=1&treatment=medical-beauty-trial&value=388",
+        demandSignalQuestionEnabled: false,
+        demandSignalQuestion: null,
+        demandSignalQuestionRequired: false,
         createdAt: null,
         updatedAt: null,
       },
@@ -370,6 +376,12 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
           typeof row.success_redirect_url === "string"
             ? row.success_redirect_url
             : null,
+        demandSignalQuestionEnabled: row.demand_signal_question_enabled === true,
+        demandSignalQuestion:
+          typeof row.demand_signal_question === "string"
+            ? row.demand_signal_question
+            : null,
+        demandSignalQuestionRequired: row.demand_signal_question_required === true,
         createdAt: typeof row.created_at === "string" ? row.created_at : null,
         updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
       };
@@ -484,6 +496,10 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
             typeof row.success_redirect_url === "string"
               ? row.success_redirect_url
               : null,
+          demandSignalQuestionEnabled: row.demand_signal_question_enabled === true,
+          demandSignalQuestion:
+            typeof row.demand_signal_question === "string" ? row.demand_signal_question : null,
+          demandSignalQuestionRequired: row.demand_signal_question_required === true,
           createdAt: typeof row.created_at === "string" ? row.created_at : null,
           updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
         };

@@ -31,6 +31,9 @@ export type ManagedFormInput = {
   branchIds: string[];
   allowedDomains: string[];
   status: string;
+  demandSignalQuestionEnabled: boolean;
+  demandSignalQuestion: string;
+  demandSignalQuestionRequired: boolean;
 };
 
 export type FormMutationResult = {
@@ -181,6 +184,10 @@ function asForm(row: Record<string, unknown>): FormSetting {
       typeof row.default_package_id === "string" ? row.default_package_id : null,
     defaultBranchId:
       typeof row.default_branch_id === "string" ? row.default_branch_id : null,
+    demandSignalQuestionEnabled: row.demand_signal_question_enabled === true,
+    demandSignalQuestion:
+      typeof row.demand_signal_question === "string" ? row.demand_signal_question : null,
+    demandSignalQuestionRequired: row.demand_signal_question_required === true,
     createdAt: typeof row.created_at === "string" ? row.created_at : null,
     updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
   };
@@ -242,12 +249,19 @@ function validateInput(config: ConfigurationData, input: ManagedFormInput) {
   if (branches.some((branch) => branch && branch.brandId !== input.brandId)) {
     return { ok: false as const, message: "分店與品牌不相符。" };
   }
+  if (
+    input.demandSignalQuestionEnabled &&
+    input.demandSignalQuestion.trim().length < 2
+  ) {
+    return { ok: false as const, message: "請輸入 Demand Signal 問題內容。" };
+  }
 
   return {
     ok: true as const,
     input: {
       ...input,
       formName,
+      demandSignalQuestion: input.demandSignalQuestion.trim(),
       status: "active",
       defaultBranchId,
       branchIds,
@@ -357,6 +371,12 @@ export async function createForm(
       default_branch_id: validation.input.defaultBranchId,
       conversion_mode: conversionDefaults.conversionMode,
       success_redirect_url: conversionDefaults.successRedirectUrl,
+      demand_signal_question_enabled: validation.input.demandSignalQuestionEnabled,
+      demand_signal_question: validation.input.demandSignalQuestionEnabled
+        ? validation.input.demandSignalQuestion || null
+        : null,
+      demand_signal_question_required:
+        validation.input.demandSignalQuestionEnabled && validation.input.demandSignalQuestionRequired,
     })
     .select("*")
     .single();
@@ -416,6 +436,12 @@ export async function updateForm(
       default_branch_id: validation.input.defaultBranchId,
       conversion_mode: conversionDefaults.conversionMode,
       success_redirect_url: conversionDefaults.successRedirectUrl,
+      demand_signal_question_enabled: validation.input.demandSignalQuestionEnabled,
+      demand_signal_question: validation.input.demandSignalQuestionEnabled
+        ? validation.input.demandSignalQuestion || null
+        : null,
+      demand_signal_question_required:
+        validation.input.demandSignalQuestionEnabled && validation.input.demandSignalQuestionRequired,
       updated_at: new Date().toISOString(),
     })
     .eq("id", form.id)
@@ -473,6 +499,9 @@ export async function duplicateForm(formId: string): Promise<FormMutationResult>
       default_branch_id: form.defaultBranchId,
       conversion_mode: conversionDefaults.conversionMode,
       success_redirect_url: conversionDefaults.successRedirectUrl,
+      demand_signal_question_enabled: form.demandSignalQuestionEnabled,
+      demand_signal_question: form.demandSignalQuestion,
+      demand_signal_question_required: form.demandSignalQuestionRequired,
     })
     .select("*")
     .single();

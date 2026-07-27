@@ -16,6 +16,7 @@ import {
 } from "@/lib/attribution/publicAttributionCookie";
 import { TouchPayload } from "@/lib/attribution/types";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
+import { createDemandSignalFromFormAnswer } from "@/lib/demandSignals/service";
 import {
   getBrandLegalProfile,
   LEGAL_CONSENT_REQUIRED_MESSAGE,
@@ -40,6 +41,7 @@ type LeadSubmitPayload = {
   appointment_date?: string;
   appointment_time?: string;
   payment_option?: "pay_now" | "booking_only";
+  demand_signal_answer?: string;
   first_touch_json?: TouchPayload;
   latest_touch_json?: TouchPayload;
   submitted_touch_json?: TouchPayload;
@@ -1002,6 +1004,21 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const demandSignalAnswer = cleanText(payload.demand_signal_answer, 2000) || "";
+  if (
+    form.demand_signal_question_enabled === true &&
+    form.demand_signal_question_required === true &&
+    demandSignalAnswer.length < 2
+  ) {
+    return rejectPublicSubmit(
+      request,
+      400,
+      "demand_signal_answer_required",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
+  }
+
   const currentPageUrl = preferredPageUrl(submittedTouch);
   const allowedDomains = (form.allowed_domains ?? []) as string[];
   const originValidation = getOriginValidation(allowedDomains, [
@@ -1367,6 +1384,36 @@ export async function POST(request: NextRequest) {
     booking_status: "requested",
     created_by_source: classification.sourceType,
   });
+
+  if (
+    form.demand_signal_question_enabled === true &&
+    demandSignalAnswer.length >= 2
+  ) {
+    try {
+      const signalResult = await createDemandSignalFromFormAnswer({
+        brandId: form.brand_id,
+        leadId: lead.id,
+        contactId: contact.id,
+        formId: form.id,
+        treatmentId,
+        answer: demandSignalAnswer,
+      });
+
+      if (!signalResult.ok) {
+        console.warn("[LaunchHub] demand_signal_capture_skipped", {
+          lead_id: lead.id,
+          reason: signalResult.message,
+        });
+      }
+    } catch (error) {
+      // Demand Signals are additive intelligence. A capture failure must never
+      // roll back or hide an otherwise valid lead and booking request.
+      console.warn("[LaunchHub] demand_signal_capture_failed", {
+        lead_id: lead.id,
+        error: error instanceof Error ? error.message : "unknown_error",
+      });
+    }
+  }
 
   const legalBrandRecord = (brandRecord ?? {}) as Record<string, unknown>;
   const legalProfile = getBrandLegalProfile({

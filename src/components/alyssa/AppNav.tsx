@@ -9,6 +9,10 @@ const navItems = [
   { href: "/leads", label: "Leads" },
   { href: "/crm", label: "CRM" },
   { href: "/performance", label: "Performance" },
+  {
+    href: "/growth-intelligence/demand-signals",
+    label: "Growth Intelligence",
+  },
   { href: "/settings#brand-library", label: "Brand Library" },
   { href: "/settings", label: "Settings" },
 ];
