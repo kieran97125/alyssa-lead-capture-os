@@ -1,18 +1,20 @@
 import Link from "next/link";
 
 const settingsItems = [
-  { href: "/settings#brand-library", label: "Brand Library" },
+  { href: "/settings", label: "總覽" },
   { href: "/settings/brands", label: "品牌" },
   { href: "/settings/treatments", label: "療程" },
-  { href: "/settings/packages", label: "項目及價錢" },
+  { href: "/settings/packages", label: "Offer／價錢" },
   { href: "/settings/branches", label: "分店" },
-  { href: "/settings/templates", label: "Landing Page 版型" },
-  { href: "/settings/team", label: "團隊權限" },
+  { href: "/forms", label: "表格" },
 ];
 
 export function SettingsNav() {
   return (
-    <nav className="mt-5 flex min-w-0 flex-wrap gap-2">
+    <nav
+      aria-label="品牌設定"
+      className="mt-5 flex min-w-0 flex-wrap gap-2"
+    >
       {settingsItems.map((item) => (
         <Link
           key={item.href}

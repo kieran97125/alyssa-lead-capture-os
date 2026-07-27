@@ -47,22 +47,33 @@ export function getVisibleBrands<T extends { name?: string | null; slug?: string
   return brands.filter((brand) => !isLikelyTestBrand(brand));
 }
 
-export function getBrandPixelId(brandSlug: string | null | undefined) {
+function cleanPixelId(value: string | null | undefined) {
+  const cleaned = value?.trim().replace(/[^0-9]/g, "") ?? "";
+  return cleaned || "";
+}
+
+export function getBrandPixelId(
+  brandSlug: string | null | undefined,
+  configuredPixelId?: string | null
+) {
+  const brandPixelId = cleanPixelId(configuredPixelId);
+  if (brandPixelId) return brandPixelId;
+
   const slug = normalizeBrandSlug(brandSlug);
 
   if (slug === "alyssa" || slug.startsWith("alyssa-")) {
-    return process.env.NEXT_PUBLIC_META_PIXEL_ID_ALYSSA?.trim() || "";
+    return cleanPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID_ALYSSA);
   }
 
   if (slug === "ineffable" || slug === "ineffable-beauty") {
     return (
-      process.env.NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE?.trim() ||
-      process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() ||
+      cleanPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE) ||
+      cleanPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID) ||
       ""
     );
   }
 
-  return process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim() || "";
+  return "";
 }
 
 export function getBrandSuggestedDomains(brandSlug: string | null | undefined) {
@@ -119,6 +130,7 @@ export function buildWixEmbedCode({
   eventValue,
   conversionMode,
   successRedirectUrl,
+  pageViewOnEmbed = false,
   version = "stable",
 }: {
   form: FormSetting;
@@ -127,6 +139,7 @@ export function buildWixEmbedCode({
   eventValue?: number | string | null;
   conversionMode?: "form_submit_pixel" | "thank_you_redirect" | null;
   successRedirectUrl?: string | null;
+  pageViewOnEmbed?: boolean;
   version?: string;
 }) {
   const safeBrandSlug = slugSafe(brandSlug || "brand");
@@ -164,6 +177,9 @@ export function buildWixEmbedCode({
       )}"`
     );
     lines.push(`${scriptIndent}data-pixel-currency="HKD"`);
+    if (pageViewOnEmbed) {
+      lines.push(`${scriptIndent}data-pixel-pageview="true"`);
+    }
   }
 
   if (isThankYouRedirect) {
@@ -211,7 +227,7 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
       ? `多分店（${branches.length}）`
       : branch?.name || "未設定";
   const brandSlug = brand?.slug || "brand";
-  const pixelId = getBrandPixelId(brandSlug);
+  const pixelId = getBrandPixelId(brandSlug, brand?.metaPixelId);
   const brandDefaults = getBrandLaunchDefaults(brandSlug);
   const offerValue = getOfferValueForRedirect(selectedPackage);
   const generatedSuccessRedirectUrl = buildBrandSuccessRedirectUrl({
@@ -237,6 +253,7 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
     eventValue: offerValue || selectedPackage?.promoPrice,
     conversionMode: effectiveConversionMode,
     successRedirectUrl: effectiveSuccessRedirectUrl,
+    pageViewOnEmbed: Boolean(brand?.metaPixelPageViewOnEmbed),
   });
 
   return {
@@ -250,6 +267,7 @@ export function getFormOperations(config: ConfigurationData, form: FormSetting) 
     brandSlug,
     pixelId,
     pixelConfigured: Boolean(pixelId),
+    pixelPageViewOnEmbed: Boolean(brand?.metaPixelPageViewOnEmbed),
     conversionMode: effectiveConversionMode,
     successRedirectUrl: effectiveSuccessRedirectUrl,
     generatedSuccessRedirectUrl,

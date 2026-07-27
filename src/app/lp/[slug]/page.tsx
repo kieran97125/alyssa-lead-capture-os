@@ -83,7 +83,13 @@ function getMetaPixelEnvName(brandSlug: string) {
   return suffix ? `NEXT_PUBLIC_META_PIXEL_ID_${suffix}` : null;
 }
 
-function getMetaPixelIdForBrand(brandSlug: string) {
+function getMetaPixelIdForBrand(
+  brandSlug: string,
+  configuredPixelId?: string | null
+) {
+  const brandPixelId = cleanMetaPixelEnv(configuredPixelId || undefined);
+  if (brandPixelId) return brandPixelId;
+
   const normalizedBrandSlug = brandSlug.trim().toLowerCase();
 
   if (
@@ -359,7 +365,12 @@ export default async function PublicLandingPage({
     hasVisibleSectionContent
   );
   const publicBrandSlug = isIneffable ? "ineffable" : publicBrand.slug;
-  const metaPixelId = getMetaPixelIdForBrand(publicBrandSlug);
+  const configuredPixelId =
+    "metaPixelId" in publicBrand ? publicBrand.metaPixelId : null;
+  const metaPixelId = getMetaPixelIdForBrand(
+    publicBrandSlug,
+    configuredPixelId
+  );
 
   return (
     <main

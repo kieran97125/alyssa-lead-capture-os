@@ -71,7 +71,10 @@ export default async function BrandWorkspacePage({
       lead.brand_id === selectedBrand?.id ||
       lead.brand?.id === selectedBrand?.id
   );
-  const pixelId = getBrandPixelId(selectedBrand?.slug);
+  const pixelId = getBrandPixelId(
+    selectedBrand?.slug,
+    selectedBrand?.metaPixelId
+  );
   const suggestedDomains = getBrandSuggestedDomains(selectedBrand?.slug);
   const brandDefaults = getBrandDisplayDefaults(selectedBrand);
 

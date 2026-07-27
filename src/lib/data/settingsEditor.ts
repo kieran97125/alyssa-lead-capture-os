@@ -23,6 +23,8 @@ export type BrandInput = {
   privacyUrl?: string;
   disclaimerUrl?: string;
   operatorName?: string;
+  metaPixelId?: string;
+  metaPixelPageViewOnEmbed?: boolean;
 };
 
 export type TreatmentInput = {
@@ -101,17 +103,22 @@ function nullableText(value: string) {
   return cleaned || null;
 }
 
-function hasLegalInput(input: BrandInput) {
+function hasBrandExtendedInput(input: BrandInput) {
   return Boolean(
     clean(input.legalPageUrl) ||
       clean(input.legalLinkLabel) ||
       clean(input.privacyUrl) ||
       clean(input.disclaimerUrl) ||
-      clean(input.operatorName)
+      clean(input.operatorName) ||
+      clean(input.metaPixelId) ||
+      input.metaPixelPageViewOnEmbed
   );
 }
 
-function isMissingBrandLegalColumnError(error: { code?: string; message?: string }) {
+function isMissingBrandExtendedColumnError(error: {
+  code?: string;
+  message?: string;
+}) {
   const message = error.message ?? "";
   return (
     error.code === "42703" ||
@@ -120,8 +127,15 @@ function isMissingBrandLegalColumnError(error: { code?: string; message?: string
     message.includes("legal_link_label") ||
     message.includes("privacy_url") ||
     message.includes("disclaimer_url") ||
-    message.includes("operator_name")
+    message.includes("operator_name") ||
+    message.includes("meta_pixel_id") ||
+    message.includes("meta_pixel_pageview_on_embed")
   );
+}
+
+function normalizeMetaPixelId(value: string | undefined | null) {
+  const cleaned = clean(value, 80).replace(/[^0-9]/g, "");
+  return cleaned || null;
 }
 
 function validateHttpsUrl(value: string | undefined | null, label: string) {
@@ -162,7 +176,30 @@ function validateBrandLegalInput(input: BrandInput): SettingsMutationResult | nu
   return urlError ? { ok: false, message: urlError } : null;
 }
 
-function brandPayload(input: BrandInput, includeLegal: boolean) {
+function validateBrandPixelInput(
+  input: BrandInput
+): SettingsMutationResult | null {
+  const rawPixelId = clean(input.metaPixelId, 80);
+  const pixelId = normalizeMetaPixelId(rawPixelId);
+
+  if (rawPixelId && (!pixelId || pixelId.length < 5 || pixelId.length > 30)) {
+    return {
+      ok: false,
+      message: "Meta Pixel ID 格式不正確，請只輸入 Meta 提供的數字 ID。",
+    };
+  }
+
+  if (input.metaPixelPageViewOnEmbed && !pixelId) {
+    return {
+      ok: false,
+      message: "啟用 Wix Embed PageView 前，請先填寫 Meta Pixel ID。",
+    };
+  }
+
+  return null;
+}
+
+function brandPayload(input: BrandInput, includeExtended: boolean) {
   return {
     name: clean(input.name, 160),
     slug: slugify(input.slug || input.name),
@@ -171,13 +208,17 @@ function brandPayload(input: BrandInput, includeLegal: boolean) {
     secondary_color: validateHexColor(input.secondaryColor),
     whatsapp_number: nullableText(input.whatsappNumber),
     default_thank_you_url: nullableText(input.defaultThankYouUrl),
-    ...(includeLegal
+    ...(includeExtended
       ? {
           legal_page_url: nullableText(input.legalPageUrl ?? ""),
           legal_link_label: nullableText(input.legalLinkLabel ?? ""),
           privacy_url: nullableText(input.privacyUrl ?? ""),
           disclaimer_url: nullableText(input.disclaimerUrl ?? ""),
           operator_name: nullableText(input.operatorName ?? ""),
+          meta_pixel_id: normalizeMetaPixelId(input.metaPixelId),
+          meta_pixel_pageview_on_embed: Boolean(
+            input.metaPixelPageViewOnEmbed
+          ),
         }
       : {}),
   };
@@ -277,18 +318,20 @@ export async function createBrand(input: BrandInput): Promise<SettingsMutationRe
   if (!name) return { ok: false, message: "請輸入品牌名稱。" };
   const legalValidation = validateBrandLegalInput(input);
   if (legalValidation) return legalValidation;
+  const pixelValidation = validateBrandPixelInput(input);
+  if (pixelValidation) return pixelValidation;
   if (await slugExists("brands", slug)) {
     return { ok: false, message: "品牌代號已經存在，請使用另一個代號。" };
   }
 
   let { error } = await supabase.from("brands").insert(brandPayload(input, true));
 
-  if (error && isMissingBrandLegalColumnError(error)) {
-    if (hasLegalInput(input)) {
+  if (error && isMissingBrandExtendedColumnError(error)) {
+    if (hasBrandExtendedInput(input)) {
       return {
         ok: false,
         message:
-          "請先 review 並在 Supabase 執行 docs/APPLY_BRAND_LEGAL_SETTINGS_REVIEW.sql，然後再儲存法律設定。",
+          "品牌進階設定尚未套用，請先完成最新 Supabase migration 再儲存。",
       };
     }
 
@@ -315,6 +358,8 @@ export async function updateBrand(input: BrandInput): Promise<SettingsMutationRe
   if (!name) return { ok: false, message: "請輸入品牌名稱。" };
   const legalValidation = validateBrandLegalInput(input);
   if (legalValidation) return legalValidation;
+  const pixelValidation = validateBrandPixelInput(input);
+  if (pixelValidation) return pixelValidation;
   if (await slugExists("brands", slug, id)) {
     return { ok: false, message: "品牌代號已經存在，請使用另一個代號。" };
   }
@@ -327,12 +372,12 @@ export async function updateBrand(input: BrandInput): Promise<SettingsMutationRe
     })
     .eq("id", id);
 
-  if (error && isMissingBrandLegalColumnError(error)) {
-    if (hasLegalInput(input)) {
+  if (error && isMissingBrandExtendedColumnError(error)) {
+    if (hasBrandExtendedInput(input)) {
       return {
         ok: false,
         message:
-          "請先 review 並在 Supabase 執行 docs/APPLY_BRAND_LEGAL_SETTINGS_REVIEW.sql，然後再儲存法律設定。",
+          "品牌進階設定尚未套用，請先完成最新 Supabase migration 再儲存。",
       };
     }
 

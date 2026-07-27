@@ -26,8 +26,12 @@ export function getConfiguredMetaPixelId() {
 }
 
 export function getConfiguredMetaPixelIdForBrand(
-  brandSlug: string | null | undefined
+  brandSlug: string | null | undefined,
+  configuredPixelId?: string | null
 ) {
+  const brandPixelId = cleanMetaPixelId(configuredPixelId);
+  if (brandPixelId) return brandPixelId;
+
   const normalizedBrandSlug = brandSlug?.trim().toLowerCase() ?? "";
 
   if (

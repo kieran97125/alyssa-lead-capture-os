@@ -131,6 +131,7 @@ type BrandOption = FormOption & {
   privacyUrl?: string | null;
   disclaimerUrl?: string | null;
   operatorName?: string | null;
+  metaPixelId?: string | null;
 };
 
 type PublicFormConfig = {
@@ -863,6 +864,8 @@ function normalizeBrand(raw: Record<string, unknown>): BrandOption {
     disclaimerUrl:
       getString(raw.disclaimerUrl) || getString(raw.disclaimer_url) || null,
     operatorName: getString(raw.operatorName) || getString(raw.operator_name) || null,
+    metaPixelId:
+      getString(raw.metaPixelId) || getString(raw.meta_pixel_id) || null,
   };
 }
 
@@ -1287,7 +1290,8 @@ export function PublicLeadForm({
     }
 
     const conversionPixelId = getConfiguredMetaPixelIdForBrand(
-      brand.slug || brandSlug
+      brand.slug || brandSlug,
+      brand.metaPixelId
     );
 
     const beaconResult = sendMetaPixelBeacon({
