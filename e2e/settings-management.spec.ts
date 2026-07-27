@@ -1,19 +1,14 @@
 import { expect, test } from "@playwright/test";
-import { getBrandPixelId } from "../src/lib/data/brandOperations";
+import { resolveBrandPixelId } from "../src/lib/metaPixel/configuration";
 
 test("new brands never inherit another brand's global Pixel fallback", () => {
-  const previousPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
-  process.env.NEXT_PUBLIC_META_PIXEL_ID = "999999999999999";
-
-  try {
-    expect(getBrandPixelId("gos-beauty", null)).toBe("");
-  } finally {
-    if (previousPixelId === undefined) {
-      delete process.env.NEXT_PUBLIC_META_PIXEL_ID;
-    } else {
-      process.env.NEXT_PUBLIC_META_PIXEL_ID = previousPixelId;
-    }
-  }
+  expect(
+    resolveBrandPixelId({
+      brandSlug: "gos-beauty",
+      configuredPixelId: null,
+      legacyPixelId: "999999999999999",
+    })
+  ).toBe("");
 });
 
 test("LaunchHub keeps the primary navigation and settings overview compact", async ({

@@ -18,6 +18,7 @@ import {
   getTreatmentSlugForRedirect,
   isValidBrandSuccessRedirectUrl,
 } from "@/lib/data/brandDefaults";
+import { resolveBrandPixelId } from "@/lib/metaPixel/configuration";
 
 export const META_URL_PARAMETER_GUIDE =
   "utm_source=meta&utm_medium=paid_social&utm_campaign={{campaign.name}}&utm_content={{ad.name}}&utm_term={{adset.name}}&campaign_id={{campaign.id}}&adset_id={{adset.id}}&ad_id={{ad.id}}&placement={{placement}}&lh_source=meta&lh_medium=paid_social&lh_campaign={{campaign.name}}&lh_content={{ad.name}}&lh_term={{adset.name}}&lh_campaign_id={{campaign.id}}&lh_adset_id={{adset.id}}&lh_ad_id={{ad.id}}&lh_placement={{placement}}";
@@ -47,33 +48,17 @@ export function getVisibleBrands<T extends { name?: string | null; slug?: string
   return brands.filter((brand) => !isLikelyTestBrand(brand));
 }
 
-function cleanPixelId(value: string | null | undefined) {
-  const cleaned = value?.trim().replace(/[^0-9]/g, "") ?? "";
-  return cleaned || "";
-}
-
 export function getBrandPixelId(
   brandSlug: string | null | undefined,
   configuredPixelId?: string | null
 ) {
-  const brandPixelId = cleanPixelId(configuredPixelId);
-  if (brandPixelId) return brandPixelId;
-
-  const slug = normalizeBrandSlug(brandSlug);
-
-  if (slug === "alyssa" || slug.startsWith("alyssa-")) {
-    return cleanPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID_ALYSSA);
-  }
-
-  if (slug === "ineffable" || slug === "ineffable-beauty") {
-    return (
-      cleanPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE) ||
-      cleanPixelId(process.env.NEXT_PUBLIC_META_PIXEL_ID) ||
-      ""
-    );
-  }
-
-  return "";
+  return resolveBrandPixelId({
+    brandSlug,
+    configuredPixelId,
+    alyssaPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID_ALYSSA,
+    ineffablePixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE,
+    legacyPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID,
+  });
 }
 
 export function getBrandSuggestedDomains(brandSlug: string | null | undefined) {
