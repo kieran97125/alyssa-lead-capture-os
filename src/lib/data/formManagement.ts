@@ -5,6 +5,7 @@ import {
   getBrand,
   getConfigurationData,
   getFormBranchSettings,
+  getFormPackageSettings,
   getPackage,
   getTreatment,
   type ConfigurationData,
@@ -27,6 +28,8 @@ export type ManagedFormInput = {
   brandId: string;
   defaultTreatmentId: string;
   defaultPackageId: string;
+  packageSelectionMode: "fixed" | "customer_choice";
+  packageIds: string[];
   defaultBranchId: string;
   branchIds: string[];
   allowedDomains: string[];
@@ -181,6 +184,10 @@ function asForm(row: Record<string, unknown>): FormSetting {
       typeof row.default_package_id === "string" ? row.default_package_id : null,
     defaultBranchId:
       typeof row.default_branch_id === "string" ? row.default_branch_id : null,
+    packageSelectionMode:
+      row.package_selection_mode === "customer_choice"
+        ? "customer_choice"
+        : "fixed",
     createdAt: typeof row.created_at === "string" ? row.created_at : null,
     updatedAt: typeof row.updated_at === "string" ? row.updated_at : null,
   };
@@ -188,6 +195,12 @@ function asForm(row: Record<string, unknown>): FormSetting {
 
 function uniqueBranchIds(branchIds: string[]) {
   return Array.from(new Set(branchIds.map((item) => item.trim()).filter(Boolean)));
+}
+
+function uniquePackageIds(packageIds: string[]) {
+  return Array.from(
+    new Set(packageIds.map((item) => item.trim()).filter(Boolean))
+  );
 }
 
 async function createUniqueToken(formName: string, brandSlug: string) {
@@ -217,6 +230,17 @@ function validateInput(config: ConfigurationData, input: ManagedFormInput) {
   const formName = input.formName.trim();
   const treatment = getTreatment(config, input.defaultTreatmentId);
   const selectedPackage = getPackage(config, input.defaultPackageId);
+  const packageSelectionMode =
+    input.packageSelectionMode === "customer_choice"
+      ? "customer_choice"
+      : "fixed";
+  const packageIds =
+    packageSelectionMode === "fixed"
+      ? [input.defaultPackageId]
+      : uniquePackageIds([...input.packageIds, input.defaultPackageId]);
+  const selectedPackages = packageIds.map((packageId) =>
+    getPackage(config, packageId)
+  );
   const branchIds = uniqueBranchIds(
     input.branchIds.length > 0 ? input.branchIds : [input.defaultBranchId]
   );
@@ -230,6 +254,12 @@ function validateInput(config: ConfigurationData, input: ManagedFormInput) {
   if (!input.brandId) return { ok: false as const, message: "請選擇品牌。" };
   if (!treatment) return { ok: false as const, message: "請選擇療程。" };
   if (!selectedPackage) return { ok: false as const, message: "請選擇套餐。" };
+  if (
+    selectedPackages.length === 0 ||
+    selectedPackages.some((item) => !item)
+  ) {
+    return { ok: false as const, message: "請選擇有效的項目價錢。" };
+  }
   if (branchIds.length === 0 || branches.some((branch) => !branch)) {
     return { ok: false as const, message: "請選擇至少一間分店。" };
   }
@@ -238,6 +268,18 @@ function validateInput(config: ConfigurationData, input: ManagedFormInput) {
   }
   if (selectedPackage.treatmentId !== treatment.id) {
     return { ok: false as const, message: "套餐與療程不相符。" };
+  }
+  if (
+    selectedPackages.some(
+      (item) =>
+        item &&
+        (item.treatmentId !== treatment.id || item.status !== "active")
+    )
+  ) {
+    return {
+      ok: false as const,
+      message: "所有可選項目必須屬於同一療程並處於啟用狀態。",
+    };
   }
   if (branches.some((branch) => branch && branch.brandId !== input.brandId)) {
     return { ok: false as const, message: "分店與品牌不相符。" };
@@ -249,6 +291,8 @@ function validateInput(config: ConfigurationData, input: ManagedFormInput) {
       ...input,
       formName,
       status: "active",
+      packageSelectionMode,
+      packageIds,
       defaultBranchId,
       branchIds,
     },
@@ -299,10 +343,64 @@ async function syncFormBranches(
   return { ok: true };
 }
 
-function branchSyncMessage(message: string, synced: boolean) {
-  return synced
+async function syncFormPackages(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  formId: string,
+  packageIds: string[],
+  defaultPackageId: string
+) {
+  const packageRows = uniquePackageIds(packageIds).map((packageId, index) => ({
+    form_id: formId,
+    package_id: packageId,
+    is_default: packageId === defaultPackageId,
+    is_active: true,
+    display_order: index,
+    updated_at: new Date().toISOString(),
+  }));
+
+  if (packageRows.length === 0) return { ok: true };
+
+  const deleteResult = await supabase
+    .from("form_packages")
+    .delete()
+    .eq("form_id", formId);
+
+  if (deleteResult.error) {
+    console.warn("form_packages_delete_failed", {
+      code: deleteResult.error.code,
+      message: deleteResult.error.message,
+      form_id: formId,
+    });
+    return { ok: false };
+  }
+
+  const insertResult = await supabase.from("form_packages").insert(packageRows);
+
+  if (insertResult.error) {
+    console.warn("form_packages_insert_failed", {
+      code: insertResult.error.code,
+      message: insertResult.error.message,
+      form_id: formId,
+    });
+    return { ok: false };
+  }
+
+  return { ok: true };
+}
+
+function relationSyncMessage(
+  message: string,
+  branchSynced: boolean,
+  packageSynced: boolean
+) {
+  const warnings = [
+    !branchSynced ? "多分店設定未能寫入" : "",
+    !packageSynced ? "項目價錢設定未能寫入" : "",
+  ].filter(Boolean);
+
+  return warnings.length === 0
     ? message
-    : `${message}（多分店設定未能寫入，請確認 form_branches migration 已套用。）`;
+    : `${message}（${warnings.join("、")}，請確認相關 migration 已套用。）`;
 }
 
 export async function listForms() {
@@ -354,6 +452,7 @@ export async function createForm(
       allowed_domains: validation.input.allowedDomains,
       default_treatment_id: validation.input.defaultTreatmentId,
       default_package_id: validation.input.defaultPackageId,
+      package_selection_mode: validation.input.packageSelectionMode,
       default_branch_id: validation.input.defaultBranchId,
       conversion_mode: conversionDefaults.conversionMode,
       success_redirect_url: conversionDefaults.successRedirectUrl,
@@ -372,10 +471,20 @@ export async function createForm(
     validation.input.branchIds,
     validation.input.defaultBranchId
   );
+  const packageSync = await syncFormPackages(
+    supabase,
+    data.id,
+    validation.input.packageIds,
+    validation.input.defaultPackageId
+  );
 
   return {
     ok: true,
-    message: branchSyncMessage("表格已建立。", branchSync.ok),
+    message: relationSyncMessage(
+      "表格已建立。",
+      branchSync.ok,
+      packageSync.ok
+    ),
     form: asForm(data),
   };
 }
@@ -413,6 +522,7 @@ export async function updateForm(
       allowed_domains: validation.input.allowedDomains,
       default_treatment_id: validation.input.defaultTreatmentId,
       default_package_id: validation.input.defaultPackageId,
+      package_selection_mode: validation.input.packageSelectionMode,
       default_branch_id: validation.input.defaultBranchId,
       conversion_mode: conversionDefaults.conversionMode,
       success_redirect_url: conversionDefaults.successRedirectUrl,
@@ -433,10 +543,20 @@ export async function updateForm(
     validation.input.branchIds,
     validation.input.defaultBranchId
   );
+  const packageSync = await syncFormPackages(
+    supabase,
+    form.id,
+    validation.input.packageIds,
+    validation.input.defaultPackageId
+  );
 
   return {
     ok: true,
-    message: branchSyncMessage("表格設定已儲存。", branchSync.ok),
+    message: relationSyncMessage(
+      "表格設定已儲存。",
+      branchSync.ok,
+      packageSync.ok
+    ),
     form: asForm(data),
   };
 }
@@ -470,6 +590,7 @@ export async function duplicateForm(formId: string): Promise<FormMutationResult>
       allowed_domains: form.allowedDomains,
       default_treatment_id: form.defaultTreatmentId,
       default_package_id: form.defaultPackageId,
+      package_selection_mode: form.packageSelectionMode,
       default_branch_id: form.defaultBranchId,
       conversion_mode: conversionDefaults.conversionMode,
       success_redirect_url: conversionDefaults.successRedirectUrl,
@@ -495,10 +616,27 @@ export async function duplicateForm(formId: string): Promise<FormMutationResult>
     branchIds,
     form.defaultBranchId || branchIds[0] || ""
   );
+  const sourcePackageSettings = getFormPackageSettings(config, form);
+  const packageIds =
+    sourcePackageSettings.length > 0
+      ? sourcePackageSettings.map((item) => item.packageId)
+      : form.defaultPackageId
+        ? [form.defaultPackageId]
+        : [];
+  const packageSync = await syncFormPackages(
+    supabase,
+    data.id,
+    packageIds,
+    form.defaultPackageId || packageIds[0] || ""
+  );
 
   return {
     ok: true,
-    message: branchSyncMessage("Form duplicated.", branchSync.ok),
+    message: relationSyncMessage(
+      "Form duplicated.",
+      branchSync.ok,
+      packageSync.ok
+    ),
     form: asForm(data),
   };
 }

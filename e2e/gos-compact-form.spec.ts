@@ -49,6 +49,37 @@ function publicFormConfig() {
   };
 }
 
+function customerChoiceConfig() {
+  const packages = [
+    ["two-year-s", "兩年激脫計劃", "SMALL", 980],
+    ["two-year-m", "兩年激脫計劃", "MEDIUM", 1390],
+    ["two-year-l", "兩年激脫計劃", "LARGE", 1880],
+    ["two-year-xl", "兩年激脫計劃", "X-LARGE", 2380],
+    ["permanent-s", "永久脫毛", "SMALL", 1980],
+    ["permanent-m", "永久脫毛", "MEDIUM", 2780],
+    ["permanent-l", "永久脫毛", "LARGE", 3680],
+    ["permanent-xl", "永久脫毛", "X-LARGE", 4680],
+  ].map(([id, groupName, name, price], index) => ({
+    id,
+    treatment_id: treatmentId,
+    group_name: groupName,
+    name,
+    promo_price: price,
+    payment_required: false,
+    display_order: index,
+  }));
+
+  return {
+    ...publicFormConfig(),
+    form: {
+      ...publicFormConfig().form,
+      default_package_id: "two-year-m",
+      package_selection_mode: "customer_choice",
+    },
+    packages,
+  };
+}
+
 test("GOS compact form shows the configured item and submits the short booking flow", async ({
   page,
 }) => {
@@ -194,4 +225,71 @@ test("GOS compact form stacks the four fields on mobile without overflow", async
 
   expect(mobileLayout.stacked).toBe(true);
   expect(mobileLayout.noOverflow).toBe(true);
+});
+
+test("GOS compact form lets customers choose one of eight configured pricing items", async ({
+  page,
+}) => {
+  let submittedPayload: Record<string, unknown> | null = null;
+
+  await page.route(`**/api/public/forms/${formToken}`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(customerChoiceConfig()),
+    });
+  });
+  await page.route("**/api/public/events", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+  await page.route("**/api/public/leads", async (route) => {
+    submittedPayload = route.request().postDataJSON() as Record<
+      string,
+      unknown
+    >;
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        lead_id: "gos-choice-lead",
+        event_id: "gos-choice-event",
+        event_payload: { value: 4680, currency: "HKD" },
+      }),
+    });
+  });
+
+  await page.goto(
+    `/embed/${formToken}?brand=gos-beauty&form_id=${formId}`,
+    { waitUntil: "domcontentloaded" }
+  );
+
+  const itemSelect = page.getByLabel("選擇預約項目");
+  await expect(itemSelect).toBeVisible();
+  await expect(itemSelect.locator("option")).toHaveCount(8);
+  await expect(itemSelect.locator("optgroup")).toHaveCount(2);
+  await expect(page.getByLabel("預約項目")).toContainText("MEDIUM");
+  await expect(page.getByLabel("預約項目")).toContainText("HK$1390");
+
+  await itemSelect.selectOption("permanent-xl");
+  await expect(page.getByLabel("預約項目")).toContainText("X-LARGE");
+  await expect(page.getByLabel("預約項目")).toContainText("HK$4680");
+
+  await page.getByLabel("姓名").fill("GOS Choice");
+  await page.getByLabel("聯絡電話").fill("98765432");
+  await page.getByLabel("預約日期").fill("2026-08-08");
+  await page.getByLabel("預約時間").selectOption("18:00");
+  await page
+    .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
+    .check();
+  await page.getByRole("button", { name: "提交預約 →" }).click();
+
+  await expect(
+    page.getByRole("heading", { name: "已收到你的預約" })
+  ).toBeVisible();
+  expect(submittedPayload).toMatchObject({
+    treatment_id: treatmentId,
+    package_id: "permanent-xl",
+  });
 });

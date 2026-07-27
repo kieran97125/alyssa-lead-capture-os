@@ -820,6 +820,64 @@ async function getAllowedFormBranchIds(
   };
 }
 
+async function getAllowedFormPackageIds(
+  supabase: ReturnType<typeof createSupabaseAdminClient>,
+  form: Record<string, unknown>
+) {
+  const defaultPackageId =
+    typeof form.default_package_id === "string" ? form.default_package_id : "";
+  const selectionMode =
+    form.package_selection_mode === "customer_choice"
+      ? "customer_choice"
+      : "fixed";
+
+  if (selectionMode === "fixed") {
+    return {
+      packageIds: defaultPackageId ? [defaultPackageId] : [],
+      defaultPackageId,
+      source: "default_package_id",
+    };
+  }
+
+  const { data, error } = await supabase
+    .from("form_packages")
+    .select("package_id,is_default,is_active,display_order")
+    .eq("form_id", form.id)
+    .eq("is_active", true)
+    .order("display_order", { ascending: true });
+
+  if (error) {
+    console.warn("[LaunchHub] submit_form_packages_read_failed", {
+      form_id: form.id,
+      code: error.code,
+      message: error.message,
+    });
+    return {
+      packageIds: defaultPackageId ? [defaultPackageId] : [],
+      defaultPackageId,
+      source: "default_package_id",
+    };
+  }
+
+  const rows = (data ?? []) as Array<Record<string, unknown>>;
+  const packageIds = rows
+    .map((row) => (typeof row.package_id === "string" ? row.package_id : ""))
+    .filter(Boolean);
+  const selectedDefault =
+    rows.find((row) => row.is_default === true)?.package_id || defaultPackageId;
+
+  return {
+    packageIds: packageIds.length > 0
+      ? packageIds
+      : defaultPackageId
+        ? [defaultPackageId]
+        : [],
+    defaultPackageId:
+      typeof selectedDefault === "string" ? selectedDefault : defaultPackageId,
+    source: packageIds.length > 0 ? "form_packages" : "default_package_id",
+  };
+}
+
 async function createLocalResponse(
   payload: LeadSubmitPayload,
   submittedTouchOverride?: TouchPayload,
@@ -1047,13 +1105,15 @@ export async function POST(request: NextRequest) {
 
   const treatmentId = cleanText(payload.treatment_id, 80) || form.default_treatment_id;
   const allowedBranches = await getAllowedFormBranchIds(supabase, form);
+  const allowedPackages = await getAllowedFormPackageIds(supabase, form);
   const submittedBranchId = cleanText(payload.branch_id, 80);
   const branchId =
     submittedBranchId ||
     (allowedBranches.branchIds.length === 1
       ? allowedBranches.branchIds[0]
       : allowedBranches.defaultBranchId);
-  const packageId = cleanText(payload.package_id, 80) || form.default_package_id;
+  const packageId =
+    cleanText(payload.package_id, 80) || allowedPackages.defaultPackageId;
 
   if (!branchId) {
     return rejectPublicSubmit(
@@ -1079,6 +1139,25 @@ export async function POST(request: NextRequest) {
       request,
       400,
       "branch_not_allowed",
+      publicMessages.validation,
+      { formToken, normalizedPhone }
+    );
+  }
+
+  if (
+    allowedPackages.packageIds.length === 0 ||
+    !allowedPackages.packageIds.includes(packageId)
+  ) {
+    console.warn("[LaunchHub] package_not_allowed_for_form", {
+      form_token: formToken,
+      form_id: form.id,
+      package_id: packageId,
+      package_source: allowedPackages.source,
+    });
+    return rejectPublicSubmit(
+      request,
+      400,
+      "package_not_allowed",
       publicMessages.validation,
       { formToken, normalizedPhone }
     );

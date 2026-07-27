@@ -4,7 +4,7 @@ const settingsItems = [
   { href: "/settings#brand-library", label: "Brand Library" },
   { href: "/settings/brands", label: "品牌" },
   { href: "/settings/treatments", label: "療程" },
-  { href: "/settings/packages", label: "優惠 / 套餐" },
+  { href: "/settings/packages", label: "項目及價錢" },
   { href: "/settings/branches", label: "分店" },
   { href: "/settings/templates", label: "Landing Page 版型" },
   { href: "/settings/team", label: "團隊權限" },

@@ -38,6 +38,7 @@ export default async function PackageSettingsPage({
 }: {
   searchParams?: Promise<{
     brand?: string | string[];
+    treatment?: string | string[];
     settings_status?: string | string[];
     message?: string | string[];
   }>;
@@ -54,9 +55,18 @@ export default async function PackageSettingsPage({
   const visibleTreatments = config.treatments.filter(
     (treatment) => treatment.brandId === selectedBrand?.id
   );
+  const selectedTreatmentParam = firstParam(query?.treatment);
+  const selectedTreatment =
+    visibleTreatments.find(
+      (treatment) =>
+        treatment.id === selectedTreatmentParam ||
+        treatment.slug === selectedTreatmentParam
+    ) ?? null;
   const visibleTreatmentIds = new Set(visibleTreatments.map((item) => item.id));
-  const visiblePackages = config.packages.filter((item) =>
-    visibleTreatmentIds.has(item.treatmentId)
+  const visiblePackages = config.packages.filter(
+    (item) =>
+      visibleTreatmentIds.has(item.treatmentId) &&
+      (!selectedTreatment || item.treatmentId === selectedTreatment.id)
   );
   const message = typeof query?.message === "string" ? query.message : null;
   const status =
@@ -65,6 +75,9 @@ export default async function PackageSettingsPage({
     value: treatment.id,
     label: `${treatment.name} (${getBrand(config, treatment.brandId)?.name ?? "品牌"})`,
   }));
+  const returnPath = `/settings/packages?brand=${selectedBrand?.slug || ""}${
+    selectedTreatment ? `&treatment=${selectedTreatment.slug}` : ""
+  }`;
 
   return (
     <main className="alyssa-shell">
@@ -74,9 +87,11 @@ export default async function PackageSettingsPage({
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
             Settings
           </p>
-          <h1 className="mt-2 text-3xl font-bold text-[#321428]">套餐價錢</h1>
+          <h1 className="mt-2 text-3xl font-bold text-[#321428]">
+            療程項目及價錢
+          </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-            管理登記表格和 Campaign 使用的套餐、優惠價和付款要求。
+            每個療程可以建立多個計劃組別及獨立項目價錢，例如 4 個兩年計劃加 4 個永久價。
           </p>
           <SettingsNav />
           <div className="mt-5 flex flex-wrap gap-2">
@@ -94,26 +109,73 @@ export default async function PackageSettingsPage({
               </Link>
             ))}
           </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <Link
+              href={`/settings/packages?brand=${selectedBrand?.slug || ""}`}
+              className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                !selectedTreatment
+                  ? "border-[#5a2348] bg-[#5a2348] text-white"
+                  : "border-[#ead9cf] bg-white text-[#5a2348]"
+              }`}
+            >
+              全部療程
+            </Link>
+            {visibleTreatments.map((treatment) => (
+              <Link
+                key={treatment.id}
+                href={`/settings/packages?brand=${selectedBrand?.slug || ""}&treatment=${treatment.slug}`}
+                className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
+                  treatment.id === selectedTreatment?.id
+                    ? "border-[#5a2348] bg-[#5a2348] text-white"
+                    : "border-[#ead9cf] bg-white text-[#5a2348]"
+                }`}
+              >
+                {treatment.name}
+              </Link>
+            ))}
+          </div>
         </section>
 
         {message && <StatusMessage tone={status}>{message}</StatusMessage>}
 
         <section className="mt-6 rounded-[28px] border border-[#ead9cf] bg-white/86 p-5 shadow-[0_18px_50px_rgba(90,35,72,0.08)]">
-          <h2 className="text-xl font-bold text-[#321428]">新增套餐</h2>
+          <h2 className="text-xl font-bold text-[#321428]">新增項目價錢</h2>
           <p className="mt-2 text-sm font-semibold text-[#6d4a5c]">
-            只顯示 {selectedBrand?.name || "所選品牌"} 的 Treatment / Campaign Offer，避免 Alyssa 和 Ineffable Beauty 混用。
+            先揀療程及計劃組別，再輸入項目名同價錢。每一行就係一個客人可以選嘅項目。
           </p>
-          <form action={createPackageAction} className="mt-4 grid gap-4 lg:grid-cols-6">
-            <SelectInput label="連接療程" name="treatmentId" options={treatmentOptions} />
-            <TextInput label="套餐名稱" name="name" />
+          <form action={createPackageAction} className="mt-4 grid gap-4 lg:grid-cols-4">
+            <input type="hidden" name="returnPath" value={returnPath} />
+            <SelectInput
+              label="連接療程"
+              name="treatmentId"
+              defaultValue={selectedTreatment?.id}
+              options={treatmentOptions}
+            />
+            <TextInput
+              label="計劃組別"
+              name="groupName"
+              placeholder="例如：兩年激脫計劃"
+              required={false}
+            />
+            <TextInput label="項目名稱" name="name" placeholder="例如：MEDIUM" />
+            <NumberInput label="排序" name="displayOrder" defaultValue="0" step="1" />
             <NumberInput label="原價" name="originalPrice" />
             <NumberInput label="優惠價" name="promoPrice" />
             <TextInput label="貨幣" name="currency" defaultValue="HKD" />
+            <SelectInput
+              label="狀態"
+              name="status"
+              defaultValue="active"
+              options={[
+                { value: "active", label: "啟用" },
+                { value: "inactive", label: "停用" },
+              ]}
+            />
             <label className="flex items-end gap-2 pb-3 text-sm font-bold text-[#5a2348]">
               <input type="checkbox" name="paymentRequired" />
               需要付款
             </label>
-            <div className="lg:col-span-6">
+            <div className="lg:col-span-4">
               <button className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]">
                 新增
               </button>
@@ -125,14 +187,25 @@ export default async function PackageSettingsPage({
           {visiblePackages.map((item) => {
             const treatment = getTreatment(config, item.treatmentId);
             const linkedForms = config.forms.filter(
-              (form) => form.defaultPackageId === item.id
+              (form) =>
+                form.defaultPackageId === item.id ||
+                config.formPackages.some(
+                  (setting) =>
+                    setting.formId === form.id &&
+                    setting.packageId === item.id &&
+                    setting.isActive
+                )
             );
 
             return (
               <article key={item.id} className="alyssa-premium-card min-w-0 p-5">
                 <div className="flex flex-wrap gap-2">
+                  <StatusPill>{item.groupName || "未分類"}</StatusPill>
                   <StatusPill>{item.paymentRequired ? "需要付款" : "只預約"}</StatusPill>
-                  <StatusPill>{money(item.promoPrice, item.currency)}</StatusPill>
+                  <StatusPill>{item.status === "active" ? "啟用" : "停用"}</StatusPill>
+                  <StatusPill>
+                    {money(item.promoPrice ?? item.originalPrice, item.currency)}
+                  </StatusPill>
                 </div>
                 <h2 className="mt-4 text-2xl font-bold text-[#321428]">{item.name}</h2>
                 <p className="mt-2 text-sm font-semibold text-[#7b5a6a]">
@@ -141,13 +214,27 @@ export default async function PackageSettingsPage({
 
                 <form action={updatePackageAction} className="mt-5 grid gap-4 lg:grid-cols-2">
                   <input type="hidden" name="id" value={item.id} />
+                  <input type="hidden" name="returnPath" value={returnPath} />
                   <SelectInput
                     label="連接療程"
                     name="treatmentId"
                     defaultValue={item.treatmentId}
                     options={treatmentOptions}
                   />
-                  <TextInput label="套餐名稱" name="name" defaultValue={item.name} />
+                  <TextInput
+                    label="計劃組別"
+                    name="groupName"
+                    defaultValue={item.groupName ?? ""}
+                    placeholder="例如：永久脫毛"
+                    required={false}
+                  />
+                  <TextInput label="項目名稱" name="name" defaultValue={item.name} />
+                  <NumberInput
+                    label="排序"
+                    name="displayOrder"
+                    defaultValue={String(item.displayOrder)}
+                    step="1"
+                  />
                   <NumberInput
                     label="原價"
                     name="originalPrice"
@@ -159,6 +246,15 @@ export default async function PackageSettingsPage({
                     defaultValue={valueText(item.promoPrice)}
                   />
                   <TextInput label="貨幣" name="currency" defaultValue={item.currency} />
+                  <SelectInput
+                    label="狀態"
+                    name="status"
+                    defaultValue={item.status}
+                    options={[
+                      { value: "active", label: "啟用" },
+                      { value: "inactive", label: "停用" },
+                    ]}
+                  />
                   <label className="flex items-end gap-2 pb-3 text-sm font-bold text-[#5a2348]">
                     <input
                       type="checkbox"
@@ -180,9 +276,10 @@ export default async function PackageSettingsPage({
                   </p>
                   <form action={deletePackageAction} className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <input type="hidden" name="id" value={item.id} />
+                    <input type="hidden" name="returnPath" value={returnPath} />
                     <label className="flex items-center gap-2 text-sm font-semibold text-[#6d4a5c]">
                       <input type="checkbox" name="confirmDelete" />
-                      確認刪除這個套餐
+                      確認刪除這個項目價錢
                     </label>
                     <button className="rounded-full border border-[#d9b66f] bg-white px-5 py-2 text-sm font-bold text-[#5a2348]">
                       刪除
@@ -229,10 +326,14 @@ function TextInput({
   label,
   name,
   defaultValue = "",
+  placeholder,
+  required = true,
 }: {
   label: string;
   name: string;
   defaultValue?: string;
+  placeholder?: string;
+  required?: boolean;
 }) {
   return (
     <label className="block min-w-0">
@@ -241,8 +342,9 @@ function TextInput({
       </span>
       <input
         name={name}
-        required
+        required={required}
         defaultValue={defaultValue}
+        placeholder={placeholder}
         className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
       />
     </label>
@@ -253,10 +355,12 @@ function NumberInput({
   label,
   name,
   defaultValue = "",
+  step = "0.01",
 }: {
   label: string;
   name: string;
   defaultValue?: string;
+  step?: string;
 }) {
   return (
     <label className="block min-w-0">
@@ -267,7 +371,7 @@ function NumberInput({
         name={name}
         type="number"
         min="0"
-        step="0.01"
+        step={step}
         defaultValue={defaultValue}
         className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#e46f64] focus:bg-white"
       />

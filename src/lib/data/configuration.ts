@@ -40,11 +40,13 @@ export type PackageSetting = {
   id: string;
   treatmentId: string;
   name: string;
+  groupName: string | null;
   originalPrice: number | string | null;
   promoPrice: number | string | null;
   currency: string;
   paymentRequired: boolean;
   status: string;
+  displayOrder: number;
 };
 
 export type BranchSetting = {
@@ -67,6 +69,7 @@ export type FormSetting = {
   defaultTreatmentId: string | null;
   defaultPackageId: string | null;
   defaultBranchId: string | null;
+  packageSelectionMode: "fixed" | "customer_choice";
   conversionMode?: "form_submit_pixel" | "thank_you_redirect" | null;
   successRedirectUrl?: string | null;
   createdAt?: string | null;
@@ -77,6 +80,16 @@ export type FormBranchSetting = {
   id: string;
   formId: string;
   branchId: string;
+  isDefault: boolean;
+  isActive: boolean;
+  displayOrder: number;
+  createdAt?: string | null;
+};
+
+export type FormPackageSetting = {
+  id: string;
+  formId: string;
+  packageId: string;
   isDefault: boolean;
   isActive: boolean;
   displayOrder: number;
@@ -100,6 +113,7 @@ export type ConfigurationData = {
   branches: BranchSetting[];
   forms: FormSetting[];
   formBranches: FormBranchSetting[];
+  formPackages: FormPackageSetting[];
   templates: LandingPageTemplate[];
   landingPages: typeof alyssaLandingPages;
 };
@@ -171,11 +185,13 @@ function localConfiguration(): ConfigurationData {
       id: item.id,
       treatmentId: item.treatmentId,
       name: item.name,
+      groupName: null,
       originalPrice: item.originalPrice,
       promoPrice: item.promoPrice,
       currency: item.currency,
       paymentRequired: item.paymentRequired,
       status: "active",
+      displayOrder: 0,
     })),
     branches: alyssaBranches.map((branch) => ({
       id: branch.id,
@@ -197,6 +213,7 @@ function localConfiguration(): ConfigurationData {
         defaultTreatmentId: alyssaDefaultForm.defaultTreatmentId,
         defaultPackageId: alyssaDefaultForm.defaultPackageId,
         defaultBranchId: alyssaDefaultForm.defaultBranchId,
+        packageSelectionMode: "fixed",
         conversionMode: "thank_you_redirect",
         successRedirectUrl:
           "https://www.alyssa.hk/thankyou?submitted=1&treatment=medical-beauty-trial&value=388",
@@ -210,6 +227,19 @@ function localConfiguration(): ConfigurationData {
             id: `${alyssaDefaultForm.id}:${alyssaDefaultForm.defaultBranchId}`,
             formId: alyssaDefaultForm.id,
             branchId: alyssaDefaultForm.defaultBranchId,
+            isDefault: true,
+            isActive: true,
+            displayOrder: 0,
+            createdAt: null,
+          },
+        ]
+      : [],
+    formPackages: alyssaDefaultForm.defaultPackageId
+      ? [
+          {
+            id: `${alyssaDefaultForm.id}:${alyssaDefaultForm.defaultPackageId}`,
+            formId: alyssaDefaultForm.id,
+            packageId: alyssaDefaultForm.defaultPackageId,
             isDefault: true,
             isActive: true,
             displayOrder: 0,
@@ -247,7 +277,13 @@ function moneyValue(value: number | string | null | undefined, currency = "HKD")
 
 export function packagePriceLabel(item: PackageSetting | null | undefined) {
   if (!item) return "未設定";
-  return `${item.name} · ${moneyValue(item.promoPrice, item.currency)}`;
+  const price =
+    item.promoPrice !== null && item.promoPrice !== ""
+      ? item.promoPrice
+      : item.originalPrice;
+  return `${item.name} · ${
+    price === null || price === "" ? "預約查詢" : moneyValue(price, item.currency)
+  }`;
 }
 
 export function getBrand(data: ConfigurationData, id: string | null | undefined) {
@@ -294,6 +330,37 @@ export function getFormBranches(data: ConfigurationData, form: FormSetting) {
     .filter((item): item is BranchSetting => Boolean(item));
 }
 
+export function getFormPackageSettings(
+  data: ConfigurationData,
+  form: FormSetting
+) {
+  const settings = data.formPackages
+    .filter((item) => item.formId === form.id && item.isActive)
+    .sort((a, b) => a.displayOrder - b.displayOrder);
+
+  if (settings.length > 0) return settings;
+
+  return form.defaultPackageId
+    ? [
+        {
+          id: `${form.id}:${form.defaultPackageId}`,
+          formId: form.id,
+          packageId: form.defaultPackageId,
+          isDefault: true,
+          isActive: true,
+          displayOrder: 0,
+          createdAt: null,
+        },
+      ]
+    : [];
+}
+
+export function getFormPackages(data: ConfigurationData, form: FormSetting) {
+  return getFormPackageSettings(data, form)
+    .map((item) => getPackage(data, item.packageId))
+    .filter((item): item is PackageSetting => Boolean(item));
+}
+
 function fallbackFormBranches(forms: FormSetting[]): FormBranchSetting[] {
   return forms
     .filter((form) => Boolean(form.defaultBranchId))
@@ -301,6 +368,20 @@ function fallbackFormBranches(forms: FormSetting[]): FormBranchSetting[] {
       id: `${form.id}:${form.defaultBranchId}`,
       formId: form.id,
       branchId: form.defaultBranchId as string,
+      isDefault: true,
+      isActive: true,
+      displayOrder: 0,
+      createdAt: null,
+    }));
+}
+
+function fallbackFormPackages(forms: FormSetting[]): FormPackageSetting[] {
+  return forms
+    .filter((form) => Boolean(form.defaultPackageId))
+    .map((form) => ({
+      id: `${form.id}:${form.defaultPackageId}`,
+      formId: form.id,
+      packageId: form.defaultPackageId as string,
       isDefault: true,
       isActive: true,
       displayOrder: 0,
@@ -332,8 +413,8 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
         .order("name", { ascending: true }),
       supabase
         .from("packages")
-        .select("id,treatment_id,name,original_price,promo_price,currency,payment_required,status")
-        .order("name", { ascending: true }),
+        .select("*")
+        .order("created_at", { ascending: true }),
       supabase
         .from("branches")
         .select("id,brand_id,name,slug,address,opening_hours,status")
@@ -350,7 +431,7 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
     if (branches.error) throw branches.error;
     if (forms.error) throw forms.error;
 
-    const mappedForms = ((forms.data ?? []) as unknown[]).map((item) => {
+    const mappedForms: FormSetting[] = ((forms.data ?? []) as unknown[]).map((item) => {
       const row = item as Record<string, unknown>;
       return {
         id: String(row.id ?? ""),
@@ -365,6 +446,10 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
           typeof row.default_package_id === "string" ? row.default_package_id : null,
         defaultBranchId:
           typeof row.default_branch_id === "string" ? row.default_branch_id : null,
+        packageSelectionMode:
+          row.package_selection_mode === "customer_choice"
+            ? "customer_choice"
+            : "fixed",
         conversionMode: normalizeFormConversionMode(row.conversion_mode),
         successRedirectUrl:
           typeof row.success_redirect_url === "string"
@@ -401,6 +486,33 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
         message: formBranches.error.message,
       });
     }
+    const formPackages = await supabase
+      .from("form_packages")
+      .select("id,form_id,package_id,is_default,is_active,display_order,created_at")
+      .order("display_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    const mappedFormPackages = formPackages.error
+      ? fallbackFormPackages(mappedForms)
+      : ((formPackages.data ?? []) as unknown[]).map((item) => {
+          const row = item as Record<string, unknown>;
+          return {
+            id: String(row.id ?? ""),
+            formId: String(row.form_id ?? ""),
+            packageId: String(row.package_id ?? ""),
+            isDefault: Boolean(row.is_default),
+            isActive: row.is_active !== false,
+            displayOrder:
+              typeof row.display_order === "number" ? row.display_order : 0,
+            createdAt: typeof row.created_at === "string" ? row.created_at : null,
+          };
+        });
+
+    if (formPackages.error) {
+      console.warn("form_packages_read_failed", {
+        code: formPackages.error.code,
+        message: formPackages.error.message,
+      });
+    }
 
     return {
       sourceLabel: "正式設定",
@@ -433,25 +545,39 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
           status: row.status ?? "active",
         };
       }),
-      packages: ((packages.data ?? []) as unknown[]).map((item) => {
-        const row = item as Record<string, string | number | boolean | null>;
-        return {
-          id: String(row.id ?? ""),
-          treatmentId: String(row.treatment_id ?? ""),
-          name: String(row.name ?? "未命名套餐"),
-          originalPrice:
-            typeof row.original_price === "number" || typeof row.original_price === "string"
-              ? row.original_price
-              : null,
-          promoPrice:
-            typeof row.promo_price === "number" || typeof row.promo_price === "string"
-              ? row.promo_price
-              : null,
-          currency: String(row.currency ?? "HKD"),
-          paymentRequired: Boolean(row.payment_required),
-          status: String(row.status ?? "active"),
-        };
-      }),
+      packages: ((packages.data ?? []) as unknown[])
+        .map((item) => {
+          const row = item as Record<string, string | number | boolean | null>;
+          return {
+            id: String(row.id ?? ""),
+            treatmentId: String(row.treatment_id ?? ""),
+            name: String(row.name ?? "未命名套餐"),
+            groupName:
+              typeof row.group_name === "string" && row.group_name.trim()
+                ? row.group_name
+                : null,
+            originalPrice:
+              typeof row.original_price === "number" ||
+              typeof row.original_price === "string"
+                ? row.original_price
+                : null,
+            promoPrice:
+              typeof row.promo_price === "number" ||
+              typeof row.promo_price === "string"
+                ? row.promo_price
+                : null,
+            currency: String(row.currency ?? "HKD"),
+            paymentRequired: Boolean(row.payment_required),
+            status: String(row.status ?? "active"),
+            displayOrder:
+              typeof row.display_order === "number" ? row.display_order : 0,
+          };
+        })
+        .sort(
+          (a, b) =>
+            a.displayOrder - b.displayOrder ||
+            a.name.localeCompare(b.name, "zh-HK")
+        ),
       branches: ((branches.data ?? []) as unknown[]).map((item) => {
         const row = item as Record<string, unknown>;
         return {
@@ -479,6 +605,10 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
             typeof row.default_package_id === "string" ? row.default_package_id : null,
           defaultBranchId:
             typeof row.default_branch_id === "string" ? row.default_branch_id : null,
+          packageSelectionMode:
+            row.package_selection_mode === "customer_choice"
+              ? "customer_choice"
+              : "fixed",
           conversionMode: normalizeFormConversionMode(row.conversion_mode),
           successRedirectUrl:
             typeof row.success_redirect_url === "string"
@@ -489,6 +619,7 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
         };
       }),
       formBranches: mappedFormBranches,
+      formPackages: mappedFormPackages,
       templates: landingPageTemplates,
       landingPages: alyssaLandingPages,
     };

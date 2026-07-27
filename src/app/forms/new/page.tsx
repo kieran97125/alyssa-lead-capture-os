@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { CopyButton } from "@/components/alyssa/CopyButton";
+import { FormPackageSelection } from "@/components/alyssa/FormPackageSelection";
 import { createFormAction } from "@/app/forms/actions";
 import {
   META_URL_PARAMETER_GUIDE,
@@ -8,10 +9,7 @@ import {
   getBrandSuggestedDomains,
 } from "@/lib/data/brandOperations";
 import { getBrandDisplayDefaults } from "@/lib/data/brandDefaults";
-import {
-  getConfigurationData,
-  packagePriceLabel,
-} from "@/lib/data/configuration";
+import { getConfigurationData } from "@/lib/data/configuration";
 
 export const dynamic = "force-dynamic";
 
@@ -45,8 +43,12 @@ export default async function NewFormPage({
     treatmentIds.has(item.treatmentId)
   );
   const firstPackage = brandPackages.find(
-    (item) => item.treatmentId === selectedTreatment?.id
-  ) ?? brandPackages[0];
+    (item) =>
+      item.treatmentId === selectedTreatment?.id && item.status === "active"
+  ) ?? brandPackages.find((item) => item.status === "active");
+  const treatmentNames = Object.fromEntries(
+    brandTreatments.map((item) => [item.id, item.name])
+  );
   const brandBranches = config.branches.filter(
     (item) => item.brandId === selectedBrand?.id
   );
@@ -136,14 +138,11 @@ export default async function NewFormPage({
                   label: treatment.name,
                 }))}
               />
-              <SelectField
-                label="Campaign Offer / value"
-                name="defaultPackageId"
-                defaultValue={firstPackage?.id}
-                options={brandPackages.map((item) => ({
-                  value: item.id,
-                  label: packagePriceLabel(item),
-                }))}
+              <FormPackageSelection
+                packages={brandPackages}
+                defaultPackageId={firstPackage?.id}
+                selectedPackageIds={firstPackage ? [firstPackage.id] : []}
+                treatmentNames={treatmentNames}
               />
               <ReadonlyInfo label="Default payment option" value="booking_only" />
             </div>

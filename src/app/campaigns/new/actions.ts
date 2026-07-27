@@ -46,6 +46,8 @@ function parseNewFormInput(formData: FormData): ManagedFormInput | string {
     brandId: readString(formData, "brandId"),
     defaultTreatmentId: readString(formData, "defaultTreatmentId"),
     defaultPackageId: readString(formData, "defaultPackageId"),
+    packageSelectionMode: "fixed",
+    packageIds: [readString(formData, "defaultPackageId")].filter(Boolean),
     defaultBranchId: readString(formData, "defaultBranchId"),
     branchIds: readStringArray(formData, "branchIds"),
     allowedDomains: parsedDomains.domains,

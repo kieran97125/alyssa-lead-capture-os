@@ -37,10 +37,13 @@ export type PackageInput = {
   id?: string;
   treatmentId: string;
   name: string;
+  groupName: string;
   originalPrice: number | null;
   promoPrice: number | null;
   currency: string;
   paymentRequired: boolean;
+  status: "active" | "inactive";
+  displayOrder: number;
 };
 
 export type BranchInput = {
@@ -482,32 +485,38 @@ export async function createPackage(
 
   const treatmentId = clean(input.treatmentId, 80);
   const name = clean(input.name, 160);
+  const groupName = clean(input.groupName, 120);
   const currency = clean(input.currency || "HKD", 10).toUpperCase();
   if (!treatmentId) return { ok: false, message: "請選擇療程。" };
-  if (!name) return { ok: false, message: "請輸入套餐名稱。" };
+  if (!name) return { ok: false, message: "請輸入項目名稱。" };
   if (input.originalPrice !== null && input.originalPrice < 0) {
     return { ok: false, message: "原價不可少於 0。" };
   }
   if (input.promoPrice !== null && input.promoPrice < 0) {
     return { ok: false, message: "優惠價不可少於 0。" };
   }
+  if (!Number.isInteger(input.displayOrder) || input.displayOrder < 0) {
+    return { ok: false, message: "排序必須是 0 或以上的整數。" };
+  }
 
   const { error } = await supabase.from("packages").insert({
     treatment_id: treatmentId,
     name,
+    group_name: groupName || null,
     original_price: input.originalPrice,
     promo_price: input.promoPrice,
     currency,
     payment_required: input.paymentRequired,
-    status: "active",
+    status: input.status,
+    display_order: input.displayOrder,
   });
 
   if (error) {
     console.warn("package_create_failed", error);
-    return { ok: false, message: "套餐未能新增，請檢查資料後再試。" };
+    return { ok: false, message: "項目價錢未能新增，請檢查資料後再試。" };
   }
 
-  return { ok: true, message: "套餐已新增。" };
+  return { ok: true, message: "項目價錢已新增。" };
 }
 
 export async function updatePackage(
@@ -519,15 +528,19 @@ export async function updatePackage(
   const id = clean(input.id, 80);
   const treatmentId = clean(input.treatmentId, 80);
   const name = clean(input.name, 160);
+  const groupName = clean(input.groupName, 120);
   const currency = clean(input.currency || "HKD", 10).toUpperCase();
-  if (!id) return { ok: false, message: "找不到要更新的套餐。" };
+  if (!id) return { ok: false, message: "找不到要更新的項目。" };
   if (!treatmentId) return { ok: false, message: "請選擇療程。" };
-  if (!name) return { ok: false, message: "請輸入套餐名稱。" };
+  if (!name) return { ok: false, message: "請輸入項目名稱。" };
   if (input.originalPrice !== null && input.originalPrice < 0) {
     return { ok: false, message: "原價不可少於 0。" };
   }
   if (input.promoPrice !== null && input.promoPrice < 0) {
     return { ok: false, message: "優惠價不可少於 0。" };
+  }
+  if (!Number.isInteger(input.displayOrder) || input.displayOrder < 0) {
+    return { ok: false, message: "排序必須是 0 或以上的整數。" };
   }
 
   const { error } = await supabase
@@ -535,21 +548,23 @@ export async function updatePackage(
     .update({
       treatment_id: treatmentId,
       name,
+      group_name: groupName || null,
       original_price: input.originalPrice,
       promo_price: input.promoPrice,
       currency,
       payment_required: input.paymentRequired,
-      status: "active",
+      status: input.status,
+      display_order: input.displayOrder,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);
 
   if (error) {
     console.warn("package_update_failed", error);
-    return { ok: false, message: "套餐未能更新，請稍後再試。" };
+    return { ok: false, message: "項目價錢未能更新，請稍後再試。" };
   }
 
-  return { ok: true, message: "套餐已更新。" };
+  return { ok: true, message: "項目價錢已更新。" };
 }
 
 export async function deletePackageSafely(
@@ -563,6 +578,7 @@ export async function deletePackageSafely(
 
   const referenced = await hasReferences([
     { table: "forms", column: "default_package_id", value: packageId },
+    { table: "form_packages", column: "package_id", value: packageId },
     { table: "leads", column: "package_id", value: packageId },
     { table: "landing_pages", column: "package_id", value: packageId },
   ]);

@@ -1,5 +1,6 @@
 "use server";
 
+import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -11,6 +12,10 @@ import {
   updateForm,
   type ManagedFormInput,
 } from "@/lib/data/formManagement";
+import {
+  adminSessionCookieName,
+  verifySignedAdminSession,
+} from "@/lib/security/internalAccess";
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -35,6 +40,16 @@ function safeReturnTo(value: string, fallback: string) {
   return fallback;
 }
 
+async function requireAdmin(path: string) {
+  const cookieStore = await cookies();
+  const session = await verifySignedAdminSession(
+    cookieStore.get(adminSessionCookieName)?.value
+  );
+  if (!session.ok) {
+    redirect(`/login?next=${encodeURIComponent(path)}`);
+  }
+}
+
 function parseFormInput(formData: FormData) {
   const parsedDomains = parseAllowedDomains(readString(formData, "allowedDomains"));
 
@@ -47,6 +62,11 @@ function parseFormInput(formData: FormData) {
     brandId: readString(formData, "brandId"),
     defaultTreatmentId: readString(formData, "defaultTreatmentId"),
     defaultPackageId: readString(formData, "defaultPackageId"),
+    packageSelectionMode:
+      readString(formData, "packageSelectionMode") === "customer_choice"
+        ? "customer_choice"
+        : "fixed",
+    packageIds: readStringArray(formData, "packageIds"),
     defaultBranchId: readString(formData, "defaultBranchId"),
     branchIds: readStringArray(formData, "branchIds"),
     allowedDomains: parsedDomains.domains,
@@ -57,6 +77,7 @@ function parseFormInput(formData: FormData) {
 }
 
 export async function createFormAction(formData: FormData) {
+  await requireAdmin("/forms/new");
   const parsed = parseFormInput(formData);
   if (!parsed.input) {
     redirectWithMessage("/forms/new", parsed.error ?? "資料未能儲存。");
@@ -74,6 +95,7 @@ export async function createFormAction(formData: FormData) {
 
 export async function updateFormAction(formData: FormData) {
   const formId = readString(formData, "formId");
+  await requireAdmin(`/forms/${formId}`);
   const parsed = parseFormInput(formData);
   const path = `/forms/${formId}`;
 
@@ -90,6 +112,7 @@ export async function updateFormAction(formData: FormData) {
 
 export async function duplicateFormAction(formData: FormData) {
   const formId = readString(formData, "formId");
+  await requireAdmin(`/forms/${formId}`);
   const result = await duplicateForm(formId);
   revalidatePath("/forms");
 
@@ -102,6 +125,7 @@ export async function duplicateFormAction(formData: FormData) {
 
 export async function archiveFormAction(formData: FormData) {
   const formId = readString(formData, "formId");
+  await requireAdmin(`/forms/${formId}`);
   const confirmed = readString(formData, "confirmArchive") === "yes";
   const returnTo = safeReturnTo(readString(formData, "returnTo"), "/forms?archive=active");
 
@@ -117,6 +141,7 @@ export async function archiveFormAction(formData: FormData) {
 
 export async function deleteFormAction(formData: FormData) {
   const formId = readString(formData, "formId");
+  await requireAdmin(`/forms/${formId}`);
   const confirmed = readString(formData, "confirmDelete") === "yes";
   const returnTo = safeReturnTo(readString(formData, "returnTo"), "/forms?archive=active");
 

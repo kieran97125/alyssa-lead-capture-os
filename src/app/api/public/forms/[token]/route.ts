@@ -97,15 +97,48 @@ export async function GET(
     ]);
 
   const treatmentIds = (treatments ?? []).map((item) => item.id);
-  const { data: packages } =
+  const { data: formPackages, error: formPackagesError } = await supabase
+    .from("form_packages")
+    .select("package_id,is_default,is_active,display_order")
+    .eq("form_id", form.id)
+    .eq("is_active", true)
+    .order("display_order", { ascending: true });
+  const selectedPackageIds =
+    form.package_selection_mode === "customer_choice" &&
+    !formPackagesError &&
+    (formPackages ?? []).length > 0
+      ? (formPackages ?? []).map((item) => item.package_id)
+      : form.default_package_id
+        ? [form.default_package_id]
+        : [];
+  const { data: packageRows } =
     treatmentIds.length > 0
       ? await supabase
           .from("packages")
           .select("*")
           .in("treatment_id", treatmentIds)
+          .in(
+            "id",
+            selectedPackageIds.length > 0 ? selectedPackageIds : ["__none__"]
+          )
           .eq("status", "active")
           .order("created_at", { ascending: true })
       : { data: [] };
+  const packageOrder = new Map(
+    selectedPackageIds.map((packageId, index) => [packageId, index])
+  );
+  const packages = [...(packageRows ?? [])].sort(
+    (a, b) =>
+      (packageOrder.get(a.id) ?? Number.MAX_SAFE_INTEGER) -
+      (packageOrder.get(b.id) ?? Number.MAX_SAFE_INTEGER)
+  );
+  const allowedTreatmentIds = new Set(
+    packages.map((item) => item.treatment_id)
+  );
+  const publicTreatments =
+    allowedTreatmentIds.size > 0
+      ? (treatments ?? []).filter((item) => allowedTreatmentIds.has(item.id))
+      : [];
   const { data: formBranches, error: formBranchesError } = await supabase
     .from("form_branches")
     .select("branch_id,is_default,is_active,display_order")
@@ -141,13 +174,20 @@ export async function GET(
       message: formBranchesError.message,
     });
   }
+  if (formPackagesError) {
+    console.warn("[LaunchHub] public_form_packages_read_failed", {
+      form_token: token,
+      code: formPackagesError.code,
+      message: formPackagesError.message,
+    });
+  }
 
   return publicFormJson({
     ok: true,
     form,
     brand,
-    treatments: treatments ?? [],
-    packages: packages ?? [],
+    treatments: publicTreatments,
+    packages,
     branches: selectedBranchRows,
   });
 }

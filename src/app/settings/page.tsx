@@ -72,12 +72,12 @@ export default async function SettingsPage({
       emptyAction: "新增療程",
     },
     {
-      href: "/settings/packages",
-      title: "Offers / Packages 優惠套餐",
-      body: "管理此品牌的優惠名稱、價錢及付款設定，供表格及 Landing Page 使用。",
+      href: `/settings/packages${brandSlug ? `?brand=${brandSlug}` : ""}`,
+      title: "Treatment Pricing 項目及價錢",
+      body: "管理每個療程的計劃組別、項目名稱、獨立價錢及顯示次序。",
       count: packages.length,
       scope: selectedBrand?.name || "請先選擇品牌",
-      emptyAction: "新增優惠",
+      emptyAction: "新增項目價錢",
     },
     {
       href: `/settings/branches${brandSlug ? `?brand=${brandSlug}` : ""}`,
