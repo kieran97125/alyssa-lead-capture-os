@@ -25,6 +25,8 @@ export type BrandSetting = {
   privacyUrl?: string | null;
   disclaimerUrl?: string | null;
   operatorName?: string | null;
+  metaPixelId?: string | null;
+  metaPixelPageViewOnEmbed?: boolean;
 };
 
 export type TreatmentSetting = {
@@ -171,6 +173,8 @@ function localConfiguration(): ConfigurationData {
         privacyUrl: "https://www.alyssa.hk/privacy",
         disclaimerUrl: "https://www.alyssa.hk/disclaimer",
         operatorName: "Alyssa Group Limited",
+        metaPixelId: null,
+        metaPixelPageViewOnEmbed: false,
       },
     ],
     treatments: alyssaTreatments.map((treatment) => ({
@@ -517,21 +521,45 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
     return {
       sourceLabel: "正式設定",
       brands: ((brands.data ?? []) as unknown[]).map((item) => {
-        const row = item as Record<string, string | null>;
+        const row = item as Record<string, unknown>;
         return {
-          id: row.id ?? "",
-          name: row.name ?? "未命名品牌",
-          slug: row.slug ?? "",
-          logoUrl: row.logo_url ?? null,
-          primaryColor: row.primary_color ?? null,
-          secondaryColor: row.secondary_color ?? null,
-          whatsappNumber: row.whatsapp_number ?? null,
-          defaultThankYouUrl: row.default_thank_you_url ?? null,
-          legalPageUrl: row.legal_page_url ?? null,
-          legalLinkLabel: row.legal_link_label ?? null,
-          privacyUrl: row.privacy_url ?? null,
-          disclaimerUrl: row.disclaimer_url ?? null,
-          operatorName: row.operator_name ?? null,
+          id: typeof row.id === "string" ? row.id : "",
+          name:
+            typeof row.name === "string" ? row.name : "未命名品牌",
+          slug: typeof row.slug === "string" ? row.slug : "",
+          logoUrl: typeof row.logo_url === "string" ? row.logo_url : null,
+          primaryColor:
+            typeof row.primary_color === "string" ? row.primary_color : null,
+          secondaryColor:
+            typeof row.secondary_color === "string"
+              ? row.secondary_color
+              : null,
+          whatsappNumber:
+            typeof row.whatsapp_number === "string"
+              ? row.whatsapp_number
+              : null,
+          defaultThankYouUrl:
+            typeof row.default_thank_you_url === "string"
+              ? row.default_thank_you_url
+              : null,
+          legalPageUrl:
+            typeof row.legal_page_url === "string" ? row.legal_page_url : null,
+          legalLinkLabel:
+            typeof row.legal_link_label === "string"
+              ? row.legal_link_label
+              : null,
+          privacyUrl:
+            typeof row.privacy_url === "string" ? row.privacy_url : null,
+          disclaimerUrl:
+            typeof row.disclaimer_url === "string"
+              ? row.disclaimer_url
+              : null,
+          operatorName:
+            typeof row.operator_name === "string" ? row.operator_name : null,
+          metaPixelId:
+            typeof row.meta_pixel_id === "string" ? row.meta_pixel_id : null,
+          metaPixelPageViewOnEmbed:
+            row.meta_pixel_pageview_on_embed === true,
         };
       }),
       treatments: ((treatments.data ?? []) as unknown[]).map((item) => {

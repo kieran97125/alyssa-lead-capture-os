@@ -80,6 +80,16 @@ function customerChoiceConfig() {
   };
 }
 
+function pixelConfiguredForm() {
+  return {
+    ...publicFormConfig(),
+    brand: {
+      ...publicFormConfig().brand,
+      meta_pixel_id: "123456789012345",
+    },
+  };
+}
+
 test("GOS compact form shows the configured item and submits the short booking flow", async ({
   page,
 }) => {
@@ -293,4 +303,70 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
     treatment_id: treatmentId,
     package_id: "permanent-xl",
   });
+});
+
+test("GOS form uses the brand Pixel from LaunchHub after a successful lead", async ({
+  page,
+}) => {
+  await page.route(`**/api/public/forms/${formToken}`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(pixelConfiguredForm()),
+    });
+  });
+  await page.route("**/api/public/events", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+  await page.route("**/api/public/leads", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        lead_id: "gos-pixel-lead",
+        event_id: "gos-pixel-event",
+        event_payload: { value: 688, currency: "HKD" },
+      }),
+    });
+  });
+
+  await page.goto(
+    `/embed/${formToken}?brand=gos-beauty&form_id=${formId}`,
+    { waitUntil: "domcontentloaded" }
+  );
+  await page.getByLabel("姓名").fill("GOS Pixel");
+  await page.getByLabel("聯絡電話").fill("92345678");
+  await page.getByLabel("預約日期").fill("2026-08-09");
+  await page.getByLabel("預約時間").selectOption("16:00");
+  await page
+    .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
+    .check();
+  await page.getByRole("button", { name: "提交預約 →" }).click();
+
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __launchhubMetaPixelLastBeaconUrl?: string | null;
+            }
+          ).__launchhubMetaPixelLastBeaconUrl || ""
+      )
+    )
+    .toContain("id=123456789012345");
+  const pixelRequestUrl = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __launchhubMetaPixelLastBeaconUrl?: string | null;
+        }
+      ).__launchhubMetaPixelLastBeaconUrl || ""
+  );
+  const pixelUrl = new URL(pixelRequestUrl);
+  expect(pixelUrl.searchParams.get("ev")).toBe("CompleteRegistration");
+  expect(pixelUrl.searchParams.get("cd[value]")).toBe("688");
+  expect(pixelUrl.searchParams.get("cd[currency]")).toBe("HKD");
 });

@@ -97,6 +97,11 @@ function brandInput(formData: FormData): BrandInput {
     privacyUrl: readString(formData, "privacyUrl"),
     disclaimerUrl: readString(formData, "disclaimerUrl"),
     operatorName: readString(formData, "operatorName"),
+    metaPixelId: readString(formData, "metaPixelId"),
+    metaPixelPageViewOnEmbed: readBoolean(
+      formData,
+      "metaPixelPageViewOnEmbed"
+    ),
   };
 }
 
@@ -175,14 +180,20 @@ export async function createTreatmentAction(formData: FormData) {
   await ensureSettingsAction("/settings/treatments");
   const result = await createTreatment(treatmentInput(formData));
   revalidateSettings();
-  redirectBack("/settings/treatments", result);
+  redirectBack(
+    readReturnPath(formData, "/settings/treatments"),
+    result
+  );
 }
 
 export async function updateTreatmentAction(formData: FormData) {
   await ensureSettingsAction("/settings/treatments");
   const result = await updateTreatment(treatmentInput(formData));
   revalidateSettings();
-  redirectBack("/settings/treatments", result);
+  redirectBack(
+    readReturnPath(formData, "/settings/treatments"),
+    result
+  );
 }
 
 export async function deleteTreatmentAction(formData: FormData) {
@@ -192,7 +203,10 @@ export async function deleteTreatmentAction(formData: FormData) {
     readBoolean(formData, "confirmDelete")
   );
   revalidateSettings();
-  redirectBack("/settings/treatments", result);
+  redirectBack(
+    readReturnPath(formData, "/settings/treatments"),
+    result
+  );
 }
 
 export async function createPackageAction(formData: FormData) {

@@ -151,12 +151,6 @@ export default async function FormsPage({
               >
                 建立 Wix Form
               </Link>
-              <Link
-                href="/brands"
-                className="rounded-full border border-[#ead9cf] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
-              >
-                Brand Workspace
-              </Link>
             </div>
           </div>
         </header>
@@ -168,43 +162,34 @@ export default async function FormsPage({
         )}
 
         <section className="mt-6 rounded-[28px] border border-[#ead9cf] bg-white/86 p-5">
-          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <div className="mb-4">
             <div>
               <p className="text-sm font-bold text-[#321428]">
                 View: {archiveViewLabel(selectedArchive)}
               </p>
               <p className="mt-1 text-xs font-semibold text-[#7b5a6a]">
-                Active hides archived forms and known Alyssa UXV2/test/demo records by default.
+                {activeCount} active · {archivedCount} archived / legacy
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {([
-                ["active", `Active (${activeCount})`],
-                ["archived", `Archived / legacy (${archivedCount})`],
-                ["all", `All (${config.forms.length})`],
-              ] as Array<[ArchiveView, string]>).map(([view, label]) => (
-                <Link
-                  key={view}
-                  href={buildFormsHref(view, {
-                    brand: selectedBrand,
-                    treatment: selectedTreatment,
-                    branch: selectedBranch,
-                    status: selectedStatus,
-                    search,
-                  })}
-                  className={`rounded-full border px-3 py-1.5 text-xs font-bold ${
-                    selectedArchive === view
-                      ? "border-[#5a2348] bg-[#5a2348] text-white"
-                      : "border-[#ead9cf] bg-white text-[#5a2348]"
-                  }`}
-                >
-                  {label}
-                </Link>
-              ))}
-            </div>
           </div>
-          <form className="grid gap-4 lg:grid-cols-[1fr_1fr_1fr_1fr_1.2fr_auto]" method="get">
-            <input type="hidden" name="archive" value={selectedArchive} />
+          <form
+            className="grid gap-4 md:grid-cols-2 xl:grid-cols-[0.85fr_1fr_1fr_1fr_1fr_1.2fr_auto]"
+            method="get"
+          >
+            <FilterSelect
+              label="View"
+              name="archive"
+              value={selectedArchive}
+              options={[
+                { value: "active", label: `Active (${activeCount})` },
+                {
+                  value: "archived",
+                  label: `Archived / legacy (${archivedCount})`,
+                },
+                { value: "all", label: `All (${config.forms.length})` },
+              ]}
+              includeAll={false}
+            />
             <FilterSelect
               label="Brand"
               name="brand"
@@ -257,7 +242,10 @@ export default async function FormsPage({
 
         <section className="mt-6 overflow-hidden rounded-[28px] border border-[#ead9cf] bg-white/90 shadow-[0_24px_70px_rgba(90,35,72,0.08)]">
           <div className="max-w-full overflow-x-auto">
-            <table className="min-w-[1180px] text-left text-sm">
+            <table
+              className="min-w-[980px] text-left text-sm"
+              data-testid="form-management-list"
+            >
               <thead className="bg-[#fff6f0] text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
                 <tr>
                   {[
@@ -265,9 +253,7 @@ export default async function FormsPage({
                     "Brand",
                     "Treatment / Campaign Offer",
                     "Branch",
-                    "Form token",
-                    "Status",
-                    "Updated",
+                    "Status / Updated",
                     "Actions",
                   ].map((heading) => (
                     <th key={heading} className="px-4 py-3">
@@ -297,6 +283,9 @@ export default async function FormsPage({
                         <p className="mt-1 text-xs font-semibold text-[#7b5a6a]">
                           This form belongs to {ops.brand?.name || "未設定品牌"}
                         </p>
+                        <p className="mt-2 max-w-[250px] break-all font-mono text-[11px] font-semibold text-[#9a5d76]">
+                          {form.publicFormToken}
+                        </p>
                       </td>
                       <td className="border-t border-[#f1e3dc] px-4 py-4 font-semibold text-[#5a2348]">
                         {ops.brand?.name || "未設定"}
@@ -313,11 +302,6 @@ export default async function FormsPage({
                         {ops.branchLabel}
                       </td>
                       <td className="border-t border-[#f1e3dc] px-4 py-4">
-                        <p className="max-w-[250px] break-all font-mono text-xs font-bold text-[#5a2348]">
-                          {form.publicFormToken}
-                        </p>
-                      </td>
-                      <td className="border-t border-[#f1e3dc] px-4 py-4">
                         <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                           {status}
                         </span>
@@ -326,45 +310,52 @@ export default async function FormsPage({
                             {legacyReason}
                           </p>
                         )}
-                      </td>
-                      <td className="border-t border-[#f1e3dc] px-4 py-4 text-xs font-semibold text-[#7b5a6a]">
-                        {form.updatedAt || form.createdAt || "-"}
+                        <p className="mt-2 text-xs font-semibold text-[#7b5a6a]">
+                          {form.updatedAt || form.createdAt || "-"}
+                        </p>
                       </td>
                       <td className="border-t border-[#f1e3dc] px-4 py-4">
-                        <div className="flex min-w-[280px] flex-wrap gap-2">
-                          <CopyButton value={ops.embedCode} label="Copy Wix Embed" />
-                          <Link
-                            href={`/embed/${form.publicFormToken}`}
-                            className="rounded-full border border-[#d9b66f] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348]"
-                          >
-                            Open Test Form
-                          </Link>
+                        <div className="flex min-w-[170px] flex-wrap items-start gap-2">
                           <Link
                             href={`/forms/${form.id}`}
                             className="rounded-full bg-[#5a2348] px-3 py-1.5 text-xs font-bold text-white"
                           >
-                            Edit
+                            編輯
                           </Link>
-                          <Link
-                            href={`/leads?form=${form.publicFormToken}`}
-                            className="rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348]"
-                          >
-                            View Leads
-                          </Link>
-                          <form action={duplicateFormAction}>
-                            <input type="hidden" name="formId" value={form.id} />
-                            <button
-                              type="submit"
-                              className="rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348]"
-                            >
-                              Duplicate
-                            </button>
-                          </form>
                           <details>
                             <summary className="cursor-pointer rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348]">
-                              Archive / Delete
+                              更多
                             </summary>
-                            <div className="mt-2 w-72 rounded-2xl border border-[#ead9cf] bg-white p-3 shadow-[0_18px_42px_rgba(90,35,72,0.12)]">
+                            <div className="mt-2 grid w-72 gap-2 rounded-2xl border border-[#ead9cf] bg-white p-3 shadow-[0_18px_42px_rgba(90,35,72,0.12)]">
+                              <CopyButton
+                                value={ops.embedCode}
+                                label="Copy Wix Embed"
+                              />
+                              <Link
+                                href={`/embed/${form.publicFormToken}`}
+                                className="rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-center text-xs font-bold text-[#5a2348]"
+                              >
+                                Open Test Form
+                              </Link>
+                              <Link
+                                href={`/leads?form=${form.publicFormToken}`}
+                                className="rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-center text-xs font-bold text-[#5a2348]"
+                              >
+                                View Leads
+                              </Link>
+                              <form action={duplicateFormAction}>
+                                <input
+                                  type="hidden"
+                                  name="formId"
+                                  value={form.id}
+                                />
+                                <button
+                                  type="submit"
+                                  className="w-full rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348]"
+                                >
+                                  Duplicate
+                                </button>
+                              </form>
                               <p className="text-xs font-semibold leading-5 text-[#7b5a6a]">
                                 Archive hides this form from active lists. Safe delete only works when no linked leads or landing pages are found.
                               </p>
@@ -418,7 +409,7 @@ export default async function FormsPage({
                 })}
                 {filteredForms.length === 0 && (
                   <tr>
-                    <td colSpan={8} className="px-4 py-10 text-center text-sm font-semibold text-[#7b5a6a]">
+                    <td colSpan={6} className="px-4 py-10 text-center text-sm font-semibold text-[#7b5a6a]">
                       找不到符合條件的表格。請切換品牌或建立新的 Wix Form。
                     </td>
                   </tr>
@@ -437,11 +428,13 @@ function FilterSelect({
   name,
   value,
   options,
+  includeAll = true,
 }: {
   label: string;
   name: string;
   value: string;
   options: Array<{ value: string; label: string }>;
+  includeAll?: boolean;
 }) {
   return (
     <label className="block min-w-0">
@@ -453,7 +446,7 @@ function FilterSelect({
         defaultValue={value}
         className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none focus:border-[#e46f64] focus:bg-white"
       >
-        <option value="">All</option>
+        {includeAll && <option value="">All</option>}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

@@ -53,7 +53,10 @@ export default async function NewFormPage({
     (item) => item.brandId === selectedBrand?.id
   );
   const firstBranch = brandBranches[0];
-  const pixelId = getBrandPixelId(selectedBrand?.slug);
+  const pixelId = getBrandPixelId(
+    selectedBrand?.slug,
+    selectedBrand?.metaPixelId
+  );
   const suggestedDomains = getBrandSuggestedDomains(selectedBrand?.slug);
   const brandDefaults = getBrandDisplayDefaults(selectedBrand);
 

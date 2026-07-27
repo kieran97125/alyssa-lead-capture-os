@@ -2,14 +2,10 @@ import Link from "next/link";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard" },
-  { href: "/brands", label: "Brand Workspace" },
   { href: "/campaigns/new", label: "Launch" },
-  { href: "/landing-pages", label: "Landing Pages" },
-  { href: "/forms", label: "Forms" },
   { href: "/leads", label: "Leads" },
   { href: "/crm", label: "CRM" },
   { href: "/performance", label: "Performance" },
-  { href: "/settings#brand-library", label: "Brand Library" },
   { href: "/settings", label: "Settings" },
 ];
 

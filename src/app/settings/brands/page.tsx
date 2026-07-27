@@ -57,6 +57,16 @@ export default async function BrandSettingsPage({
             <TextInput label="Logo URL" name="logoUrl" required={false} />
             <TextInput label="主色" name="primaryColor" placeholder="#5a2348" required={false} />
             <TextInput label="副色" name="secondaryColor" placeholder="#c9828e" required={false} />
+            <TextInput
+              label="Meta Pixel ID"
+              name="metaPixelId"
+              placeholder="只輸入數字 ID"
+              required={false}
+            />
+            <label className="flex items-end gap-2 pb-3 text-sm font-bold text-[#5a2348]">
+              <input type="checkbox" name="metaPixelPageViewOnEmbed" />
+              Wix Embed 自動 PageView
+            </label>
             <div className="flex items-end">
               <button className="w-full rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]">
                 新增
@@ -156,6 +166,20 @@ export default async function BrandSettingsPage({
                     defaultValue={brand.secondaryColor ?? ""}
                     required={false}
                   />
+                  <TextInput
+                    label="Meta Pixel ID"
+                    name="metaPixelId"
+                    defaultValue={brand.metaPixelId ?? ""}
+                    required={false}
+                  />
+                  <label className="flex items-end gap-2 pb-3 text-sm font-bold text-[#5a2348]">
+                    <input
+                      type="checkbox"
+                      name="metaPixelPageViewOnEmbed"
+                      defaultChecked={brand.metaPixelPageViewOnEmbed}
+                    />
+                    Wix Embed 自動 PageView
+                  </label>
                   <div className="flex items-end">
                     <button className="w-full rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
                       儲存
