@@ -308,8 +308,6 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
 test("GOS form uses the brand Pixel from LaunchHub after a successful lead", async ({
   page,
 }) => {
-  let pixelRequestUrl = "";
-
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -333,19 +331,6 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
       }),
     });
   });
-  await page.route("**/tr?**", async (route) => {
-    const url = new URL(route.request().url());
-    if (url.hostname === "www.facebook.com") {
-      pixelRequestUrl = url.toString();
-      await route.fulfill({
-        status: 200,
-        contentType: "image/gif",
-        body: "",
-      });
-      return;
-    }
-    await route.continue();
-  });
 
   await page.goto(
     `/embed/${formToken}?brand=gos-beauty&form_id=${formId}`,
@@ -361,8 +346,25 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
   await page.getByRole("button", { name: "提交預約 →" }).click();
 
   await expect
-    .poll(() => pixelRequestUrl)
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (
+            window as typeof window & {
+              __launchhubMetaPixelLastBeaconUrl?: string | null;
+            }
+          ).__launchhubMetaPixelLastBeaconUrl || ""
+      )
+    )
     .toContain("id=123456789012345");
+  const pixelRequestUrl = await page.evaluate(
+    () =>
+      (
+        window as typeof window & {
+          __launchhubMetaPixelLastBeaconUrl?: string | null;
+        }
+      ).__launchhubMetaPixelLastBeaconUrl || ""
+  );
   const pixelUrl = new URL(pixelRequestUrl);
   expect(pixelUrl.searchParams.get("ev")).toBe("CompleteRegistration");
   expect(pixelUrl.searchParams.get("cd[value]")).toBe("688");
