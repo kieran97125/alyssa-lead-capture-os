@@ -40,6 +40,7 @@ import {
   getLegalFooterLinks,
   getLegalFooterText,
 } from "@/lib/legal/consent";
+import { resolveBrandPixelId } from "@/lib/metaPixel/configuration";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -68,46 +69,19 @@ function serializeSearchParams(
   return query ? `?${query}` : "";
 }
 
-function cleanMetaPixelEnv(value: string | undefined) {
-  const pixelId = value?.trim().replace(/[^0-9]/g, "") ?? "";
-  return pixelId || null;
-}
-
-function getMetaPixelEnvName(brandSlug: string) {
-  const suffix = brandSlug
-    .trim()
-    .replace(/[^a-zA-Z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
-    .toUpperCase();
-
-  return suffix ? `NEXT_PUBLIC_META_PIXEL_ID_${suffix}` : null;
-}
-
 function getMetaPixelIdForBrand(
   brandSlug: string,
   configuredPixelId?: string | null
 ) {
-  const brandPixelId = cleanMetaPixelEnv(configuredPixelId || undefined);
-  if (brandPixelId) return brandPixelId;
-
-  const normalizedBrandSlug = brandSlug.trim().toLowerCase();
-
-  if (
-    normalizedBrandSlug === "ineffable" ||
-    normalizedBrandSlug === "ineffable-beauty"
-  ) {
-    return (
-      cleanMetaPixelEnv(process.env.NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE) ||
-      cleanMetaPixelEnv(process.env.NEXT_PUBLIC_META_PIXEL_ID)
-    );
-  }
-
-  if (normalizedBrandSlug === "alyssa") {
-    return cleanMetaPixelEnv(process.env.NEXT_PUBLIC_META_PIXEL_ID_ALYSSA);
-  }
-
-  const envName = getMetaPixelEnvName(normalizedBrandSlug);
-  return envName ? cleanMetaPixelEnv(process.env[envName]) : null;
+  return (
+    resolveBrandPixelId({
+      brandSlug,
+      configuredPixelId,
+      alyssaPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID_ALYSSA,
+      ineffablePixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID_INEFFABLE,
+      legacyPixelId: process.env.NEXT_PUBLIC_META_PIXEL_ID,
+    }) || null
+  );
 }
 
 function getPublicLandingPageUrl(
