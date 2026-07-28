@@ -3,7 +3,8 @@
 - Date: 2026-07-28
 - Source project: Alyssa Enterprise Pilot
 - Module: Marketing Command Center / Connections / Access Control
-- Status: Local implementation and production build validated; PR, migration, and release pending approval
+- Status: PR #17 open; local and Preview build validated; migration and release pending
+- Source evidence: alyssa-lead-capture-os PR #17
 - Classification: Core + Configurable + Enterprise Extension + Alyssa-only temporary access gate
 
 ## Real operational problem
@@ -36,8 +37,11 @@ dashboard request also creates latency, quota, lineage, and availability risk.
   recovery window so repeated clicks do not run overlapping imports.
 - Automatic scheduling remains disabled during the first rollout and can be
   introduced later without changing metric ownership or the importer.
-- Credentials remain in server-only environment configuration; public source
-  mapping stores no passwords, access tokens, or private keys.
+- Provider credentials remain in server-only environment configuration; public
+  source mapping stores no passwords, access tokens, or private keys.
+- Temporary access passwords are stored only as salted hashes in a
+  service-role-only table; environment passwords remain an optional emergency
+  fallback.
 - A temporary signed Admin / Master password session protects infrastructure
   settings until individual user authentication is introduced.
 
@@ -79,13 +83,12 @@ dashboard request also creates latency, quota, lineage, and availability risk.
 
 ## Follow-up validation
 
-- Apply the additive migration to a review branch and confirm service-role-only
-  Data API access.
+- Apply the additive migration and confirm service-role-only Data API access.
 - Complete one authenticated spreadsheet sync and reconcile imported aggregates
   against the source report through the same cutoff date.
 - Run browser acceptance in CI and confirm that both Admin and Master sessions
   can manually refresh while only Master can edit source settings.
 - Revisit scheduling only after the manual refresh workflow has operational
   evidence.
-- After PR and release evidence exist, export the reusable abstraction to the
+- After release evidence exists, export the reusable abstraction to the
   canonical Product Learning Log.

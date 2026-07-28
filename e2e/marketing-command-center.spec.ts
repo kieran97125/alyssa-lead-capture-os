@@ -12,6 +12,7 @@ import {
 } from "../src/lib/marketing/googleSheetsMetricParser";
 import {
   createSignedAdminSession,
+  hasAdminPasswordGateConfig,
   verifyAdminPassword,
   verifySignedAdminSession,
 } from "../src/lib/security/internalAccess";
@@ -134,6 +135,9 @@ test("temporary password gate signs distinct Admin and Master sessions", async (
     expect(verifyAdminPassword("test-admin-password")).toBe("admin");
     expect(verifyAdminPassword("test-master-password")).toBe("master");
     expect(verifyAdminPassword("wrong")).toBeNull();
+    delete process.env.LAUNCHHUB_ADMIN_PASSWORD;
+    delete process.env.LAUNCHHUB_MASTER_PASSWORD;
+    expect(hasAdminPasswordGateConfig()).toBe(true);
 
     const adminSession = await createSignedAdminSession("admin");
     expect(adminSession).not.toBeNull();

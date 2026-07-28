@@ -60,14 +60,7 @@ function getConfiguredSessionSecret() {
 }
 
 export function hasAdminPasswordGateConfig() {
-  const adminPassword = getConfiguredPassword();
-  const masterPassword = getConfiguredMasterPassword();
-  return Boolean(
-    adminPassword &&
-      masterPassword &&
-      adminPassword !== masterPassword &&
-      getConfiguredSessionSecret()
-  );
+  return Boolean(getConfiguredSessionSecret());
 }
 
 export function isAdminPasswordGateEnabled() {
@@ -77,15 +70,10 @@ export function isAdminPasswordGateEnabled() {
 
 export function getAdminPasswordGateWarning() {
   if (hasAdminPasswordGateConfig()) return null;
-  const adminPassword = getConfiguredPassword();
-  const masterPassword = getConfiguredMasterPassword();
-  if (adminPassword && masterPassword && adminPassword === masterPassword) {
-    return "Admin 同 Master Password 必須使用兩個不同密碼。";
-  }
   if (isProductionRuntime()) {
-    return "Admin／Master password gate is missing required environment variables.";
+    return "Admin session signing secret 尚未設定。";
   }
-  return "Admin／Master password gate is not configured in this development environment.";
+  return "Admin session signing secret is not configured in this development environment.";
 }
 
 export function verifyAdminPassword(password: string) {

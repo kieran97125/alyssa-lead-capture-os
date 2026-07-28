@@ -1,9 +1,14 @@
 import { cookies } from "next/headers";
 import {
+  createSupabaseAdminClient,
+  hasSupabaseAdminEnv,
+} from "@/lib/supabase/admin";
+import {
   adminSessionCookieName,
   adminSessionMaxAgeSeconds,
   createSignedAdminSession,
   legacyInternalSessionCookieName,
+  verifyAdminPassword,
   verifySignedAdminSession,
   type AdminAccessLevel,
   type InternalAccessContext,
@@ -27,6 +32,33 @@ export async function getCurrentInternalAccess(): Promise<InternalAccessContext>
   return result.ok && result.source
     ? { source: result.source, accessLevel: result.accessLevel ?? "admin" }
     : openAccessContext();
+}
+
+export async function verifyAdminPasswordOnServer(password: string) {
+  const environmentAccess = verifyAdminPassword(password);
+  if (environmentAccess) return environmentAccess;
+  if (!password || !hasSupabaseAdminEnv()) return null;
+
+  try {
+    const supabase = createSupabaseAdminClient();
+    const { data, error } = await supabase.rpc(
+      "verify_internal_access_password",
+      { candidate_password: password }
+    );
+    if (error) {
+      console.warn("internal_access_password_verification_failed", {
+        code: error.code,
+        message: error.message,
+      });
+      return null;
+    }
+    return data === "master" || data === "admin" ? data : null;
+  } catch (error) {
+    console.warn("internal_access_password_verification_unavailable", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    return null;
+  }
 }
 
 export async function setAdminSessionCookie(accessLevel: AdminAccessLevel) {

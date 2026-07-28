@@ -545,11 +545,15 @@ Public landing pages, embedded forms, legal pages, public lead submit APIs, stat
 
 `app.beautytrialhk.com` should be used for the admin backend. `go.beautytrialhk.com` should be used for public landing pages, embedded forms, and legal pages. The proxy keeps this host separation and only redirects admin paths from the public host back to the admin host.
 
-Required Vercel env vars for the temporary admin gate:
+Required Vercel env var for the temporary admin gate:
 
-- `LAUNCHHUB_ADMIN_PASSWORD`
-- `LAUNCHHUB_MASTER_PASSWORD`
 - `LAUNCHHUB_ADMIN_SESSION_SECRET`
+
+The Admin and Master credentials are stored as salted bcrypt hashes in the
+server-only Supabase `internal_access_passwords` table. Environment variables
+`LAUNCHHUB_ADMIN_PASSWORD` and `LAUNCHHUB_MASTER_PASSWORD` remain supported as
+local or emergency server-only fallbacks, but are not required when the hashed
+store is configured.
 
 Legacy env vars from the removed internal auth flow are deprecated and not required for deployment:
 
@@ -1060,8 +1064,8 @@ Payment status semantics:
 - `NEXT_PUBLIC_SUPABASE_URL` - pending; required before browser-side Supabase-aware flows are introduced.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
-- `LAUNCHHUB_ADMIN_PASSWORD` - required for the shared admin password gate.
-- `LAUNCHHUB_MASTER_PASSWORD` - required for Master-only planning, connection, member, and audit routes.
+- `LAUNCHHUB_ADMIN_PASSWORD` - optional server-only fallback for the Admin gate.
+- `LAUNCHHUB_MASTER_PASSWORD` - optional server-only fallback for the Master gate.
 - `LAUNCHHUB_ADMIN_SESSION_SECRET` - required for signing the admin session cookie.
 - `GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL` - server-only Google principal used to read connected private Sheets.
 - `GOOGLE_SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY` - server-only service-account key; preserve line breaks or use escaped `\n`.
@@ -1079,7 +1083,8 @@ Do not deploy yet. Before deployment:
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
 - Set `NEXT_PUBLIC_ADMIN_BASE_URL=https://app.beautytrialhk.com` for internal admin pages and `NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com` for public campaign pages when using the split domains.
 - Configure Supabase environment variables in Vercel.
-- Configure `LAUNCHHUB_ADMIN_PASSWORD`, `LAUNCHHUB_MASTER_PASSWORD`, and `LAUNCHHUB_ADMIN_SESSION_SECRET` in Vercel.
+- Configure `LAUNCHHUB_ADMIN_SESSION_SECRET` in Vercel and provision the two
+  temporary passwords as salted hashes in `internal_access_passwords`.
 - Configure the Google Sheets service account variables and share each source Sheet with the service-account email as Viewer.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.

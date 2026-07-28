@@ -174,6 +174,14 @@ create table if not exists public.marketing_command_center_audit (
 create index if not exists marketing_command_center_audit_created_idx
   on public.marketing_command_center_audit(created_at desc);
 
+create table if not exists public.internal_access_passwords (
+  access_level text primary key,
+  password_hash text not null,
+  updated_at timestamptz not null default now(),
+  constraint internal_access_passwords_level_check
+    check (access_level in ('admin', 'master'))
+);
+
 alter table public.marketing_monthly_plans enable row level security;
 alter table public.marketing_data_sources enable row level security;
 alter table public.marketing_daily_metrics enable row level security;
@@ -182,6 +190,7 @@ alter table public.workspace_members enable row level security;
 alter table public.workspace_member_brand_access enable row level security;
 alter table public.workspace_member_module_permissions enable row level security;
 alter table public.marketing_command_center_audit enable row level security;
+alter table public.internal_access_passwords enable row level security;
 
 -- These internal control-plane tables are server-only. Supabase's 2026 Data API
 -- defaults no longer guarantee automatic table exposure, so grant the exact
@@ -194,6 +203,7 @@ revoke all on table public.workspace_members from anon, authenticated;
 revoke all on table public.workspace_member_brand_access from anon, authenticated;
 revoke all on table public.workspace_member_module_permissions from anon, authenticated;
 revoke all on table public.marketing_command_center_audit from anon, authenticated;
+revoke all on table public.internal_access_passwords from anon, authenticated;
 
 grant select, insert, update, delete on table public.marketing_monthly_plans to service_role;
 grant select, insert, update, delete on table public.marketing_data_sources to service_role;
@@ -203,6 +213,31 @@ grant select, insert, update, delete on table public.workspace_members to servic
 grant select, insert, update, delete on table public.workspace_member_brand_access to service_role;
 grant select, insert, update, delete on table public.workspace_member_module_permissions to service_role;
 grant select, insert, update, delete on table public.marketing_command_center_audit to service_role;
+grant select, insert, update, delete on table public.internal_access_passwords to service_role;
+
+create or replace function public.verify_internal_access_password(
+  candidate_password text
+)
+returns text
+language sql
+stable
+security invoker
+set search_path = ''
+as $$
+  select credentials.access_level
+  from public.internal_access_passwords as credentials
+  where credentials.password_hash =
+    extensions.crypt(candidate_password, credentials.password_hash)
+  limit 1
+$$;
+
+revoke all on function public.verify_internal_access_password(text)
+  from public, anon, authenticated;
+grant execute on function public.verify_internal_access_password(text)
+  to service_role;
+
+comment on table public.internal_access_passwords is
+  'Server-only salted password hashes for the temporary Alyssa Admin and Master gate. Plaintext passwords must never be stored.';
 
 comment on table public.marketing_daily_metrics is
   'Daily imported aggregates. Metric ownership is declared by each data source; current Alyssa policy uses Google Sheets for spend and lead-funnel reporting.';
