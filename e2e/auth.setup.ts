@@ -8,7 +8,8 @@ setup("authenticate once", async ({ page }) => {
 
   const passwordInput = page.getByLabel("Password");
   if (await passwordInput.isVisible()) {
-    const password = process.env.E2E_ADMIN_PASSWORD || "playwright-ci-password";
+    const password =
+      process.env.E2E_MASTER_PASSWORD || "playwright-ci-master-password";
     await passwordInput.fill(password);
     await page.getByRole("button", { name: "Unlock Admin" }).click();
   } else {

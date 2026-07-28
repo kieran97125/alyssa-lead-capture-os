@@ -5,7 +5,10 @@ import {
   createPublicAttributionCookiePayload,
   encodePublicAttributionCookie,
 } from "@/lib/attribution/publicAttributionCookie";
-import { isInternalRoute } from "@/lib/security/routeBoundary";
+import {
+  isInternalRoute,
+  requiresMasterAccess,
+} from "@/lib/security/routeBoundary";
 import {
   adminSessionCookieName,
   isAdminPasswordGateEnabled,
@@ -144,7 +147,7 @@ function isAdminBackendPath(pathname: string) {
   return pathname === "/login" || pathname === "/logout" || isInternalRoute(pathname);
 }
 
-function redirectToLogin(request: NextRequest) {
+function redirectToLogin(request: NextRequest, error?: string) {
   const loginUrl = request.nextUrl.clone();
   loginUrl.pathname = "/login";
   loginUrl.search = "";
@@ -152,6 +155,7 @@ function redirectToLogin(request: NextRequest) {
     "next",
     `${request.nextUrl.pathname}${request.nextUrl.search}`
   );
+  if (error) loginUrl.searchParams.set("error", error);
 
   return NextResponse.redirect(loginUrl);
 }
@@ -183,6 +187,12 @@ export async function proxy(request: NextRequest) {
 
     if (!session.ok) {
       return redirectToLogin(request);
+    }
+    if (
+      requiresMasterAccess(request.nextUrl.pathname) &&
+      session.accessLevel !== "master"
+    ) {
+      return redirectToLogin(request, "master_required");
     }
   }
 

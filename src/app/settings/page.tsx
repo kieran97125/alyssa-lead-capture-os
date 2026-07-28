@@ -72,6 +72,18 @@ export default async function SettingsPage({
   );
   const managementRows = [
     {
+      href: "/settings/planning",
+      title: "月度 Budget／KPI",
+      description: "設定各品牌預算、Lead、Book、Show 及內容目標",
+      count: null,
+    },
+    {
+      href: "/data-sources",
+      title: "資料來源",
+      description: "Google Sheets、廣告平台、CRM 及同步健康狀態",
+      count: null,
+    },
+    {
       href: "/settings/brands",
       title: "品牌資料",
       description: "名稱、Logo、品牌色、WhatsApp 及 Thank You Page",

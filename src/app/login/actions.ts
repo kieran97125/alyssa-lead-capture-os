@@ -3,9 +3,11 @@
 import { redirect } from "next/navigation";
 import {
   isAdminPasswordGateEnabled,
-  verifyAdminPassword,
 } from "@/lib/security/internalAccess";
-import { setAdminSessionCookie } from "@/lib/security/internalAccessServer";
+import {
+  setAdminSessionCookie,
+  verifyAdminPasswordOnServer,
+} from "@/lib/security/internalAccessServer";
 
 function safeNextPath(value: string) {
   if (!value || !value.startsWith("/") || value.startsWith("//")) {
@@ -25,11 +27,12 @@ export async function loginAction(formData: FormData) {
     redirect(next);
   }
 
-  if (!verifyAdminPassword(password)) {
+  const accessLevel = await verifyAdminPasswordOnServer(password);
+  if (!accessLevel) {
     redirect(`/login?next=${encodeURIComponent(next)}&error=invalid_password`);
   }
 
-  const sessionSet = await setAdminSessionCookie();
+  const sessionSet = await setAdminSessionCookie(accessLevel);
   if (!sessionSet) {
     redirect(`/login?next=${encodeURIComponent(next)}&error=not_configured`);
   }

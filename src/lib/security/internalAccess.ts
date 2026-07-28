@@ -1,5 +1,8 @@
 export type InternalModule =
   | "dashboard"
+  | "kpis"
+  | "calendar"
+  | "data_sources"
   | "leads"
   | "performance"
   | "campaigns"
@@ -10,6 +13,10 @@ export type InternalModule =
   | "system_audit";
 
 export type InternalAction =
+  | "edit_monthly_plan"
+  | "edit_marketing_calendar"
+  | "edit_data_sources"
+  | "edit_workspace_members"
   | "save_landing_page"
   | "publish_landing_page"
   | "create_campaign"
@@ -21,11 +28,15 @@ export type InternalAction =
 
 export type InternalAccessContext = {
   source: "shared_password" | "development_not_configured";
+  accessLevel: AdminAccessLevel;
 };
+
+export type AdminAccessLevel = "admin" | "master";
 
 type AdminSessionPayload = {
   issuedAt: number;
   expiresAt: number;
+  accessLevel?: AdminAccessLevel;
 };
 
 export const adminSessionCookieName = "launchhub_admin_session";
@@ -40,12 +51,16 @@ function getConfiguredPassword() {
   return process.env.LAUNCHHUB_ADMIN_PASSWORD?.trim() || null;
 }
 
+function getConfiguredMasterPassword() {
+  return process.env.LAUNCHHUB_MASTER_PASSWORD?.trim() || null;
+}
+
 function getConfiguredSessionSecret() {
   return process.env.LAUNCHHUB_ADMIN_SESSION_SECRET?.trim() || null;
 }
 
 export function hasAdminPasswordGateConfig() {
-  return Boolean(getConfiguredPassword() && getConfiguredSessionSecret());
+  return Boolean(getConfiguredSessionSecret());
 }
 
 export function isAdminPasswordGateEnabled() {
@@ -56,15 +71,20 @@ export function isAdminPasswordGateEnabled() {
 export function getAdminPasswordGateWarning() {
   if (hasAdminPasswordGateConfig()) return null;
   if (isProductionRuntime()) {
-    return "Admin password gate is missing required environment variables.";
+    return "Admin session signing secret 尚未設定。";
   }
-  return "Admin password gate is not configured in this development environment.";
+  return "Admin session signing secret is not configured in this development environment.";
 }
 
 export function verifyAdminPassword(password: string) {
+  if (!password) return null;
+  const masterPassword = getConfiguredMasterPassword();
+  if (masterPassword && password === masterPassword) return "master" as const;
   const configuredPassword = getConfiguredPassword();
-  if (!configuredPassword) return false;
-  return password === configuredPassword;
+  if (configuredPassword && password === configuredPassword) {
+    return "admin" as const;
+  }
+  return null;
 }
 
 function base64UrlEncode(value: string | ArrayBuffer) {
@@ -103,7 +123,7 @@ async function signPayload(payloadValue: string, secret: string) {
   return base64UrlEncode(signature);
 }
 
-export async function createSignedAdminSession() {
+export async function createSignedAdminSession(accessLevel: AdminAccessLevel) {
   const secret = getConfiguredSessionSecret();
   if (!secret) return null;
 
@@ -111,6 +131,7 @@ export async function createSignedAdminSession() {
   const payload: AdminSessionPayload = {
     issuedAt: now,
     expiresAt: now + adminSessionMaxAgeSeconds * 1000,
+    accessLevel,
   };
   const payloadValue = base64UrlEncode(JSON.stringify(payload));
   const signature = await signPayload(payloadValue, secret);
@@ -123,6 +144,7 @@ export async function verifySignedAdminSession(cookieValue: string | undefined |
     return {
       ok: true,
       source: "development_not_configured" as const,
+      accessLevel: "master" as const,
       reason: null,
     };
   }
@@ -155,6 +177,9 @@ export async function verifySignedAdminSession(cookieValue: string | undefined |
     return {
       ok: true,
       source: "shared_password" as const,
+      // Sessions created before the two-password rollout remain standard admin
+      // sessions. Re-entering the Master password upgrades the signed session.
+      accessLevel: payload.accessLevel === "master" ? "master" as const : "admin" as const,
       reason: null,
     };
   } catch {

@@ -1,308 +1,563 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
-import { AppNav } from "@/components/alyssa/AppNav";
-import { MotionReveal } from "@/components/alyssa/MotionReveal";
-import { StatCard } from "@/components/alyssa/ui";
 import {
-  asNumber,
-  getLeadRows,
-  money,
-  type LeadRow,
-} from "@/lib/data/businessMetrics";
-import { getConfigurationData } from "@/lib/data/configuration";
-import { getLandingPageList } from "@/lib/data/landingPageStore";
+  ArrowUpRight,
+  CalendarClock,
+  CircleDollarSign,
+  DatabaseZap,
+  Flag,
+  Target,
+  TriangleAlert,
+  UserRoundCheck,
+  UsersRound,
+} from "lucide-react";
+import { AppNav } from "@/components/alyssa/AppNav";
+import {
+  PaceBar,
+  PaceStatusBadge,
+} from "@/components/command-center/PaceBar";
+import { BrandMark } from "@/components/command-center/BrandMark";
+import { DashboardRefreshButton } from "@/components/command-center/DashboardRefreshButton";
+import { refreshDashboardDataAction } from "@/app/command-center/actions";
+import { money } from "@/lib/data/businessMetrics";
+import {
+  getCommandCenterSnapshot,
+  type BrandCommandCenterRow,
+  type MetricProgress,
+} from "@/lib/marketing/commandCenter";
 
 export const dynamic = "force-dynamic";
 
-async function getDashboardOverview() {
-  const [today, week, config, landingPages] = await Promise.all([
-    getLeadRows("today", 5000, { includeTestData: false }),
-    getLeadRows("last7", 5000, { includeTestData: false }),
-    getConfigurationData(),
-    getLandingPageList(),
-  ]);
-  const weekLeads = week.leads;
-  const latestLeadAt = weekLeads[0]?.created_at ?? today.leads[0]?.created_at ?? null;
-  const latestPageAt =
-    landingPages.pages
-      .map((page) => page.updatedAt || page.publishedAt || page.createdAt)
-      .filter(Boolean)
-      .sort()
-      .at(-1) ?? null;
-
-  return {
-    todayLeads: today.leads.length,
-    weekLeads,
-    weekLeadCount: weekLeads.length,
-    publishedLandingPages: landingPages.pages.filter(
-      (page) => page.status === "published"
-    ).length,
-    formCount: config.forms.length,
-    latestUpdate: latestLeadAt || latestPageAt,
-    estimatedAmount: weekLeads.reduce(
-      (sum, lead) => sum + asNumber(lead.price),
-      0
-    ),
-    errorMessage:
-      today.error || week.error ? "資料暫時未能讀取，請稍後再試。" : null,
-  };
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value || "";
 }
 
-export default async function DashboardPage() {
-  const overview = await getDashboardOverview();
+function rounded(value: number) {
+  return Math.round(value).toLocaleString("zh-HK");
+}
+
+function formatHkDateTime(value: string | null) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const formatted = new Intl.DateTimeFormat("zh-HK", {
+    timeZone: "Asia/Hong_Kong",
+    month: "numeric",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  return `${formatted} HKT`;
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{
+    command_status?: string | string[];
+    message?: string | string[];
+  }>;
+}) {
+  const [snapshot, query] = await Promise.all([
+    getCommandCenterSnapshot(),
+    searchParams,
+  ]);
+  const message = firstParam(query?.message);
+  const status = firstParam(query?.command_status);
+  const alerts = snapshot.brands.filter(
+    (brand) =>
+      ["warning", "critical", "under"].includes(brand.budgetStatus) ||
+      brand.leads.status === "behind" ||
+      brand.bookings.status === "behind" ||
+      brand.shows.status === "behind" ||
+      brand.sourceIssueCount > 0
+  );
+  const upcoming = snapshot.calendarItems
+    .filter((item) => item.scheduledDate >= snapshot.month.today)
+    .slice(0, 5);
+  const latestSuccessAt =
+    snapshot.dataSources
+      .map((source) => source.lastSuccessAt)
+      .filter((value): value is string => Boolean(value))
+      .sort((left, right) => right.localeCompare(left))[0] ?? null;
+  const refreshDisabled =
+    !snapshot.schemaReady || snapshot.dataSources.length === 0;
 
   return (
     <main className="alyssa-shell">
       <AppNav />
-      <div className="mx-auto max-w-7xl px-5 py-8">
-        <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
-          <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
+      <div className="command-page">
+        <div className="command-page-inner">
+          <header className="command-page-header">
             <div>
-              <p className="alyssa-kicker">Dashboard</p>
-              <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                Campaign Launch OS
-              </h1>
-              <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                管理品牌登記表格、Landing Page、Leads 收集及來源追蹤。
+              <p className="command-page-kicker">Marketing Command Center</p>
+              <h1 className="command-page-title">早晨，Kieran</h1>
+              <p className="command-page-subtitle">
+                {snapshot.month.label}營運進度 · {snapshot.month.throughLabel}。Lead、Book
+                及 Show 只計本月 1 號至昨日，避免今日未完整數據干擾判斷。
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <PrimaryAction href="/campaigns/new">
-                建立表格及 Landing Page
-              </PrimaryAction>
-              <SecondaryAction href="/leads">查看 Leads</SecondaryAction>
-              <SecondaryAction href="/landing-pages">
-                管理 Landing Pages
-              </SecondaryAction>
-              <SecondaryAction href="/brands">Brand Workspace</SecondaryAction>
-              <SecondaryAction href="/crm">開啟 LeadOps CRM</SecondaryAction>
+            <div className="command-header-actions">
+              <form
+                action={refreshDashboardDataAction}
+                className="command-refresh-form"
+              >
+                <input type="hidden" name="returnPath" value="/dashboard" />
+                <DashboardRefreshButton disabled={refreshDisabled} />
+                <small>
+                  最後更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
+                </small>
+              </form>
+              <Link href="/settings/planning" className="command-secondary-button">
+                <Target size={16} />
+                設定本月目標
+              </Link>
+              <Link href="/calendar" className="command-primary-button">
+                <CalendarClock size={16} />
+                安排營銷事項
+              </Link>
             </div>
-          </div>
+          </header>
 
-          {overview.errorMessage && (
-            <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-              {overview.errorMessage}
+          {message ? (
+            <p
+              className={`command-status-message ${
+                status === "error" ? "is-error" : "is-success"
+              }`}
+            >
+              {message}
             </p>
-          )}
-        </section>
+          ) : null}
+          {snapshot.dataWarnings.map((warning) => (
+            <p key={warning} className="command-status-message">
+              {warning}
+            </p>
+          ))}
 
-        <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <KpiCard label="今日 Leads" value={overview.todayLeads.toString()} />
-          <KpiCard label="本週 Leads" value={overview.weekLeadCount.toString()} />
-          <KpiCard
-            label="已發布 Landing Pages"
-            value={overview.publishedLandingPages.toString()}
-          />
-          <KpiCard label="可用登記表格" value={overview.formCount.toString()} />
-          <KpiCard
-            label="最近更新"
-            value={formatShortDateTime(overview.latestUpdate)}
-          />
-        </section>
-
-        <section className="mt-6 grid gap-5 lg:grid-cols-[1.15fr_0.85fr]">
-          <MotionReveal delay={0.08}>
-            <LatestLeadsTable leads={overview.weekLeads.slice(0, 6)} />
-          </MotionReveal>
-
-          <MotionReveal delay={0.14}>
-            <section className="alyssa-premium-card p-5">
-              <p className="alyssa-kicker">本週預計金額</p>
-              <p className="mt-3 text-4xl font-bold text-[#321428]">
-                {money(overview.estimatedAmount)}
-              </p>
-              <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                以已提交 Leads 所選套餐價錢計算，實際收入需待團隊跟進確認。
-              </p>
-              <div className="mt-5 grid gap-3">
-                <SecondaryAction href="/performance">查看成效</SecondaryAction>
-                <SecondaryAction href="/brands">
-                  管理 Brand Library
-                </SecondaryAction>
-              </div>
-            </section>
-          </MotionReveal>
-        </section>
-
-        <section className="mt-6">
-          <div className="mb-4">
-            <p className="alyssa-kicker">Launch 快捷入口</p>
-            <h2 className="mt-2 text-2xl font-bold text-[#321428]">
-              選擇今次 Campaign 的建立方式
-            </h2>
-          </div>
-          <div className="grid gap-5 lg:grid-cols-3">
-            <LaunchCard
-              title="建立表格及 Landing Page"
-              body="適合測試新優惠、新療程或新文案角度。"
+          <section className="command-summary-grid" aria-label="本月整體摘要">
+            <SummaryCard
+              label="廣告已用"
+              value={money(snapshot.total.spend)}
+              meta={
+                snapshot.total.budget > 0
+                  ? `月度預算 ${money(snapshot.total.budget)}`
+                  : "尚未設定月度預算"
+              }
+              icon={CircleDollarSign}
+              tone="violet"
             />
-            <LaunchCard
-              title="只建立 Wix 登記表格"
-              body="適合 Wix 頁面已有內容，只需要一張可嵌入的登記表格收集 Leads。"
+            <SummaryCard
+              label="Leads"
+              value={rounded(snapshot.total.leads)}
+              meta={
+                snapshot.total.leadTarget > 0
+                  ? `目標 ${rounded(snapshot.total.leadTarget)}`
+                  : "尚未設定 Lead 目標"
+              }
+              icon={UsersRound}
+              tone="blue"
             />
-            <LaunchCard
-              title="用現有表格開 Landing Page"
-              body="適合重用已準備好的登記表格，再開一頁新的廣告 Landing Page。"
+            <SummaryCard
+              label="Bookings"
+              value={rounded(snapshot.total.bookings)}
+              meta={
+                snapshot.total.bookingTarget > 0
+                  ? `目標 ${rounded(snapshot.total.bookingTarget)}`
+                  : "尚未設定 Booking 目標"
+              }
+              icon={UserRoundCheck}
+              tone="amber"
             />
-          </div>
-        </section>
+            <SummaryCard
+              label="Shows"
+              value={rounded(snapshot.total.shows)}
+              meta={
+                snapshot.total.showTarget > 0
+                  ? `目標 ${rounded(snapshot.total.showTarget)}`
+                  : "尚未設定 Show 目標"
+              }
+              icon={Flag}
+              tone="green"
+            />
+          </section>
+
+          <section className="command-dashboard-layout">
+            <div className="command-main-column">
+              <section className="command-surface command-section">
+                <SectionHeader
+                  eyebrow="Budget control"
+                  title="預算概覽"
+                  description={`時間進度 ${snapshot.month.elapsedDays}／${snapshot.month.daysInMonth} 日；垂直線代表截至昨日理應使用位置。`}
+                  href="/settings/planning"
+                  linkLabel="管理預算"
+                />
+                <div className="budget-brand-list">
+                  {snapshot.brands.map((brand) => (
+                    <BudgetBrandRow
+                      key={brand.id}
+                      brand={brand}
+                      paceRatio={snapshot.month.paceRatio}
+                    />
+                  ))}
+                </div>
+              </section>
+
+              <section className="command-surface command-section">
+                <SectionHeader
+                  eyebrow="Funnel pace"
+                  title="品牌 KPI 進度"
+                  description="實際進度會同截至昨日應達值比較；未設定目標時不會發出假警告。"
+                  href="/kpis"
+                  linkLabel="查看完整 KPI"
+                />
+                <div className="kpi-brand-list">
+                  {snapshot.brands.map((brand) => (
+                    <KpiBrandRow
+                      key={brand.id}
+                      brand={brand}
+                      paceRatio={snapshot.month.paceRatio}
+                    />
+                  ))}
+                </div>
+              </section>
+            </div>
+
+            <aside className="command-side-column">
+              <section className="command-surface command-section">
+                <SectionHeader
+                  eyebrow="Attention"
+                  title="需要留意"
+                  description={`${alerts.length} 個品牌狀態需要檢查`}
+                />
+                <div className="command-alert-list">
+                  {alerts.length > 0 ? (
+                    alerts.map((brand) => (
+                      <BrandAlert key={brand.id} brand={brand} />
+                    ))
+                  ) : (
+                    <EmptyState
+                      icon={Target}
+                      title="目前未有進度警告"
+                      body="設定 Budget、KPI 及資料來源後，系統會自動檢查超支、投放偏慢及漏斗落後。"
+                    />
+                  )}
+                </div>
+              </section>
+
+              <section className="command-surface command-section">
+                <SectionHeader
+                  eyebrow="Next up"
+                  title="即將執行"
+                  description="由營銷日曆統一管理 Post、廣告、LP 及會議"
+                  href="/calendar"
+                  linkLabel="開啟日曆"
+                />
+                <div className="command-upcoming-list">
+                  {upcoming.length > 0 ? (
+                    upcoming.map((item) => {
+                      const brand = snapshot.brands.find(
+                        (candidate) => candidate.id === item.brandId
+                      );
+                      return (
+                        <div key={item.id} className="command-upcoming-item">
+                          <span
+                            className="command-upcoming-dot"
+                            style={{ background: brand?.color || "#635bff" }}
+                          />
+                          <div>
+                            <strong>{item.title}</strong>
+                            <span>
+                              {brand?.name || "未設定品牌"} · {item.scheduledDate}
+                            </span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <EmptyState
+                      icon={CalendarClock}
+                      title="未有即將執行事項"
+                      body="將本月 Post、廣告、Landing Page 同例會加入日曆，就可以跨品牌排期。"
+                    />
+                  )}
+                </div>
+              </section>
+
+              <section className="command-surface command-section">
+                <SectionHeader
+                  eyebrow="Data health"
+                  title="資料接駁"
+                  description={`${snapshot.dataSources.length} 個已登記來源`}
+                  href="/data-sources"
+                  linkLabel="管理來源"
+                />
+                <div className="source-health-grid">
+                  <SourceHealth
+                    icon={DatabaseZap}
+                    label="已連接"
+                    value={
+                      snapshot.dataSources.filter(
+                        (source) => source.status === "connected"
+                      ).length
+                    }
+                  />
+                  <SourceHealth
+                    icon={TriangleAlert}
+                    label="需處理"
+                    value={
+                      snapshot.dataSources.filter((source) =>
+                        ["warning", "error"].includes(source.status)
+                      ).length
+                    }
+                  />
+                </div>
+              </section>
+            </aside>
+          </section>
+        </div>
       </div>
     </main>
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string }) {
-  return (
-    <MotionReveal>
-      <StatCard label={label} value={value} />
-    </MotionReveal>
-  );
-}
+type SummaryTone = "violet" | "blue" | "amber" | "green";
 
-function PrimaryAction({
-  href,
-  children,
+function SummaryCard({
+  label,
+  value,
+  meta,
+  icon: Icon,
+  tone,
 }: {
-  href: string;
-  children: ReactNode;
+  label: string;
+  value: string;
+  meta: string;
+  icon: typeof UsersRound;
+  tone: SummaryTone;
 }) {
   return (
-    <Link
-      href={href}
-      className="inline-flex justify-center rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.2)] transition hover:-translate-y-0.5 hover:bg-[#d95f55]"
-    >
-      {children}
-    </Link>
+    <article className={`command-summary-card tone-${tone}`}>
+      <span className="command-summary-icon">
+        <Icon size={19} />
+      </span>
+      <div>
+        <p>{label}</p>
+        <strong>{value}</strong>
+        <span>{meta}</span>
+      </div>
+    </article>
   );
 }
 
-function SecondaryAction({
+function SectionHeader({
+  eyebrow,
+  title,
+  description,
   href,
-  children,
+  linkLabel,
 }: {
-  href: string;
-  children: ReactNode;
+  eyebrow: string;
+  title: string;
+  description: string;
+  href?: string;
+  linkLabel?: string;
 }) {
   return (
-    <Link
-      href={href}
-      className="inline-flex justify-center rounded-full border border-[#ead9cf] bg-white px-5 py-3 text-sm font-bold text-[#5a2348] transition hover:border-[#c9828e]"
-    >
-      {children}
-    </Link>
-  );
-}
-
-function LaunchCard({ title, body }: { title: string; body: string }) {
-  return (
-    <MotionReveal>
-      <Link
-        href="/campaigns/new"
-        className="alyssa-premium-card alyssa-interactive-card alyssa-focus block h-full p-5"
-      >
-        <h3 className="text-xl font-bold text-[#321428]">{title}</h3>
-        <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">{body}</p>
-      </Link>
-    </MotionReveal>
-  );
-}
-
-function LatestLeadsTable({ leads }: { leads: LeadRow[] }) {
-  return (
-    <section className="alyssa-premium-card min-w-0 p-5">
-      <div className="flex items-center justify-between gap-4">
-        <div>
-          <p className="alyssa-kicker">最新 Leads</p>
-          <h2 className="mt-2 text-xl font-bold text-[#321428]">
-            最近登記紀錄
-          </h2>
-        </div>
-        <Link
-          href="/leads"
-          className="rounded-full border border-[#ead9cf] bg-white px-4 py-2 text-sm font-bold text-[#5a2348]"
-        >
-          查看全部
+    <header className="command-section-header">
+      <div>
+        <p>{eyebrow}</p>
+        <h2>{title}</h2>
+        <span>{description}</span>
+      </div>
+      {href && linkLabel ? (
+        <Link href={href}>
+          {linkLabel}
+          <ArrowUpRight size={14} />
         </Link>
-      </div>
-      <div className="mt-4 max-w-full overflow-x-auto">
-        <table className="alyssa-table min-w-[780px] text-left text-sm">
-          <thead>
-            <tr className="text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
-              {["登記時間", "客人", "電話", "品牌", "療程 / 優惠", "狀態"].map(
-                (heading) => (
-                  <th key={heading} className="border-b border-[#ead9cf] px-3 py-3">
-                    {heading}
-                  </th>
-                )
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {leads.length > 0 ? (
-              leads.map((lead) => (
-                <tr
-                  key={lead.id}
-                  className="align-top text-[#5a2348] transition hover:bg-[#fff6f0]/70"
-                >
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {formatShortDateTime(lead.created_at)}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {lead.customer_name || lead.contact?.customer_name || "未提供"}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {lead.phone || lead.normalized_phone || lead.contact?.phone || "未提供"}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {lead.brand?.name || "未設定"}
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    {lead.treatment?.name || "未設定"}
-                    <span className="block font-bold text-[#321428]">
-                      {lead.package?.name || "未設定"} ·{" "}
-                      {money(asNumber(lead.price), lead.currency || "HKD")}
-                    </span>
-                  </td>
-                  <td className="border-b border-[#f1e3dc] px-3 py-3">
-                    <span className="rounded-full bg-[#fff6f0] px-3 py-1 text-xs font-bold text-[#9a5d76]">
-                      {leadStatusLabel(lead)}
-                    </span>
-                  </td>
-                </tr>
-              ))
-            ) : (
-              <tr>
-                <td colSpan={6} className="px-3 py-6 text-center text-[#7b5a6a]">
-                  暫時未有最新登記。
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-    </section>
+      ) : null}
+    </header>
   );
 }
 
-function leadStatusLabel(lead: LeadRow) {
-  const bookingStatus = lead.booking?.booking_status || lead.booking_status;
-  if (lead.payment_status === "paid") return "已付款";
-  if (bookingStatus === "confirmed") return "已確認預約";
-  if (lead.payment_status === "booking_only") return "只預約";
-  if (lead.payment_status === "pending") return "待付款";
-  if (lead.lead_status === "lost") return "已流失";
-  if (lead.lead_status === "submitted") return "已提交";
-  return "待跟進";
+function BudgetBrandRow({
+  brand,
+  paceRatio,
+}: {
+  brand: BrandCommandCenterRow;
+  paceRatio: number;
+}) {
+  const hasBudget = brand.monthlyPlan.budget > 0;
+
+  return (
+    <article className="budget-brand-row">
+      <div className="budget-brand-identity">
+        <BrandMark
+          compact
+          name={brand.name}
+          color={brand.color}
+          logoUrl={brand.logoUrl}
+        />
+        <div>
+          <strong>{brand.name}</strong>
+          <small>
+            {hasBudget
+              ? `月底推算 ${money(brand.spendForecast)}`
+              : "未設定本月 Budget"}
+          </small>
+        </div>
+      </div>
+      <div className="budget-brand-progress">
+        <div className="budget-brand-values">
+          <strong>{money(brand.spend)}</strong>
+          <span>
+            截至昨日應用 {money(brand.expectedSpend)} · 月度{" "}
+            {money(brand.monthlyPlan.budget)}
+          </span>
+        </div>
+        <PaceBar
+          progress={brand.spendProgress}
+          paceRatio={paceRatio}
+          status={brand.budgetStatus}
+          color={brand.color}
+          label={`${brand.name} 預算使用進度`}
+        />
+      </div>
+      <PaceStatusBadge status={brand.budgetStatus} />
+    </article>
+  );
 }
 
-function formatShortDateTime(value: string | null | undefined) {
-  if (!value) return "暫未有記錄";
+function KpiBrandRow({
+  brand,
+  paceRatio,
+}: {
+  brand: BrandCommandCenterRow;
+  paceRatio: number;
+}) {
+  return (
+    <article className="kpi-brand-row">
+      <div className="kpi-brand-heading">
+        <span style={{ background: brand.color }} />
+        <div>
+          <strong>{brand.name}</strong>
+          <small>{brand.connectedSourceCount} 個已連接資料來源</small>
+        </div>
+      </div>
+      <div className="kpi-metric-grid">
+        <CompactMetric label="Lead" metric={brand.leads} paceRatio={paceRatio} />
+        <CompactMetric
+          label="Book"
+          metric={brand.bookings}
+          paceRatio={paceRatio}
+        />
+        <CompactMetric label="Show" metric={brand.shows} paceRatio={paceRatio} />
+      </div>
+    </article>
+  );
+}
 
-  return new Intl.DateTimeFormat("zh-HK", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    timeZone: "Asia/Hong_Kong",
-  }).format(new Date(value));
+function CompactMetric({
+  label,
+  metric,
+  paceRatio,
+}: {
+  label: string;
+  metric: MetricProgress;
+  paceRatio: number;
+}) {
+  return (
+    <div className="compact-kpi">
+      <div>
+        <span>{label}</span>
+        <strong>
+          {metric.actual}
+          <small> / {metric.target || "—"}</small>
+        </strong>
+      </div>
+      <PaceBar
+        progress={metric.progress}
+        paceRatio={paceRatio}
+        status={metric.status}
+        label={`${label} KPI 進度`}
+      />
+      <p>
+        昨日應達 {rounded(metric.expected)} ·{" "}
+        {metric.target > 0
+          ? `${metric.delta >= 0 ? "+" : ""}${rounded(metric.delta)}`
+          : "待設定"}
+      </p>
+    </div>
+  );
+}
+
+function BrandAlert({ brand }: { brand: BrandCommandCenterRow }) {
+  const messages = [
+    brand.budgetStatus === "critical"
+      ? `預算比應用進度高 ${money(Math.abs(brand.spendDelta))}`
+      : brand.budgetStatus === "warning"
+        ? "廣告使用速度偏快"
+        : brand.budgetStatus === "under"
+          ? "投放速度明顯偏慢"
+          : "",
+    brand.leads.status === "behind" ? "Lead 落後" : "",
+    brand.bookings.status === "behind" ? "Booking 落後" : "",
+    brand.shows.status === "behind" ? "Show 落後" : "",
+    brand.sourceIssueCount > 0
+      ? `${brand.sourceIssueCount} 個資料來源異常`
+      : "",
+  ].filter(Boolean);
+
+  return (
+    <article className="command-brand-alert">
+      <BrandMark
+        compact
+        name={brand.name}
+        color={brand.color}
+        logoUrl={brand.logoUrl}
+      />
+      <div>
+        <strong>{brand.name}</strong>
+        <p>{messages.join(" · ")}</p>
+      </div>
+      <Link href="/kpis" aria-label={`查看 ${brand.name} KPI`}>
+        <ArrowUpRight size={15} />
+      </Link>
+    </article>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  body,
+}: {
+  icon: typeof Target;
+  title: string;
+  body: string;
+}) {
+  return (
+    <div className="command-empty-state">
+      <Icon size={22} />
+      <strong>{title}</strong>
+      <p>{body}</p>
+    </div>
+  );
+}
+
+function SourceHealth({
+  icon: Icon,
+  label,
+  value,
+}: {
+  icon: typeof DatabaseZap;
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="source-health-card">
+      <Icon size={17} />
+      <span>{label}</span>
+      <strong>{value}</strong>
+    </div>
+  );
 }
