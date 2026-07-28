@@ -12,10 +12,11 @@ import {
 } from "lucide-react";
 import {
   createDataSourceAction,
+  startGoogleSheetsOAuthAction,
   syncDataSourceAction,
 } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
-import { getGoogleSheetsMarketingCredentialStatus } from "@/lib/integrations/googleSheetsMarketingSync";
+import { getGoogleSheetsOAuthStatus } from "@/lib/integrations/googleSheetsOAuth";
 import {
   getCommandCenterSnapshot,
   type MarketingDataSource,
@@ -67,8 +68,7 @@ export default async function DataSourcesPage({
   ]);
   const message = firstParam(query?.message);
   const status = firstParam(query?.command_status);
-  const googleCredentialStatus =
-    getGoogleSheetsMarketingCredentialStatus();
+  const googleConnectionStatus = await getGoogleSheetsOAuthStatus();
 
   return (
     <main className="alyssa-shell">
@@ -107,11 +107,11 @@ export default async function DataSourcesPage({
 
           <section
             className={`command-surface source-credential-banner ${
-              googleCredentialStatus.ready ? "is-ready" : "is-warning"
+              googleConnectionStatus.connected ? "is-ready" : "is-warning"
             }`}
           >
             <span>
-              {googleCredentialStatus.ready ? (
+              {googleConnectionStatus.connected ? (
                 <ShieldCheck size={20} />
               ) : (
                 <LockKeyhole size={20} />
@@ -119,15 +119,32 @@ export default async function DataSourcesPage({
             </span>
             <div>
               <strong>
-                Google Sheets 伺服器連接
-                {googleCredentialStatus.ready ? "已設定" : "尚未設定"}
+                Google Sheets 一鍵連接
+                {googleConnectionStatus.connected ? "已連接" : "尚未連接"}
               </strong>
               <p>
-                {googleCredentialStatus.ready
-                  ? `請將每份 Sheet 分享畀 ${googleCredentialStatus.serviceAccountEmail}；只需 Viewer 權限。`
-                  : "需要先喺部署環境加入 Service Account Email 及 Private Key，先可以驗證及同步私有 Sheet。"}
+                {googleConnectionStatus.connected
+                  ? "公司 Google 帳戶已授權唯讀 Sheets；重新連接可切換授權帳戶。"
+                  : googleConnectionStatus.ready
+                    ? "以擁有兩份 Sheet 權限嘅公司 Gmail 授權一次，毋須 Service Account 或 JSON Key。"
+                    : "尚需完成一次 OAuth Client 部署設定；完成後只需用公司 Gmail 授權一次。"}
               </p>
+              {googleConnectionStatus.lastErrorSummary ? (
+                <p className="mt-2 text-xs font-semibold text-[#a54b45]">
+                  {googleConnectionStatus.lastErrorSummary}
+                </p>
+              ) : null}
             </div>
+            <form action={startGoogleSheetsOAuthAction}>
+              <button
+                type="submit"
+                className="command-primary-button"
+                disabled={!googleConnectionStatus.ready || !snapshot.schemaReady}
+              >
+                <Link2 size={15} />
+                {googleConnectionStatus.connected ? "重新連接" : "連接 Google Sheets"}
+              </button>
+            </form>
           </section>
 
           <section className="source-summary-grid">

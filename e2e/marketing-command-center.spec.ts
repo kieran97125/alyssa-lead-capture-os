@@ -206,6 +206,18 @@ test("Command Center feature pages render without migration-dependent crashes", 
   }
 });
 
+test("Google Sheets connection is presented as OAuth rather than a service-account key", async ({
+  page,
+}) => {
+  await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByText("Google Sheets 一鍵連接")).toBeVisible();
+  await expect(
+    page.getByText(/毋須 Service Account 或 JSON Key|尚需完成一次 OAuth Client 部署設定/)
+  ).toBeVisible();
+  await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
+});
+
 test("mobile sidebar opens as a labelled navigation drawer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
