@@ -199,7 +199,9 @@ test("Command Center feature pages render without migration-dependent crashes", 
     ["/settings/team", "成員及權限"],
   ]) {
     await page.goto(path, { waitUntil: "domcontentloaded" });
-    await expect(page.getByRole("heading", { name: heading })).toBeVisible();
+    await expect(
+      page.getByRole("heading", { name: heading, exact: true })
+    ).toBeVisible();
     await expect(page.getByTestId("login-screen")).toHaveCount(0);
   }
 });
