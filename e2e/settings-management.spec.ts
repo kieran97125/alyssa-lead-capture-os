@@ -11,18 +11,20 @@ test("new brands never inherit another brand's global Pixel fallback", () => {
   ).toBe("");
 });
 
-test("LaunchHub keeps the primary navigation and settings overview compact", async ({
+test("Growth OS keeps grouped navigation and settings overview compact", async ({
   page,
 }) => {
   await page.goto("/settings", { waitUntil: "domcontentloaded" });
 
-  const primaryNavLinks = page.locator("header").first().locator("nav a");
-  await expect(primaryNavLinks).toHaveCount(6);
+  const primaryNavLinks = page
+    .getByRole("navigation", { name: "主要功能" })
+    .getByRole("link");
+  await expect(primaryNavLinks).toHaveCount(9);
   await expect(page.getByLabel("管理品牌")).toBeVisible();
   await expect(page.getByLabel("Meta Pixel ID")).toBeVisible();
-  await expect(page.getByTestId("settings-management-list").locator("a")).toHaveCount(
-    6
-  );
+  await expect(
+    page.getByTestId("settings-management-list").locator("a")
+  ).toHaveCount(8);
   await expect(page.getByRole("link", { name: /System Audit/ })).toBeHidden();
 });
 

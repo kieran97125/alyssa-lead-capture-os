@@ -33,13 +33,14 @@ export default async function LoginPage({
         <div className="w-full max-w-xl rounded-[32px] border border-[#ead9cf] bg-white/90 p-8 shadow-[0_30px_90px_rgba(90,35,72,0.14)]">
           <div className="text-center">
             <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#9a5d76]">
-              LaunchHub
+              Alyssa Growth OS
             </p>
             <h1 className="mt-3 text-3xl font-bold text-[#321428]">
-              Admin Password
+              Command Center Login
             </h1>
             <p className="mt-4 text-sm font-semibold leading-6 text-[#6d4a5c]">
-              請輸入 LaunchHub admin password 繼續。
+              一般 Admin 可進入日常工作區；Master Password
+              先可管理資料來源、月度目標及成員權限。
             </p>
           </div>
 
@@ -53,6 +54,8 @@ export default async function LoginPage({
             <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
               {error === "invalid_password"
                 ? "Password 不正確，請再試一次。"
+                : error === "master_required"
+                  ? "呢個頁面只限 Master Account；請輸入 Master Password 升級本次登入。"
                 : "Admin password gate 尚未正確設定。"}
             </p>
           )}

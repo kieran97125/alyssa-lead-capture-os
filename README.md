@@ -506,7 +506,7 @@ Public routes remain accessible for campaigns, Wix embeds, and lead capture:
 - `/api/public/events`
 - `/api/public/thank-you`
 
-Internal admin routes are protected by a simple shared LaunchHub admin password:
+Internal admin routes are protected by a two-level Growth OS password gate:
 
 - `/`
 - `/dashboard`
@@ -533,15 +533,22 @@ Internal admin routes are protected by a simple shared LaunchHub admin password:
 - `/embed-preview`
 - `/debug/session`
 
-LaunchHub uses one shared admin password for the current admin backend. There is no username, no roles, no owner/editor/lead_viewer blocking, and no domain-wide cookie. Successful password entry sets a host-only `httpOnly` signed cookie for the current admin host with `sameSite=lax`, `path=/`, secure cookies in production, and an expiry of about 12 hours. `/logout` clears the cookie and redirects to `/login`.
+The temporary gate accepts one standard Admin password and one Master password.
+Both set a host-only `httpOnly` signed cookie for the current admin host with
+`sameSite=lax`, `path=/`, secure cookies in production, and an expiry of about
+12 hours. The signed payload records only `admin` or `master`; it never stores
+the password. Master access is required for data sources, monthly planning,
+workspace members, and system audit. `/logout` clears the cookie and redirects
+to `/login`.
 
 Public landing pages, embedded forms, legal pages, public lead submit APIs, static assets, and the public embed script remain reachable without login.
 
 `app.beautytrialhk.com` should be used for the admin backend. `go.beautytrialhk.com` should be used for public landing pages, embedded forms, and legal pages. The proxy keeps this host separation and only redirects admin paths from the public host back to the admin host.
 
-Required Vercel env vars for the simple admin gate:
+Required Vercel env vars for the temporary admin gate:
 
 - `LAUNCHHUB_ADMIN_PASSWORD`
+- `LAUNCHHUB_MASTER_PASSWORD`
 - `LAUNCHHUB_ADMIN_SESSION_SECRET`
 
 Legacy env vars from the removed internal auth flow are deprecated and not required for deployment:
@@ -553,11 +560,14 @@ Legacy env vars from the removed internal auth flow are deprecated and not requi
 - `INTERNAL_BASIC_AUTH_USER`
 - `INTERNAL_BASIC_AUTH_PASSWORD`
 
-Do not commit real credentials. If team login is needed later, add a new Supabase Auth, Google Login, or role-based admin login flow deliberately instead of extending this shared password gate.
+Do not commit real credentials. The two-password gate is a temporary internal
+control, not a replacement for individual Supabase Auth accounts.
 
 ## Team Access Direction
 
-The current admin backend uses a simple shared password gate only. The previous Basic Auth / custom role session gate has been removed from the active route path because it caused production navigation failures.
+The current admin backend uses a temporary Admin／Master password gate. The
+previous Basic Auth / custom role session gate has been removed from the active
+route path because it caused production navigation failures.
 
 The intended long-term layer is Supabase Auth plus role-based access control. Each team member should have their own login, a profile, a role, a status, and optional brand access.
 
@@ -1051,7 +1061,12 @@ Payment status semantics:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY` - pending; required before browser-side Supabase-aware flows are introduced.
 - `SUPABASE_SERVICE_ROLE_KEY` - pending; required by current server-side write APIs.
 - `LAUNCHHUB_ADMIN_PASSWORD` - required for the shared admin password gate.
+- `LAUNCHHUB_MASTER_PASSWORD` - required for Master-only planning, connection, member, and audit routes.
 - `LAUNCHHUB_ADMIN_SESSION_SECRET` - required for signing the admin session cookie.
+- `GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL` - server-only Google principal used to read connected private Sheets.
+- `GOOGLE_SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY` - server-only service-account key; preserve line breaks or use escaped `\n`.
+- `CRON_SECRET` - optional while automatic marketing sync is disabled; required
+  only if the protected scheduled sync route is re-enabled later.
 - `PAYMENT_WEBHOOK_SECRET` - pending; must be added before production payment webhook use.
 - Legacy internal auth env vars are deprecated and not required: `INTERNAL_ACCESS_USERS`, `INTERNAL_AUTH_SESSION_SECRET`, `INTERNAL_AUTH_COOKIE_DOMAIN`, and `INTERNAL_AUTH_DISABLED`.
 - `WHATSAPP_CREDENTIAL_ENCRYPTION_KEY` - required before saving WhatsApp access tokens or app secrets; used server-side for AES-256-GCM credential encryption.
@@ -1064,7 +1079,8 @@ Do not deploy yet. Before deployment:
 - Set `NEXT_PUBLIC_APP_URL` to the final Vercel or custom domain.
 - Set `NEXT_PUBLIC_ADMIN_BASE_URL=https://app.beautytrialhk.com` for internal admin pages and `NEXT_PUBLIC_PUBLIC_BASE_URL=https://go.beautytrialhk.com` for public campaign pages when using the split domains.
 - Configure Supabase environment variables in Vercel.
-- Configure `LAUNCHHUB_ADMIN_PASSWORD` and `LAUNCHHUB_ADMIN_SESSION_SECRET` in Vercel.
+- Configure `LAUNCHHUB_ADMIN_PASSWORD`, `LAUNCHHUB_MASTER_PASSWORD`, and `LAUNCHHUB_ADMIN_SESSION_SECRET` in Vercel.
+- Configure the Google Sheets service account variables and share each source Sheet with the service-account email as Viewer.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.
 - Run `npm run lint` and `npm run build`.
@@ -1142,6 +1158,31 @@ Default CS fields:
 - `CS 負責人` = blank
 - `備註` = blank
 - `最後跟進時間` = blank
+
+## Marketing Command Center Google Sheets Import
+
+The Marketing Command Center uses a separate read-only import path from the
+outbound Lead Sync webhook above.
+
+- `daily_spend` reads a brand-scoped date column and spend column into
+  `marketing_daily_metrics`.
+- `lead_funnel` reads only Created At, follow-up status, brand, booking date,
+  and confirmed show date. Customer names, phone numbers, email addresses, and
+  notes are not imported.
+- Lead and Book are attributed to the Lead Created At date. Book includes
+  `已預約`, `已到店`, and `no show`. Show is attributed to the confirmed show
+  date when the follow-up status is `已到店`.
+- The Dashboard reads imported metrics from the first day of the current Hong
+  Kong month through yesterday. If no successful funnel import exists yet, it
+  clearly warns and falls back to existing LaunchHub records.
+- A successful first sync changes the source from Draft to Connected. Errors
+  remain visible in the source registry without exposing credentials.
+- The Dashboard exposes a manual `重新整理數據` action to both Admin and
+  Master password sessions. It syncs every active Google Sheets source in one
+  operation, while source mapping and credentials remain Master-only.
+- Automatic scheduling is intentionally disabled for this rollout. The
+  protected `/api/cron/marketing-data-sources` route can be re-enabled later
+  with a reviewed Vercel Cron schedule and `Authorization: Bearer $CRON_SECRET`.
 
 The sync runs after the Supabase lead, source snapshot, and booking records are created. Invalid submissions, honeypot submissions, missing consent, rate-limited duplicates, and duplicate lead rows do not trigger the webhook. Lead event logging warnings do not prevent the Sheet sync attempt. If Google Sheets append fails, public lead submission still returns success and CS can continue using LaunchHub/Supabase as the source of truth.
 

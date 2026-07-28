@@ -25,11 +25,12 @@ export async function loginAction(formData: FormData) {
     redirect(next);
   }
 
-  if (!verifyAdminPassword(password)) {
+  const accessLevel = verifyAdminPassword(password);
+  if (!accessLevel) {
     redirect(`/login?next=${encodeURIComponent(next)}&error=invalid_password`);
   }
 
-  const sessionSet = await setAdminSessionCookie();
+  const sessionSet = await setAdminSessionCookie(accessLevel);
   if (!sessionSet) {
     redirect(`/login?next=${encodeURIComponent(next)}&error=not_configured`);
   }

@@ -3,6 +3,8 @@ import { defineConfig, devices } from "@playwright/test";
 const externalBaseUrl = process.env.PLAYWRIGHT_BASE_URL?.replace(/\/+$/, "");
 const baseURL = externalBaseUrl || "http://127.0.0.1:3000";
 const ciPassword = process.env.E2E_ADMIN_PASSWORD || "playwright-ci-password";
+const ciMasterPassword =
+  process.env.E2E_MASTER_PASSWORD || "playwright-ci-master-password";
 const ciSessionSecret =
   process.env.LAUNCHHUB_ADMIN_SESSION_SECRET ||
   "playwright-ci-session-secret-at-least-32-characters";
@@ -42,6 +44,7 @@ export default defineConfig({
           ...process.env,
           ALYSSA_E2E_FIXTURES: "1",
           LAUNCHHUB_ADMIN_PASSWORD: ciPassword,
+          LAUNCHHUB_MASTER_PASSWORD: ciMasterPassword,
           LAUNCHHUB_ADMIN_SESSION_SECRET: ciSessionSecret,
         },
       },
