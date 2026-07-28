@@ -1067,8 +1067,10 @@ Payment status semantics:
 - `LAUNCHHUB_ADMIN_PASSWORD` - optional server-only fallback for the Admin gate.
 - `LAUNCHHUB_MASTER_PASSWORD` - optional server-only fallback for the Master gate.
 - `LAUNCHHUB_ADMIN_SESSION_SECRET` - required for signing the admin session cookie.
-- `GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL` - server-only Google principal used to read connected private Sheets.
-- `GOOGLE_SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY` - server-only service-account key; preserve line breaks or use escaped `\n`.
+- `GOOGLE_SHEETS_OAUTH_CLIENT_ID` - server-only OAuth Web Client ID for the Marketing Command Center Sheets connector.
+- `GOOGLE_SHEETS_OAUTH_CLIENT_SECRET` - server-only OAuth Web Client Secret; never expose it to browser code.
+- `GOOGLE_SHEETS_OAUTH_REDIRECT_URI` - exact registered callback URL, normally `https://app.beautytrialhk.com/api/integrations/google-sheets/callback`.
+- `GOOGLE_SHEETS_OAUTH_TOKEN_ENCRYPTION_KEY` - server-only high-entropy key used to AES-256-GCM encrypt the Google refresh token before database storage.
 - `CRON_SECRET` - optional while automatic marketing sync is disabled; required
   only if the protected scheduled sync route is re-enabled later.
 - `PAYMENT_WEBHOOK_SECRET` - pending; must be added before production payment webhook use.
@@ -1085,7 +1087,7 @@ Do not deploy yet. Before deployment:
 - Configure Supabase environment variables in Vercel.
 - Configure `LAUNCHHUB_ADMIN_SESSION_SECRET` in Vercel and provision the two
   temporary passwords as salted hashes in `internal_access_passwords`.
-- Configure the Google Sheets service account variables and share each source Sheet with the service-account email as Viewer.
+- In Google Cloud, create a Web OAuth Client with the exact redirect URI `https://app.beautytrialhk.com/api/integrations/google-sheets/callback`; then configure the four `GOOGLE_SHEETS_OAUTH_*` variables in Vercel. After deployment, Master completes the one-click Google authorization from 資料來源 using a company Gmail that already has access to the Sheets.
 - Add production Wix domains to `forms.allowed_domains`.
 - Confirm webhook authentication for payment and WhatsApp endpoints.
 - Run `npm run lint` and `npm run build`.
@@ -1185,6 +1187,12 @@ outbound Lead Sync webhook above.
 - The Dashboard exposes a manual `重新整理數據` action to both Admin and
   Master password sessions. It syncs every active Google Sheets source in one
   operation, while source mapping and credentials remain Master-only.
+- Master connects Google Sheets from **資料來源 → 連接 Google Sheets**. The
+  connector requests only `spreadsheets.readonly`; the selected company Gmail
+  keeps its existing file permissions, so no Service Account JSON key or
+  per-file sharing to a bot account is required. The encrypted refresh token
+  remains server-only and is never written into a source mapping, audit entry,
+  browser response, or Git.
 - Automatic scheduling is intentionally disabled for this rollout. The
   protected `/api/cron/marketing-data-sources` route can be re-enabled later
   with a reviewed Vercel Cron schedule and `Authorization: Bearer $CRON_SECRET`.

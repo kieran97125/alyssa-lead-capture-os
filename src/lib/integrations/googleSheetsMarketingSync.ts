@@ -1,15 +1,13 @@
 import "server-only";
 
-import { GoogleAuth } from "google-auth-library";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
 import {
   aggregateDailySpendRows,
   aggregateLeadFunnelColumns,
 } from "@/lib/marketing/googleSheetsMetricParser";
 
-const SHEETS_READONLY_SCOPE =
-  "https://www.googleapis.com/auth/spreadsheets.readonly";
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5000;
 const MAX_CONFIGURED_ROWS = 20000;
@@ -63,48 +61,8 @@ export type MarketingSyncResult = {
   message: string;
 };
 
-function env(name: string) {
-  return process.env[name]?.trim() || "";
-}
-
-export function getGoogleSheetsMarketingCredentialStatus() {
-  const email = env("GOOGLE_SHEETS_SERVICE_ACCOUNT_EMAIL");
-  const privateKey = env("GOOGLE_SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY");
-  return {
-    ready: Boolean(email && privateKey),
-    serviceAccountEmail: email || null,
-    emailPresent: Boolean(email),
-    privateKeyPresent: Boolean(privateKey),
-  };
-}
-
-function getCredentialConfiguration() {
-  const status = getGoogleSheetsMarketingCredentialStatus();
-  if (!status.ready || !status.serviceAccountEmail) {
-    throw new Error(
-      "Google Sheets service account 尚未設定；請先加入伺服器憑證。"
-    );
-  }
-
-  return {
-    client_email: status.serviceAccountEmail,
-    private_key: env("GOOGLE_SHEETS_SERVICE_ACCOUNT_PRIVATE_KEY").replace(
-      /\\n/g,
-      "\n"
-    ),
-  };
-}
-
 async function getGoogleAccessToken() {
-  const auth = new GoogleAuth({
-    credentials: getCredentialConfiguration(),
-    scopes: [SHEETS_READONLY_SCOPE],
-  });
-  const accessToken = await auth.getAccessToken();
-  if (!accessToken) {
-    throw new Error("Google Sheets 認證失敗，未能取得短期 access token。");
-  }
-  return accessToken;
+  return getGoogleSheetsOAuthAccessToken();
 }
 
 function stringValue(value: unknown) {
@@ -185,7 +143,7 @@ async function batchGetValues(input: {
   if (!response.ok) {
     if (response.status === 403 || response.status === 404) {
       throw new Error(
-        "未能讀取 Google Sheet；請確認文件已分享畀系統 Service Account。"
+        "未能讀取 Google Sheet；請確認已授權嘅公司 Gmail 本身擁有文件存取權。"
       );
     }
     throw new Error(`Google Sheets API 暫時失敗（HTTP ${response.status}）。`);

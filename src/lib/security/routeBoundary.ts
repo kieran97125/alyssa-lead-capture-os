@@ -7,6 +7,7 @@ export const publicRoutePrefixes = [
   "/embed/",
   "/legal/",
   "/api/public/",
+  "/api/integrations/google-sheets/callback",
 ] as const;
 
 export const internalRoutePrefixes = [
