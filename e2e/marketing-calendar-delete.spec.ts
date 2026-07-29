@@ -7,6 +7,7 @@ test("calendar items require confirmation and remain when deletion is cancelled"
 
   const deleteButton = page.getByRole("button", {
     name: "刪除事項：DEP Reels 上線",
+    exact: true,
   });
   await expect(deleteButton).toBeVisible();
 

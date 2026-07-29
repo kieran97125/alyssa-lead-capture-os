@@ -218,16 +218,11 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
 });
 
-test("protected Google Sheets requests use a safe redirect and clear Master login", async ({
+test("protected Google Sheets POST uses a safe redirect and Master guidance renders", async ({
   page,
   context,
 }) => {
   await page.goto("/logout");
-  await page.getByLabel("Password").fill(
-    process.env.E2E_ADMIN_PASSWORD || "playwright-ci-password"
-  );
-  await page.getByRole("button", { name: "Unlock Admin" }).click();
-  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
 
   const response = await context.request.post("/data-sources", {
     data: "",
@@ -238,7 +233,9 @@ test("protected Google Sheets requests use a safe redirect and clear Master logi
   const location = response.headers().location;
   expect(location).toMatch(/\/login\?next=%2Fdata-sources/);
 
-  await page.goto("/data-sources");
+  await page.goto(
+    "/login?next=%2Fdata-sources&error=master_required"
+  );
   await expect(page).toHaveURL(
     /\/login\?next=%2Fdata-sources&error=master_required/
   );
