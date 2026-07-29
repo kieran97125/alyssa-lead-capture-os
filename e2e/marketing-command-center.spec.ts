@@ -218,6 +218,44 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
 });
 
+test("standard Admin gets a clear Master re-login control for Google Sheets", async ({
+  page,
+}) => {
+  const previousSecret = process.env.LAUNCHHUB_ADMIN_SESSION_SECRET;
+  process.env.LAUNCHHUB_ADMIN_SESSION_SECRET =
+    "playwright-ci-session-secret-at-least-32-characters";
+
+  try {
+    const adminSession = await createSignedAdminSession("admin");
+    expect(adminSession).not.toBeNull();
+    await page.context().addCookies([
+      {
+        name: "launchhub_admin_session",
+        value: adminSession!,
+        url: "http://127.0.0.1:3000",
+      },
+    ]);
+
+    await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
+
+    await expect(
+      page.getByText(/你目前以一般 Admin 登入/)
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "登出並以 Master 重新登入" })
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "連接 Google Sheets" })
+    ).toHaveCount(0);
+  } finally {
+    if (previousSecret === undefined) {
+      delete process.env.LAUNCHHUB_ADMIN_SESSION_SECRET;
+    } else {
+      process.env.LAUNCHHUB_ADMIN_SESSION_SECRET = previousSecret;
+    }
+  }
+});
+
 test("mobile sidebar opens as a labelled navigation drawer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });

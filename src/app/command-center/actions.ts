@@ -74,17 +74,20 @@ async function ensureCommandCenterAction(
   if (options.masterOnly && session.accessLevel !== "master") {
     return {
       ok: false as const,
+      reason: "master_required" as const,
       message: "呢項設定只限 Master Account。",
     };
   }
   if (!hasSupabaseAdminEnv()) {
     return {
       ok: false as const,
+      reason: "supabase_unavailable" as const,
       message: "Supabase 尚未連接，未能儲存 Command Center 設定。",
     };
   }
   return {
     ok: true as const,
+    reason: null,
     accessLevel: session.accessLevel,
   };
 }
@@ -346,7 +349,16 @@ export async function startGoogleSheetsOAuthAction() {
   const access = await ensureCommandCenterAction(returnPath, {
     masterOnly: true,
   });
-  if (!access.ok) redirectWithResult(returnPath, access);
+  if (!access.ok) {
+    if (access.reason === "master_required") {
+      redirect(
+        `/login?next=${encodeURIComponent(
+          returnPath
+        )}&error=master_required`
+      );
+    }
+    redirectWithResult(returnPath, access);
+  }
 
   let request: Awaited<
     ReturnType<typeof createGoogleSheetsOAuthAuthorizationRequest>
