@@ -15,11 +15,6 @@ import {
   syncAllMarketingGoogleSheets,
   syncMarketingDataSource,
 } from "@/lib/integrations/googleSheetsMarketingSync";
-import {
-  createGoogleSheetsOAuthAuthorizationRequest,
-  googleSheetsOAuthStateCookie,
-  serializeGoogleSheetsOAuthCookie,
-} from "@/lib/integrations/googleSheetsOAuth";
 import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/commandCenter";
 
 type ActionResult = {
@@ -344,56 +339,6 @@ export async function syncDataSourceAction(formData: FormData) {
       ? `${result.sourceName}：${result.message}`
       : `${result.sourceName}：${result.message}`,
   });
-}
-
-export async function startGoogleSheetsOAuthAction() {
-  const returnPath = "/data-sources";
-  const access = await ensureCommandCenterAction(returnPath, {
-    masterOnly: true,
-  });
-  if (!access.ok) {
-    if (access.reason === "master_required") {
-      redirect(
-        `/login?next=${encodeURIComponent(
-          returnPath
-        )}&error=master_required`
-      );
-    }
-    redirectWithResult(returnPath, access);
-  }
-
-  let request: Awaited<
-    ReturnType<typeof createGoogleSheetsOAuthAuthorizationRequest>
-  >;
-  try {
-    request = await createGoogleSheetsOAuthAuthorizationRequest();
-    const cookieStore = await cookies();
-    cookieStore.set(
-      googleSheetsOAuthStateCookie.name,
-      serializeGoogleSheetsOAuthCookie({
-        state: request.state,
-        codeVerifier: request.codeVerifier,
-      }),
-      {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: googleSheetsOAuthStateCookie.maxAge,
-      }
-    );
-  } catch (error) {
-    console.warn("google_sheets_oauth_start_failed", {
-      message: error instanceof Error ? error.message : "unknown",
-    });
-    redirectWithResult(returnPath, {
-      ok: false,
-      message:
-        "Google OAuth 尚未完成部署設定；請先檢查 Client ID、Client Secret、Callback URL 及 Encryption Key。",
-    });
-  }
-
-  redirect(request.authorizationUrl);
 }
 
 export async function refreshDashboardDataAction(formData: FormData) {

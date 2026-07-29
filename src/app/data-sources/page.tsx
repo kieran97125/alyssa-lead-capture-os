@@ -12,11 +12,13 @@ import {
 } from "lucide-react";
 import {
   createDataSourceAction,
-  startGoogleSheetsOAuthAction,
   syncDataSourceAction,
 } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
-import { getGoogleSheetsOAuthStatus } from "@/lib/integrations/googleSheetsOAuth";
+import {
+  getGoogleSheetsOAuthStatus,
+  getMissingGoogleSheetsOAuthConfiguration,
+} from "@/lib/integrations/googleSheetsOAuth";
 import {
   getCommandCenterSnapshot,
   type MarketingDataSource,
@@ -74,6 +76,8 @@ export default async function DataSourcesPage({
   const canManageGoogleConnection = access.accessLevel === "master";
   const googleLeadWriteReady =
     googleConnectionStatus.connected && googleConnectionStatus.writeEnabled;
+  const missingGoogleOAuthConfiguration =
+    getMissingGoogleSheetsOAuthConfiguration(googleConnectionStatus);
 
   return (
     <main className="alyssa-shell">
@@ -140,8 +144,22 @@ export default async function DataSourcesPage({
                     ? "現有連接只具唯讀權限；請重新授權一次，升級後 LaunchHub 會直接寫入 Lead Sheet。"
                   : googleConnectionStatus.ready
                     ? "以擁有相關 Sheet 編輯權限嘅公司 Gmail 授權一次，毋須 Service Account、JSON Key 或 Apps Script Web App。"
-                    : "尚需完成一次 OAuth Client 部署設定；完成後只需用公司 Gmail 授權一次。"}
+                    : "OAuth Client 部署設定未完成；以下會列出真正欠缺項目，系統未曾驗證任何 Google 帳戶。"}
               </p>
+              {canManageGoogleConnection &&
+              missingGoogleOAuthConfiguration.length > 0 ? (
+                <div
+                  className="source-oauth-missing"
+                  data-testid="google-oauth-missing-configuration"
+                >
+                  <strong>尚欠設定</strong>
+                  <ul>
+                    {missingGoogleOAuthConfiguration.map((item) => (
+                      <li key={item.key}>{item.label}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
               {googleConnectionStatus.lastErrorSummary ? (
                 <p className="mt-2 text-xs font-semibold text-[#a54b45]">
                   {googleConnectionStatus.lastErrorSummary}
@@ -149,19 +167,36 @@ export default async function DataSourcesPage({
               ) : null}
             </div>
             {canManageGoogleConnection ? (
-              <form action={startGoogleSheetsOAuthAction}>
+              <form
+                action="/api/integrations/google-sheets/start"
+                method="post"
+              >
                 <button
                   type="submit"
                   className="command-primary-button"
-                  disabled={!googleConnectionStatus.ready || !snapshot.schemaReady}
+                  aria-describedby={
+                    missingGoogleOAuthConfiguration.length > 0 ||
+                    !googleConnectionStatus.tableReady
+                      ? "google-oauth-readiness-note"
+                      : undefined
+                  }
                 >
                   <Link2 size={15} />
-                  {googleLeadWriteReady
+                  {!googleConnectionStatus.ready
+                    ? "檢查連接設定"
+                    : googleLeadWriteReady
                     ? "重新連接"
                     : googleConnectionStatus.connected
                       ? "升級連接"
                       : "連接 Google Sheets"}
                 </button>
+                {missingGoogleOAuthConfiguration.length > 0 ||
+                !googleConnectionStatus.tableReady ? (
+                  <small id="google-oauth-readiness-note">
+                    撳後會檢查連接設定並顯示實際欠缺項目；未準備好之前唔會開啟
+                    Google。
+                  </small>
+                ) : null}
               </form>
             ) : (
               <a

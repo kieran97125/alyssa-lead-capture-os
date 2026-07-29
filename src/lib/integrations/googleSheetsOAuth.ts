@@ -43,6 +43,15 @@ export type GoogleSheetsOAuthEnvironmentStatus = {
   redirectUri: string | null;
 };
 
+export type GoogleSheetsOAuthConfigurationItem = {
+  key:
+    | "client_id"
+    | "client_secret"
+    | "redirect_uri"
+    | "token_encryption_key";
+  label: string;
+};
+
 export type GoogleSheetsOAuthStatus = GoogleSheetsOAuthEnvironmentStatus & {
   tableReady: boolean;
   connected: boolean;
@@ -83,13 +92,33 @@ function validRedirectUri(value: string) {
   }
 }
 
+function configuredRedirectUri() {
+  const explicit = validRedirectUri(env("GOOGLE_SHEETS_OAUTH_REDIRECT_URI"));
+  if (explicit) return explicit;
+
+  for (const name of ["NEXT_PUBLIC_ADMIN_BASE_URL", "NEXT_PUBLIC_APP_URL"]) {
+    const baseUrl = env(name);
+    if (!baseUrl) continue;
+    try {
+      const candidate = new URL(
+        "/api/integrations/google-sheets/callback",
+        baseUrl
+      ).toString();
+      const valid = validRedirectUri(candidate);
+      if (valid) return valid;
+    } catch {
+      // Continue to the next trusted application base URL.
+    }
+  }
+
+  return null;
+}
+
 export function getGoogleSheetsOAuthEnvironmentStatus(): GoogleSheetsOAuthEnvironmentStatus {
   const clientId = env("GOOGLE_SHEETS_OAUTH_CLIENT_ID");
   const clientSecret = env("GOOGLE_SHEETS_OAUTH_CLIENT_SECRET");
   const tokenEncryptionKey = env("GOOGLE_SHEETS_OAUTH_TOKEN_ENCRYPTION_KEY");
-  const redirectUri = validRedirectUri(
-    env("GOOGLE_SHEETS_OAUTH_REDIRECT_URI")
-  );
+  const redirectUri = configuredRedirectUri();
 
   return {
     ready: Boolean(clientId && clientSecret && tokenEncryptionKey && redirectUri),
@@ -99,6 +128,33 @@ export function getGoogleSheetsOAuthEnvironmentStatus(): GoogleSheetsOAuthEnviro
     encryptionKeyPresent: Boolean(tokenEncryptionKey),
     redirectUri,
   };
+}
+
+export function getMissingGoogleSheetsOAuthConfiguration(
+  status = getGoogleSheetsOAuthEnvironmentStatus()
+): GoogleSheetsOAuthConfigurationItem[] {
+  return [
+    !status.clientIdPresent
+      ? { key: "client_id" as const, label: "Google OAuth Client ID" }
+      : null,
+    !status.clientSecretPresent
+      ? { key: "client_secret" as const, label: "Google OAuth Client Secret" }
+      : null,
+    !status.redirectUriPresent
+      ? {
+          key: "redirect_uri" as const,
+          label: "OAuth Callback URL（未設定或格式不正確）",
+        }
+      : null,
+    !status.encryptionKeyPresent
+      ? {
+          key: "token_encryption_key" as const,
+          label: "OAuth Token Encryption Key",
+        }
+      : null,
+  ].filter(
+    (item): item is GoogleSheetsOAuthConfigurationItem => item !== null
+  );
 }
 
 function getOAuthClient() {

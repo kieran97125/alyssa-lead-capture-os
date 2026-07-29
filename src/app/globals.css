@@ -441,6 +441,51 @@ textarea {
   transform: translateY(-1px);
 }
 
+.command-primary-button:disabled,
+.command-primary-button[aria-disabled="true"] {
+  cursor: not-allowed;
+  border-color: #c9ccd5;
+  background: #d8dae1;
+  color: #727887;
+  box-shadow: none;
+  opacity: 0.78;
+  transform: none;
+}
+
+.source-oauth-missing {
+  margin-top: 0.72rem;
+  border: 1px solid #ead7aa;
+  border-radius: 0.72rem;
+  background: #fffaf0;
+  padding: 0.68rem 0.76rem;
+  color: #7a5b17;
+}
+
+.source-oauth-missing strong {
+  display: block;
+  font-size: 0.65rem;
+}
+
+.source-oauth-missing ul {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.34rem 0.8rem;
+  margin: 0.38rem 0 0;
+  padding-left: 1rem;
+  font-size: 0.62rem;
+  font-weight: 720;
+}
+
+.source-credential-banner form small {
+  display: block;
+  max-width: 13rem;
+  margin-top: 0.35rem;
+  color: #858c9c;
+  font-size: 0.57rem;
+  font-weight: 680;
+  line-height: 1.45;
+}
+
 .command-refresh-button {
   cursor: pointer;
   font-family: inherit;
