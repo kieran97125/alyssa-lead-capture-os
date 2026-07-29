@@ -21,6 +21,8 @@ const OAUTH_STATE_COOKIE_NAME = "growth_os_google_sheets_oauth";
 const OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60;
 const ENCRYPTION_PREFIX = "gsoauth:v1";
 const STATE_COOKIE_PREFIX = "gsoauthstate:v1";
+const PRODUCTION_OAUTH_REDIRECT_URI =
+  "https://app.beautytrialhk.com/api/integrations/google-sheets/callback";
 
 type OAuthConnectionRow = {
   id: string;
@@ -95,6 +97,13 @@ function validRedirectUri(value: string) {
 function configuredRedirectUri() {
   const explicit = validRedirectUri(env("GOOGLE_SHEETS_OAUTH_REDIRECT_URI"));
   if (explicit) return explicit;
+
+  // Keep the production OAuth contract independent from public/embed base URLs.
+  // Vercel exposes VERCEL_ENV at runtime, while previews and local development
+  // can still opt into their own callback through the explicit environment key.
+  if (env("VERCEL_ENV") === "production") {
+    return PRODUCTION_OAUTH_REDIRECT_URI;
+  }
 
   for (const name of ["NEXT_PUBLIC_ADMIN_BASE_URL", "NEXT_PUBLIC_APP_URL"]) {
     const baseUrl = env(name);
