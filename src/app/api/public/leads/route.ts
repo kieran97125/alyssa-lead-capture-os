@@ -1646,6 +1646,7 @@ export async function POST(request: NextRequest) {
       });
 
       const sheetResult = await appendLeadToGoogleSheet({
+        brandId: form.brand_id,
         leadKey: lead.id,
         createdAt: typeof lead.created_at === "string" ? lead.created_at : submittedAt,
         customerName,
@@ -1672,6 +1673,7 @@ export async function POST(request: NextRequest) {
       } else {
         console.info("[LaunchHub] google_sheets_sync_succeeded", {
           lead_id: lead.id,
+          transport: sheetResult.transport,
           webhook_status: sheetResult.webhookStatus,
         });
       }

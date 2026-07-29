@@ -8,7 +8,8 @@ import {
 
 type SyncStatus = "enabled" | "disabled" | "missing_config";
 
-type LeadSheetSyncInput = {
+export type LeadSheetSyncInput = {
+  brandId: string;
   leadKey: string;
   createdAt: Date | string | null;
   customerName: string;
@@ -94,26 +95,6 @@ export function getGoogleSheetsLeadSyncStatus(): {
   if (env("GOOGLE_SHEETS_SYNC_ENABLED").toLowerCase() !== "true") {
     return { status: "disabled", label: "已停用", missing: [] };
   }
-
-  const missing: string[] = [];
-
-  if (env("GOOGLE_SHEETS_SYNC_MODE").toLowerCase() !== "apps_script") {
-    missing.push("GOOGLE_SHEETS_SYNC_MODE=apps_script");
-  }
-
-  for (const name of [
-    "GOOGLE_SHEETS_WEBHOOK_URL",
-    "GOOGLE_SHEETS_WEBHOOK_SECRET",
-  ]) {
-    if (!env(name)) {
-      missing.push(name);
-    }
-  }
-
-  if (missing.length > 0) {
-    return { status: "missing_config", label: "未設定", missing };
-  }
-
   return { status: "enabled", label: "已設定", missing: [] };
 }
 
@@ -279,6 +260,73 @@ export function buildGoogleSheetsLeadPayload(
   };
 }
 
+function canonicalHeader(value: string) {
+  return value
+    .trim()
+    .replace(/\u00a0/g, " ")
+    .replace(/[／⁄]/g, "/")
+    .replace(/\s*\/\s*/g, "/")
+    .replace(/\s+/g, " ")
+    .toLocaleLowerCase("en");
+}
+
+const REQUIRED_OPERATIONAL_HEADERS = [
+  "Created At",
+  "跟進狀態",
+  "品牌",
+  "分店",
+  "客人姓名",
+  "電話",
+  "療程 / 優惠",
+  "療程項目",
+  "預約日期",
+  "預約時間",
+  "來源",
+  "lead_key",
+] as const;
+
+export function alignLeadRowToDestinationHeaders(
+  destinationHeaders: string[],
+  payload: GoogleSheetsLeadWebhookPayload
+) {
+  const valueByHeader = new Map(
+    payload.headers.map((header, index) => [
+      canonicalHeader(header),
+      payload.rowValues[index] ?? "",
+    ])
+  );
+  const normalizedDestinationHeaders = destinationHeaders.map(canonicalHeader);
+  const duplicateHeaders = normalizedDestinationHeaders.filter(
+    (header, index) =>
+      header &&
+      normalizedDestinationHeaders.indexOf(header) !== index &&
+      valueByHeader.has(header)
+  );
+  if (duplicateHeaders.length > 0) {
+    throw new Error(
+      `Google Sheet 有重複受管理 header：${Array.from(
+        new Set(duplicateHeaders)
+      ).join("、")}。Lead 寫入已安全停止。`
+    );
+  }
+
+  const destinationHeaderSet = new Set(normalizedDestinationHeaders);
+  const missingHeaders = REQUIRED_OPERATIONAL_HEADERS.filter(
+    (header) => !destinationHeaderSet.has(canonicalHeader(header))
+  );
+  if (missingHeaders.length > 0) {
+    throw new Error(
+      `Google Sheet 缺少必要 header：${missingHeaders.join(
+        "、"
+      )}。Lead 寫入已安全停止。`
+    );
+  }
+
+  return normalizedDestinationHeaders.map(
+    (header) => valueByHeader.get(header) ?? ""
+  );
+}
+
 export async function appendLeadToGoogleSheet(input: LeadSheetSyncInput) {
   const status = getGoogleSheetsLeadSyncStatus();
 
@@ -289,13 +337,48 @@ export async function appendLeadToGoogleSheet(input: LeadSheetSyncInput) {
       reason: status.status,
       missing: status.missing,
       webhookStatus: null,
+      transport: null,
+    };
+  }
+
+  const payload = buildGoogleSheetsLeadPayload(input);
+  const { appendLeadViaNativeGoogleSheets } = await import(
+    "@/lib/integrations/googleSheetsLeadNative"
+  );
+  const nativeResult = await appendLeadViaNativeGoogleSheets({
+    brandId: input.brandId,
+    payload,
+  });
+
+  if (nativeResult.attempted) {
+    return {
+      ok: true,
+      skipped: false,
+      reason: null,
+      missing: [],
+      webhookStatus: null,
+      transport: "native_oauth" as const,
+      sourceId: nativeResult.sourceId,
+      updatedRange: nativeResult.updatedRange,
+    };
+  }
+
+  const legacyStatus = getGoogleSheetsLegacyWebhookStatus();
+  if (legacyStatus.status !== "enabled") {
+    return {
+      ok: true,
+      skipped: true,
+      reason: nativeResult.reason,
+      missing: [...nativeResult.missing, ...legacyStatus.missing],
+      webhookStatus: null,
+      transport: null,
     };
   }
 
   const response = await fetch(env("GOOGLE_SHEETS_WEBHOOK_URL"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildGoogleSheetsLeadPayload(input)),
+    body: JSON.stringify(payload),
   });
 
   if (!response.ok) {
@@ -308,5 +391,26 @@ export async function appendLeadToGoogleSheet(input: LeadSheetSyncInput) {
     reason: null,
     missing: [],
     webhookStatus: response.status,
+    transport: "apps_script" as const,
+  };
+}
+
+function getGoogleSheetsLegacyWebhookStatus(): {
+  status: SyncStatus;
+  missing: string[];
+} {
+  const missing: string[] = [];
+  if (env("GOOGLE_SHEETS_SYNC_MODE").toLowerCase() !== "apps_script") {
+    missing.push("GOOGLE_SHEETS_SYNC_MODE=apps_script");
+  }
+  for (const name of [
+    "GOOGLE_SHEETS_WEBHOOK_URL",
+    "GOOGLE_SHEETS_WEBHOOK_SECRET",
+  ]) {
+    if (!env(name)) missing.push(name);
+  }
+  return {
+    status: missing.length > 0 ? "missing_config" : "enabled",
+    missing,
   };
 }

@@ -22,3 +22,15 @@ test("login survives refresh and navigation across Landing Pages and CRM", async
   await expect(page.getByTestId("crm-conversations-screen")).toBeVisible();
   await expectSessionToRemainAuthenticated(page);
 });
+
+test("sidebar exposes logout and clears the active session", async ({ page }) => {
+  await page.goto("/dashboard");
+  const logout = page.getByRole("link", { name: "登出 Alyssa Growth OS" });
+
+  await expect(logout).toBeVisible();
+  await expect(logout).toHaveAttribute("href", "/logout");
+  await logout.click();
+
+  await expect(page).toHaveURL(/\/login(?:\?|$)/);
+  await expect(page.getByTestId("login-screen")).toBeVisible();
+});

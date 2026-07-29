@@ -218,8 +218,16 @@ textarea {
   padding: 0.85rem;
 }
 
+.command-account-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  gap: 0.4rem;
+}
+
 .command-account-card {
   display: flex;
+  min-width: 0;
   align-items: center;
   gap: 0.65rem;
   border-radius: 0.9rem;
@@ -231,6 +239,38 @@ textarea {
 
 .command-account-card:hover {
   background: #f6f7fb;
+}
+
+.command-logout-button {
+  display: flex;
+  min-width: 2.65rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.38rem;
+  border: 1px solid #e5e7ee;
+  border-radius: 0.9rem;
+  background: #fff;
+  padding: 0.65rem 0.7rem;
+  color: #747b8c;
+  min-height: 2.45rem;
+  font-size: 0.68rem;
+  font-weight: 780;
+  text-decoration: none;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+.command-logout-button:hover {
+  border-color: #f0c9c5;
+  background: #fff4f2;
+  color: #c45249;
+}
+
+.command-logout-button:focus-visible {
+  outline: 3px solid rgba(99, 91, 255, 0.2);
+  outline-offset: 2px;
 }
 
 .command-account-avatar {

@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
           action: "google_sheets_oauth.connected",
           entity_type: "google_sheets_oauth_connection",
           entity_id: "marketing_dashboard",
-          after_json: { scope: "spreadsheets.readonly" },
+          after_json: { scope: "spreadsheets.read_write" },
         });
     } catch (error) {
       console.warn("google_sheets_oauth_audit_write_failed", {

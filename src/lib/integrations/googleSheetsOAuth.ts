@@ -14,8 +14,8 @@ import {
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
 
-const GOOGLE_SHEETS_READONLY_SCOPE =
-  "https://www.googleapis.com/auth/spreadsheets.readonly";
+export const GOOGLE_SHEETS_WRITE_SCOPE =
+  "https://www.googleapis.com/auth/spreadsheets";
 const OAUTH_CONNECTION_KEY = "marketing_dashboard";
 const OAUTH_STATE_COOKIE_NAME = "growth_os_google_sheets_oauth";
 const OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60;
@@ -46,6 +46,7 @@ export type GoogleSheetsOAuthEnvironmentStatus = {
 export type GoogleSheetsOAuthStatus = GoogleSheetsOAuthEnvironmentStatus & {
   tableReady: boolean;
   connected: boolean;
+  writeEnabled: boolean;
   connectionStatus: OAuthConnectionRow["status"] | null;
   connectedAt: string | null;
   lastVerifiedAt: string | null;
@@ -205,10 +206,14 @@ export async function getGoogleSheetsOAuthStatus(): Promise<GoogleSheetsOAuthSta
 
   try {
     const { row, tableReady } = await getConnectionRow();
+    const connected = Boolean(environment.ready && row?.status === "connected");
     return {
       ...environment,
       tableReady,
-      connected: Boolean(environment.ready && row?.status === "connected"),
+      connected,
+      writeEnabled: Boolean(
+        connected && row?.scopes?.includes(GOOGLE_SHEETS_WRITE_SCOPE)
+      ),
       connectionStatus: row?.status ?? null,
       connectedAt: row?.connected_at ?? null,
       lastVerifiedAt: row?.last_verified_at ?? null,
@@ -222,6 +227,7 @@ export async function getGoogleSheetsOAuthStatus(): Promise<GoogleSheetsOAuthSta
       ...environment,
       tableReady: false,
       connected: false,
+      writeEnabled: false,
       connectionStatus: null,
       connectedAt: null,
       lastVerifiedAt: null,
@@ -237,7 +243,7 @@ export async function createGoogleSheetsOAuthAuthorizationRequest() {
   const authorizationUrl = client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: [GOOGLE_SHEETS_READONLY_SCOPE],
+    scope: [GOOGLE_SHEETS_WRITE_SCOPE],
     state,
     code_challenge: codeChallenge,
     code_challenge_method: CodeChallengeMethod.S256,
@@ -345,13 +351,13 @@ export async function completeGoogleSheetsOAuthAuthorization(input: {
     }
 
     const timestamp = new Date().toISOString();
-    const returnedScopes = (tokens.scope || GOOGLE_SHEETS_READONLY_SCOPE)
+    const returnedScopes = (tokens.scope || GOOGLE_SHEETS_WRITE_SCOPE)
       .split(" ")
       .filter(Boolean);
-    if (!returnedScopes.includes(GOOGLE_SHEETS_READONLY_SCOPE)) {
+    if (!returnedScopes.includes(GOOGLE_SHEETS_WRITE_SCOPE)) {
       throw new Error("google_sheets_oauth_required_scope_missing");
     }
-    const scopes = [GOOGLE_SHEETS_READONLY_SCOPE];
+    const scopes = [GOOGLE_SHEETS_WRITE_SCOPE];
     const supabase = createSupabaseAdminClient();
     const { error } = await supabase
       .from("google_sheets_oauth_connections")
@@ -379,13 +385,23 @@ export async function completeGoogleSheetsOAuthAuthorization(input: {
   }
 }
 
-export async function getGoogleSheetsOAuthAccessToken() {
+export async function getGoogleSheetsOAuthAccessToken(
+  options: { requireWrite?: boolean } = {}
+) {
   const { row, tableReady } = await getConnectionRow();
   if (!tableReady) {
     throw new Error("Google Sheets OAuth migration 尚未套用。");
   }
   if (!row || row.status !== "connected") {
     throw new Error("Google Sheets 尚未連接；請由 Master 先完成一次 Google 授權。");
+  }
+  if (
+    options.requireWrite &&
+    !row.scopes?.includes(GOOGLE_SHEETS_WRITE_SCOPE)
+  ) {
+    throw new Error(
+      "Google Sheets 目前只具唯讀權限；請由 Master 重新連接一次以啟用 Lead 寫入。"
+    );
   }
 
   const refreshToken = decryptRefreshToken(row.refresh_token_encrypted);

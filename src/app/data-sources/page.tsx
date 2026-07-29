@@ -72,6 +72,8 @@ export default async function DataSourcesPage({
   const message = firstParam(query?.message);
   const status = firstParam(query?.command_status);
   const canManageGoogleConnection = access.accessLevel === "master";
+  const googleLeadWriteReady =
+    googleConnectionStatus.connected && googleConnectionStatus.writeEnabled;
 
   return (
     <main className="alyssa-shell">
@@ -110,11 +112,11 @@ export default async function DataSourcesPage({
 
           <section
             className={`command-surface source-credential-banner ${
-              googleConnectionStatus.connected ? "is-ready" : "is-warning"
+              googleLeadWriteReady ? "is-ready" : "is-warning"
             }`}
           >
             <span>
-              {googleConnectionStatus.connected ? (
+              {googleLeadWriteReady ? (
                 <ShieldCheck size={20} />
               ) : (
                 <LockKeyhole size={20} />
@@ -123,15 +125,21 @@ export default async function DataSourcesPage({
             <div>
               <strong>
                 Google Sheets 一鍵連接
-                {googleConnectionStatus.connected ? "已連接" : "尚未連接"}
+                {googleLeadWriteReady
+                  ? "已連接"
+                  : googleConnectionStatus.connected
+                    ? "需升級寫入權限"
+                    : "尚未連接"}
               </strong>
               <p>
                 {!canManageGoogleConnection
                   ? "你目前以一般 Admin 登入；Google 帳戶授權只限 Master。請先重新登入 Master，避免撳掣後原地返回。"
+                  : googleLeadWriteReady
+                  ? "公司 Google 帳戶已連接；LaunchHub 會按 Sheet 實際 header 自動對位並直接寫入，毋須再更新 Apps Script Web App。"
                   : googleConnectionStatus.connected
-                  ? "公司 Google 帳戶已授權唯讀 Sheets；重新連接可切換授權帳戶。"
+                    ? "現有連接只具唯讀權限；請重新授權一次，升級後 LaunchHub 會直接寫入 Lead Sheet。"
                   : googleConnectionStatus.ready
-                    ? "以擁有兩份 Sheet 權限嘅公司 Gmail 授權一次，毋須 Service Account 或 JSON Key。"
+                    ? "以擁有相關 Sheet 編輯權限嘅公司 Gmail 授權一次，毋須 Service Account、JSON Key 或 Apps Script Web App。"
                     : "尚需完成一次 OAuth Client 部署設定；完成後只需用公司 Gmail 授權一次。"}
               </p>
               {googleConnectionStatus.lastErrorSummary ? (
@@ -148,9 +156,11 @@ export default async function DataSourcesPage({
                   disabled={!googleConnectionStatus.ready || !snapshot.schemaReady}
                 >
                   <Link2 size={15} />
-                  {googleConnectionStatus.connected
+                  {googleLeadWriteReady
                     ? "重新連接"
-                    : "連接 Google Sheets"}
+                    : googleConnectionStatus.connected
+                      ? "升級連接"
+                      : "連接 Google Sheets"}
                 </button>
               </form>
             ) : (
