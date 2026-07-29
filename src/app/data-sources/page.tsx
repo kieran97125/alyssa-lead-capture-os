@@ -21,6 +21,7 @@ import {
   getCommandCenterSnapshot,
   type MarketingDataSource,
 } from "@/lib/marketing/commandCenter";
+import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
 
@@ -62,13 +63,15 @@ export default async function DataSourcesPage({
     message?: string | string[];
   }>;
 }) {
-  const [snapshot, query] = await Promise.all([
+  const [snapshot, query, googleConnectionStatus, access] = await Promise.all([
     getCommandCenterSnapshot(),
     searchParams,
+    getGoogleSheetsOAuthStatus(),
+    getCurrentInternalAccess(),
   ]);
   const message = firstParam(query?.message);
   const status = firstParam(query?.command_status);
-  const googleConnectionStatus = await getGoogleSheetsOAuthStatus();
+  const canManageGoogleConnection = access.accessLevel === "master";
 
   return (
     <main className="alyssa-shell">
@@ -123,7 +126,9 @@ export default async function DataSourcesPage({
                 {googleConnectionStatus.connected ? "已連接" : "尚未連接"}
               </strong>
               <p>
-                {googleConnectionStatus.connected
+                {!canManageGoogleConnection
+                  ? "你目前以一般 Admin 登入；Google 帳戶授權只限 Master。請先重新登入 Master，避免撳掣後原地返回。"
+                  : googleConnectionStatus.connected
                   ? "公司 Google 帳戶已授權唯讀 Sheets；重新連接可切換授權帳戶。"
                   : googleConnectionStatus.ready
                     ? "以擁有兩份 Sheet 權限嘅公司 Gmail 授權一次，毋須 Service Account 或 JSON Key。"
@@ -135,16 +140,29 @@ export default async function DataSourcesPage({
                 </p>
               ) : null}
             </div>
-            <form action={startGoogleSheetsOAuthAction}>
-              <button
-                type="submit"
+            {canManageGoogleConnection ? (
+              <form action={startGoogleSheetsOAuthAction}>
+                <button
+                  type="submit"
+                  className="command-primary-button"
+                  disabled={!googleConnectionStatus.ready || !snapshot.schemaReady}
+                >
+                  <Link2 size={15} />
+                  {googleConnectionStatus.connected
+                    ? "重新連接"
+                    : "連接 Google Sheets"}
+                </button>
+              </form>
+            ) : (
+              <a
+                href="/logout"
                 className="command-primary-button"
-                disabled={!googleConnectionStatus.ready || !snapshot.schemaReady}
+                aria-label="登出並以 Master 重新登入"
               >
                 <Link2 size={15} />
-                {googleConnectionStatus.connected ? "重新連接" : "連接 Google Sheets"}
-              </button>
-            </form>
+                以 Master 重新登入
+              </a>
+            )}
           </section>
 
           <section className="source-summary-grid">

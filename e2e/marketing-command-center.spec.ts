@@ -218,6 +218,32 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
 });
 
+test("protected Google Sheets POST uses a safe redirect and Master guidance renders", async ({
+  page,
+  context,
+}) => {
+  await page.goto("/logout");
+
+  const response = await context.request.post("/data-sources", {
+    data: "",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(303);
+  const location = response.headers().location;
+  expect(location).toMatch(/\/login\?next=%2Fdata-sources/);
+
+  await page.goto(
+    "/login?next=%2Fdata-sources&error=master_required"
+  );
+  await expect(page).toHaveURL(
+    /\/login\?next=%2Fdata-sources&error=master_required/
+  );
+  await expect(
+    page.getByText(/呢個頁面只限 Master Account/)
+  ).toBeVisible();
+});
+
 test("mobile sidebar opens as a labelled navigation drawer", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });

@@ -74,17 +74,20 @@ async function ensureCommandCenterAction(
   if (options.masterOnly && session.accessLevel !== "master") {
     return {
       ok: false as const,
+      reason: "master_required" as const,
       message: "呢項設定只限 Master Account。",
     };
   }
   if (!hasSupabaseAdminEnv()) {
     return {
       ok: false as const,
+      reason: "supabase_unavailable" as const,
       message: "Supabase 尚未連接，未能儲存 Command Center 設定。",
     };
   }
   return {
     ok: true as const,
+    reason: null,
     accessLevel: session.accessLevel,
   };
 }
@@ -107,6 +110,7 @@ async function writeAudit(input: {
   entityType: string;
   entityId?: string | null;
   brandId?: string | null;
+  before?: Record<string, unknown> | null;
   after?: Record<string, unknown> | null;
 }) {
   try {
@@ -117,6 +121,7 @@ async function writeAudit(input: {
       entity_type: input.entityType,
       entity_id: input.entityId ?? null,
       brand_id: input.brandId ?? null,
+      before_json: input.before ?? null,
       after_json: input.after ?? null,
     });
   } catch (error) {
@@ -346,7 +351,16 @@ export async function startGoogleSheetsOAuthAction() {
   const access = await ensureCommandCenterAction(returnPath, {
     masterOnly: true,
   });
-  if (!access.ok) redirectWithResult(returnPath, access);
+  if (!access.ok) {
+    if (access.reason === "master_required") {
+      redirect(
+        `/login?next=${encodeURIComponent(
+          returnPath
+        )}&error=master_required`
+      );
+    }
+    redirectWithResult(returnPath, access);
+  }
 
   let request: Awaited<
     ReturnType<typeof createGoogleSheetsOAuthAuthorizationRequest>
@@ -535,6 +549,62 @@ export async function moveCalendarItemAction(
   });
   revalidateCommandCenter();
   return { ok: true, message: "日曆日期已更新。" };
+}
+
+export async function deleteCalendarItemAction(
+  itemId: string
+): Promise<ActionResult> {
+  const access = await ensureCommandCenterAction("/calendar");
+  if (!access.ok) return access;
+  if (!itemId || itemId.length > 100) {
+    return { ok: false, message: "無效日曆事項。" };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("marketing_calendar_items")
+    .delete()
+    .eq("id", itemId)
+    .select(
+      "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+    )
+    .single();
+  if (error) {
+    console.warn("marketing_calendar_item_delete_failed", {
+      code: error.code,
+      message: error.message,
+      itemId,
+    });
+    return {
+      ok: false,
+      message:
+        error.code === "PGRST116"
+          ? "找不到要刪除嘅日曆事項。"
+          : "未能刪除日曆事項。",
+    };
+  }
+
+  await writeAudit({
+    actorIdentifier:
+      access.accessLevel === "master" ? MASTER_ACCOUNT_EMAIL : "shared_admin",
+    action: "calendar_item.deleted",
+    entityType: "marketing_calendar_item",
+    entityId: data.id,
+    brandId: data.brand_id,
+    before: {
+      title: data.title,
+      itemType: data.item_type,
+      channel: data.channel,
+      status: data.status,
+      scheduledDate: data.scheduled_date,
+      scheduledTime: data.scheduled_time,
+      assigneeEmail: data.assignee_email,
+      notes: data.notes,
+      sortOrder: data.sort_order,
+    },
+  });
+  revalidateCommandCenter();
+  return { ok: true, message: "日曆事項已刪除。" };
 }
 
 export async function createWorkspaceMemberAction(formData: FormData) {

@@ -15,8 +15,11 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
-import { GripVertical } from "lucide-react";
-import { moveCalendarItemAction } from "@/app/command-center/actions";
+import { GripVertical, Trash2 } from "lucide-react";
+import {
+  deleteCalendarItemAction,
+  moveCalendarItemAction,
+} from "@/app/command-center/actions";
 import type { CalendarItem } from "@/lib/marketing/commandCenter";
 
 type CalendarBrand = {
@@ -50,10 +53,14 @@ function CalendarTaskCard({
   item,
   brand,
   overlay = false,
+  deleting = false,
+  onDelete,
 }: {
   item: CalendarItem;
   brand: CalendarBrand | undefined;
   overlay?: boolean;
+  deleting?: boolean;
+  onDelete?: (item: CalendarItem) => void;
 }) {
   const draggable = useDraggable({
     id: item.id,
@@ -77,8 +84,27 @@ function CalendarTaskCard({
       {...(overlay ? {} : draggable.listeners)}
     >
       <div>
-        <span>{itemTypeLabel(item.itemType)}</span>
-        {item.channel ? <small>{item.channel}</small> : null}
+        <span>
+          {itemTypeLabel(item.itemType)}
+          {item.channel ? <small>{item.channel}</small> : null}
+        </span>
+        {!overlay && onDelete ? (
+          <button
+            type="button"
+            className="calendar-task-delete"
+            aria-label={`刪除事項：${item.title}`}
+            title="刪除事項"
+            disabled={deleting}
+            onPointerDown={(event) => event.stopPropagation()}
+            onKeyDown={(event) => event.stopPropagation()}
+            onClick={(event) => {
+              event.stopPropagation();
+              onDelete(item);
+            }}
+          >
+            <Trash2 size={11} />
+          </button>
+        ) : null}
       </div>
       <strong>{item.title}</strong>
       <footer>
@@ -99,12 +125,16 @@ function CalendarDay({
   items,
   brands,
   today,
+  deletingId,
+  onDelete,
 }: {
   date: string;
   day: number;
   items: CalendarItem[];
   brands: CalendarBrand[];
   today: string;
+  deletingId: string | null;
+  onDelete: (item: CalendarItem) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: date });
 
@@ -126,6 +156,8 @@ function CalendarDay({
             key={item.id}
             item={item}
             brand={brands.find((brand) => brand.id === item.brandId)}
+            deleting={deletingId === item.id}
+            onDelete={onDelete}
           />
         ))}
       </div>
@@ -150,6 +182,7 @@ export function MarketingCalendarBoard({
 }) {
   const [items, setItems] = useState(initialItems);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
   const sensors = useSensors(
@@ -208,6 +241,32 @@ export function MarketingCalendarBoard({
     });
   }
 
+  function handleDelete(item: CalendarItem) {
+    if (!window.confirm(`刪除「${item.title}」？此操作無法復原。`)) {
+      return;
+    }
+
+    setDeletingId(item.id);
+    setNotice(null);
+    setItems((current) =>
+      current.filter((currentItem) => currentItem.id !== item.id)
+    );
+    startTransition(async () => {
+      const result = await deleteCalendarItemAction(item.id);
+      setNotice(result.message);
+      setDeletingId(null);
+      if (!result.ok) {
+        setItems((current) =>
+          [...current, item].sort(
+            (left, right) =>
+              left.scheduledDate.localeCompare(right.scheduledDate) ||
+              left.sortOrder - right.sortOrder
+          )
+        );
+      }
+    });
+  }
+
   return (
     <div className="marketing-calendar-shell">
       <div className="calendar-weekdays" aria-hidden="true">
@@ -232,6 +291,8 @@ export function MarketingCalendarBoard({
                 items={itemsByDate.get(calendarDate(year, month, day)) ?? []}
                 brands={brands}
                 today={today}
+                deletingId={deletingId}
+                onDelete={handleDelete}
               />
             ) : (
               <div key={`blank-${index}`} className="calendar-day is-blank" />

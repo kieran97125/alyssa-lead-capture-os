@@ -9,11 +9,13 @@ import {
 type SyncStatus = "enabled" | "disabled" | "missing_config";
 
 type LeadSheetSyncInput = {
+  leadKey: string;
   createdAt: Date | string | null;
   customerName: string;
   phone: string;
   email: string | null;
   brandName: string;
+  formName: string;
   treatmentName: string;
   packageName: string;
   price: number | string;
@@ -24,24 +26,60 @@ type LeadSheetSyncInput = {
   touch: TouchPayload;
 };
 
+export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v2";
+
+export const GOOGLE_SHEETS_LEAD_HEADERS = [
+  "Created At",
+  "跟進狀態",
+  "品牌",
+  "分店",
+  "客人姓名",
+  "電話",
+  "Email",
+  "療程 / 優惠",
+  "療程項目",
+  "預約日期",
+  "預約時間",
+  "確認到店日期",
+  "來源",
+  "Campaign / 廣告",
+  "Page URL",
+  "最後跟進時間",
+  "lead_key",
+  "CS Remark",
+  "具體派畀邊間分店+邊一位同事",
+  "Remark(後續跟進情況)",
+  "Status",
+  "Show up",
+] as const;
+
 export type GoogleSheetsLeadWebhookPayload = {
   secret: string;
+  schemaVersion: typeof GOOGLE_SHEETS_LEAD_SCHEMA_VERSION;
   createdAt: string;
   followUpStatus: string;
-  csOwner: string;
   brand: string;
   branch: string;
   customerName: string;
   phone: string;
   email: string;
   treatmentOffer: string;
+  treatmentItem: string;
   appointmentDate: string;
   appointmentTime: string;
+  confirmedShowDate: string;
   source: string;
   campaignAd: string;
   pageUrl: string;
-  note: string;
   lastFollowUpAt: string;
+  leadKey: string;
+  csRemark: string;
+  assignedTo: string;
+  followUpRemark: string;
+  status: string;
+  showUp: string;
+  headers: typeof GOOGLE_SHEETS_LEAD_HEADERS;
+  rowValues: string[];
 };
 
 function env(name: string) {
@@ -128,28 +166,37 @@ export function formatHongKongDateTime(value: Date | string | null | undefined) 
   return `${year}/${month}/${day} ${dayPeriod} ${hour}:${minute}:${second}`;
 }
 
+function formatPricedLabel(
+  name: string,
+  fallbackName: string,
+  price: number | string
+) {
+  const label = String(name || fallbackName || "").trim();
+  const amount = formatMoney(price);
+
+  if (!label) return amount;
+  if (!amount || label.includes(amount)) return label;
+  return `${amount} ${label}`;
+}
+
 function formatTreatmentOffer(
+  formName: string,
   treatmentName: string,
   packageName: string,
   price: number | string
 ) {
-  const amount = formatMoney(price);
-  const primaryName = treatmentName || packageName;
-  const mainOffer = [amount, primaryName].filter(Boolean).join(" ");
+  return (
+    String(formName || "").trim() ||
+    formatPricedLabel(packageName, treatmentName, price)
+  );
+}
 
-  if (!mainOffer) {
-    return packageName;
-  }
-
-  if (
-    packageName &&
-    primaryName &&
-    packageName.toLowerCase() !== primaryName.toLowerCase()
-  ) {
-    return `${mainOffer} / ${packageName}`;
-  }
-
-  return mainOffer;
+function formatTreatmentItem(
+  treatmentName: string,
+  packageName: string,
+  price: number | string
+) {
+  return formatPricedLabel(packageName, treatmentName, price);
 }
 
 function formatSource(touch: TouchPayload) {
@@ -164,31 +211,71 @@ export function buildGoogleSheetsLeadPayload(
   input: LeadSheetSyncInput
 ): GoogleSheetsLeadWebhookPayload {
   const touch = input.touch;
-  const pageUrl =
-    preferredPageUrl(touch) || input.pageUrl || "";
-
-  return {
-    secret: env("GOOGLE_SHEETS_WEBHOOK_SECRET"),
+  const pageUrl = preferredPageUrl(touch) || input.pageUrl || "";
+  const fields = {
     createdAt: formatHongKongDateTime(input.createdAt),
     followUpStatus: "待跟進",
-    csOwner: "",
     brand: input.brandName,
     branch: input.branchName,
     customerName: input.customerName,
     phone: input.phone,
     email: input.email || "",
     treatmentOffer: formatTreatmentOffer(
+      input.formName,
+      input.treatmentName,
+      input.packageName,
+      input.price
+    ),
+    treatmentItem: formatTreatmentItem(
       input.treatmentName,
       input.packageName,
       input.price
     ),
     appointmentDate: input.appointmentDate || "",
     appointmentTime: input.appointmentTime || "",
+    confirmedShowDate: "",
     source: formatSource(touch),
     campaignAd: formatCampaignAd(touch),
     pageUrl,
-    note: "",
     lastFollowUpAt: "",
+    leadKey: input.leadKey,
+    csRemark: "",
+    assignedTo: "",
+    followUpRemark: "",
+    status: "",
+    showUp: "",
+  };
+  const rowValues = [
+    fields.createdAt,
+    fields.followUpStatus,
+    fields.brand,
+    fields.branch,
+    fields.customerName,
+    fields.phone,
+    fields.email,
+    fields.treatmentOffer,
+    fields.treatmentItem,
+    fields.appointmentDate,
+    fields.appointmentTime,
+    fields.confirmedShowDate,
+    fields.source,
+    fields.campaignAd,
+    fields.pageUrl,
+    fields.lastFollowUpAt,
+    fields.leadKey,
+    fields.csRemark,
+    fields.assignedTo,
+    fields.followUpRemark,
+    fields.status,
+    fields.showUp,
+  ];
+
+  return {
+    secret: env("GOOGLE_SHEETS_WEBHOOK_SECRET"),
+    schemaVersion: GOOGLE_SHEETS_LEAD_SCHEMA_VERSION,
+    ...fields,
+    headers: GOOGLE_SHEETS_LEAD_HEADERS,
+    rowValues,
   };
 }
 
