@@ -157,7 +157,12 @@ function redirectToLogin(request: NextRequest, error?: string) {
   );
   if (error) loginUrl.searchParams.set("error", error);
 
-  return NextResponse.redirect(loginUrl);
+  // A 307 preserves the request method. That is correct for page navigation,
+  // but it replays a protected Server Action POST against /login and can make
+  // the user bounce back to the same page with no visible explanation.
+  const status =
+    request.method === "GET" || request.method === "HEAD" ? 307 : 303;
+  return NextResponse.redirect(loginUrl, status);
 }
 
 export async function proxy(request: NextRequest) {

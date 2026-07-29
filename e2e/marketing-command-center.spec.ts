@@ -11,7 +11,6 @@ import {
   parseGoogleSheetDate,
 } from "../src/lib/marketing/googleSheetsMetricParser";
 import {
-  adminSessionCookieName,
   createSignedAdminSession,
   hasAdminPasswordGateConfig,
   verifyAdminPassword,
@@ -219,45 +218,33 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
 });
 
-test("standard Admin gets a clear Master re-login control for Google Sheets", async ({
+test("a stale Google Sheets page sends standard Admin to a clear Master login", async ({
   page,
+  context,
 }) => {
-  const previousSecret = process.env.LAUNCHHUB_ADMIN_SESSION_SECRET;
-  process.env.LAUNCHHUB_ADMIN_SESSION_SECRET =
-    "playwright-ci-session-secret-at-least-32-characters";
+  await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
+  const connectForm = page
+    .getByRole("button", { name: "連接 Google Sheets" })
+    .locator("xpath=ancestor::form");
+  await expect(connectForm).toHaveCount(1);
 
-  try {
-    const adminSession = await createSignedAdminSession("admin");
-    expect(adminSession).not.toBeNull();
-    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
-    const appOrigin = new URL(page.url()).origin;
-    await page.context().clearCookies();
-    await page.context().addCookies([
-      {
-        name: adminSessionCookieName,
-        value: adminSession!,
-        url: appOrigin,
-      },
-    ]);
+  const adminLoginPage = await context.newPage();
+  await adminLoginPage.goto("/logout");
+  await adminLoginPage.getByLabel("Password").fill(
+    process.env.E2E_ADMIN_PASSWORD || "playwright-ci-password"
+  );
+  await adminLoginPage.getByRole("button", { name: "Unlock Admin" }).click();
+  await expect(adminLoginPage).toHaveURL(/\/dashboard(?:\?|$)/);
+  await adminLoginPage.close();
 
-    await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
+  await connectForm.evaluate((form: HTMLFormElement) => form.requestSubmit());
 
-    await expect(
-      page.getByText(/你目前以一般 Admin 登入/)
-    ).toBeVisible();
-    await expect(
-      page.getByRole("link", { name: "登出並以 Master 重新登入" })
-    ).toBeVisible();
-    await expect(
-      page.getByRole("button", { name: "連接 Google Sheets" })
-    ).toHaveCount(0);
-  } finally {
-    if (previousSecret === undefined) {
-      delete process.env.LAUNCHHUB_ADMIN_SESSION_SECRET;
-    } else {
-      process.env.LAUNCHHUB_ADMIN_SESSION_SECRET = previousSecret;
-    }
-  }
+  await expect(page).toHaveURL(
+    /\/login\?next=%2Fdata-sources&error=master_required/
+  );
+  await expect(
+    page.getByText(/呢個頁面只限 Master Account/)
+  ).toBeVisible();
 });
 
 test("mobile sidebar opens as a labelled navigation drawer", async ({ page }) => {

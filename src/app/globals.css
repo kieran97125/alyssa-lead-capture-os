@@ -1875,6 +1875,42 @@ textarea {
   font-weight: 760;
 }
 
+.calendar-task > div > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.calendar-task-delete {
+  display: inline-grid;
+  flex: 0 0 auto;
+  height: 1.2rem;
+  width: 1.2rem;
+  cursor: pointer;
+  place-items: center;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #a75b67;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.calendar-task-delete:hover,
+.calendar-task-delete:focus-visible {
+  border-color: #f0cbd1;
+  background: #fff0f2;
+  color: #8d3444;
+  outline: none;
+}
+
+.calendar-task-delete:disabled {
+  cursor: wait;
+  opacity: 0.5;
+}
+
 .calendar-task > strong {
   display: -webkit-box;
   margin-top: 0.16rem;
