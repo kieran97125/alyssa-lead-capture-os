@@ -218,30 +218,29 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
 });
 
-test("a stale Google Sheets page sends standard Admin to a clear Master login", async ({
+test("a protected Google Sheets POST sends standard Admin to a clear Master login", async ({
   page,
   context,
 }) => {
-  await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
-  const connectForm = page
-    .getByRole("button", { name: "連接 Google Sheets" })
-    .locator("xpath=ancestor::form");
-  await expect(connectForm).toHaveCount(1);
-
-  const adminLoginPage = await context.newPage();
-  await adminLoginPage.goto("/logout");
-  await adminLoginPage.getByLabel("Password").fill(
+  await page.goto("/logout");
+  await page.getByLabel("Password").fill(
     process.env.E2E_ADMIN_PASSWORD || "playwright-ci-password"
   );
-  await adminLoginPage.getByRole("button", { name: "Unlock Admin" }).click();
-  await expect(adminLoginPage).toHaveURL(/\/dashboard(?:\?|$)/);
-  await adminLoginPage.close();
+  await page.getByRole("button", { name: "Unlock Admin" }).click();
+  await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
 
-  await connectForm.evaluate((form: HTMLFormElement) => form.requestSubmit());
-
-  await expect(page).toHaveURL(
+  const response = await context.request.post("/data-sources", {
+    data: "",
+    headers: { "content-type": "application/x-www-form-urlencoded" },
+    maxRedirects: 0,
+  });
+  expect(response.status()).toBe(303);
+  const location = response.headers().location;
+  expect(location).toMatch(
     /\/login\?next=%2Fdata-sources&error=master_required/
   );
+
+  await page.goto(location);
   await expect(
     page.getByText(/呢個頁面只限 Master Account/)
   ).toBeVisible();

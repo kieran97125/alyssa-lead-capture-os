@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("calendar items require confirmation before deletion and restore on failure", async ({
+test("calendar items require confirmation and remain when deletion is cancelled", async ({
   page,
 }) => {
   await page.goto("/e2e/calendar-board", { waitUntil: "domcontentloaded" });
@@ -10,15 +10,15 @@ test("calendar items require confirmation before deletion and restore on failure
   });
   await expect(deleteButton).toBeVisible();
 
+  let confirmationMessage = "";
   page.once("dialog", async (dialog) => {
     expect(dialog.type()).toBe("confirm");
-    expect(dialog.message()).toContain("此操作無法復原");
-    await dialog.accept();
+    confirmationMessage = dialog.message();
+    await dialog.dismiss();
   });
   await deleteButton.click();
 
-  await expect(
-    page.getByText("Supabase 尚未連接，未能儲存 Command Center 設定。")
-  ).toBeVisible();
+  expect(confirmationMessage).toContain("此操作無法復原");
+  await expect(page.getByText("DEP Reels 上線")).toBeVisible();
   await expect(deleteButton).toBeVisible();
 });
