@@ -95,15 +95,16 @@ function validRedirectUri(value: string) {
 }
 
 function configuredRedirectUri() {
-  const explicit = validRedirectUri(env("GOOGLE_SHEETS_OAUTH_REDIRECT_URI"));
-  if (explicit) return explicit;
-
   // Keep the production OAuth contract independent from public/embed base URLs.
-  // Vercel exposes VERCEL_ENV at runtime, while previews and local development
-  // can still opt into their own callback through the explicit environment key.
+  // Production must not be overridden by a stale or tenant-specific environment
+  // value because Google requires an exact redirect URI match.
   if (env("VERCEL_ENV") === "production") {
     return PRODUCTION_OAUTH_REDIRECT_URI;
   }
+
+  // Previews and local development can opt into their own registered callback.
+  const explicit = validRedirectUri(env("GOOGLE_SHEETS_OAUTH_REDIRECT_URI"));
+  if (explicit) return explicit;
 
   for (const name of ["NEXT_PUBLIC_ADMIN_BASE_URL", "NEXT_PUBLIC_APP_URL"]) {
     const baseUrl = env(name);
