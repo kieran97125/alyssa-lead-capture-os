@@ -12,6 +12,7 @@ import {
   Home,
   Inbox,
   LockKeyhole,
+  LogOut,
   Menu,
   MessageCircleMore,
   Rocket,
@@ -156,18 +157,29 @@ function SidebarContent({
       </nav>
 
       <div className="command-sidebar-footer">
-        <Link
-          href="/settings/team"
-          onClick={onNavigate}
-          className="command-account-card"
-        >
-          <span className="command-account-avatar">KK</span>
-          <span className="min-w-0 flex-1">
-            <span className="command-account-name">Kieran Kwok</span>
-            <span className="command-account-email">{MASTER_ACCOUNT_EMAIL}</span>
-          </span>
-          <LockKeyhole size={15} />
-        </Link>
+        <div className="command-account-row">
+          <Link
+            href="/settings/team"
+            onClick={onNavigate}
+            className="command-account-card"
+          >
+            <span className="command-account-avatar">KK</span>
+            <span className="min-w-0 flex-1">
+              <span className="command-account-name">Kieran Kwok</span>
+              <span className="command-account-email">{MASTER_ACCOUNT_EMAIL}</span>
+            </span>
+            <LockKeyhole size={15} />
+          </Link>
+          <a
+            href="/logout"
+            className="command-logout-button"
+            aria-label="登出 Alyssa Growth OS"
+            title="登出"
+          >
+            <LogOut size={16} />
+            <span>登出</span>
+          </a>
+        </div>
       </div>
     </>
   );
