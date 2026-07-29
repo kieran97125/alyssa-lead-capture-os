@@ -3,6 +3,7 @@
 import {
   FormEvent,
   useEffect,
+  useLayoutEffect,
   useMemo,
   useRef,
   useState,
@@ -22,6 +23,16 @@ import {
   normalizePublicAttributionFields,
   publicAttributionParamKeys,
 } from "@/lib/attribution/publicAttributionCookie";
+import {
+  ATTRIBUTION_BRIDGE_SCHEMA_VERSION,
+  ATTRIBUTION_PAYLOAD_MESSAGE_TYPES,
+  ATTRIBUTION_READY_MESSAGE_TYPES,
+  attributionMessageHasSupportedSchema,
+  hasAttributionEnvelopeTracking,
+  mergeAttributionEnvelopes,
+  normalizeAttributionEnvelope,
+  persistAttributionEnvelope,
+} from "@/lib/attribution/bridge";
 import {
   alyssaBranches,
   alyssaDefaultForm,
@@ -718,11 +729,16 @@ function captureCurrentPageAttribution({
     ...paramPayload,
     source_capture_method: sourceCaptureMethod,
   };
-  const firstTouch = hasCurrentParams
-    ? { ...basePayload, ...paramPayload }
-    : firstTrackingStored ||
-      authoritativeTrackingTouch ||
-      firstStored || { ...basePayload, ...paramPayload };
+  // LAUNCHHUB_FIRST_TOUCH_IMMUTABLE: a later or empty visit must never
+  // replace the first valid acquisition touch.
+  const currentTouch = { ...basePayload, ...paramPayload };
+  const firstTouch =
+    firstTrackingStored ||
+    lockedTouch ||
+    authoritativeTrackingTouch ||
+    getTrackingTouch(currentTouch) ||
+    firstStored ||
+    currentTouch;
   if (!lockedTouch && hasPublicAttributionTracking(latestTouch)) {
     writeStorage(
       LOCKED_PUBLIC_ATTRIBUTION_STORAGE_KEY,
@@ -913,6 +929,36 @@ function getPrimaryPackage(
   return packageOptions.find(isDisplayPackage) || packageOptions[0];
 }
 
+function getImmediateParentTargetOrigin(
+  expectedParentOrigin: string | undefined
+) {
+  if (typeof document === "undefined") return null;
+  return (
+    normalizeOrigin(document.referrer) || normalizeOrigin(expectedParentOrigin)
+  );
+}
+
+function postAttributionReadyMessages(
+  expectedParentOrigin: string | undefined,
+  formToken: string
+) {
+  if (typeof window === "undefined") return;
+  if (!window.parent || window.parent === window) return;
+  const targetOrigin = getImmediateParentTargetOrigin(expectedParentOrigin);
+  if (!targetOrigin) return;
+
+  ATTRIBUTION_READY_MESSAGE_TYPES.forEach((type) => {
+    window.parent.postMessage(
+      {
+        type,
+        schema_version: ATTRIBUTION_BRIDGE_SCHEMA_VERSION,
+        form_token: formToken,
+      },
+      targetOrigin
+    );
+  });
+}
+
 async function logPublicEvent(
   eventType: string,
   payload: Record<string, unknown>,
@@ -964,7 +1010,13 @@ export function PublicLeadForm({
   successRedirectUrl,
   className = "",
 }: PublicLeadFormProps) {
+  // LAUNCHHUB_ATTRIBUTION_BRIDGE_V2
   const conversionEventSentRef = useRef(false);
+  const attributionRef = useRef<AttributionEnvelope>({});
+  const parentAttributionRef = useRef<AttributionEnvelope | null>(null);
+  const bridgeWaitersRef = useRef<
+    Array<(value: AttributionEnvelope | null) => void>
+  >([]);
   const [attribution, setAttribution] = useState<AttributionEnvelope>({});
   const [state, setState] = useState<SubmitState>("idle");
   const [message, setMessage] = useState("");
@@ -1078,6 +1130,33 @@ export function PublicLeadForm({
     conversionMode ?? publicForm.conversionMode ?? "form_submit_pixel";
   const effectiveSuccessRedirectUrl =
     successRedirectUrl || publicForm.successRedirectUrl || "";
+
+  async function waitForParentAttribution(
+    selfAttribution: AttributionEnvelope
+  ): Promise<AttributionEnvelope | null> {
+    if (
+      !isEmbed ||
+      typeof window === "undefined" ||
+      !window.parent ||
+      window.parent === window ||
+      parentAttributionRef.current ||
+      hasAttributionEnvelopeTracking(selfAttribution)
+    ) {
+      return parentAttributionRef.current;
+    }
+
+    return new Promise((resolve) => {
+      let settled = false;
+      const finish = (value: AttributionEnvelope | null) => {
+        if (settled) return;
+        settled = true;
+        resolve(value);
+      };
+      bridgeWaitersRef.current.push(finish);
+      postAttributionReadyMessages(expectedParentOrigin, formToken);
+      window.setTimeout(() => finish(parentAttributionRef.current), 700);
+    });
+  }
 
   function buildThankYouRedirectUrl({
     leadId,
@@ -1312,6 +1391,31 @@ export function PublicLeadForm({
     });
   }
 
+  // LAUNCHHUB_EARLY_ATTRIBUTION_CAPTURE
+  useLayoutEffect(() => {
+    const earlyAttribution = captureCurrentPageAttribution({
+      formToken,
+      formId: formId || publicForm.id,
+      brandSlug: brand.slug || brandSlug || "alyssa",
+      initialQueryString,
+      serverInitialAttribution,
+    });
+    const mergedAttribution = mergeAttributionEnvelopes(
+      attributionRef.current,
+      earlyAttribution
+    ) as AttributionEnvelope;
+    attributionRef.current = mergedAttribution;
+    setAttribution(mergedAttribution);
+  }, [
+    brand.slug,
+    brandSlug,
+    formId,
+    formToken,
+    initialQueryString,
+    publicForm.id,
+    serverInitialAttribution,
+  ]);
+
   useEffect(() => {
     async function loadConfig() {
       setConfigStatus("loading");
@@ -1415,36 +1519,76 @@ export function PublicLeadForm({
       initialQueryString,
       serverInitialAttribution,
     });
+    attributionRef.current = initialAttribution;
     queueMicrotask(() => setAttribution(initialAttribution));
     void logPublicEvent("form_view", { form_token: formToken }, initialAttribution);
 
     function onMessage(event: MessageEvent) {
       if (
-        expectedParentOrigin &&
-        normalizeOrigin(event.origin) !== normalizeOrigin(expectedParentOrigin)
+        !window.parent ||
+        window.parent === window ||
+        event.source !== window.parent
       ) {
         return;
       }
-      if (event.data?.type !== "alyssa_attribution_payload") return;
-      const nextAttribution = event.data.payload || {};
-      setAttribution(nextAttribution);
+
+      const immediateParentOrigin = normalizeOrigin(document.referrer);
+      const receivedOrigin = normalizeOrigin(event.origin);
+      if (immediateParentOrigin && receivedOrigin !== immediateParentOrigin) return;
+      if (
+        !immediateParentOrigin &&
+        expectedParentOrigin &&
+        receivedOrigin !== normalizeOrigin(expectedParentOrigin)
+      ) {
+        return;
+      }
+
+      if (!ATTRIBUTION_PAYLOAD_MESSAGE_TYPES.has(event.data?.type)) return;
+      if (!attributionMessageHasSupportedSchema(event.data)) return;
+
+      const nextAttribution = normalizeAttributionEnvelope(
+        event.data?.payload || {}
+      ) as AttributionEnvelope;
+      if (!hasAttributionEnvelopeTracking(nextAttribution)) return;
+
+      persistAttributionEnvelope(nextAttribution);
+      parentAttributionRef.current = nextAttribution;
+      const mergedAttribution = mergeAttributionEnvelopes(
+        attributionRef.current,
+        nextAttribution
+      ) as AttributionEnvelope;
+      attributionRef.current = mergedAttribution;
+      setAttribution(mergedAttribution);
+      bridgeWaitersRef.current.splice(0).forEach((resolve) =>
+        resolve(nextAttribution)
+      );
+
       void logPublicEvent(
         "parent_attribution_captured",
-        nextAttribution,
-        nextAttribution
+        {
+          schema_version: event.data?.schema_version || 1,
+          tracking_received: true,
+          capture_method: getString(
+            nextAttribution.submitted_touch_json?.source_capture_method
+          ),
+        },
+        mergedAttribution
       );
     }
 
     window.addEventListener("message", onMessage);
+    postAttributionReadyMessages(expectedParentOrigin, formToken);
+    const readyTimers = [250, 1000].map((delay) =>
+      window.setTimeout(
+        () => postAttributionReadyMessages(expectedParentOrigin, formToken),
+        delay
+      )
+    );
 
-    if (window.parent && window.parent !== window) {
-      window.parent.postMessage(
-        { type: "alyssa_iframe_ready" },
-        expectedParentOrigin || window.location.origin
-      );
-    }
-
-    return () => window.removeEventListener("message", onMessage);
+    return () => {
+      readyTimers.forEach((timer) => window.clearTimeout(timer));
+      window.removeEventListener("message", onMessage);
+    };
   }, [
     brand.slug,
     brandSlug,
@@ -1490,13 +1634,14 @@ export function PublicLeadForm({
       return;
     }
 
-    const liveAttribution = captureCurrentPageAttribution({
+    let liveAttribution = captureCurrentPageAttribution({
       formToken,
       formId: formId || publicForm.id,
       brandSlug: brand.slug || brandSlug || "alyssa",
       initialQueryString,
       serverInitialAttribution,
     });
+    attributionRef.current = liveAttribution;
     queueMicrotask(() => setAttribution(liveAttribution));
 
     if (!formData.legalConsentAccepted) {
@@ -1542,6 +1687,14 @@ export function PublicLeadForm({
       );
       return;
     }
+
+    const parentAttribution = await waitForParentAttribution(liveAttribution);
+    liveAttribution = mergeAttributionEnvelopes(
+      liveAttribution,
+      parentAttribution || parentAttributionRef.current
+    ) as AttributionEnvelope;
+    attributionRef.current = liveAttribution;
+    queueMicrotask(() => setAttribution(liveAttribution));
 
     setState("loading");
     setMessage("正在提交預約資料...");

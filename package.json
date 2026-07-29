@@ -4,9 +4,10 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/prepare-whatsapp-phase2b.mjs && node scripts/prepare-crm-lead-detail-ui.mjs && node scripts/prepare-crm-compact-operations-ui.mjs && node scripts/run-attribution-preparation.mjs && node scripts/prepare-attribution-first-touch-immutability.mjs && node scripts/prepare-attribution-early-capture.mjs && node scripts/prepare-attribution-e2e-isolation.mjs && next build",
+    "build": "npm run verify:public-lead-contract && next build",
     "start": "next start",
     "lint": "eslint",
+    "verify:public-lead-contract": "node scripts/verify-public-lead-contract.mjs",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots"
   },

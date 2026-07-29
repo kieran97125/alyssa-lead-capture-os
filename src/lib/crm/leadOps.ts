@@ -282,7 +282,8 @@ export function toCrmLeadCase(lead: LeadRow): CrmLeadCase {
     appointmentLabel: formatAppointment(lead),
     crmSourceType,
     sourceLabel: crmDisplaySourceLabel(lead, crmSourceType),
-    sourceTypeRaw: lead.source_type || lead.sourceSnapshot?.source_type || "unknown",
+    // LAUNCHHUB_ATTRIBUTION_BRIDGE_V2: snapshot is the attribution source of truth.
+    sourceTypeRaw: lead.sourceSnapshot?.source_type || lead.source_type || "unknown",
     campaignLabel: campaign,
     adLabel: ad,
     landingPageSlug: extractPathSlug(pageUrl),

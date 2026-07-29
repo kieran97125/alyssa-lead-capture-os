@@ -61,11 +61,11 @@ const bookingQueueOptions = [
 ];
 
 const inboxSubTabs = [
-  { label: "Chats / 對話", queue: "" },
-  { label: "Bookings / 預約", queue: "booked" },
-  { label: "Follow-up / 跟進", queue: "follow_up_today" },
-  { label: "Completed / 已完成", queue: "showed" },
-  { label: "All / 全部", queue: "" },
+  { label: "全部對話", queue: "" },
+  { label: "待跟進", queue: "new" },
+  { label: "今日跟進", queue: "follow_up_today" },
+  { label: "已預約", queue: "booked" },
+  { label: "已完成", queue: "showed" },
 ];
 
 const bookingSubTabs = [
@@ -201,7 +201,7 @@ export default async function CrmPage({
                         ? "Dashboard / 首頁"
                       : activeTab === "bookings"
                         ? "Bookings / 預約"
-                        : "Inbox / 工作台"}
+                        : "對話"}
                   </h1>
                   <span className="rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-black text-[#047857]">
                     {runtime.actionsEnabled ? "Actions on" : "Read-only"}
@@ -228,8 +228,8 @@ export default async function CrmPage({
             </div>
 
             {activeTab !== "reports" && activeTab !== "dashboard" ? (
-              <div className="mt-3 flex flex-col gap-2 xl:flex-row xl:items-center xl:justify-between">
-                <nav className="flex gap-1 overflow-x-auto">
+              <div className="mt-3 grid gap-2">
+                <nav className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
                   {activeSubTabs.map((item) => {
                     const href = item.queue
                       ? `/crm?tab=${activeTab}&queue=${item.queue}`
@@ -241,7 +241,7 @@ export default async function CrmPage({
                       <a
                         key={item.label}
                         href={href}
-                        className={`flex h-8 items-center whitespace-nowrap rounded-full border px-3 text-[12px] font-bold ${
+                        className={`flex h-8 items-center justify-center whitespace-nowrap rounded-lg border px-2 text-[11px] font-bold ${
                           active
                             ? "border-[#6366f1] bg-[#eef2ff] text-[#4338ca]"
                             : "border-[#e2e8f0] bg-white text-[#64748b] hover:bg-[#f8fafc]"
@@ -253,14 +253,14 @@ export default async function CrmPage({
                   })}
                 </nav>
 
-                <form className="flex min-w-0 flex-wrap items-center gap-1.5">
+                <form className="grid min-w-0 grid-cols-[36px_minmax(92px,120px)_minmax(100px,140px)_minmax(180px,1fr)_minmax(130px,180px)_64px] gap-1.5">
                   <input type="hidden" name="tab" value={activeTab} />
                   <button
                     type="submit"
                     className="grid h-8 w-8 place-items-center rounded-md border border-[#dbe2ea] bg-white text-[12px] font-black text-[#475569]"
                     title="Filter"
                   >
-                    F
+                    ≡
                   </button>
                   <select
                     name="range"
@@ -307,11 +307,10 @@ export default async function CrmPage({
                     ))}
                   </select>
                   <button
-                    type="button"
-                    className="h-8 rounded-md border border-[#dbe2ea] bg-white px-2.5 text-[12px] font-bold text-[#475569]"
-                    title="Columns"
+                    type="submit"
+                    className="h-8 rounded-md bg-[#111827] px-3 text-[11px] font-black text-white"
                   >
-                    Columns
+                    套用
                   </button>
                   {(queue || search || viewPreset !== "cs_booking") ? (
                     <span className="inline-flex h-8 items-center rounded-full bg-[#fef3c7] px-2.5 text-[11px] font-bold text-[#92400e]">

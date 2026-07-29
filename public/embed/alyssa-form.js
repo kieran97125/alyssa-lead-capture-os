@@ -120,6 +120,41 @@
     return output;
   }
 
+  // LAUNCHHUB_ATTRIBUTION_BRIDGE_V2
+  function mergeTouchPayload(base, incoming) {
+    var output = normalizeAttributionFields(Object.assign({}, base || {}));
+    var next = normalizeAttributionFields(Object.assign({}, incoming || {}));
+    Object.keys(next).forEach(function (key) {
+      var value = next[key];
+      if (typeof value === "string") {
+        if (value.trim()) output[key] = value.trim();
+      } else if (value !== null && value !== undefined && typeof value !== "object") {
+        output[key] = value;
+      }
+    });
+    return normalizeAttributionFields(output);
+  }
+
+  function normalizeEnvelopePayload(value) {
+    var envelope = value && typeof value === "object" ? value : {};
+    return {
+      first_touch_json: normalizeAttributionFields(envelope.first_touch_json || {}),
+      latest_touch_json: normalizeAttributionFields(envelope.latest_touch_json || {}),
+      submitted_touch_json: normalizeAttributionFields(envelope.submitted_touch_json || {})
+    };
+  }
+
+  function envelopeHasTracking(envelope) {
+    return [
+      envelope && envelope.submitted_touch_json,
+      envelope && envelope.latest_touch_json,
+      envelope && envelope.first_touch_json
+    ].some(function (touch) {
+      if (!touch) return false;
+      return ATTRIBUTION_KEYS.some(function (key) { return Boolean(touch[key]); });
+    });
+  }
+
   function hasKeys(value) {
     return value && Object.keys(value).length > 0;
   }
@@ -435,6 +470,7 @@
     var embedOrigin = scriptOrigin;
     var parentPageUrl = getRealParentPageUrl();
     var parentOrigin = getOrigin(parentPageUrl) || window.location.origin;
+    var wixParentOrigin = getOrigin(document.referrer);
     var localKey = "alyssa_first_touch";
     var sessionKey = "alyssa_latest_touch";
     var searchParams = mergeSearchParams(parentPageUrl, window.location.search);
@@ -515,6 +551,67 @@
       tracking_status: debugClassification.tracking_status,
       audit_reason: debugClassification.audit_reason
     });
+    function applyParentAttributionEnvelope(envelopeValue) {
+      var envelope = normalizeEnvelopePayload(envelopeValue);
+      if (!envelopeHasTracking(envelope)) return false;
+
+      if (envelopeHasTracking({ first_touch_json: envelope.first_touch_json })) {
+        firstTouch = envelope.first_touch_json;
+      }
+      latestTouch = mergeTouchPayload(latestTouch, envelope.latest_touch_json);
+      submittedTouch = mergeTouchPayload(
+        mergeTouchPayload(submittedTouch, envelope.latest_touch_json),
+        envelope.submitted_touch_json
+      );
+      submittedTouch.source_capture_method =
+        submittedTouch.source_capture_method || "wix_page_code";
+      latestTouch.source_capture_method =
+        latestTouch.source_capture_method || "wix_page_code";
+
+      parentPageUrl =
+        submittedTouch.parent_url ||
+        submittedTouch.current_page_url ||
+        latestTouch.parent_url ||
+        latestTouch.current_page_url ||
+        parentPageUrl;
+      parentOrigin =
+        submittedTouch.parent_origin || getOrigin(parentPageUrl) || parentOrigin;
+
+      writeStorage(localKey, firstTouch, window.localStorage);
+      writeStorage(sessionKey, latestTouch, window.sessionStorage);
+      var lockedTouch = hasKeys(submittedTouch) ? submittedTouch : latestTouch;
+      writeStorage("launchhub_locked_attribution", lockedTouch, window.localStorage);
+      writeStorage("launchhub_locked_attribution", lockedTouch, window.sessionStorage);
+
+      if (typeof iframeUrl !== "undefined" && iframeUrl) {
+        Object.keys(submittedTouch).forEach(function (key) {
+          if (ATTRIBUTION_KEYS.indexOf(key) !== -1 && submittedTouch[key]) {
+            iframeUrl.searchParams.set(key, submittedTouch[key]);
+          }
+        });
+        if (parentPageUrl) iframeUrl.searchParams.set("parent_url", parentPageUrl);
+        if (parentOrigin) iframeUrl.searchParams.set("parent_origin", parentOrigin);
+      }
+
+      debugClassification = classifyDebugPayload(submittedTouch);
+      submittedTouch.tracking_status = debugClassification.tracking_status;
+      submittedTouch.audit_reason = debugClassification.audit_reason;
+      sendAttribution();
+      return true;
+    }
+
+    function requestWixParentAttribution() {
+      if (!window.parent || window.parent === window || !wixParentOrigin) return;
+      window.parent.postMessage(
+        {
+          type: "launchhub_wix_attribution_ready",
+          schema_version: 1,
+          form_token: formToken
+        },
+        wixParentOrigin
+      );
+    }
+
     var debugPayload = {
       submitted_touch_json: submittedTouch,
       tracking_status: debugClassification.tracking_status,
@@ -606,14 +703,20 @@
 
     function sendAttribution() {
       if (!iframe.contentWindow) return;
+      var envelope = {
+        first_touch_json: firstTouch,
+        latest_touch_json: latestTouch,
+        submitted_touch_json: submittedTouch
+      };
+      iframe.contentWindow.postMessage(
+        { type: "alyssa_attribution_payload", payload: envelope },
+        embedOrigin
+      );
       iframe.contentWindow.postMessage(
         {
-          type: "alyssa_attribution_payload",
-          payload: {
-            first_touch_json: firstTouch,
-            latest_touch_json: latestTouch,
-            submitted_touch_json: submittedTouch
-          }
+          type: "launchhub_attribution_payload",
+          schema_version: 1,
+          payload: envelope
         },
         embedOrigin
       );
@@ -639,30 +742,44 @@
 
     iframe.addEventListener("load", sendAttribution);
     window.addEventListener("message", function (event) {
-      if (event.origin !== embedOrigin) return;
+      var data = event.data || {};
+      var isWixAttributionMessage =
+        event.source === window.parent &&
+        (data.type === "launchhub_attribution_payload" ||
+          data.type === "alyssa_attribution_payload");
+
+      if (isWixAttributionMessage) {
+        if (wixParentOrigin && event.origin !== wixParentOrigin) return;
+        if (data.schema_version !== undefined && data.schema_version !== 1) return;
+        applyParentAttributionEnvelope(data.payload || {});
+        return;
+      }
+
+      if (event.origin !== embedOrigin || event.source !== iframe.contentWindow) return;
       if (
-        event.data &&
-        event.data.type === "launchhub:resize" &&
-        event.data.source === "launchhub-form" &&
-        (!event.data.formToken || event.data.formToken === formToken)
+        data.type === "launchhub:resize" &&
+        data.source === "launchhub-form" &&
+        (!data.formToken || data.formToken === formToken)
       ) {
-        var nextHeight = clampEmbedHeight(event.data.height);
+        var nextHeight = clampEmbedHeight(data.height);
         iframe.height = String(nextHeight);
         iframe.style.height = nextHeight + "px";
       }
-      if (event.data && event.data.type === "alyssa_iframe_ready") {
+      if (
+        data.type === "alyssa_iframe_ready" ||
+        data.type === "launchhub_iframe_ready"
+      ) {
         sendAttribution();
       }
       if (
-        event.data &&
-        event.data.type === "launchhub:success-redirect" &&
-        event.data.source === "launchhub-form" &&
-        event.data.formToken === formToken
+        data.type === "launchhub:success-redirect" &&
+        data.source === "launchhub-form" &&
+        data.formToken === formToken
       ) {
         if (successRedirectStarted) return;
         successRedirectStarted = true;
 
-        var finalRedirectUrl = event.data.redirectUrl || successRedirectUrl;
+        var finalRedirectUrl = data.redirectUrl || successRedirectUrl;
         var redirected = navigateTopToSuccessUrl(finalRedirectUrl, brand);
 
         if (!redirected && iframe.contentWindow) {
@@ -679,23 +796,26 @@
         }
       }
       if (
-        event.data &&
-        event.data.type === "launchhub:form-submitted" &&
-        event.data.event === "CompleteRegistration"
+        data.type === "launchhub:form-submitted" &&
+        data.event === "CompleteRegistration"
       ) {
-        fireCompleteRegistrationBeacon(event.data);
+        fireCompleteRegistrationBeacon(data);
 
         if (window.parent && window.parent !== window) {
-          window.parent.postMessage(event.data, "*");
+          window.parent.postMessage(data, wixParentOrigin || "*");
         }
         if (
           window.top &&
           window.top !== window &&
           window.top !== window.parent
         ) {
-          window.top.postMessage(event.data, "*");
+          window.top.postMessage(data, wixParentOrigin || "*");
         }
       }
+    });
+    requestWixParentAttribution();
+    [250, 1000, 2500].forEach(function (delay) {
+      window.setTimeout(requestWixParentAttribution, delay);
     });
 
     var target = targetId ? document.getElementById(targetId) : null;

@@ -178,19 +178,21 @@ export async function upsertWhatsAppConversation(input: UpsertConversationInput)
     updated_at: new Date().toISOString(),
   };
 
-  const payload =
-    input.direction === "inbound"
-      ? {
-          ...common,
-          unread_count: Math.max(0, Number(existing?.unread_count || 0)) + 1,
-          last_inbound_at: messageAt,
-          service_window_expires_at: getWhatsAppServiceWindowExpiry(messageAt),
-        }
-      : {
-          ...common,
-          unread_count: Math.max(0, Number(existing?.unread_count || 0)),
-          last_outbound_at: messageAt,
-        };
+  const payload = {
+    ...common,
+    unread_count:
+      input.direction === "inbound"
+        ? Math.max(0, Number(existing?.unread_count || 0)) + 1
+        : Math.max(0, Number(existing?.unread_count || 0)),
+    last_inbound_at:
+      input.direction === "inbound" ? messageAt : existing?.last_inbound_at || null,
+    last_outbound_at:
+      input.direction === "outbound" ? messageAt : existing?.last_outbound_at || null,
+    service_window_expires_at:
+      input.direction === "inbound"
+        ? getWhatsAppServiceWindowExpiry(messageAt)
+        : existing?.service_window_expires_at || null,
+  };
 
   const query = existing?.id
     ? supabase
