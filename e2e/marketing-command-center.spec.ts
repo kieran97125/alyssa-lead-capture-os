@@ -11,6 +11,7 @@ import {
   parseGoogleSheetDate,
 } from "../src/lib/marketing/googleSheetsMetricParser";
 import {
+  adminSessionCookieName,
   createSignedAdminSession,
   hasAdminPasswordGateConfig,
   verifyAdminPassword,
@@ -228,11 +229,14 @@ test("standard Admin gets a clear Master re-login control for Google Sheets", as
   try {
     const adminSession = await createSignedAdminSession("admin");
     expect(adminSession).not.toBeNull();
+    await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+    const appOrigin = new URL(page.url()).origin;
+    await page.context().clearCookies();
     await page.context().addCookies([
       {
-        name: "launchhub_admin_session",
+        name: adminSessionCookieName,
         value: adminSession!,
-        url: "http://127.0.0.1:3000",
+        url: appOrigin,
       },
     ]);
 
