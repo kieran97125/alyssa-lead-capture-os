@@ -1069,7 +1069,7 @@ Payment status semantics:
 - `LAUNCHHUB_ADMIN_SESSION_SECRET` - required for signing the admin session cookie.
 - `GOOGLE_SHEETS_OAUTH_CLIENT_ID` - server-only OAuth Web Client ID for the Marketing Command Center Sheets connector.
 - `GOOGLE_SHEETS_OAUTH_CLIENT_SECRET` - server-only OAuth Web Client Secret; never expose it to browser code.
-- `GOOGLE_SHEETS_OAUTH_REDIRECT_URI` - exact registered callback URL, normally `https://app.beautytrialhk.com/api/integrations/google-sheets/callback`.
+- `GOOGLE_SHEETS_OAUTH_REDIRECT_URI` - exact registered callback URL. Alyssa Production safely defaults to `https://app.beautytrialhk.com/api/integrations/google-sheets/callback`; set this explicitly for previews, local development, or future tenant-specific hosts.
 - `GOOGLE_SHEETS_OAUTH_TOKEN_ENCRYPTION_KEY` - server-only high-entropy key used to AES-256-GCM encrypt the Google refresh token before database storage.
 - `CRON_SECRET` - optional while automatic marketing sync is disabled; required
   only if the protected scheduled sync route is re-enabled later.
