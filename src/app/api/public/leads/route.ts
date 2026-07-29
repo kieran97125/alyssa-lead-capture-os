@@ -1646,11 +1646,13 @@ export async function POST(request: NextRequest) {
       });
 
       const sheetResult = await appendLeadToGoogleSheet({
+        leadKey: lead.id,
         createdAt: typeof lead.created_at === "string" ? lead.created_at : submittedAt,
         customerName,
         phone: normalizedPhone,
         email,
         brandName: brandRecord?.name || "",
+        formName: form.form_name || "",
         treatmentName: treatmentRecord.name || "",
         packageName: packageRecord.name || "",
         price: packageDisplayPrice,
