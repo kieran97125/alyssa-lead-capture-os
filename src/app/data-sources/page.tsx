@@ -174,9 +174,9 @@ export default async function DataSourcesPage({
                 <button
                   type="submit"
                   className="command-primary-button"
-                  disabled={!snapshot.schemaReady || !googleConnectionStatus.tableReady}
                   aria-describedby={
-                    missingGoogleOAuthConfiguration.length > 0
+                    missingGoogleOAuthConfiguration.length > 0 ||
+                    !googleConnectionStatus.tableReady
                       ? "google-oauth-readiness-note"
                       : undefined
                   }
@@ -190,9 +190,11 @@ export default async function DataSourcesPage({
                       ? "升級連接"
                       : "連接 Google Sheets"}
                 </button>
-                {missingGoogleOAuthConfiguration.length > 0 ? (
+                {missingGoogleOAuthConfiguration.length > 0 ||
+                !googleConnectionStatus.tableReady ? (
                   <small id="google-oauth-readiness-note">
-                    撳後會顯示欠缺設定；未完成前唔會開啟 Google。
+                    撳後會檢查連接設定並顯示實際欠缺項目；未準備好之前唔會開啟
+                    Google。
                   </small>
                 ) : null}
               </form>
