@@ -11,32 +11,37 @@ import {
   verifySignedAdminSession,
 } from "@/lib/security/internalAccess";
 
-function resultRedirect(request: NextRequest, message: string) {
-  const url = new URL("/data-sources", request.url);
-  url.searchParams.set("command_status", "error");
-  url.searchParams.set("message", message);
-  return NextResponse.redirect(url, 303);
+function resultRedirect(message: string) {
+  const params = new URLSearchParams({
+    command_status: "error",
+    message,
+  });
+  return new NextResponse(null, {
+    status: 303,
+    headers: { Location: `/data-sources?${params.toString()}` },
+  });
 }
 
-function loginRedirect(request: NextRequest, masterRequired: boolean) {
-  const url = new URL("/login", request.url);
-  url.searchParams.set("next", "/data-sources");
-  if (masterRequired) url.searchParams.set("error", "master_required");
-  return NextResponse.redirect(url, 303);
+function loginRedirect(masterRequired: boolean) {
+  const params = new URLSearchParams({ next: "/data-sources" });
+  if (masterRequired) params.set("error", "master_required");
+  return new NextResponse(null, {
+    status: 303,
+    headers: { Location: `/login?${params.toString()}` },
+  });
 }
 
 export async function POST(request: NextRequest) {
   const session = await verifySignedAdminSession(
     request.cookies.get(adminSessionCookieName)?.value
   );
-  if (!session.ok) return loginRedirect(request, false);
-  if (session.accessLevel !== "master") return loginRedirect(request, true);
+  if (!session.ok) return loginRedirect(false);
+  if (session.accessLevel !== "master") return loginRedirect(true);
 
   const connectionStatus = await getGoogleSheetsOAuthStatus();
   const missing = getMissingGoogleSheetsOAuthConfiguration(connectionStatus);
   if (missing.length > 0) {
     return resultRedirect(
-      request,
       `Google OAuth 未可連接；尚欠：${missing
         .map((item) => item.label)
         .join("、")}。`
@@ -45,7 +50,6 @@ export async function POST(request: NextRequest) {
 
   if (!connectionStatus.tableReady) {
     return resultRedirect(
-      request,
       "Google OAuth 憑證儲存尚未準備；請先完成資料庫連接及 migration。"
     );
   }
@@ -72,9 +76,6 @@ export async function POST(request: NextRequest) {
     console.warn("google_sheets_oauth_start_failed", {
       message: error instanceof Error ? error.message : "unknown",
     });
-    return resultRedirect(
-      request,
-      "Google OAuth 啟動失敗；請檢查連接設定後再試。"
-    );
+    return resultRedirect("Google OAuth 啟動失敗；請檢查連接設定後再試。");
   }
 }
