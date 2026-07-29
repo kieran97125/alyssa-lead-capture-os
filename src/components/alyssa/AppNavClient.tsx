@@ -19,7 +19,7 @@ import {
   Settings2,
   X,
 } from "lucide-react";
-import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/constants";
+import type { AdminAccessLevel } from "@/lib/security/internalAccess";
 
 type Icon = ComponentType<{ size?: number; strokeWidth?: number }>;
 
@@ -116,10 +116,14 @@ function NavItem({
 function SidebarContent({
   pathname,
   onNavigate,
+  accessLevel,
 }: {
   pathname: string;
   onNavigate: () => void;
+  accessLevel: AdminAccessLevel;
 }) {
+  const isMaster = accessLevel === "master";
+
   return (
     <>
       <div className="command-brand">
@@ -162,11 +166,18 @@ function SidebarContent({
             href="/settings/team"
             onClick={onNavigate}
             className="command-account-card"
+            aria-label={`管理${isMaster ? " Master" : " Admin"} 系統身份`}
           >
-            <span className="command-account-avatar">KK</span>
+            <span className="command-account-avatar">
+              {isMaster ? "M" : "A"}
+            </span>
             <span className="min-w-0 flex-1">
-              <span className="command-account-name">Kieran Kwok</span>
-              <span className="command-account-email">{MASTER_ACCOUNT_EMAIL}</span>
+              <span className="command-account-name">
+                {isMaster ? "Master 系統身份" : "Admin 系統身份"}
+              </span>
+              <span className="command-account-email">
+                密碼權限 · 非 Google 帳戶
+              </span>
             </span>
             <LockKeyhole size={15} />
           </Link>
@@ -185,7 +196,11 @@ function SidebarContent({
   );
 }
 
-export function AppNavClient() {
+export function AppNavClient({
+  accessLevel,
+}: {
+  accessLevel: AdminAccessLevel;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -216,7 +231,11 @@ export function AppNavClient() {
       ) : null}
 
       <aside className={`command-sidebar ${open ? "is-open" : ""}`}>
-        <SidebarContent pathname={pathname} onNavigate={() => setOpen(false)} />
+        <SidebarContent
+          pathname={pathname}
+          onNavigate={() => setOpen(false)}
+          accessLevel={accessLevel}
+        />
       </aside>
     </>
   );

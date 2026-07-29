@@ -213,9 +213,39 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
 
   await expect(page.getByText("Google Sheets 一鍵連接")).toBeVisible();
   await expect(
-    page.getByText(/毋須 Service Account 或 JSON Key|尚需完成一次 OAuth Client 部署設定/)
+    page.getByText(
+      /毋須 Service Account、JSON Key 或 Apps Script Web App|OAuth Client 部署設定未完成/
+    )
   ).toBeVisible();
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
+});
+
+test("incomplete Google OAuth setup names the blocker and every click returns feedback", async ({
+  page,
+}) => {
+  await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
+
+  const missingConfiguration = page.getByTestId(
+    "google-oauth-missing-configuration"
+  );
+  await expect(missingConfiguration).toBeVisible();
+  await expect(
+    missingConfiguration.getByText("Google OAuth Client ID")
+  ).toBeVisible();
+
+  await page.getByRole("button", { name: "檢查連接設定" }).click();
+  await expect(page).toHaveURL(/command_status=error/);
+  await expect(page.getByText(/Google OAuth 未可連接；尚欠：/)).toBeVisible();
+});
+
+test("password session is labelled as system access rather than a verified Google account", async ({
+  page,
+}) => {
+  await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
+
+  await expect(page.getByText("Master 系統身份")).toBeVisible();
+  await expect(page.getByText("密碼權限 · 非 Google 帳戶")).toBeVisible();
+  await expect(page.getByText("kieran.kwok@alyssa.hk")).toHaveCount(0);
 });
 
 test("protected Google Sheets POST uses a safe redirect and Master guidance renders", async ({
@@ -224,11 +254,14 @@ test("protected Google Sheets POST uses a safe redirect and Master guidance rend
 }) => {
   await page.goto("/logout");
 
-  const response = await context.request.post("/data-sources", {
-    data: "",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    maxRedirects: 0,
-  });
+  const response = await context.request.post(
+    "/api/integrations/google-sheets/start",
+    {
+      data: "",
+      headers: { "content-type": "application/x-www-form-urlencoded" },
+      maxRedirects: 0,
+    }
+  );
   expect(response.status()).toBe(303);
   const location = response.headers().location;
   expect(location).toMatch(/\/login\?next=%2Fdata-sources/);
