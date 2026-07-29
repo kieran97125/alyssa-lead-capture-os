@@ -235,11 +235,30 @@ function progressMetric(
 
 async function getPlanningRecords(month: HkMonthContext) {
   if (!hasSupabaseAdminEnv()) {
+    const fixtureCalendarItems: CalendarItem[] =
+      process.env.ALYSSA_E2E_FIXTURES === "1"
+        ? [
+            {
+              id: "10000000-0000-4000-8000-000000000001",
+              brandId: "",
+              title: "DEP Reels 上線",
+              itemType: "post",
+              channel: "IG",
+              status: "planned",
+              scheduledDate: month.today,
+              scheduledTime: null,
+              assigneeEmail: null,
+              notes: null,
+              sortOrder: 0,
+            },
+          ]
+        : [];
+
     return {
       plans: [] as MonthlyPlan[],
       metrics: [] as DailyMetric[],
       dataSources: [] as MarketingDataSource[],
-      calendarItems: [] as CalendarItem[],
+      calendarItems: fixtureCalendarItems,
       members: [] as WorkspaceMember[],
       schemaReady: false,
       warnings: ["Command Center 資料表尚未連接；目前顯示現有 LaunchHub 數據。"],

@@ -218,7 +218,7 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
 });
 
-test("a protected Google Sheets POST sends standard Admin to a clear Master login", async ({
+test("protected Google Sheets requests use a safe redirect and clear Master login", async ({
   page,
   context,
 }) => {
@@ -236,11 +236,12 @@ test("a protected Google Sheets POST sends standard Admin to a clear Master logi
   });
   expect(response.status()).toBe(303);
   const location = response.headers().location;
-  expect(location).toMatch(
+  expect(location).toMatch(/\/login\?next=%2Fdata-sources/);
+
+  await page.goto("/data-sources");
+  await expect(page).toHaveURL(
     /\/login\?next=%2Fdata-sources&error=master_required/
   );
-
-  await page.goto(location);
   await expect(
     page.getByText(/呢個頁面只限 Master Account/)
   ).toBeVisible();

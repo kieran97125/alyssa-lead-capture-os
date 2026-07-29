@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 test("calendar items require confirmation and remain when deletion is cancelled", async ({
   page,
 }) => {
-  await page.goto("/e2e/calendar-board", { waitUntil: "domcontentloaded" });
+  await page.goto("/calendar", { waitUntil: "domcontentloaded" });
 
   const deleteButton = page.getByRole("button", {
     name: "刪除事項：DEP Reels 上線",
