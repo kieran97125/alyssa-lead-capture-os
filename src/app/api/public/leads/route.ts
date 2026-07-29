@@ -15,6 +15,10 @@ import {
   normalizePublicAttributionFields,
 } from "@/lib/attribution/publicAttributionCookie";
 import { TouchPayload } from "@/lib/attribution/types";
+import {
+  createAttributionTraceSummary,
+  createSanitizedAttributionPayload,
+} from "@/lib/attribution/telemetry";
 import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
 import {
   getBrandLegalProfile,
@@ -694,12 +698,20 @@ function logPublicSubmitFailure(
     reason: string;
     formToken?: string | null;
     normalizedPhone?: string | null;
+    attributionTraceId?: string | null;
+    databaseError?: {
+      code: string | null;
+      message: string | null;
+      hint: string | null;
+    } | null;
   }
 ) {
   console.warn("[LaunchHub] public_lead_submit_rejected", {
     reason: input.reason,
     form_token: input.formToken || null,
     normalized_phone: input.normalizedPhone || null,
+    attribution_trace_id: input.attributionTraceId || null,
+    database_error: input.databaseError || null,
     request_origin: normalizeOrigin(request.headers.get("origin")),
     referer_origin: normalizeOrigin(request.headers.get("referer")),
     user_agent: shortUserAgent(request),
@@ -715,15 +727,42 @@ function rejectPublicSubmit(
   input: {
     formToken?: string | null;
     normalizedPhone?: string | null;
+    attributionTraceId?: string | null;
+    databaseError?: {
+      code: string | null;
+      message: string | null;
+      hint: string | null;
+    } | null;
   } = {}
 ) {
   logPublicSubmitFailure(request, {
     reason: error,
     formToken: input.formToken,
     normalizedPhone: input.normalizedPhone,
+    attributionTraceId: input.attributionTraceId,
+    databaseError: input.databaseError,
   });
 
   return NextResponse.json({ ok: false, error, message }, { status });
+}
+
+function databaseErrorForLog(
+  error:
+    | {
+        code?: string | null;
+        message?: string | null;
+        hint?: string | null;
+      }
+    | null
+    | undefined
+) {
+  if (!error) return null;
+
+  return {
+    code: cleanText(error.code, 80) || null,
+    message: cleanText(error.message, 500) || null,
+    hint: cleanText(error.hint, 500) || null,
+  };
 }
 
 function isValidNormalizedPhone(value: string) {
@@ -881,7 +920,8 @@ async function getAllowedFormPackageIds(
 async function createLocalResponse(
   payload: LeadSubmitPayload,
   submittedTouchOverride?: TouchPayload,
-  attributionDebug?: ReturnType<typeof createAttributionDebugPayload>
+  attributionDebug?: ReturnType<typeof createAttributionDebugPayload>,
+  attributionTraceId = randomUUID()
 ) {
   const submittedTouch =
     submittedTouchOverride ?? payload.submitted_touch_json ?? {};
@@ -901,6 +941,7 @@ async function createLocalResponse(
       final_redirect_url: null,
       contact_id: randomUUID(),
       source_snapshot_id: randomUUID(),
+      attribution_trace_id: attributionTraceId,
       source_type: classification.sourceType,
       tracking_status: classification.trackingStatus,
       audit_reason: classification.auditReason,
@@ -1007,6 +1048,14 @@ export async function POST(request: NextRequest) {
   const resolvedAttribution = resolveSubmittedAttribution(request, payload);
   const submittedTouch = resolvedAttribution.submittedTouch;
   const classification = classifySubmittedTouch(submittedTouch);
+  const attributionTraceId = randomUUID();
+  const attributionTraceSummary = createAttributionTraceSummary({
+    traceId: attributionTraceId,
+    sourceUsed: resolvedAttribution.sourceUsed,
+    touch: submittedTouch,
+    classification,
+  });
+  console.info("[LaunchHub] attribution_resolved", attributionTraceSummary);
   const attributionDebug = shouldReturnAttributionDebug(
     request,
     payload,
@@ -1019,7 +1068,8 @@ export async function POST(request: NextRequest) {
       })
     : undefined;
 
-  if (!hasSupabaseAdminEnv()) {
+  // Attribution E2E must never write synthetic leads into a linked database.
+  if (process.env.ALYSSA_E2E_FIXTURES === "1" || !hasSupabaseAdminEnv()) {
     if (formToken !== alyssaDefaultForm.publicFormToken) {
       return rejectPublicSubmit(
         request,
@@ -1030,7 +1080,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    return createLocalResponse(payload, submittedTouch, attributionDebug);
+    return createLocalResponse(
+      payload,
+      submittedTouch,
+      attributionDebug,
+      attributionTraceId
+    );
   }
 
   const supabase = createSupabaseAdminClient();
@@ -1326,7 +1381,13 @@ export async function POST(request: NextRequest) {
       first_touch_json: resolvedAttribution.firstTouch,
       latest_touch_json: resolvedAttribution.latestTouch,
       submitted_touch_json: submittedTouch,
-      raw_payload_json: payload,
+      raw_payload_json: createSanitizedAttributionPayload({
+        traceId: attributionTraceId,
+        sourceUsed: resolvedAttribution.sourceUsed,
+        firstTouch: resolvedAttribution.firstTouch,
+        latestTouch: resolvedAttribution.latestTouch,
+        submittedTouch,
+      }),
       utm_source: cleanText(submittedTouch.utm_source, 300),
       utm_medium: cleanText(submittedTouch.utm_medium, 300),
       utm_campaign: cleanText(submittedTouch.utm_campaign, 500),
@@ -1421,12 +1482,28 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (leadError || !lead) {
+    const { error: cleanupError } = await supabase
+      .from("lead_source_snapshots")
+      .delete()
+      .eq("id", snapshot.id);
+    if (cleanupError) {
+      console.warn("[LaunchHub] orphan_snapshot_cleanup_failed", {
+        attribution_trace_id: attributionTraceId,
+        snapshot_id: snapshot.id,
+        code: cleanupError.code,
+      });
+    }
     return rejectPublicSubmit(
       request,
       500,
       "lead_create_failed",
       publicMessages.unavailable,
-      { formToken, normalizedPhone }
+      {
+        formToken,
+        normalizedPhone,
+        attributionTraceId,
+        databaseError: databaseErrorForLog(leadError),
+      }
     );
   }
 
@@ -1483,6 +1560,7 @@ export async function POST(request: NextRequest) {
         source_type: classification.sourceType,
         is_duplicate: isDuplicate,
         attribution_source_used: resolvedAttribution.sourceUsed,
+        attribution_trace_id: attributionTraceId,
         proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
       },
       page_url: currentPageUrl,
@@ -1630,6 +1708,7 @@ export async function POST(request: NextRequest) {
       final_redirect_url: finalRedirectUrl,
       contact_id: contact.id,
       source_snapshot_id: snapshot.id,
+      attribution_trace_id: attributionTraceId,
       source_type: classification.sourceType,
       tracking_status: classification.trackingStatus,
       audit_reason: classification.auditReason,

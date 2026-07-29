@@ -6,6 +6,7 @@ import {
   campaignDisplayLabel,
   cleanAttributionText,
   contentDisplayLabel,
+  hasTrackedAttribution,
   preferredPageUrl,
   sourceDisplayLabel,
 } from "@/lib/attribution/display";
@@ -352,12 +353,28 @@ export function isBooking(lead: LeadRow) {
 }
 
 export function isTrackable(lead: LeadRow) {
-  const trackingStatus = lead.sourceSnapshot?.tracking_status;
-  return (
-    lead.source_type !== "organic_unknown" &&
-    trackingStatus !== "organic_unknown" &&
-    trackingStatus !== "missing"
-  );
+  const snapshot = lead.sourceSnapshot;
+  const snapshotStatus = cleanAttributionText(snapshot?.tracking_status);
+  const snapshotTouch = sourceTouch(lead);
+
+  if (
+    [
+      "complete_utm",
+      "partial_utm",
+      "click_id_only",
+      "ctwa_detected",
+      "storage_recovered",
+    ].includes(snapshotStatus || "") ||
+    hasTrackedAttribution(snapshotTouch)
+  ) {
+    return true;
+  }
+
+  if (snapshot && ["organic_unknown", "missing"].includes(snapshotStatus || "")) {
+    return false;
+  }
+
+  return lead.source_type !== "organic_unknown";
 }
 
 export function countBy<T extends Record<string, unknown>>(rows: T[], key: keyof T) {
