@@ -86,7 +86,7 @@ export default async function LoginPage({
               {error === "invalid_password"
                 ? "Password 不正確，請再試一次。"
                 : error === "master_required"
-                  ? "你目前角色無權進入呢個管理頁面。"
+                  ? "呢個頁面只限 Master Account。請使用 Master 身份重新登入。"
                   : error === "permission_denied"
                     ? "你目前角色未獲授權使用呢個模組。"
                     : error === "not_invited"
