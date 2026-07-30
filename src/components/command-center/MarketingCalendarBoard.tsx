@@ -72,7 +72,7 @@ function CalendarTaskCard({
     : {
         transform: CSS.Translate.toString(draggable.transform),
         opacity: draggable.isDragging ? 0.35 : 1,
-        borderLeftColor: brand?.color || "#635bff",
+        borderLeftColor: brand?.color || "#5a2348",
       };
 
   return (
@@ -110,7 +110,7 @@ function CalendarTaskCard({
       <footer>
         <span
           className="calendar-task-brand-dot"
-          style={{ background: brand?.color || "#635bff" }}
+          style={{ background: brand?.color || "#5a2348" }}
         />
         <span>{brand?.name || "未設定品牌"}</span>
         <GripVertical size={12} />

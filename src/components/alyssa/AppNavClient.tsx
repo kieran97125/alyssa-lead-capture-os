@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState, type ComponentType } from "react";
 import {
@@ -13,13 +12,20 @@ import {
   Inbox,
   LockKeyhole,
   LogOut,
+  MailCheck,
   Menu,
   MessageCircleMore,
   Rocket,
   Settings2,
   X,
 } from "lucide-react";
-import type { AdminAccessLevel } from "@/lib/security/internalAccess";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
+import type { InternalAccessContext } from "@/lib/security/internalAccess";
+import {
+  hasWorkspaceModulePermission,
+  normalizeWorkspaceRole,
+  type WorkspaceModuleKey,
+} from "@/lib/security/workspacePermissions";
 
 type Icon = ComponentType<{ size?: number; strokeWidth?: number }>;
 
@@ -29,6 +35,8 @@ type NavigationItem = {
   icon: Icon;
   match?: string[];
   badge?: string;
+  module: WorkspaceModuleKey;
+  masterOnly?: boolean;
 };
 
 type NavigationGroup = {
@@ -40,9 +48,9 @@ const navigationGroups: NavigationGroup[] = [
   {
     label: "Command",
     items: [
-      { href: "/dashboard", label: "主頁總覽", icon: Home },
-      { href: "/kpis", label: "品牌 KPI", icon: CircleGauge },
-      { href: "/calendar", label: "營銷日曆", icon: CalendarDays },
+      { href: "/dashboard", label: "主頁總覽", icon: Home, module: "dashboard" },
+      { href: "/kpis", label: "品牌 KPI", icon: CircleGauge, module: "kpis" },
+      { href: "/calendar", label: "營銷日曆", icon: CalendarDays, module: "calendar" },
     ],
   },
   {
@@ -52,6 +60,7 @@ const navigationGroups: NavigationGroup[] = [
         href: "/campaigns/new",
         label: "LaunchHub",
         icon: Rocket,
+        module: "launchhub",
         match: [
           "/campaigns",
           "/create-campaign",
@@ -60,19 +69,26 @@ const navigationGroups: NavigationGroup[] = [
           "/brands",
         ],
       },
-      { href: "/leads", label: "Leads", icon: Inbox },
-      { href: "/crm", label: "CRM", icon: MessageCircleMore },
-      { href: "/performance", label: "成效分析", icon: BarChart3 },
+      { href: "/leads", label: "Leads", icon: Inbox, module: "leads" },
+      { href: "/crm", label: "CRM", icon: MessageCircleMore, module: "crm" },
+      { href: "/performance", label: "療程成效", icon: BarChart3, module: "performance" },
     ],
   },
   {
     label: "Control",
     items: [
-      { href: "/data-sources", label: "資料來源", icon: DatabaseZap },
+      {
+        href: "/data-sources",
+        label: "資料來源",
+        icon: DatabaseZap,
+        module: "data_sources",
+        masterOnly: true,
+      },
       {
         href: "/settings",
         label: "系統設定",
         icon: Settings2,
+        module: "settings",
         match: ["/settings", "/system-audit"],
       },
     ],
@@ -99,7 +115,7 @@ function NavItem({
   const IconComponent = item.icon;
 
   return (
-    <Link
+    <IntentPrefetchLink
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
@@ -109,25 +125,72 @@ function NavItem({
       <span>{item.label}</span>
       {item.badge ? <span className="command-nav-badge">{item.badge}</span> : null}
       {active ? <ChevronRight className="ml-auto" size={15} /> : null}
-    </Link>
+    </IntentPrefetchLink>
   );
 }
 
 function SidebarContent({
   pathname,
   onNavigate,
-  accessLevel,
+  access,
 }: {
   pathname: string;
   onNavigate: () => void;
-  accessLevel: AdminAccessLevel;
+  access: InternalAccessContext;
 }) {
-  const isMaster = accessLevel === "master";
+  const isMaster = access.accessLevel === "master";
+  const isEmailMember = access.source === "supabase_auth";
+  const accountName = isEmailMember
+    ? access.fullName || access.workspaceRole || "Workspace member"
+    : isMaster
+      ? "Master 系統身份"
+      : "Admin 系統身份";
+  const accountDetail = isEmailMember
+    ? access.email || "已驗證公司電郵"
+    : "密碼權限 · 非 Google 帳戶";
+  const avatarLabel = isEmailMember
+    ? accountName.slice(0, 1).toUpperCase()
+    : isMaster
+      ? "M"
+      : "A";
+  const visibleNavigationGroups = navigationGroups
+    .map((group) => ({
+      ...group,
+      items: group.items.filter((item) => {
+        if (item.masterOnly && !isMaster) return false;
+        if (!isEmailMember) return true;
+        return hasWorkspaceModulePermission(
+          {
+            isMaster,
+            workspaceRole: normalizeWorkspaceRole(access.workspaceRole),
+            modulePermissions: access.modulePermissions ?? {},
+          },
+          item.module
+        );
+      }),
+    }))
+    .filter((group) => group.items.length > 0);
+  const accountCard = (
+    <>
+      <span className="command-account-avatar">
+        {avatarLabel}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="command-account-name">{accountName}</span>
+        <span className="command-account-email">{accountDetail}</span>
+      </span>
+      {isEmailMember ? <MailCheck size={15} /> : <LockKeyhole size={15} />}
+    </>
+  );
 
   return (
     <>
       <div className="command-brand">
-        <Link href="/dashboard" onClick={onNavigate} className="command-brand-link">
+        <IntentPrefetchLink
+          href="/dashboard"
+          onClick={onNavigate}
+          className="command-brand-link"
+        >
           <span className="command-brand-mark" aria-hidden="true">
             GO
           </span>
@@ -135,7 +198,7 @@ function SidebarContent({
             <span className="command-brand-eyebrow">Alyssa Growth OS</span>
             <span className="command-brand-title">Command Center</span>
           </span>
-        </Link>
+        </IntentPrefetchLink>
         <div className="command-workspace-pill">
           <span className="command-workspace-dot" />
           Enterprise workspace
@@ -143,7 +206,7 @@ function SidebarContent({
       </div>
 
       <nav aria-label="主要功能" className="command-navigation">
-        {navigationGroups.map((group) => (
+        {visibleNavigationGroups.map((group) => (
           <section key={group.label} className="command-nav-group">
             <p>{group.label}</p>
             <div>
@@ -162,25 +225,20 @@ function SidebarContent({
 
       <div className="command-sidebar-footer">
         <div className="command-account-row">
-          <Link
-            href="/settings/team"
-            onClick={onNavigate}
-            className="command-account-card"
-            aria-label={`管理${isMaster ? " Master" : " Admin"} 系統身份`}
-          >
-            <span className="command-account-avatar">
-              {isMaster ? "M" : "A"}
-            </span>
-            <span className="min-w-0 flex-1">
-              <span className="command-account-name">
-                {isMaster ? "Master 系統身份" : "Admin 系統身份"}
-              </span>
-              <span className="command-account-email">
-                密碼權限 · 非 Google 帳戶
-              </span>
-            </span>
-            <LockKeyhole size={15} />
-          </Link>
+          {isMaster ? (
+            <IntentPrefetchLink
+              href="/settings/team"
+              onClick={onNavigate}
+              className="command-account-card"
+              aria-label={`管理 ${accountName} 權限`}
+            >
+              {accountCard}
+            </IntentPrefetchLink>
+          ) : (
+            <div className="command-account-card" aria-label={accountName}>
+              {accountCard}
+            </div>
+          )}
           <a
             href="/logout"
             className="command-logout-button"
@@ -197,9 +255,9 @@ function SidebarContent({
 }
 
 export function AppNavClient({
-  accessLevel,
+  access,
 }: {
-  accessLevel: AdminAccessLevel;
+  access: InternalAccessContext;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -207,10 +265,10 @@ export function AppNavClient({
   return (
     <>
       <header className="command-mobile-bar">
-        <Link href="/dashboard" className="command-mobile-brand">
+        <IntentPrefetchLink href="/dashboard" className="command-mobile-brand">
           <span>GO</span>
           <strong>Command Center</strong>
-        </Link>
+        </IntentPrefetchLink>
         <button
           type="button"
           aria-label={open ? "關閉主選單" : "開啟主選單"}
@@ -234,7 +292,7 @@ export function AppNavClient({
         <SidebarContent
           pathname={pathname}
           onNavigate={() => setOpen(false)}
-          accessLevel={accessLevel}
+          access={access}
         />
       </aside>
     </>

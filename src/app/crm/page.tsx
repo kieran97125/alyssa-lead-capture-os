@@ -30,7 +30,7 @@ import {
 
 export const dynamic = "force-dynamic";
 
-type ConversionTone = "blue" | "emerald" | "purple" | "red" | "slate";
+type ConversionTone = "blue" | "emerald" | "sky" | "red" | "slate";
 type TrackingQualityKey = "strong" | "partial" | "direct" | "missing";
 type ReadinessKey = "ready" | "needs_stronger_tracking" | "crm_only" | "missing_identifiers";
 
@@ -222,7 +222,7 @@ export default async function CrmPage({
                   <CountChip label="待跟進" value={summary.newLeads} />
                   <CountChip label="今日要跟" value={summary.todayFollowUp} tone="amber" />
                   <CountChip label="過期" value={summary.overdueFollowUp} tone="red" />
-                  <CountChip label="已預約" value={summary.booked} tone="purple" />
+                  <CountChip label="已預約" value={summary.booked} tone="sky" />
                 </div>
               ) : null}
             </div>
@@ -243,7 +243,7 @@ export default async function CrmPage({
                         href={href}
                         className={`flex h-8 items-center justify-center whitespace-nowrap rounded-lg border px-2 text-[11px] font-bold ${
                           active
-                            ? "border-[#6366f1] bg-[#eef2ff] text-[#4338ca]"
+                            ? "border-[var(--crm-accent)] bg-[var(--crm-accent-soft)] text-[var(--crm-accent)]"
                             : "border-[#e2e8f0] bg-white text-[#64748b] hover:bg-[#f8fafc]"
                         }`}
                       >
@@ -291,7 +291,7 @@ export default async function CrmPage({
                       type="search"
                       defaultValue={search}
                       placeholder="Search name, phone, treatment..."
-                      className="h-8 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[#6366f1] focus:bg-white"
+                      className="h-8 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[var(--crm-accent)] focus:bg-white"
                     />
                   </label>
                   <select
@@ -354,7 +354,7 @@ export default async function CrmPage({
               <ConversionMetric label="Lead" value={conversion.totalLeads} />
               <ConversionMetric label="已聯絡" value={conversion.contacting} tone="blue" />
               <ConversionMetric label="已預約" value={conversion.booked} tone="emerald" />
-              <ConversionMetric label="已到店" value={conversion.showed} tone="purple" />
+              <ConversionMetric label="已到店" value={conversion.showed} tone="sky" />
               <ConversionMetric label="No-show" value={conversion.noShow} />
               <ConversionMetric label="Lost" value={conversion.lost} tone="red" />
             </div>
@@ -362,7 +362,7 @@ export default async function CrmPage({
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
               <ConversionMetric label="聯絡率" value={formatPercent(conversion.contactRate)} tone="blue" />
               <ConversionMetric label="預約率" value={formatPercent(conversion.bookingRate)} tone="emerald" />
-              <ConversionMetric label="到店率" value={formatPercent(conversion.showRate)} tone="purple" />
+              <ConversionMetric label="到店率" value={formatPercent(conversion.showRate)} tone="sky" />
             </div>
 
             <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
@@ -445,7 +445,7 @@ export default async function CrmPage({
                 <ConversionMetric label="直接 Leads" value={directSummary.leads} tone="red" />
                 <ConversionMetric label="直接佔比" value={formatPercent(directSummary.share)} tone="red" />
                 <ConversionMetric label="直接已預約" value={directSummary.booked} tone="emerald" />
-                <ConversionMetric label="直接已到店" value={directSummary.showed} tone="purple" />
+                <ConversionMetric label="直接已到店" value={directSummary.showed} tone="sky" />
               </div>
               <SourceQualityTable rows={sourceQualityRows} />
               <CampaignQualityTable rows={campaignQualityRows} />
@@ -508,7 +508,7 @@ export default async function CrmPage({
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-9">
               <ConversionMetric label="Outcome 總數" value={outcomeSummary.total} />
               <ConversionMetric label="已預約" value={outcomeSummary.booked} tone="emerald" />
-              <ConversionMetric label="已到店" value={outcomeSummary.showed} tone="purple" />
+              <ConversionMetric label="已到店" value={outcomeSummary.showed} tone="sky" />
               <ConversionMetric label="No-show" value={outcomeSummary.noShow} tone="red" />
               <ConversionMetric label="已流失" value={outcomeSummary.lost} tone="red" />
               <ConversionMetric label="無效" value={outcomeSummary.invalid} />
@@ -901,13 +901,13 @@ function CountChip({
 }: {
   label: string;
   value: number;
-  tone?: "slate" | "amber" | "red" | "purple";
+  tone?: "slate" | "amber" | "red" | "sky";
 }) {
   const toneClass = {
     slate: "border-[#e2e8f0] bg-white text-[#475569]",
     amber: "border-amber-100 bg-amber-50 text-amber-700",
     red: "border-red-100 bg-red-50 text-red-700",
-    purple: "border-purple-100 bg-purple-50 text-purple-700",
+    sky: "border-sky-100 bg-sky-50 text-sky-700",
   };
 
   return (
@@ -938,7 +938,7 @@ function CrmDashboardOverview({
                 快速查看需要跟進、今日預約及待標記到店結果。技術追蹤資料只放在報表頁。
               </p>
             </div>
-            <span className="w-fit rounded-md bg-[#eef2ff] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#4338ca]">
+            <span className="w-fit rounded-md bg-[var(--crm-accent-soft)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[var(--crm-accent)]">
               CRM Home
             </span>
           </div>
@@ -947,7 +947,7 @@ function CrmDashboardOverview({
               <a
                 key={card.label}
                 href={card.href}
-                className="rounded-lg border border-[#e5e7eb] bg-[#fbfdff] p-3 transition hover:border-[#c7d2fe] hover:bg-[#f8fafc]"
+                className="rounded-lg border border-[#e5e7eb] bg-[#fbfdff] p-3 transition hover:border-[var(--crm-accent-border)] hover:bg-[#f8fafc]"
               >
                 <p className="text-[11px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
                   {card.label}
@@ -989,13 +989,13 @@ function QuickLinkCard({
   return (
     <a
       href={href}
-      className="rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-sm transition hover:border-[#c7d2fe] hover:bg-[#fbfdff]"
+      className="rounded-xl border border-[#e5e7eb] bg-white p-4 shadow-sm transition hover:border-[var(--crm-accent-border)] hover:bg-[#fbfdff]"
     >
       <p className="text-[13px] font-black text-[#111827]">{title}</p>
       <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
         {body}
       </p>
-      <p className="mt-3 text-[11px] font-black text-[#4338ca]">
+      <p className="mt-3 text-[11px] font-black text-[var(--crm-accent)]">
         Open
       </p>
     </a>
@@ -1014,7 +1014,7 @@ function ConversionMetric({
   const toneClass: Record<ConversionTone, string> = {
     blue: "border-blue-100 bg-blue-50 text-blue-800",
     emerald: "border-emerald-100 bg-emerald-50 text-emerald-800",
-    purple: "border-purple-100 bg-purple-50 text-purple-800",
+    sky: "border-sky-100 bg-sky-50 text-sky-800",
     red: "border-red-100 bg-red-50 text-red-800",
     slate: "border-slate-100 bg-white text-slate-800",
   };

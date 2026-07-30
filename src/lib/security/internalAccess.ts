@@ -4,6 +4,7 @@ export type InternalModule =
   | "calendar"
   | "data_sources"
   | "leads"
+  | "crm"
   | "performance"
   | "campaigns"
   | "forms"
@@ -27,8 +28,18 @@ export type InternalAction =
   | "view_system_audit";
 
 export type InternalAccessContext = {
-  source: "shared_password" | "development_not_configured";
+  source:
+    | "shared_password"
+    | "supabase_auth"
+    | "development_not_configured"
+    | "unauthenticated";
   accessLevel: AdminAccessLevel;
+  memberId?: string;
+  email?: string;
+  fullName?: string | null;
+  workspaceRole?: string;
+  brandIds?: string[];
+  modulePermissions?: Record<string, boolean>;
 };
 
 export type AdminAccessLevel = "admin" | "master";

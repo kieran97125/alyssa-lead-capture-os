@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useState } from "react";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import type { CrmReplyTemplate } from "@/lib/crm/settingsConfig";
 import { updateQuickReplyAction } from "./actions";
 
@@ -167,12 +168,12 @@ function QuickReplyInlineEditor({
           >
             Cancel
           </button>
-          <button
-            type="submit"
-            className="h-8 rounded-md bg-[#D85BA3] px-3 text-[11px] font-black text-white shadow-sm transition hover:bg-[#C34D94]"
+          <SubmitButton
+            className="h-8 rounded-md bg-[#5a2348] px-3 text-[11px] font-black text-white shadow-sm transition hover:bg-[#471b39]"
+            pendingLabel="Saving…"
           >
             Save Quick Reply
-          </button>
+          </SubmitButton>
         </div>
       </div>
     </form>

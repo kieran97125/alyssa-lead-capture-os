@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 
 const settingsItems = [
   { href: "/settings", label: "總覽" },
@@ -16,13 +16,13 @@ export function SettingsNav() {
       className="mt-5 flex min-w-0 flex-wrap gap-2"
     >
       {settingsItems.map((item) => (
-        <Link
+        <IntentPrefetchLink
           key={item.href}
           href={item.href}
           className="min-w-0 rounded-full border border-[#ead9cf] bg-white/78 px-4 py-2 text-sm font-bold text-[#5a2348] shadow-sm transition hover:border-[#c9828e] hover:bg-white"
         >
           {item.label}
-        </Link>
+        </IntentPrefetchLink>
       ))}
     </nav>
   );

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { CopyButton } from "@/components/alyssa/CopyButton";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   archiveFormAction,
   deleteFormAction,
@@ -349,12 +350,12 @@ export default async function FormsPage({
                                   name="formId"
                                   value={form.id}
                                 />
-                                <button
-                                  type="submit"
+                                <SubmitButton
                                   className="w-full rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348]"
+                                  pendingLabel="複製中…"
                                 >
                                   Duplicate
-                                </button>
+                                </SubmitButton>
                               </form>
                               <p className="text-xs font-semibold leading-5 text-[#7b5a6a]">
                                 Archive hides this form from active lists. Safe delete only works when no linked leads or landing pages are found.
@@ -371,12 +372,12 @@ export default async function FormsPage({
                                   />
                                   Confirm archive
                                 </label>
-                                <button
-                                  type="submit"
+                                <SubmitButton
                                   className="rounded-full bg-[#5a2348] px-3 py-1.5 text-xs font-bold text-white"
+                                  pendingLabel="封存中…"
                                 >
                                   Archive
-                                </button>
+                                </SubmitButton>
                               </form>
                               <form
                                 action={deleteFormAction}
@@ -393,12 +394,12 @@ export default async function FormsPage({
                                   />
                                   Confirm permanent delete
                                 </label>
-                                <button
-                                  type="submit"
+                                <SubmitButton
                                   className="rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-3 py-1.5 text-xs font-bold text-[#8a2732]"
+                                  pendingLabel="刪除中…"
                                 >
                                   Safe delete
-                                </button>
+                                </SubmitButton>
                               </form>
                             </div>
                           </details>

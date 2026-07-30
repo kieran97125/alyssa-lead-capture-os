@@ -1,11 +1,16 @@
 import "server-only";
 
+import { createHash, randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
 import {
   aggregateDailySpendRows,
-  aggregateLeadFunnelColumns,
+  aggregateLeadSheetPerformance,
+  leadSheetFieldKeys,
+  resolveLeadSheetColumns,
+  type LeadSheetPerformanceDiagnostics,
+  type LeadSheetTreatmentAlias,
 } from "@/lib/marketing/googleSheetsMetricParser";
 
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
@@ -44,6 +49,23 @@ type DailyMetricUpsert = {
   updated_at: string;
 };
 
+type TreatmentPerformanceMetricUpsert = {
+  data_source_id: string;
+  brand_id: string;
+  metric_date: string;
+  metric_kind: "lead" | "book" | "show" | "no_show" | "pending_show";
+  dimension_key: string;
+  brand_label: string;
+  treatment_label: string;
+  source_label: string;
+  campaign_label: string;
+  branch_label: string;
+  metric_count: number;
+  source_updated_at: string;
+  imported_at: string;
+  sync_run_id: string;
+};
+
 type BatchGetResponse = {
   valueRanges?: Array<{
     range?: string;
@@ -58,6 +80,7 @@ export type MarketingSyncResult = {
   sourceName: string;
   dataset: string;
   metricRows: number;
+  analysisRows: number;
   message: string;
 };
 
@@ -67,6 +90,43 @@ async function getGoogleAccessToken() {
 
 function stringValue(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function recordValue(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
+function stringRecord(value: unknown) {
+  return Object.fromEntries(
+    Object.entries(recordValue(value))
+      .filter(
+        (entry): entry is [string, string] =>
+          typeof entry[1] === "string" &&
+          Boolean(entry[0].trim() && entry[1].trim())
+      )
+      .map(([key, target]) => [key.trim(), target.trim()])
+  );
+}
+
+function treatmentAliases(value: unknown): LeadSheetTreatmentAlias[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    const record = recordValue(item);
+    const label = stringValue(record.label);
+    const keywords = Array.isArray(record.keywords)
+      ? record.keywords.map(stringValue).filter(Boolean)
+      : [];
+    if (!label || keywords.length === 0) return [];
+    return [
+      {
+        label,
+        keywords,
+        brand: stringValue(record.brand) || null,
+      },
+    ];
+  });
 }
 
 function integerValue(value: unknown, fallback: number) {
@@ -97,6 +157,12 @@ function columnFromIndex(index: number) {
     value = Math.floor((value - 1) / 26);
   }
   return column;
+}
+
+function addIsoDays(value: string, days: number) {
+  const date = new Date(`${value}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + days);
+  return date.toISOString().slice(0, 10);
 }
 
 function quoteSheetName(value: string) {
@@ -239,43 +305,56 @@ async function collectLeadFunnelMetrics(
   const tabName = stringValue(configuration.tabName) || "lead";
   const headerRow = integerValue(configuration.headerRow, 1);
   const maxRows = integerValue(configuration.maxRows, DEFAULT_MAX_ROWS);
-  const columns = {
-    createdAt: normalizeColumn(configuration.createdAtColumn, "A"),
-    followStatus: normalizeColumn(configuration.followStatusColumn, "B"),
-    brand: normalizeColumn(configuration.brandColumn, "C"),
-    bookingDate: normalizeColumn(configuration.bookingDateColumn, "J"),
-    confirmationDate: normalizeColumn(
-      configuration.confirmationDateColumn,
-      "L"
-    ),
-  };
-  const orderedColumns = [
-    columns.createdAt,
-    columns.followStatus,
-    columns.brand,
-    columns.bookingDate,
-    columns.confirmationDate,
-  ];
+  const finalColumn = normalizeColumn(configuration.lastColumn, "V");
+  const headerResponse = await batchGetValues({
+    spreadsheetId: spreadsheetId(configuration),
+    ranges: [
+      `${quoteSheetName(tabName)}!A${headerRow}:${finalColumn}${headerRow}`,
+    ],
+  });
+  const headers = headerResponse.valueRanges?.[0]?.values?.[0] ?? [];
+  const columnMap = resolveLeadSheetColumns(headers);
+  const selectedIndexes = Array.from(
+    new Set(
+      leadSheetFieldKeys
+        .map((field) => columnMap[field])
+        .filter((index) => index >= 0)
+    )
+  ).sort((left, right) => left - right);
   const response = await batchGetValues({
     spreadsheetId: spreadsheetId(configuration),
-    ranges: orderedColumns.map(
-      (column) =>
-        `${quoteSheetName(tabName)}!${column}${headerRow + 1}:${column}${maxRows}`
-    ),
+    ranges: selectedIndexes.map((index) => {
+      const column = columnFromIndex(index);
+      return `${quoteSheetName(tabName)}!${column}${
+        headerRow + 1
+      }:${column}${maxRows}`;
+    }),
   });
-  const columnValues = orderedColumns.map(
+  const columnValues = selectedIndexes.map(
     (_, index) => response.valueRanges?.[index]?.values ?? []
   );
+  const rowCount = Math.max(0, ...columnValues.map((values) => values.length));
+  const rows = Array.from({ length: rowCount }, (_, rowIndex) => {
+    const row: unknown[] = [];
+    selectedIndexes.forEach((columnIndex, selectedIndex) => {
+      row[columnIndex] = columnValues[selectedIndex]?.[rowIndex]?.[0] ?? "";
+    });
+    return row;
+  });
   const timestamp = new Date().toISOString();
-  return aggregateLeadFunnelColumns({
-    createdAtValues: columnValues[0],
-    followStatusValues: columnValues[1],
-    brandValues: columnValues[2],
-    confirmationDateValues: columnValues[4],
+  const month = getHkMonthContext();
+  const parsed = aggregateLeadSheetPerformance({
+    headers,
+    rows,
     brands,
     sourceBrandId: source.brand_id,
-    throughDate,
-  }).map((aggregate) => {
+    brandAliases: stringRecord(configuration.brandAliases),
+    treatmentAliases: treatmentAliases(configuration.treatmentAliases),
+    dailyThroughDate: throughDate,
+    activityThroughDate: month.today,
+    pendingThroughDate: addIsoDays(month.today, 400),
+  });
+  const dailyMetrics = parsed.dailyMetrics.map((aggregate) => {
     const metric = emptyMetric({
       brandId: aggregate.brandId,
       date: aggregate.date,
@@ -288,6 +367,38 @@ async function collectLeadFunnelMetrics(
     metric.shows = aggregate.shows;
     return metric;
   });
+  const treatmentMetrics = parsed.metricFacts.map((fact) => ({
+    data_source_id: source.id,
+    brand_id: fact.brandId,
+    metric_date: fact.metricDate,
+    metric_kind: fact.metricKind,
+    dimension_key: createHash("sha256")
+      .update(
+        JSON.stringify([
+          fact.brandId,
+          fact.treatmentLabel,
+          fact.sourceLabel,
+          fact.campaignLabel,
+          fact.branchLabel,
+        ])
+      )
+      .digest("hex"),
+    brand_label: fact.brandLabel,
+    treatment_label: fact.treatmentLabel,
+    source_label: fact.sourceLabel,
+    campaign_label: fact.campaignLabel,
+    branch_label: fact.branchLabel,
+    metric_count: fact.count,
+    source_updated_at: timestamp,
+    imported_at: timestamp,
+    sync_run_id: "",
+  })) satisfies TreatmentPerformanceMetricUpsert[];
+
+  return {
+    dailyMetrics,
+    treatmentMetrics,
+    diagnostics: parsed.diagnostics,
+  };
 }
 
 async function reconcileMetrics(
@@ -335,6 +446,39 @@ async function reconcileMetrics(
   }
 }
 
+async function reconcileTreatmentPerformanceMetrics(
+  source: DataSourceRow,
+  metrics: TreatmentPerformanceMetricUpsert[]
+) {
+  const supabase = createSupabaseAdminClient();
+  const syncRunId = randomUUID();
+  const rows = metrics.map((metric) => ({
+    ...metric,
+    sync_run_id: syncRunId,
+  }));
+
+  for (let index = 0; index < rows.length; index += 500) {
+    const batch = rows.slice(index, index + 500);
+    const { error } = await supabase
+      .from("marketing_treatment_performance_daily")
+      .upsert(batch, {
+        onConflict:
+          "data_source_id,metric_date,metric_kind,dimension_key",
+      });
+    if (error) throw error;
+  }
+
+  let deleteQuery = supabase
+    .from("marketing_treatment_performance_daily")
+    .delete()
+    .eq("data_source_id", source.id);
+  if (rows.length > 0) {
+    deleteQuery = deleteQuery.neq("sync_run_id", syncRunId);
+  }
+  const { error: staleDeleteError } = await deleteQuery;
+  if (staleDeleteError) throw staleDeleteError;
+}
+
 function safeErrorMessage(error: unknown) {
   if (error instanceof Error && error.message.trim()) {
     return error.message.slice(0, 240);
@@ -361,6 +505,7 @@ export async function syncMarketingDataSource(
       sourceName: "未找到資料來源",
       dataset: "unknown",
       metricRows: 0,
+      analysisRows: 0,
       message: "找不到指定資料來源。",
     };
   }
@@ -393,6 +538,7 @@ export async function syncMarketingDataSource(
       sourceName: source.display_name,
       dataset,
       metricRows: 0,
+      analysisRows: 0,
       message: "未能鎖定同步工作，請稍後再試。",
     };
   }
@@ -403,6 +549,7 @@ export async function syncMarketingDataSource(
       sourceName: source.display_name,
       dataset,
       metricRows: 0,
+      analysisRows: 0,
       message:
         source.status === "paused"
           ? "資料來源已暫停。"
@@ -425,16 +572,30 @@ export async function syncMarketingDataSource(
     if (brandError) throw brandError;
     const brands = (brandData ?? []) as BrandRow[];
     const throughDate = getHkMonthContext().throughDate;
-    const metrics =
-      dataset === "daily_spend"
-        ? await collectDailySpendMetrics(source, configuration, throughDate)
-        : await collectLeadFunnelMetrics(
-            source,
-            configuration,
-            brands,
-            throughDate
-          );
+    let metrics: DailyMetricUpsert[];
+    let treatmentMetrics: TreatmentPerformanceMetricUpsert[] = [];
+    let diagnostics: LeadSheetPerformanceDiagnostics | null = null;
+    if (dataset === "daily_spend") {
+      metrics = await collectDailySpendMetrics(
+        source,
+        configuration,
+        throughDate
+      );
+    } else {
+      const leadFunnel = await collectLeadFunnelMetrics(
+        source,
+        configuration,
+        brands,
+        throughDate
+      );
+      metrics = leadFunnel.dailyMetrics;
+      treatmentMetrics = leadFunnel.treatmentMetrics;
+      diagnostics = leadFunnel.diagnostics;
+    }
     await reconcileMetrics(source, dataset, metrics);
+    if (dataset === "lead_funnel") {
+      await reconcileTreatmentPerformanceMetrics(source, treatmentMetrics);
+    }
 
     const completedAt = new Date().toISOString();
     const { error: sourceUpdateError } = await supabase
@@ -457,7 +618,9 @@ export async function syncMarketingDataSource(
       after_json: {
         dataset,
         metricRows: metrics.length,
+        treatmentMetricRows: treatmentMetrics.length,
         throughDate,
+        diagnostics,
       },
     });
 
@@ -467,7 +630,11 @@ export async function syncMarketingDataSource(
       sourceName: source.display_name,
       dataset,
       metricRows: metrics.length,
-      message: `同步完成，共更新 ${metrics.length} 個每日指標。`,
+      analysisRows: treatmentMetrics.length,
+      message:
+        dataset === "lead_funnel"
+          ? `同步完成，共更新 ${metrics.length} 個每日指標及 ${treatmentMetrics.length} 個療程成效組合。`
+          : `同步完成，共更新 ${metrics.length} 個每日指標。`,
     };
   } catch (syncError) {
     const message = safeErrorMessage(syncError);
@@ -487,6 +654,7 @@ export async function syncMarketingDataSource(
       sourceName: source.display_name,
       dataset,
       metricRows: 0,
+      analysisRows: 0,
       message,
     };
   }

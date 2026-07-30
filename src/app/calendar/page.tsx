@@ -1,6 +1,7 @@
 import { CalendarPlus, Info } from "lucide-react";
 import { createCalendarItemAction } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { MarketingCalendarBoard } from "@/components/command-center/MarketingCalendarBoard";
 import { getCommandCenterSnapshot } from "@/lib/marketing/commandCenter";
 
@@ -171,14 +172,14 @@ export default async function MarketingCalendarPage({
                 />
               </label>
               <footer>
-                <button
-                  type="submit"
+                <SubmitButton
                   className="command-primary-button"
                   disabled={!snapshot.schemaReady}
+                  pendingLabel="加入中…"
                 >
                   <CalendarPlus size={15} />
                   加入日曆
-                </button>
+                </SubmitButton>
               </footer>
             </form>
           </section>

@@ -4,6 +4,7 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { CopyButton } from "@/components/alyssa/CopyButton";
 import { EmbedCodeCard } from "@/components/alyssa/EmbedCodeCard";
 import { FormPackageSelection } from "@/components/alyssa/FormPackageSelection";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { duplicateFormAction, updateFormAction } from "@/app/forms/actions";
 import {
   META_URL_PARAMETER_GUIDE,
@@ -207,12 +208,12 @@ export default async function FormConfigPage({
               className="flex flex-wrap items-center gap-3"
               data-testid="form-settings-actions"
             >
-              <button
-                type="submit"
+              <SubmitButton
                 className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 hover:bg-[#d95f55]"
+                pendingLabel="儲存中…"
               >
                 Save Form
-              </button>
+              </SubmitButton>
               <CopyButton value={ops.embedCode} label="Copy Wix Embed" />
               <CopyButton value={form.publicFormToken} label="Copy Token" />
               <CopyButton value={ops.previewUrl} label="Copy Test URL" />
@@ -274,12 +275,12 @@ export default async function FormConfigPage({
               </h2>
               <form action={duplicateFormAction} className="mt-4">
                 <input type="hidden" name="formId" value={form.id} />
-                <button
-                  type="submit"
+                <SubmitButton
                   className="w-full rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
+                  pendingLabel="複製中…"
                 >
                   Duplicate
-                </button>
+                </SubmitButton>
               </form>
             </section>
           </aside>

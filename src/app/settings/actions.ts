@@ -1,6 +1,5 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -22,10 +21,12 @@ import {
   type SettingsMutationResult,
   type TreatmentInput,
 } from "@/lib/data/settingsEditor";
+import { getConfigurationData } from "@/lib/data/configuration";
 import {
-  adminSessionCookieName,
-  verifySignedAdminSession,
-} from "@/lib/security/internalAccess";
+  canAccessInternalBrand,
+  requireModuleAccess,
+  verifyCurrentInternalAccess,
+} from "@/lib/security/internalAccessServer";
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -58,32 +59,40 @@ function readReturnPath(formData: FormData, fallback: string) {
   return path.startsWith("/settings") ? path : fallback;
 }
 
-function revalidateSettings() {
-  [
-    "/settings",
-    "/settings/brands",
-    "/settings/treatments",
-    "/settings/packages",
-    "/settings/branches",
-    "/campaigns/new",
-    "/forms",
-    "/forms/new",
-    "/landing-pages",
-  ].forEach((path) => revalidatePath(path));
+function revalidateSettings(...paths: string[]) {
+  new Set(["/settings", ...paths]).forEach((path) => revalidatePath(path));
 }
 
-async function ensureSettingsAction(path: string) {
-  const cookieStore = await cookies();
-  const session = await verifySignedAdminSession(
-    cookieStore.get(adminSessionCookieName)?.value
-  );
+async function ensureSettingsAction(
+  path: string,
+  options: { brandId?: string; masterOnly?: boolean } = {}
+) {
+  const session = await verifyCurrentInternalAccess();
   if (!session.ok) {
     redirect(`/login?next=${encodeURIComponent(path)}`);
   }
+  const moduleAccess = await requireModuleAccess("settings");
+  if (!moduleAccess.allowed) {
+    redirectBack(path, {
+      ok: false,
+      message: "你未獲授權使用系統設定。",
+    });
+  }
+  if (
+    (options.masterOnly && session.access.accessLevel !== "master") ||
+    (options.brandId &&
+      !canAccessInternalBrand(session.access, options.brandId))
+  ) {
+    redirectBack(path, {
+      ok: false,
+      message: "你未獲授權修改呢個品牌嘅設定。",
+    });
+  }
+  return session.access;
 }
 
 function brandInput(formData: FormData): BrandInput {
-  return {
+  const input = {
     id: readString(formData, "id"),
     name: readString(formData, "name"),
     slug: readString(formData, "slug"),
@@ -103,6 +112,19 @@ function brandInput(formData: FormData): BrandInput {
       "metaPixelPageViewOnEmbed"
     ),
   };
+  const normalizedSlug = input.slug.toLowerCase();
+  if (
+    normalizedSlug === "ineffable" ||
+    normalizedSlug === "ineffable-beauty"
+  ) {
+    return {
+      ...input,
+      logoUrl: "",
+      primaryColor: "#69C7E8",
+      secondaryColor: "#DFF4FB",
+    };
+  }
+  return input;
 }
 
 function treatmentInput(formData: FormData): TreatmentInput {
@@ -153,33 +175,37 @@ function branchInput(formData: FormData): BranchInput {
 }
 
 export async function createBrandAction(formData: FormData) {
-  await ensureSettingsAction("/settings/brands");
+  await ensureSettingsAction("/settings/brands", { masterOnly: true });
   const result = await createBrand(brandInput(formData));
-  revalidateSettings();
+  revalidateSettings("/settings/brands", "/campaigns/new", "/forms");
   redirectBack(readReturnPath(formData, "/settings/brands"), result);
 }
 
 export async function updateBrandAction(formData: FormData) {
-  await ensureSettingsAction("/settings/brands");
-  const result = await updateBrand(brandInput(formData));
-  revalidateSettings();
+  const input = brandInput(formData);
+  await ensureSettingsAction("/settings/brands", { brandId: input.id });
+  const result = await updateBrand(input);
+  revalidateSettings("/settings/brands", "/campaigns/new", "/forms");
   redirectBack(readReturnPath(formData, "/settings/brands"), result);
 }
 
 export async function deleteBrandAction(formData: FormData) {
-  await ensureSettingsAction("/settings/brands");
+  await ensureSettingsAction("/settings/brands", { masterOnly: true });
   const result = await deleteBrandSafely(
     readString(formData, "id"),
     readBoolean(formData, "confirmDelete")
   );
-  revalidateSettings();
+  revalidateSettings("/settings/brands", "/campaigns/new", "/forms");
   redirectBack("/settings/brands", result);
 }
 
 export async function createTreatmentAction(formData: FormData) {
-  await ensureSettingsAction("/settings/treatments");
-  const result = await createTreatment(treatmentInput(formData));
-  revalidateSettings();
+  const input = treatmentInput(formData);
+  await ensureSettingsAction("/settings/treatments", {
+    brandId: input.brandId,
+  });
+  const result = await createTreatment(input);
+  revalidateSettings("/settings/treatments", "/campaigns/new", "/forms");
   redirectBack(
     readReturnPath(formData, "/settings/treatments"),
     result
@@ -187,9 +213,19 @@ export async function createTreatmentAction(formData: FormData) {
 }
 
 export async function updateTreatmentAction(formData: FormData) {
-  await ensureSettingsAction("/settings/treatments");
-  const result = await updateTreatment(treatmentInput(formData));
-  revalidateSettings();
+  const input = treatmentInput(formData);
+  await ensureSettingsAction("/settings/treatments", {
+    brandId: input.brandId,
+  });
+  const config = await getConfigurationData();
+  if (!config.treatments.some((item) => item.id === input.id)) {
+    redirectBack("/settings/treatments", {
+      ok: false,
+      message: "你未獲授權修改呢個療程。",
+    });
+  }
+  const result = await updateTreatment(input);
+  revalidateSettings("/settings/treatments", "/campaigns/new", "/forms");
   redirectBack(
     readReturnPath(formData, "/settings/treatments"),
     result
@@ -198,11 +234,19 @@ export async function updateTreatmentAction(formData: FormData) {
 
 export async function deleteTreatmentAction(formData: FormData) {
   await ensureSettingsAction("/settings/treatments");
+  const treatmentId = readString(formData, "id");
+  const config = await getConfigurationData();
+  if (!config.treatments.some((item) => item.id === treatmentId)) {
+    redirectBack("/settings/treatments", {
+      ok: false,
+      message: "你未獲授權刪除呢個療程。",
+    });
+  }
   const result = await deleteTreatmentSafely(
-    readString(formData, "id"),
+    treatmentId,
     readBoolean(formData, "confirmDelete")
   );
-  revalidateSettings();
+  revalidateSettings("/settings/treatments", "/campaigns/new", "/forms");
   redirectBack(
     readReturnPath(formData, "/settings/treatments"),
     result
@@ -212,49 +256,99 @@ export async function deleteTreatmentAction(formData: FormData) {
 export async function createPackageAction(formData: FormData) {
   await ensureSettingsAction("/settings/packages");
   const input = packageInput(formData);
+  if ("treatmentId" in input) {
+    const config = await getConfigurationData();
+    if (!config.treatments.some((item) => item.id === input.treatmentId)) {
+      redirectBack("/settings/packages", {
+        ok: false,
+        message: "你未獲授權為呢個療程新增項目。",
+      });
+    }
+  }
   const result = "treatmentId" in input ? await createPackage(input) : input;
-  revalidateSettings();
+  revalidateSettings("/settings/packages", "/campaigns/new", "/forms");
   redirectBack(readReturnPath(formData, "/settings/packages"), result);
 }
 
 export async function updatePackageAction(formData: FormData) {
   await ensureSettingsAction("/settings/packages");
   const input = packageInput(formData);
+  if ("treatmentId" in input) {
+    const config = await getConfigurationData();
+    if (
+      !config.packages.some((item) => item.id === input.id) ||
+      !config.treatments.some((item) => item.id === input.treatmentId)
+    ) {
+      redirectBack("/settings/packages", {
+        ok: false,
+        message: "你未獲授權修改呢個療程嘅項目。",
+      });
+    }
+  }
   const result = "treatmentId" in input ? await updatePackage(input) : input;
-  revalidateSettings();
+  revalidateSettings("/settings/packages", "/campaigns/new", "/forms");
   redirectBack(readReturnPath(formData, "/settings/packages"), result);
 }
 
 export async function deletePackageAction(formData: FormData) {
   await ensureSettingsAction("/settings/packages");
+  const packageId = readString(formData, "id");
+  const config = await getConfigurationData();
+  if (!config.packages.some((item) => item.id === packageId)) {
+    redirectBack("/settings/packages", {
+      ok: false,
+      message: "你未獲授權刪除呢個項目。",
+    });
+  }
   const result = await deletePackageSafely(
-    readString(formData, "id"),
+    packageId,
     readBoolean(formData, "confirmDelete")
   );
-  revalidateSettings();
+  revalidateSettings("/settings/packages", "/campaigns/new", "/forms");
   redirectBack(readReturnPath(formData, "/settings/packages"), result);
 }
 
 export async function createBranchAction(formData: FormData) {
-  await ensureSettingsAction("/settings/branches");
-  const result = await createBranch(branchInput(formData));
-  revalidateSettings();
+  const input = branchInput(formData);
+  await ensureSettingsAction("/settings/branches", {
+    brandId: input.brandId,
+  });
+  const result = await createBranch(input);
+  revalidateSettings("/settings/branches", "/forms");
   redirectBack("/settings/branches", result);
 }
 
 export async function updateBranchAction(formData: FormData) {
-  await ensureSettingsAction("/settings/branches");
-  const result = await updateBranch(branchInput(formData));
-  revalidateSettings();
+  const input = branchInput(formData);
+  await ensureSettingsAction("/settings/branches", {
+    brandId: input.brandId,
+  });
+  const config = await getConfigurationData();
+  if (!config.branches.some((item) => item.id === input.id)) {
+    redirectBack("/settings/branches", {
+      ok: false,
+      message: "你未獲授權修改呢間分店。",
+    });
+  }
+  const result = await updateBranch(input);
+  revalidateSettings("/settings/branches", "/forms");
   redirectBack("/settings/branches", result);
 }
 
 export async function deleteBranchAction(formData: FormData) {
   await ensureSettingsAction("/settings/branches");
+  const branchId = readString(formData, "id");
+  const config = await getConfigurationData();
+  if (!config.branches.some((item) => item.id === branchId)) {
+    redirectBack("/settings/branches", {
+      ok: false,
+      message: "你未獲授權刪除呢間分店。",
+    });
+  }
   const result = await deleteBranchSafely(
-    readString(formData, "id"),
+    branchId,
     readBoolean(formData, "confirmDelete")
   );
-  revalidateSettings();
+  revalidateSettings("/settings/branches", "/forms");
   redirectBack("/settings/branches", result);
 }

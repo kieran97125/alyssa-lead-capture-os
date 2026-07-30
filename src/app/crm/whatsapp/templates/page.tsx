@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getWhatsAppConnectionByBrandSlug } from "@/lib/crm/whatsapp";
+import { getConfigurationData } from "@/lib/data/configuration";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/admin";
 import { syncWhatsAppTemplatesAction } from "../actions";
 
@@ -29,9 +32,16 @@ export default async function WhatsAppTemplatesPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const query = await searchParams;
+  const [query, config] = await Promise.all([
+    searchParams,
+    getConfigurationData(),
+  ]);
   const feedback = first(query?.success) || first(query?.error) || "";
-  const connectionView = await getWhatsAppConnectionByBrandSlug("ineffable");
+  const brand = config.brands.find((item) =>
+    ["ineffable", "ineffable-beauty"].includes(item.slug)
+  );
+  if (!brand) notFound();
+  const connectionView = await getWhatsAppConnectionByBrandSlug(brand.slug);
   const connection = connectionView.connection;
   const templates = await loadTemplates(connection?.brand_id || "");
 
@@ -39,7 +49,7 @@ export default async function WhatsAppTemplatesPage({
     <CrmShell active="settings">
       <main className="min-h-screen bg-[#f6f8fb]">
         <header className="border-b border-[#e5e7eb] bg-white px-4 py-4 lg:px-6">
-          <Link href="/crm/settings" className="text-xs font-black text-[#6366f1]">← 返回設定</Link>
+          <Link href="/crm/settings" className="text-xs font-black text-[var(--crm-accent)]">← 返回設定</Link>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-xl font-black text-[#111827]">WhatsApp 訊息範本</h1>
@@ -47,9 +57,13 @@ export default async function WhatsAppTemplatesPage({
             </div>
             <form action={syncWhatsAppTemplatesAction}>
               <input type="hidden" name="connectionId" value={connection?.id || ""} />
-              <button disabled={!connection} className="h-9 rounded-lg bg-[#111827] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
+              <SubmitButton
+                disabled={!connection}
+                pendingLabel="同步中…"
+                className="h-9 rounded-lg bg-[#111827] px-4 text-xs font-black text-white disabled:cursor-not-allowed disabled:opacity-40"
+              >
                 從 Meta 更新狀態
-              </button>
+              </SubmitButton>
             </form>
           </div>
           {feedback ? <div className="mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800">{feedback}</div> : null}

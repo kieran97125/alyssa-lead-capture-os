@@ -1,6 +1,7 @@
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   createBranchAction,
   deleteBranchAction,
@@ -58,7 +59,7 @@ export default async function BranchSettingsPage({
           </p>
           <SettingsNav />
           <div className="mt-4 flex flex-wrap gap-2">
-            <Link
+            <IntentPrefetchLink
               href="/settings/branches"
               className={`rounded-full border px-4 py-2 text-sm font-bold ${
                 !selectedBrand
@@ -67,9 +68,9 @@ export default async function BranchSettingsPage({
               }`}
             >
               All brands
-            </Link>
+            </IntentPrefetchLink>
             {config.brands.map((brand) => (
-              <Link
+              <IntentPrefetchLink
                 key={brand.id}
                 href={`/settings/branches?brand=${brand.slug}`}
                 className={`rounded-full border px-4 py-2 text-sm font-bold ${
@@ -79,7 +80,7 @@ export default async function BranchSettingsPage({
                 }`}
               >
                 {brand.name}
-              </Link>
+              </IntentPrefetchLink>
             ))}
           </div>
         </section>
@@ -93,9 +94,12 @@ export default async function BranchSettingsPage({
             <TextInput label="分店名稱" name="name" />
             <TextInput label="分店代號" name="slug" placeholder="causeway-bay" />
             <div className="flex items-end">
-              <button className="w-full rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]">
+              <SubmitButton
+                className="w-full rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]"
+                pendingLabel="新增中…"
+              >
                 新增
-              </button>
+              </SubmitButton>
             </div>
             <TextArea label="地址" name="address" />
             <TextArea label="營業時間" name="openingHours" />
@@ -139,30 +143,36 @@ export default async function BranchSettingsPage({
                     name="openingHours"
                     defaultValue={branch.openingHours ?? ""}
                   />
-                  <button className="w-fit rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
+                  <SubmitButton
+                    className="w-fit rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+                    pendingLabel="儲存中…"
+                  >
                     儲存
-                  </button>
+                  </SubmitButton>
                 </form>
 
                 <div className="mt-5 rounded-[20px] bg-[#fff6f0] p-4">
                   <p className="text-sm font-bold text-[#321428]">
                     已連接表格：{linkedForms.length > 0 ? linkedForms.map((form) => form.formName).join(", ") : "未連接"}
                   </p>
-                  <Link
+                  <IntentPrefetchLink
                     href={`/forms/new?brand=${brand?.slug || ""}`}
                     className="mt-3 inline-flex rounded-full bg-[#e46f64] px-4 py-2 text-sm font-bold text-white"
                   >
                     Create form for this brand
-                  </Link>
+                  </IntentPrefetchLink>
                   <form action={deleteBranchAction} className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <input type="hidden" name="id" value={branch.id} />
                     <label className="flex items-center gap-2 text-sm font-semibold text-[#6d4a5c]">
                       <input type="checkbox" name="confirmDelete" />
                       確認刪除這間分店
                     </label>
-                    <button className="rounded-full border border-[#d9b66f] bg-white px-5 py-2 text-sm font-bold text-[#5a2348]">
+                    <SubmitButton
+                      className="rounded-full border border-[#d9b66f] bg-white px-5 py-2 text-sm font-bold text-[#5a2348]"
+                      pendingLabel="刪除中…"
+                    >
                       刪除
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
               </article>

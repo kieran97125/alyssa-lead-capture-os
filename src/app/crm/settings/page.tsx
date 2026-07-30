@@ -63,7 +63,7 @@ export default async function CrmSettingsPage() {
                   <h2 className="text-sm font-black text-[#111827]">{item.title}</h2>
                   <p className="mt-1 text-xs font-semibold text-[#64748b]">{item.description}</p>
                 </div>
-                <span className="text-left text-xs font-black text-[#4f46e5] sm:text-right">
+                <span className="text-left text-xs font-black text-[var(--crm-accent)] sm:text-right">
                   {item.action} →
                 </span>
               </Link>

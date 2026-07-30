@@ -1,7 +1,26 @@
-import { KeyRound, ShieldCheck, UserPlus, UsersRound } from "lucide-react";
-import { createWorkspaceMemberAction } from "@/app/command-center/actions";
+import {
+  KeyRound,
+  MailCheck,
+  RotateCw,
+  ShieldCheck,
+  UserMinus,
+  UserPlus,
+  UsersRound,
+} from "lucide-react";
+import {
+  createWorkspaceMemberAction,
+  resendWorkspaceInviteAction,
+  revokeWorkspaceMemberAction,
+} from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { ConfirmSubmitButton } from "@/components/alyssa/ConfirmSubmitButton";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { getCommandCenterSnapshot } from "@/lib/marketing/commandCenter";
+import {
+  getSupabasePublicAuthConfig,
+  isWorkspaceAuthSmtpVerified,
+  isWorkspaceEmailAuthRequired,
+} from "@/lib/supabase/authConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -21,8 +40,10 @@ const modules = [
   ["launchhub", "LaunchHub"],
   ["leads", "Leads"],
   ["crm", "CRM"],
+  ["performance", "療程成效"],
   ["data_sources", "資料來源"],
   ["settings", "設定"],
+  ["system_audit", "System Audit"],
 ] as const;
 
 function firstParam(value: string | string[] | undefined) {
@@ -43,6 +64,9 @@ export default async function TeamSettingsPage({
   ]);
   const message = firstParam(query?.message);
   const status = firstParam(query?.command_status);
+  const emailAuthReady = getSupabasePublicAuthConfig().ready;
+  const smtpVerified = isWorkspaceAuthSmtpVerified();
+  const emailAuthRequired = isWorkspaceEmailAuthRequired();
 
   return (
     <main className="alyssa-shell">
@@ -60,7 +84,7 @@ export default async function TeamSettingsPage({
             </div>
             <a href="#invite-member" className="command-primary-button">
               <UserPlus size={16} />
-              新增成員
+              邀請成員
             </a>
           </header>
 
@@ -74,16 +98,32 @@ export default async function TeamSettingsPage({
             </p>
           ) : null}
           <div className="auth-transition-notice">
-            <KeyRound size={18} />
+            {emailAuthRequired ? <MailCheck size={18} /> : <KeyRound size={18} />}
             <div>
-              <strong>目前仍使用共用 Admin Password</strong>
+              <strong>
+                {emailAuthRequired
+                  ? "受邀公司電郵登入已啟用"
+                  : "公司電郵登入安全切換中"}
+              </strong>
               <p>
-                今次已建立真正成員／品牌／模組權限資料模型，但要到 Supabase Auth
-                電郵登入切換後先逐人強制執行。切換前，共用 Admin Session 會當作 Master
-                Account。
+                {emailAuthRequired
+                  ? "未列入呢頁嘅電郵無法建立帳戶；邀請連結只可使用一次，登入後按角色、品牌及模組權限執行。"
+                  : "先向 Owner 公司電郵寄一次測試邀請並完成登入；驗收成功後先關閉共用 Password，避免切換時鎖死正式系統。"}
               </p>
             </div>
           </div>
+          {!smtpVerified ? (
+            <div className="auth-transition-notice is-warning">
+              <MailCheck size={18} />
+              <div>
+                <strong>邀請電郵尚未啟用</strong>
+                <p>
+                  要先完成 Supabase Auth Custom SMTP 寄送驗證；未驗證前邀請掣會鎖住，
+                  避免儲存咗權限但員工收唔到登入連結。
+                </p>
+              </div>
+            </div>
+          ) : null}
 
           <section className="command-surface member-registry">
             <header>
@@ -102,6 +142,7 @@ export default async function TeamSettingsPage({
                     <th>品牌</th>
                     <th>模組</th>
                     <th>狀態</th>
+                    <th>邀請／操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -141,6 +182,51 @@ export default async function TeamSettingsPage({
                           {member.status}
                         </span>
                       </td>
+                      <td>
+                        <div className="member-action-stack">
+                          <small>
+                            {member.lastSignInAt
+                              ? `上次登入 ${formatMemberTime(member.lastSignInAt)}`
+                              : member.inviteSentAt
+                                ? `已寄出 ${formatMemberTime(member.inviteSentAt)}`
+                                : "尚未寄出"}
+                          </small>
+                          <div>
+                            <form action={resendWorkspaceInviteAction}>
+                              <input
+                                type="hidden"
+                                name="memberId"
+                                value={member.id}
+                              />
+                              <SubmitButton
+                                className="member-action-button"
+                                pendingLabel="寄送中…"
+                                disabled={!smtpVerified}
+                              >
+                                <RotateCw size={12} />
+                                重發
+                              </SubmitButton>
+                            </form>
+                            {!member.isMaster ? (
+                              <form action={revokeWorkspaceMemberAction}>
+                                <input
+                                  type="hidden"
+                                  name="memberId"
+                                  value={member.id}
+                                />
+                                <ConfirmSubmitButton
+                                  className="member-action-button is-danger"
+                                  pendingLabel="撤回中…"
+                                  confirmMessage={`確定撤回 ${member.email} 嘅所有工作區權限？`}
+                                >
+                                  <UserMinus size={12} />
+                                  撤回
+                                </ConfirmSubmitButton>
+                              </form>
+                            ) : null}
+                          </div>
+                        </div>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -157,8 +243,8 @@ export default async function TeamSettingsPage({
                 <p>Member setup</p>
                 <h2>新增成員權限</h2>
                 <span>
-                  目前會建立權限設定但不寄邀請；Supabase Auth rollout
-                  後會接正式電郵登入。
+                  儲存角色、品牌及模組權限後會即時寄出一次性安全連結。
+                  Production 寄信需要 Supabase Auth Custom SMTP。
                 </span>
               </div>
               <UsersRound size={24} />
@@ -221,14 +307,16 @@ export default async function TeamSettingsPage({
                   權限更改會寫入 Audit Log；Master Account
                   不可由一般成員設定覆蓋。
                 </p>
-                <button
-                  type="submit"
+                <SubmitButton
                   className="command-primary-button"
-                  disabled={!snapshot.schemaReady}
+                  disabled={
+                    !snapshot.schemaReady || !emailAuthReady || !smtpVerified
+                  }
+                  pendingLabel="建立並寄送…"
                 >
                   <UserPlus size={15} />
-                  建立成員設定
-                </button>
+                  建立權限並寄出邀請
+                </SubmitButton>
               </footer>
             </form>
           </section>
@@ -245,4 +333,17 @@ function initials(value: string) {
     .slice(0, 2)
     .map((part) => part.slice(0, 1).toUpperCase())
     .join("");
+}
+
+function formatMemberTime(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-HK", {
+    timeZone: "Asia/Hong_Kong",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }

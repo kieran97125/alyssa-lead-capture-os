@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import {
   createTreatmentAction,
   deleteTreatmentAction,
@@ -7,6 +7,7 @@ import {
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsBrandPicker } from "@/components/alyssa/SettingsBrandPicker";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   getConfigurationData,
   getLinkedForms,
@@ -94,9 +95,12 @@ export default async function TreatmentSettingsPage({
             />
             <TextArea label="療程介紹" name="description" />
             <div className="flex items-end">
-              <button className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white">
+              <SubmitButton
+                className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white"
+                pendingLabel="建立中…"
+              >
                 建立療程
-              </button>
+              </SubmitButton>
             </div>
           </form>
         </details>
@@ -176,15 +180,18 @@ export default async function TreatmentSettingsPage({
                       defaultValue={treatment.description ?? ""}
                     />
                     <div className="flex flex-wrap items-center gap-3">
-                      <button className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
+                      <SubmitButton
+                        className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+                        pendingLabel="儲存中…"
+                      >
                         儲存
-                      </button>
-                      <Link
+                      </SubmitButton>
+                      <IntentPrefetchLink
                         href={`/settings/packages?brand=${selectedBrand?.slug || ""}&treatment=${treatment.slug}`}
                         className="text-sm font-bold text-[#5a2348] underline underline-offset-4"
                       >
                         管理此療程價錢
-                      </Link>
+                      </IntentPrefetchLink>
                     </div>
                   </form>
 
@@ -206,9 +213,12 @@ export default async function TreatmentSettingsPage({
                         <input type="checkbox" name="confirmDelete" />
                         確認刪除
                       </label>
-                      <button className="w-fit rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-4 py-2 text-sm font-bold text-[#8a2732]">
+                      <SubmitButton
+                        className="w-fit rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-4 py-2 text-sm font-bold text-[#8a2732]"
+                        pendingLabel="刪除中…"
+                      >
                         安全刪除
-                      </button>
+                      </SubmitButton>
                     </form>
                   </details>
                 </div>

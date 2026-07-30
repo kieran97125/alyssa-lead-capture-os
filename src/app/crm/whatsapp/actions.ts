@@ -1,12 +1,12 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
-  adminSessionCookieName,
-  verifySignedAdminSession,
-} from "@/lib/security/internalAccess";
+  canAccessInternalBrand,
+  requireModuleAccess,
+  verifyCurrentInternalAccess,
+} from "@/lib/security/internalAccessServer";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -17,6 +17,7 @@ import {
   syncWhatsAppTemplates,
 } from "@/lib/crm/whatsappInbox";
 import { createCrmInteraction } from "@/lib/crm/store";
+import type { InternalAccessContext } from "@/lib/security/internalAccess";
 
 function readString(formData: FormData, key: string, maxLength = 1000) {
   const value = formData.get(key);
@@ -24,9 +25,29 @@ function readString(formData: FormData, key: string, maxLength = 1000) {
 }
 
 async function requireAdmin() {
-  const cookieStore = await cookies();
-  return verifySignedAdminSession(
-    cookieStore.get(adminSessionCookieName)?.value
+  const session = await verifyCurrentInternalAccess();
+  if (!session.ok) return session;
+  const moduleAccess = await requireModuleAccess("crm");
+  return moduleAccess.allowed
+    ? session
+    : ({ ok: false, access: null } as const);
+}
+
+async function canUseBrandRecord(
+  access: InternalAccessContext,
+  table: "whatsapp_conversations" | "whatsapp_connections",
+  id: string
+) {
+  if (!id || !hasSupabaseAdminEnv()) return false;
+  const supabase = createSupabaseAdminClient();
+  const { data } = await supabase
+    .from(table)
+    .select("brand_id")
+    .eq("id", id)
+    .maybeSingle();
+  return Boolean(
+    data?.brand_id &&
+      canAccessInternalBrand(access, String(data.brand_id))
   );
 }
 
@@ -44,6 +65,9 @@ export async function markConversationReadAction(formData: FormData) {
   const session = await requireAdmin();
   if (!session.ok) redirect("/login");
   const conversationId = readString(formData, "conversationId", 100);
+  if (!(await canUseBrandRecord(session.access, "whatsapp_conversations", conversationId))) {
+    redirectConversation(conversationId || "missing", "error", "permission_denied");
+  }
   if (conversationId) await markWhatsAppConversationRead(conversationId);
   revalidatePath("/crm/whatsapp");
   revalidatePath(`/crm/whatsapp/${conversationId}`);
@@ -56,6 +80,9 @@ export async function linkConversationToLeadAction(formData: FormData) {
   const leadId = readString(formData, "leadId", 100);
   if (!conversationId || !leadId) {
     redirectConversation(conversationId || "missing", "error", "conversation_and_lead_required");
+  }
+  if (!(await canUseBrandRecord(session.access, "whatsapp_conversations", conversationId))) {
+    redirectConversation(conversationId, "error", "permission_denied");
   }
 
   const result = await linkWhatsAppConversationToLead({
@@ -72,6 +99,9 @@ export async function syncWhatsAppTemplatesAction(formData: FormData) {
   const session = await requireAdmin();
   if (!session.ok) redirect("/login");
   const connectionId = readString(formData, "connectionId", 100);
+  if (!(await canUseBrandRecord(session.access, "whatsapp_connections", connectionId))) {
+    redirect("/crm/whatsapp/templates?error=permission_denied");
+  }
   const result = await syncWhatsAppTemplates(connectionId);
   revalidatePath("/crm/whatsapp");
   revalidatePath("/crm/whatsapp/templates");
@@ -93,9 +123,15 @@ export async function addWhatsAppInternalNoteAction(formData: FormData) {
   const supabase = createSupabaseAdminClient();
   const { data: conversation } = await supabase
     .from("whatsapp_conversations")
-    .select("lead_id")
+    .select("lead_id,brand_id")
     .eq("id", conversationId)
     .maybeSingle();
+  if (
+    !conversation?.brand_id ||
+    !canAccessInternalBrand(session.access, String(conversation.brand_id))
+  ) {
+    redirectConversation(conversationId, "error", "permission_denied");
+  }
   if (!conversation?.lead_id) {
     redirectConversation(conversationId, "error", "link_lead_before_note");
   }
@@ -136,6 +172,9 @@ export async function setConversationArchiveAction(formData: FormData) {
     redirectConversation(conversationId || "missing", "error", "conversation_required");
   }
   const supabase = createSupabaseAdminClient();
+  if (!(await canUseBrandRecord(session.access, "whatsapp_conversations", conversationId))) {
+    redirectConversation(conversationId, "error", "permission_denied");
+  }
   await supabase
     .from("whatsapp_conversations")
     .update({ status, updated_at: new Date().toISOString() })

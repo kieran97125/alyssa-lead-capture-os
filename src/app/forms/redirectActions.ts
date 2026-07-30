@@ -8,6 +8,7 @@ import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
+import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 
 function redirectWithMessage(path: string, message: string): never {
   const params = new URLSearchParams();
@@ -21,6 +22,12 @@ export async function syncGeneratedSuccessRedirectAction(formData: FormData) {
 
   if (!formId) {
     redirectWithMessage("/forms", "找不到需要更新的表格。");
+  }
+  const access = await requireModuleAccess("forms");
+  if (!access.allowed) {
+    redirect(
+      `/login?next=${encodeURIComponent(path)}&error=permission_denied`
+    );
   }
 
   if (!hasSupabaseAdminEnv()) {

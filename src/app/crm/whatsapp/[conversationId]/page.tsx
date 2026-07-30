@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { WhatsAppConversationComposer } from "@/components/crm/WhatsAppConversationComposer";
 import {
@@ -63,7 +64,7 @@ export default async function WhatsAppConversationPage({
             <div>
               <Link
                 href="/crm/whatsapp"
-                className="text-xs font-black text-[#6366f1] hover:text-[#4338ca]"
+                className="text-xs font-black text-[var(--crm-accent)] hover:text-[#0f688a]"
               >
                 ← WhatsApp Inbox
               </Link>
@@ -91,9 +92,12 @@ export default async function WhatsAppConversationPage({
                   name="status"
                   value={conversation.status === "archived" ? "active" : "archived"}
                 />
-                <button className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-black text-[#64748b]">
+                <SubmitButton
+                  pendingLabel="處理中…"
+                  className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-black text-[#64748b]"
+                >
                   {conversation.status === "archived" ? "取消封存" : "封存對話"}
-                </button>
+                </SubmitButton>
               </form>
             </div>
           </div>
@@ -187,9 +191,12 @@ export default async function WhatsAppConversationPage({
                         <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
                           Lead 建立：{formatDateTime(candidate.created_at)}
                         </p>
-                        <button className="mt-2 w-full rounded-lg bg-amber-950 px-3 py-2 text-xs font-black text-white">
+                        <SubmitButton
+                          pendingLabel="配對中…"
+                          className="mt-2 w-full rounded-lg bg-amber-950 px-3 py-2 text-xs font-black text-white"
+                        >
                           確認配對此 Lead
-                        </button>
+                        </SubmitButton>
                       </form>
                     ))
                   ) : (
@@ -236,9 +243,12 @@ export default async function WhatsAppConversationPage({
                   placeholder="例如：客人要求星期五下午再聯絡"
                   className="rounded-lg border border-[#d1d5db] px-3 py-2 text-sm"
                 />
-                <button className="rounded-lg bg-[#111827] px-3 py-2 text-xs font-black text-white">
+                <SubmitButton
+                  pendingLabel="新增中…"
+                  className="rounded-lg bg-[#111827] px-3 py-2 text-xs font-black text-white"
+                >
                   新增內部備註
-                </button>
+                </SubmitButton>
               </form>
             </section>
           </aside>

@@ -26,6 +26,7 @@ import {
   type CrmConfigOption,
 } from "@/lib/crm/settingsConfig";
 import { getCrmSettings } from "@/lib/crm/settingsLoader";
+import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 
 const allowedStatuses: CrmStatus[] = [
   "new",
@@ -58,16 +59,22 @@ async function runCrmAction(
   let redirectError: unknown;
 
   try {
-    const caseRecord = await getWritableCase(leadId);
-    if (!caseRecord) {
-      console.warn("crm_action_skipped", {
-        leadId,
-        reason: "write_actions_not_enabled_or_lead_not_found",
-      });
+    const moduleAccess = await requireModuleAccess("crm");
+    if (!moduleAccess.allowed) {
       redirectKey = "crm_error";
-      redirectValue = "write_disabled";
+      redirectValue = "permission_denied";
     } else {
-      await handler(caseRecord);
+      const caseRecord = await getWritableCase(leadId);
+      if (!caseRecord) {
+        console.warn("crm_action_skipped", {
+          leadId,
+          reason: "write_actions_not_enabled_or_lead_not_found",
+        });
+        redirectKey = "crm_error";
+        redirectValue = "write_disabled";
+      } else {
+        await handler(caseRecord);
+      }
     }
   } catch (error) {
     console.warn("crm_action_failed", safeError(error));

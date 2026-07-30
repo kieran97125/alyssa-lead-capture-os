@@ -6,6 +6,7 @@ import {
   publishLandingPageFromEditorWithSlug,
   saveLandingPageDraftWithSlug,
 } from "@/lib/data/landingPageStore";
+import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 import type {
   LandingPageContent,
   LandingPageContentSection,
@@ -361,6 +362,12 @@ function parseEditorForm(formData: FormData): {
 
 export async function saveLandingPageDraftAction(formData: FormData) {
   const pageId = String(formData.get("pageId") ?? "");
+  const access = await requireModuleAccess("landing_pages");
+  if (!access.allowed) {
+    redirect(
+      `/login?next=${encodeURIComponent(`/landing-pages/${pageId}`)}&error=permission_denied`
+    );
+  }
   const parsed = parseEditorForm(formData);
 
   if (parsed.error) resultRedirect(pageId, parsed.error);
@@ -384,6 +391,12 @@ export async function saveLandingPageDraftAction(formData: FormData) {
 
 export async function publishLandingPageAction(formData: FormData) {
   const pageId = String(formData.get("pageId") ?? "");
+  const access = await requireModuleAccess("landing_pages");
+  if (!access.allowed) {
+    redirect(
+      `/login?next=${encodeURIComponent(`/landing-pages/${pageId}`)}&error=permission_denied`
+    );
+  }
   const parsed = parseEditorForm(formData);
 
   if (parsed.error) resultRedirect(pageId, parsed.error);

@@ -1,5 +1,7 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { CopyButton } from "@/components/alyssa/CopyButton";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { CrmShell } from "@/components/crm/CrmShell";
 import {
   DEFAULT_GRAPH_API_VERSION,
@@ -28,8 +30,11 @@ export default async function WhatsAppConnectionPage({
 }) {
   const [query, config] = await Promise.all([searchParams, getConfigurationData()]);
   const brand =
-    config.brands.find((item) => item.slug === "ineffable") || config.brands[0] || null;
-  const connectionView = await getWhatsAppConnectionByBrandSlug("ineffable");
+    config.brands.find((item) =>
+      ["ineffable", "ineffable-beauty"].includes(item.slug)
+    ) || null;
+  if (!brand) notFound();
+  const connectionView = await getWhatsAppConnectionByBrandSlug(brand.slug);
   const connection = connectionView.connection;
   const feedback = firstParam(query?.settings_success) || firstParam(query?.settings_error);
   const success = Boolean(firstParam(query?.settings_success));
@@ -39,7 +44,7 @@ export default async function WhatsAppConnectionPage({
     <CrmShell active="settings">
       <main className="min-h-screen bg-[#f6f8fb]">
         <header className="border-b border-[#e5e7eb] bg-white px-4 py-4 lg:px-6">
-          <Link href="/crm/settings" className="text-xs font-black text-[#6366f1]">
+          <Link href="/crm/settings" className="text-xs font-black text-[var(--crm-accent)]">
             ← 返回設定
           </Link>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -69,7 +74,7 @@ export default async function WhatsAppConnectionPage({
 
           <section className="overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-sm">
             <div className="border-b border-[#eef2f7] px-4 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#6366f1]">步驟 1</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--crm-accent)]">步驟 1</p>
               <h2 className="mt-1 text-base font-black text-[#111827]">在 Meta 複製兩項資料</h2>
             </div>
             <div className="grid gap-3 p-4 sm:grid-cols-2">
@@ -85,7 +90,7 @@ export default async function WhatsAppConnectionPage({
             <input type="hidden" name="graphApiVersion" value={connection?.graph_api_version || DEFAULT_GRAPH_API_VERSION} />
 
             <div className="border-b border-[#eef2f7] px-4 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#6366f1]">步驟 2</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--crm-accent)]">步驟 2</p>
               <h2 className="mt-1 text-base font-black text-[#111827]">貼上 Meta 連接資料</h2>
               <p className="mt-1 text-xs font-semibold text-[#64748b]">所有密鑰只會加密儲存，不會再顯示。</p>
             </div>
@@ -106,9 +111,9 @@ export default async function WhatsAppConnectionPage({
             </div>
 
             <div className="border-t border-[#eef2f7] px-4 py-3">
-              <button disabled={!setupReady} className="h-10 rounded-lg bg-[#111827] px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
+              <SubmitButton disabled={!setupReady} className="h-10 rounded-lg bg-[#111827] px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40" pendingLabel="儲存中…">
                 儲存連接
-              </button>
+              </SubmitButton>
             </div>
           </form>
 
@@ -116,7 +121,7 @@ export default async function WhatsAppConnectionPage({
             <input type="hidden" name="brandId" value={brand?.id || ""} />
             <input type="hidden" name="connectionId" value={connection?.id || ""} />
             <div className="border-b border-[#eef2f7] px-4 py-3">
-              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#6366f1]">步驟 3</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.14em] text-[var(--crm-accent)]">步驟 3</p>
               <h2 className="mt-1 text-base font-black text-[#111827]">發送測試訊息</h2>
             </div>
             <div className="grid gap-3 p-4 sm:grid-cols-2">
@@ -124,10 +129,10 @@ export default async function WhatsAppConnectionPage({
               <Field label="測試內容" name="testMessage" defaultValue="Ineffable Beauty WhatsApp connection test" required />
             </div>
             <div className="flex flex-wrap items-center gap-3 border-t border-[#eef2f7] px-4 py-3">
-              <button disabled={!connection} className="h-10 rounded-lg bg-[#16a34a] px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40">
+              <SubmitButton disabled={!connection} className="h-10 rounded-lg bg-[#16a34a] px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40" pendingLabel="發送中…">
                 發送測試
-              </button>
-              <Link href="/crm/whatsapp/templates" className="text-xs font-black text-[#4f46e5]">
+              </SubmitButton>
+              <Link href="/crm/whatsapp/templates" className="text-xs font-black text-[var(--crm-accent)]">
                 下一步：設定訊息範本 →
               </Link>
             </div>
@@ -162,7 +167,7 @@ function Field({
         required={required}
         defaultValue={defaultValue || ""}
         placeholder={placeholder}
-        className="h-10 rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm font-semibold text-[#111827] outline-none focus:border-[#6366f1]"
+        className="h-10 rounded-lg border border-[#cbd5e1] bg-white px-3 text-sm font-semibold text-[#111827] outline-none focus:border-[var(--crm-accent)]"
       />
     </label>
   );

@@ -6,6 +6,7 @@ import {
   archiveLandingPage,
   deleteLandingPageSafely,
 } from "@/lib/data/landingPageStore";
+import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -26,6 +27,8 @@ function redirectWithMessage(path: string, message: string): never {
 }
 
 export async function archiveLandingPageAction(formData: FormData) {
+  const access = await requireModuleAccess("landing_pages");
+  if (!access.allowed) redirect("/login?next=/landing-pages&error=permission_denied");
   const pageId = readString(formData, "pageId");
   const confirmed = readString(formData, "confirmArchive") === "yes";
   const returnTo = safeReturnTo(
@@ -44,6 +47,8 @@ export async function archiveLandingPageAction(formData: FormData) {
 }
 
 export async function deleteLandingPageAction(formData: FormData) {
+  const access = await requireModuleAccess("landing_pages");
+  if (!access.allowed) redirect("/login?next=/landing-pages&error=permission_denied");
   const pageId = readString(formData, "pageId");
   const confirmed = readString(formData, "confirmDelete") === "yes";
   const returnTo = safeReturnTo(

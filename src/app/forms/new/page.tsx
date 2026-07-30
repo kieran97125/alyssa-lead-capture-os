@@ -2,6 +2,7 @@ import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { CopyButton } from "@/components/alyssa/CopyButton";
 import { FormPackageSelection } from "@/components/alyssa/FormPackageSelection";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { createFormAction } from "@/app/forms/actions";
 import {
   META_URL_PARAMETER_GUIDE,
@@ -247,12 +248,12 @@ export default async function NewFormPage({
                 建立後會前往 form detail，直接複製 Wix embed code、test URL 同 Meta URL parameters。
               </p>
             </div>
-            <button
-              type="submit"
+            <SubmitButton
               className="rounded-full bg-[#e46f64] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 hover:bg-[#d95f55]"
+              pendingLabel="建立中…"
             >
               建立表格
-            </button>
+            </SubmitButton>
           </section>
         </form>
       </div>

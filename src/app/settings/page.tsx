@@ -1,8 +1,9 @@
-import Link from "next/link";
 import { updateBrandAction } from "@/app/settings/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsBrandPicker } from "@/components/alyssa/SettingsBrandPicker";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   getBrandPixelId,
   getVisibleBrands,
@@ -86,7 +87,7 @@ export default async function SettingsPage({
     {
       href: "/settings/brands",
       title: "品牌資料",
-      description: "名稱、Logo、品牌色、WhatsApp 及 Thank You Page",
+      description: "名稱、品牌識別色、WhatsApp 及 Thank You Page",
       count: null,
     },
     {
@@ -164,7 +165,7 @@ export default async function SettingsPage({
               </div>
               <div data-testid="settings-management-list">
                 {managementRows.map((item) => (
-                  <Link
+                  <IntentPrefetchLink
                     key={item.href}
                     href={item.href}
                     className="grid gap-2 border-b border-[#f1e3dc] px-5 py-4 transition last:border-b-0 hover:bg-[#fff9f3] sm:grid-cols-[minmax(170px,0.55fr)_minmax(280px,1.25fr)_90px_70px] sm:items-center"
@@ -181,7 +182,7 @@ export default async function SettingsPage({
                     <span className="text-right text-sm font-bold text-[#5a2348]">
                       管理 →
                     </span>
-                  </Link>
+                  </IntentPrefetchLink>
                 ))}
               </div>
             </section>
@@ -248,9 +249,12 @@ export default async function SettingsPage({
                     </span>
                   </span>
                 </label>
-                <button className="self-end rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
+                <SubmitButton
+                  className="self-end rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-70"
+                  pendingLabel="儲存 Pixel…"
+                >
                   儲存 Pixel
-                </button>
+                </SubmitButton>
               </form>
             </section>
 
@@ -301,9 +305,12 @@ export default async function SettingsPage({
                   required={false}
                 />
                 <div className="flex items-end">
-                  <button className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
+                  <SubmitButton
+                    className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white disabled:cursor-wait disabled:opacity-70"
+                    pendingLabel="儲存設定…"
+                  >
                     儲存法律設定
-                  </button>
+                  </SubmitButton>
                 </div>
               </form>
             </details>
@@ -412,12 +419,12 @@ function BrandHiddenFields({
 
 function AdvancedLink({ href, title }: { href: string; title: string }) {
   return (
-    <Link
+    <IntentPrefetchLink
       href={href}
       className="border-b border-[#f1e3dc] px-5 py-4 text-sm font-bold text-[#5a2348] transition hover:bg-[#fff9f3] sm:border-b-0 sm:border-r sm:last:border-r-0"
     >
       {title} →
-    </Link>
+    </IntentPrefetchLink>
   );
 }
 

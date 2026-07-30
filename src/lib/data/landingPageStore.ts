@@ -22,6 +22,16 @@ import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
+import {
+  canAccessInternalBrand,
+  getCurrentInternalAccess,
+} from "@/lib/security/internalAccessServer";
+
+async function canUseLandingPageBrand(brandId: string | null | undefined) {
+  const access = await getCurrentInternalAccess();
+  if (access.source !== "supabase_auth") return true;
+  return Boolean(brandId && canAccessInternalBrand(access, brandId));
+}
 
 type LandingPageRow = {
   id: string;
@@ -1348,6 +1358,7 @@ export async function getLandingPageEditorState(
   if (hasSupabaseAdminEnv()) {
     const row = await findLandingPageRow(pageId);
     if (row) {
+      if (!(await canUseLandingPageBrand(row.brand_id))) return null;
       const latestDraft = await getLatestVersion(row.id, "draft");
       const publishedVersion = await getPublishedVersionForRow(row);
       const latestVersion = latestDraft ?? publishedVersion;
@@ -1391,6 +1402,7 @@ export async function getLandingPageEditorState(
 
   const page = await getLandingPageById(pageId);
   if (!page) return null;
+  if (!(await canUseLandingPageBrand(page.brandId))) return null;
 
   const canPersist = page.builderSource === "supabase";
 
@@ -1413,6 +1425,11 @@ export async function getLandingPageEditorState(
 export const getLandingPageEditorData = getLandingPageEditorState;
 
 export async function getLandingPageList() {
+  const access = await getCurrentInternalAccess();
+  const canUseBrand = (brandId: string | null | undefined) =>
+    access.source !== "supabase_auth" ||
+    Boolean(brandId && canAccessInternalBrand(access, brandId));
+
   if (hasSupabaseAdminEnv()) {
     const supabase = createSupabaseAdminClient();
     const { data, error } = await supabase
@@ -1437,7 +1454,7 @@ export async function getLandingPageList() {
       );
 
       return {
-        pages,
+        pages: pages.filter((page) => canUseBrand(page.brandId)),
         source: "supabase" as const,
         canPersist: true,
       };
@@ -1445,10 +1462,12 @@ export async function getLandingPageList() {
   }
 
   return {
-    pages: alyssaLandingPages.map((page) => ({
-      ...page,
-      builderSource: "local_config" as const,
-    })),
+    pages: alyssaLandingPages
+      .filter((page) => canUseBrand(page.brandId))
+      .map((page) => ({
+        ...page,
+        builderSource: "local_config" as const,
+      })),
     source: "local_config" as const,
     canPersist: false,
   };
@@ -1542,6 +1561,13 @@ export async function archiveLandingPage(
       message: "Landing Page not found. No change was made.",
     };
   }
+  if (!(await canUseLandingPageBrand(row.brand_id))) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "你未獲授權管理呢個品牌嘅 Landing Page。",
+    };
+  }
 
   const supabase = createSupabaseAdminClient();
   const { error } = await supabase
@@ -1592,6 +1618,13 @@ export async function deleteLandingPageSafely(
       ok: false,
       source: "supabase",
       message: "Landing Page not found. No change was made.",
+    };
+  }
+  if (!(await canUseLandingPageBrand(row.brand_id))) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "你未獲授權刪除呢個品牌嘅 Landing Page。",
     };
   }
 
@@ -1663,6 +1696,14 @@ export async function createLandingPageDraft(input: CreateLandingPageDraftInput)
     return {
       ok: false,
       message: "暫時未能建立 Landing Page 草稿，請確認正式資料庫設定。",
+      pageId: null as string | null,
+      slug: null as string | null,
+    };
+  }
+  if (!(await canUseLandingPageBrand(input.brandId))) {
+    return {
+      ok: false,
+      message: "你未獲授權為呢個品牌建立 Landing Page。",
       pageId: null as string | null,
       slug: null as string | null,
     };
@@ -1790,6 +1831,13 @@ export async function saveLandingPageDraft(
       message: "目前未能儲存草稿，請確認這個 Landing Page 已連接正式資料。",
     };
   }
+  if (!(await canUseLandingPageBrand(row.brand_id))) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "你未獲授權修改呢個品牌嘅 Landing Page。",
+    };
+  }
 
   const supabase = createSupabaseAdminClient();
   const latest = await getLatestVersion(row.id);
@@ -1853,6 +1901,13 @@ export async function publishLandingPageFromEditor(
       ok: false,
       source: "local_config",
       message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
+    };
+  }
+  if (!(await canUseLandingPageBrand(row.brand_id))) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "你未獲授權發布呢個品牌嘅 Landing Page。",
     };
   }
 
@@ -1952,6 +2007,13 @@ export async function saveLandingPageDraftWithSlug(
       message: "目前未能保存，請確認這個 Landing Page 已連接正式資料。",
     };
   }
+  if (!(await canUseLandingPageBrand(row.brand_id))) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "你未獲授權修改呢個品牌嘅 Landing Page。",
+    };
+  }
 
   const supabase = createSupabaseAdminClient();
   const latest = await getLatestVersion(row.id);
@@ -2046,6 +2108,13 @@ export async function publishLandingPageFromEditorWithSlug(
       ok: false,
       source: "local_config",
       message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
+    };
+  }
+  if (!(await canUseLandingPageBrand(row.brand_id))) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "你未獲授權發布呢個品牌嘅 Landing Page。",
     };
   }
 
@@ -2156,6 +2225,13 @@ export async function publishLandingPage(
       ok: false,
       source: "local_config",
       message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
+    };
+  }
+  if (!(await canUseLandingPageBrand(row.brand_id))) {
+    return {
+      ok: false,
+      source: "supabase",
+      message: "你未獲授權發布呢個品牌嘅 Landing Page。",
     };
   }
 

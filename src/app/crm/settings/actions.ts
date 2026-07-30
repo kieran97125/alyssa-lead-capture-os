@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 
 const MAX_LABEL_LENGTH = 80;
 const MAX_BODY_LENGTH = 1200;
@@ -29,6 +30,10 @@ export async function updateQuickReplyAction(configKey: string, formData: FormDa
   let message = "quick_reply_saved";
 
   try {
+    const moduleAccess = await requireModuleAccess("crm");
+    if (!moduleAccess.allowed) {
+      throw new Error("permission_denied");
+    }
     if (!safeConfigKey) {
       throw new Error("missing_config_key");
     }

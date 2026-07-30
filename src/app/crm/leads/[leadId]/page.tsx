@@ -3,18 +3,15 @@ import { notFound } from "next/navigation";
 import type { ReactNode } from "react";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
-import { ReplyComposer } from "@/components/crm/ReplyComposer";
 import { WhatsAppSendBox } from "@/components/crm/WhatsAppSendBox";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { formatDateTime, getLeadRows } from "@/lib/data/businessMetrics";
 import {
   crmPipelineStatuses,
   toCrmLeadCase,
   type CrmLeadCase,
 } from "@/lib/crm/leadOps";
-import {
-  getCrmAiReplyDraftsFromSettings,
-  getCrmSettings,
-} from "@/lib/crm/settingsLoader";
+import { getCrmSettings } from "@/lib/crm/settingsLoader";
 import { optionTuples } from "@/lib/crm/settingsConfig";
 import {
   assignCsAction,
@@ -116,16 +113,6 @@ export default async function CrmLeadDetailPage({
       ? `${bundle.booking.booking_date} ${bundle.booking.booking_time}`
       : "未有已確認預約";
   const canMarkAttendance = runtime.actionsEnabled && leadCase.status === "booked";
-  const aiReplyDrafts = getCrmAiReplyDraftsFromSettings(
-    crmSettings,
-    {
-      brandName: leadCase.brandName,
-      treatmentOffer: leadCase.treatmentOffer,
-      appointmentPreference: leadCase.appointmentLabel,
-      confirmedAppointment: confirmedAppointmentLabel,
-    }
-  );
-  const latestContactNote = getLatestContactNote(bundle.interactions);
   const [whatsappConnectionView, whatsappMessagesResult] = await Promise.all([
     getWhatsAppConnectionByBrandSlug(leadCase.brandSlug),
     getWhatsAppMessagesForLead(lead.id, 20),
@@ -216,12 +203,12 @@ export default async function CrmLeadDetailPage({
               <div className="border-b border-[#eef2f7] bg-gradient-to-r from-[#f8f7ff] via-white to-[#f0fdf4] px-5 py-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6366f1]">Customer 360</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--crm-accent)]">Customer 360</p>
                     <h2 className="mt-1 text-lg font-black text-[#111827]">{leadCase.customerName}</h2>
                     <p className="mt-1 text-xs font-semibold text-[#64748b]">{leadCase.brandName} · {leadCase.treatmentOffer}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1.5 text-xs font-black text-indigo-700">{leadCase.statusLabel}</span>
+                    <span className="rounded-full border border-sky-200 bg-sky-50 px-3 py-1.5 text-xs font-black text-sky-700">{leadCase.statusLabel}</span>
                     <span className="rounded-full border border-slate-200 bg-white px-3 py-1.5 text-xs font-black text-slate-600">CS：{leadCase.assignedCsLabel}</span>
                   </div>
                 </div>
@@ -242,7 +229,7 @@ export default async function CrmLeadDetailPage({
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eef2f7] bg-[#fbfcfe] px-5 py-3">
                 <p className="text-xs font-semibold text-[#64748b]">客人確認資料 ≠ 門店已確認預約；必須由 CS 完成 Confirm booking。</p>
-                <a href="/crm/operations" className="text-xs font-black text-[#4f46e5] hover:text-[#3730a3]">查看營運狀態 →</a>
+                <a href="/crm/operations" className="text-xs font-black text-[var(--crm-accent)] hover:text-[#0f688a]">查看營運狀態 →</a>
               </div>
             </section>
             <CsActionRow
@@ -540,13 +527,6 @@ function getCrmFeedback(
   return null;
 }
 
-function getLatestContactNote(interactions: CrmInteractionRecord[]) {
-  const contactInteraction = interactions.find((item) =>
-    ["contact_attempt", "note", "status_change"].includes(item.interaction_type)
-  );
-  return contactInteraction?.body?.trim().slice(0, 180) ?? "";
-}
-
 function firstQueryValue(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value;
 }
@@ -572,83 +552,6 @@ function DebugLine({ label, value }: { label: string; value: string }) {
     <div className="grid gap-1 sm:grid-cols-[88px_1fr]">
       <dt className="font-bold uppercase text-[#64748b]">{label}</dt>
       <dd className="break-words text-[#111827]">{value}</dd>
-    </div>
-  );
-}
-
-function BookingSummaryPanel({
-  leadCase,
-  confirmedAppointmentLabel,
-  hasConfirmedBooking,
-}: {
-  leadCase: CrmLeadCase;
-  confirmedAppointmentLabel: string;
-  hasConfirmedBooking: boolean;
-}) {
-  return (
-    <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5 shadow-sm">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#64748b]">
-            Booking summary
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            <h2 className="truncate text-xl font-black text-[#111827]">
-              {leadCase.customerName}
-            </h2>
-            <CrmStatusBadge status={leadCase.status} label={leadCase.statusLabel} />
-          </div>
-          <p className="mt-1 text-[12px] font-semibold text-[#475569]">
-            {leadCase.phone} · {leadCase.treatmentOffer}
-          </p>
-        </div>
-        <div className="rounded-md border border-[#eef2f6] bg-[#f8fafc] px-3 py-2 text-[11px] font-semibold text-[#475569]">
-          <span className="font-black text-[#111827]">Booking rule:</span>{" "}
-          客人偏好日期時間不等於已預約；只有 CS 確認後才是已預約。
-        </div>
-      </div>
-
-      <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-4">
-        <SummaryItem label="Phone / WhatsApp" value={leadCase.normalizedPhone || leadCase.phone || "-"} />
-        <SummaryItem label="Treatment / offer" value={leadCase.treatmentOffer} />
-        <SummaryItem label="客人偏好日期時間" value={leadCase.appointmentLabel} />
-        <SummaryItem
-          label="CS 已確認預約"
-          value={hasConfirmedBooking ? confirmedAppointmentLabel : "未確認"}
-          tone={hasConfirmedBooking ? "success" : "neutral"}
-        />
-        <SummaryItem label="Follow-up / next" value={leadCase.nextFollowUpLabel} />
-        <SummaryItem label="Branch" value={leadCase.branchName} />
-        <SummaryItem label="Package" value={leadCase.packagePrice} />
-        <SummaryItem label="Last updated" value={leadCase.lastActivityLabel} />
-      </div>
-    </section>
-  );
-}
-
-function SummaryItem({
-  label,
-  value,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  tone?: "neutral" | "success";
-}) {
-  return (
-    <div
-      className={`rounded-md border px-3 py-2 ${
-        tone === "success"
-          ? "border-[#bbf7d0] bg-[#f0fdf4]"
-          : "border-[#eef2f6] bg-[#f8fafc]"
-      }`}
-    >
-      <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
-        {label}
-      </p>
-      <p className="mt-1 min-w-0 break-words text-[12px] font-black text-[#111827]">
-        {value}
-      </p>
     </div>
   );
 }
@@ -716,85 +619,6 @@ function Panel({ title, children }: { title: string; children: ReactNode }) {
         <h2 className="text-[13px] font-bold text-[#111827]">{title}</h2>
       </div>
       <div className="grid gap-2 p-3.5">{children}</div>
-    </section>
-  );
-}
-
-function ConversationPanel({
-  interactions,
-  leadCase,
-  confirmedAppointmentLabel,
-}: {
-  interactions: CrmInteractionRecord[];
-  leadCase: CrmLeadCase;
-  confirmedAppointmentLabel: string;
-}) {
-  const contextEvents = buildConversationContextEvents(
-    interactions,
-    leadCase,
-    confirmedAppointmentLabel
-  );
-
-  return (
-    <section className="min-h-[360px] rounded-lg border border-[#e5e7eb] bg-white shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-[#eef2f6] px-3.5 py-3">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#64748b]">
-            Conversation
-          </p>
-          <h2 className="mt-1 text-[15px] font-black text-[#111827]">
-            WhatsApp 對話工作區
-          </h2>
-          <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
-            完成 WhatsApp 連接後，對話紀錄會顯示喺呢度。現階段下方只顯示內部跟進脈絡，方便 CS 回覆前參考。
-          </p>
-        </div>
-        <span className="rounded-md bg-[#f8fafc] px-2 py-1 text-[10px] font-black text-[#64748b]">
-          Manual WhatsApp
-        </span>
-      </div>
-
-      <div className="grid gap-3 p-3.5">
-        <div className="rounded-lg border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-3 py-4 text-center">
-          <p className="text-[13px] font-black text-[#111827]">
-            完成 WhatsApp 連接後，對話紀錄會顯示喺呢度。
-          </p>
-          <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
-            目前仍需人手開啟 WhatsApp；智能回覆只會填入草稿，需同事確認。
-          </p>
-        </div>
-
-        <div>
-          <div className="mb-2 flex items-center justify-between gap-2">
-            <h3 className="text-[12px] font-black text-[#111827]">
-              Internal context
-            </h3>
-            <span className="text-[10px] font-bold text-[#94a3b8]">
-              Not synced messages
-            </span>
-          </div>
-          <ol className="grid gap-2">
-            {contextEvents.map((event) => (
-              <li
-                key={`${event.label}-${event.time}-${event.body}`}
-                className="rounded-lg border border-[#eef2f6] bg-[#fbfdff] px-3 py-2"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="text-[11px] font-black text-[#111827]">
-                    {event.label}
-                  </span>
-                  <span className="text-[10px] font-semibold text-[#64748b]">
-                    {event.time}
-                  </span>
-                </div>
-                <p className="mt-1 text-[12px] font-semibold leading-5 text-[#475569]">
-                  {event.body}
-                </p>
-              </li>
-            ))}
-          </ol>
-        </div>
-      </div>
     </section>
   );
 }
@@ -900,52 +724,6 @@ function WhatsAppConnectionPanel({
   );
 }
 
-function buildConversationContextEvents(
-  interactions: CrmInteractionRecord[],
-  leadCase: CrmLeadCase,
-  confirmedAppointmentLabel: string
-) {
-  const initialEvent = {
-    label: "Form submission",
-    time: leadCase.createdLabel,
-    body: `${leadCase.customerName} submitted interest in ${leadCase.treatmentOffer}. Preferred appointment: ${leadCase.appointmentLabel}.`,
-  };
-
-  const internalEvents = interactions.slice(0, 6).map((item) => ({
-    label: interactionLabel(item.interaction_type),
-    time: formatDateTime(item.created_at),
-    body: item.body || "Internal CRM activity recorded.",
-  }));
-
-  const bookingEvent =
-    confirmedAppointmentLabel && !confirmedAppointmentLabel.includes("未")
-      ? [
-          {
-            label: "Confirmed booking",
-            time: leadCase.lastActivityLabel,
-            body: `CS confirmed appointment: ${confirmedAppointmentLabel}.`,
-          },
-        ]
-      : [];
-
-  return [initialEvent, ...bookingEvent, ...internalEvents];
-}
-
-function interactionLabel(type: string) {
-  const labels: Record<string, string> = {
-    contact_attempt: "Contact attempt",
-    status_change: "Status update",
-    note: "Internal note",
-    booking_confirmed: "Booking confirmed",
-    showed: "Marked showed",
-    no_show: "Marked no-show",
-    lost: "Marked lost",
-    invalid: "Marked invalid",
-  };
-
-  return labels[type] ?? "Internal activity";
-}
-
 function InfoLine({ label, value }: { label: string; value: string }) {
   return (
     <div className="grid gap-1 rounded-md bg-[#f8fafc] px-2.5 py-2 sm:grid-cols-[118px_1fr]">
@@ -956,39 +734,6 @@ function InfoLine({ label, value }: { label: string; value: string }) {
         {value}
       </dd>
     </div>
-  );
-}
-
-function ManualWhatsAppPanel({ leadCase }: { leadCase: CrmLeadCase }) {
-  return (
-    <section className="rounded-lg border border-[#bbf7d0] bg-[#f0fdf4] p-3.5">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[13px] font-bold text-[#111827]">
-          Contact / WhatsApp
-        </h2>
-        <span className="rounded-md bg-white px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#15803d]">
-          Manual
-        </span>
-      </div>
-      <dl className="mt-3 grid gap-2">
-        <InfoLine label="Phone" value={leadCase.normalizedPhone || leadCase.phone || "-"} />
-        <InfoLine label="Status" value="Open WhatsApp 後，請用 Contact Attempt 記錄結果。" />
-      </dl>
-      {leadCase.whatsappUrl ? (
-        <a
-          href={leadCase.whatsappUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-3 inline-flex h-8 items-center justify-center rounded-md bg-[#16a34a] px-3 text-[11px] font-black text-white transition hover:bg-[#15803d]"
-        >
-          Open WhatsApp
-        </a>
-      ) : (
-        <p className="mt-3 rounded-md bg-white/80 px-3 py-2 text-[11px] font-semibold text-[#64748b]">
-          未有可用 WhatsApp link。請先用電話或其他方式聯絡客人。
-        </p>
-      )}
-    </section>
   );
 }
 
@@ -1023,17 +768,17 @@ function ActionPanel({
         <fieldset disabled={!enabled} className="grid gap-2 disabled:opacity-70">
           {children}
         </fieldset>
-        <button
-          type="submit"
+        <SubmitButton
           disabled={!enabled}
           className={`h-7 whitespace-nowrap rounded-md px-2.5 text-[10px] font-bold ${
             enabled
               ? "bg-[#111827] text-white transition hover:bg-[#0f172a]"
               : "bg-[#e5e7eb] text-[#94a3b8]"
           }`}
+          pendingLabel="處理中…"
         >
           {submitLabel}
-        </button>
+        </SubmitButton>
       </form>
     </section>
   );
@@ -1159,17 +904,17 @@ function QuickActionButton({
 }) {
   return (
     <form action={action}>
-      <button
-        type="submit"
+      <SubmitButton
         disabled={!enabled}
         className={`h-7 w-full whitespace-nowrap rounded-md px-2.5 text-[10px] font-bold ${
           enabled
             ? "border border-[#dbeafe] bg-[#eff6ff] text-[#1d4ed8] transition hover:bg-[#dbeafe]"
             : "bg-[#e5e7eb] text-[#94a3b8]"
         }`}
+        pendingLabel="處理中…"
       >
         {label}
-      </button>
+      </SubmitButton>
     </form>
   );
 }

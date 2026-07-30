@@ -1,9 +1,13 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  adminSessionCookieName,
-  verifySignedAdminSession,
-} from "@/lib/security/internalAccess";
+  canAccessInternalBrand,
+  requireModuleAccess,
+  verifyCurrentInternalAccess,
+} from "@/lib/security/internalAccessServer";
+import {
+  createSupabaseAdminClient,
+  hasSupabaseAdminEnv,
+} from "@/lib/supabase/admin";
 import {
   approveWhatsAppCampaign,
   cancelWhatsAppCampaign,
@@ -22,12 +26,13 @@ import {
 export const dynamic = "force-dynamic";
 
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const session = await verifySignedAdminSession(
-    cookieStore.get(adminSessionCookieName)?.value
-  );
+  const session = await verifyCurrentInternalAccess();
   if (!session.ok) {
     return NextResponse.json({ ok: false, message: "unauthorized" }, { status: 401 });
+  }
+  const moduleAccess = await requireModuleAccess("crm");
+  if (!moduleAccess.allowed) {
+    return NextResponse.json({ ok: false, message: "forbidden" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
@@ -37,7 +42,19 @@ export async function POST(request: NextRequest) {
 
   const action = text(body.action, 80);
   const campaignId = text(body.campaign_id, 120);
-  const actor = "admin_session";
+  if (
+    session.access.source === "supabase_auth" &&
+    session.access.accessLevel !== "master"
+  ) {
+    const brandId = await resolveCampaignBrandId(body, campaignId);
+    if (!brandId || !canAccessInternalBrand(session.access, brandId)) {
+      return NextResponse.json(
+        { ok: false, message: "brand_forbidden" },
+        { status: 403 }
+      );
+    }
+  }
+  const actor = session.access.email || "admin_session";
   let result: Record<string, unknown>;
 
   switch (action) {
@@ -115,6 +132,30 @@ export async function POST(request: NextRequest) {
   }
 
   return NextResponse.json(result, { status: result.ok ? 200 : 400 });
+}
+
+async function resolveCampaignBrandId(
+  body: Record<string, unknown>,
+  campaignId: string
+) {
+  if (!hasSupabaseAdminEnv()) return "";
+  const supabase = createSupabaseAdminClient();
+  if (campaignId) {
+    const { data } = await supabase
+      .from("whatsapp_campaigns")
+      .select("brand_id")
+      .eq("id", campaignId)
+      .maybeSingle();
+    return typeof data?.brand_id === "string" ? data.brand_id : "";
+  }
+
+  const brandSlug = text(body.brand_slug, 120) || "ineffable";
+  const { data } = await supabase
+    .from("brands")
+    .select("id")
+    .eq("slug", brandSlug)
+    .maybeSingle();
+  return typeof data?.id === "string" ? data.id : "";
 }
 
 function text(value: unknown, maxLength: number) {

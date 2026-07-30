@@ -9,6 +9,10 @@ import {
   type ManagedFormInput,
 } from "@/lib/data/formManagement";
 import { createLandingPageDraft } from "@/lib/data/landingPageStore";
+import {
+  requireModuleAccess,
+  verifyCurrentInternalAccess,
+} from "@/lib/security/internalAccessServer";
 
 type CampaignMode = "new_landing_page" | "wix_form" | "existing_form_landing_page";
 
@@ -96,6 +100,11 @@ async function createDraftForForm({
 }
 
 export async function createCampaignAction(formData: FormData) {
+  const session = await verifyCurrentInternalAccess();
+  const moduleAccess = await requireModuleAccess("campaigns");
+  if (!session.ok || !moduleAccess.allowed) {
+    redirect("/login?next=/campaigns/new&error=permission_denied");
+  }
   const mode = getCampaignMode(formData);
   const campaignName = readString(formData, "campaignName");
 

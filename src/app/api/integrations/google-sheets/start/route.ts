@@ -1,4 +1,4 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
 import {
   createGoogleSheetsOAuthAuthorizationRequest,
   getMissingGoogleSheetsOAuthConfiguration,
@@ -6,10 +6,7 @@ import {
   googleSheetsOAuthStateCookie,
   serializeGoogleSheetsOAuthCookie,
 } from "@/lib/integrations/googleSheetsOAuth";
-import {
-  adminSessionCookieName,
-  verifySignedAdminSession,
-} from "@/lib/security/internalAccess";
+import { verifyCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 function resultRedirect(message: string) {
   const params = new URLSearchParams({
@@ -31,12 +28,10 @@ function loginRedirect(masterRequired: boolean) {
   });
 }
 
-export async function POST(request: NextRequest) {
-  const session = await verifySignedAdminSession(
-    request.cookies.get(adminSessionCookieName)?.value
-  );
+export async function POST() {
+  const session = await verifyCurrentInternalAccess();
   if (!session.ok) return loginRedirect(false);
-  if (session.accessLevel !== "master") return loginRedirect(true);
+  if (session.access.accessLevel !== "master") return loginRedirect(true);
 
   const connectionStatus = await getGoogleSheetsOAuthStatus();
   const missing = getMissingGoogleSheetsOAuthConfiguration(connectionStatus);

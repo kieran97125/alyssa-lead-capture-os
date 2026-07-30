@@ -7,6 +7,10 @@ import {
   saveWhatsAppConnection,
   sendWhatsAppTextMessage,
 } from "@/lib/crm/whatsapp";
+import {
+  canAccessInternalBrand,
+  requireModuleAccess,
+} from "@/lib/security/internalAccessServer";
 
 function readString(formData: FormData, key: string, maxLength = 5000) {
   const value = formData.get(key);
@@ -20,8 +24,16 @@ function redirectBack(status: "success" | "error", message: string): never {
 }
 
 export async function saveWhatsAppConnectionAction(formData: FormData) {
+  const brandId = readString(formData, "brandId", 80);
+  const moduleAccess = await requireModuleAccess("crm");
+  if (
+    !moduleAccess.allowed ||
+    !canAccessInternalBrand(moduleAccess.access, brandId)
+  ) {
+    redirectBack("error", "你未獲授權修改呢個品牌嘅 WhatsApp 連接。");
+  }
   const result = await saveWhatsAppConnection({
-    brandId: readString(formData, "brandId", 80),
+    brandId,
     provider: readString(formData, "provider", 80) || WHATSAPP_PROVIDER_META,
     wabaId: readString(formData, "wabaId", 120),
     phoneNumberId: readString(formData, "phoneNumberId", 120),
@@ -39,8 +51,16 @@ export async function saveWhatsAppConnectionAction(formData: FormData) {
 }
 
 export async function testWhatsAppSendAction(formData: FormData) {
+  const brandId = readString(formData, "brandId", 80);
+  const moduleAccess = await requireModuleAccess("crm");
+  if (
+    !moduleAccess.allowed ||
+    !canAccessInternalBrand(moduleAccess.access, brandId)
+  ) {
+    redirectBack("error", "你未獲授權使用呢個品牌嘅 WhatsApp 連接。");
+  }
   const result = await sendWhatsAppTextMessage({
-    brandId: readString(formData, "brandId", 80),
+    brandId,
     connectionId: readString(formData, "connectionId", 80) || null,
     toPhone: readString(formData, "testPhone", 80),
     body: readString(formData, "testMessage", 1000),
