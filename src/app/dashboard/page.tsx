@@ -1,4 +1,3 @@
-import Link from "next/link";
 import {
   ArrowUpRight,
   CalendarClock,
@@ -11,6 +10,7 @@ import {
   UsersRound,
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import {
   PaceBar,
   PaceStatusBadge,
@@ -24,6 +24,7 @@ import {
   type BrandCommandCenterRow,
   type MetricProgress,
 } from "@/lib/marketing/commandCenter";
+import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
 
@@ -58,10 +59,18 @@ export default async function DashboardPage({
     message?: string | string[];
   }>;
 }) {
-  const [snapshot, query] = await Promise.all([
+  const [snapshot, query, access] = await Promise.all([
     getCommandCenterSnapshot(),
     searchParams,
+    getCurrentInternalAccess(),
   ]);
+  const isMaster = access.accessLevel === "master";
+  const greetingName =
+    access.source === "supabase_auth"
+      ? access.fullName?.trim().split(/\s+/)[0] ||
+        access.email?.split("@")[0] ||
+        "團隊"
+      : "Kieran";
   const message = firstParam(query?.message);
   const status = firstParam(query?.command_status);
   const alerts = snapshot.brands.filter(
@@ -81,7 +90,7 @@ export default async function DashboardPage({
       .filter((value): value is string => Boolean(value))
       .sort((left, right) => right.localeCompare(left))[0] ?? null;
   const refreshDisabled =
-    !snapshot.schemaReady || snapshot.dataSources.length === 0;
+    !isMaster || !snapshot.schemaReady || snapshot.dataSources.length === 0;
 
   return (
     <main className="alyssa-shell">
@@ -91,31 +100,45 @@ export default async function DashboardPage({
           <header className="command-page-header">
             <div>
               <p className="command-page-kicker">Marketing Command Center</p>
-              <h1 className="command-page-title">早晨，Kieran</h1>
+              <h1 className="command-page-title">早晨，{greetingName}</h1>
               <p className="command-page-subtitle">
                 {snapshot.month.label}營運進度 · {snapshot.month.throughLabel}。Lead、Book
                 及 Show 只計本月 1 號至昨日，避免今日未完整數據干擾判斷。
               </p>
             </div>
             <div className="command-header-actions">
-              <form
-                action={refreshDashboardDataAction}
-                className="command-refresh-form"
-              >
-                <input type="hidden" name="returnPath" value="/dashboard" />
-                <DashboardRefreshButton disabled={refreshDisabled} />
+              {isMaster ? (
+                <form
+                  action={refreshDashboardDataAction}
+                  className="command-refresh-form"
+                >
+                  <input type="hidden" name="returnPath" value="/dashboard" />
+                  <DashboardRefreshButton disabled={refreshDisabled} />
+                  <small>
+                    最後更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
+                  </small>
+                </form>
+              ) : (
                 <small>
                   最後更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
                 </small>
-              </form>
-              <Link href="/settings/planning" className="command-secondary-button">
-                <Target size={16} />
-                設定本月目標
-              </Link>
-              <Link href="/calendar" className="command-primary-button">
+              )}
+              {isMaster ? (
+                <IntentPrefetchLink
+                  href="/settings/planning"
+                  className="command-secondary-button"
+                >
+                  <Target size={16} />
+                  設定本月目標
+                </IntentPrefetchLink>
+              ) : null}
+              <IntentPrefetchLink
+                href="/calendar"
+                className="command-primary-button"
+              >
                 <CalendarClock size={16} />
                 安排營銷事項
-              </Link>
+              </IntentPrefetchLink>
             </div>
           </header>
 
@@ -144,7 +167,7 @@ export default async function DashboardPage({
                   : "尚未設定月度預算"
               }
               icon={CircleDollarSign}
-              tone="violet"
+              tone="rose"
             />
             <SummaryCard
               label="Leads"
@@ -188,8 +211,8 @@ export default async function DashboardPage({
                   eyebrow="Budget control"
                   title="預算概覽"
                   description={`時間進度 ${snapshot.month.elapsedDays}／${snapshot.month.daysInMonth} 日；垂直線代表截至昨日理應使用位置。`}
-                  href="/settings/planning"
-                  linkLabel="管理預算"
+                  href={isMaster ? "/settings/planning" : undefined}
+                  linkLabel={isMaster ? "管理預算" : undefined}
                 />
                 <div className="budget-brand-list">
                   {snapshot.brands.map((brand) => (
@@ -262,7 +285,7 @@ export default async function DashboardPage({
                         <div key={item.id} className="command-upcoming-item">
                           <span
                             className="command-upcoming-dot"
-                            style={{ background: brand?.color || "#635bff" }}
+                            style={{ background: brand?.color || "#5a2348" }}
                           />
                           <div>
                             <strong>{item.title}</strong>
@@ -288,8 +311,8 @@ export default async function DashboardPage({
                   eyebrow="Data health"
                   title="資料接駁"
                   description={`${snapshot.dataSources.length} 個已登記來源`}
-                  href="/data-sources"
-                  linkLabel="管理來源"
+                  href={isMaster ? "/data-sources" : undefined}
+                  linkLabel={isMaster ? "管理來源" : undefined}
                 />
                 <div className="source-health-grid">
                   <SourceHealth
@@ -320,7 +343,7 @@ export default async function DashboardPage({
   );
 }
 
-type SummaryTone = "violet" | "blue" | "amber" | "green";
+type SummaryTone = "rose" | "blue" | "amber" | "green";
 
 function SummaryCard({
   label,
@@ -370,10 +393,10 @@ function SectionHeader({
         <span>{description}</span>
       </div>
       {href && linkLabel ? (
-        <Link href={href}>
+        <IntentPrefetchLink href={href}>
           {linkLabel}
           <ArrowUpRight size={14} />
-        </Link>
+        </IntentPrefetchLink>
       ) : null}
     </header>
   );
@@ -395,7 +418,6 @@ function BudgetBrandRow({
           compact
           name={brand.name}
           color={brand.color}
-          logoUrl={brand.logoUrl}
         />
         <div>
           <strong>{brand.name}</strong>
@@ -513,15 +535,17 @@ function BrandAlert({ brand }: { brand: BrandCommandCenterRow }) {
         compact
         name={brand.name}
         color={brand.color}
-        logoUrl={brand.logoUrl}
       />
       <div>
         <strong>{brand.name}</strong>
         <p>{messages.join(" · ")}</p>
       </div>
-      <Link href="/kpis" aria-label={`查看 ${brand.name} KPI`}>
+      <IntentPrefetchLink
+        href="/kpis"
+        aria-label={`查看 ${brand.name} KPI`}
+      >
         <ArrowUpRight size={15} />
-      </Link>
+      </IntentPrefetchLink>
     </article>
   );
 }

@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/admin";
+import { getConfigurationData } from "@/lib/data/configuration";
+import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 
 function text(formData: FormData, key: string) {
   return String(formData.get(key) || "").trim();
@@ -22,8 +24,18 @@ function fail(message: string): never {
   redirect(`/crm/operations?error=${encodeURIComponent(message)}`);
 }
 
+async function requireBrandSlugAccess(brandSlug: string) {
+  const moduleAccess = await requireModuleAccess("crm");
+  if (!moduleAccess.allowed) fail("你未獲授權使用 CRM Operations。");
+  const config = await getConfigurationData();
+  if (!config.brands.some((brand) => brand.slug === brandSlug)) {
+    fail("你未獲授權管理呢個品牌。");
+  }
+}
+
 export async function createTagAction(formData: FormData) {
   const brandSlug = text(formData, "brand_slug") || "ineffable";
+  await requireBrandSlugAccess(brandSlug);
   const label = text(formData, "label");
   const tagKey = text(formData, "tag_key") || label.toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "_");
   if (!label || !tagKey) fail("Tag 名稱不完整。");
@@ -42,6 +54,8 @@ export async function createTagAction(formData: FormData) {
 }
 
 export async function createAutomationRuleAction(formData: FormData) {
+  const brandSlug = text(formData, "brand_slug") || "ineffable";
+  await requireBrandSlugAccess(brandSlug);
   const ruleName = text(formData, "rule_name");
   const triggerKey = text(formData, "trigger_key");
   if (!ruleName || !triggerKey) fail("Rule 名稱及 Trigger 必須填寫。");
@@ -57,7 +71,7 @@ export async function createAutomationRuleAction(formData: FormData) {
     fail("Conditions / Actions 必須是有效 JSON。");
   }
   const { error } = await supabase.from("crm_automation_rules").insert({
-    brand_slug: text(formData, "brand_slug") || "ineffable",
+    brand_slug: brandSlug,
     rule_name: ruleName,
     trigger_key: triggerKey,
     conditions_json: conditionsJson,
@@ -71,12 +85,14 @@ export async function createAutomationRuleAction(formData: FormData) {
 }
 
 export async function createPaymentRecordAction(formData: FormData) {
+  const brandSlug = text(formData, "brand_slug") || "ineffable";
+  await requireBrandSlugAccess(brandSlug);
   const amountText = text(formData, "amount");
   const amount = amountText ? Number(amountText) : null;
   if (amount !== null && (!Number.isFinite(amount) || amount < 0)) fail("付款金額不正確。");
   const supabase = requireAdmin();
   const { error } = await supabase.from("crm_payment_records").insert({
-    brand_slug: text(formData, "brand_slug") || "ineffable",
+    brand_slug: brandSlug,
     source_lead_id: text(formData, "source_lead_id") || null,
     payment_required: text(formData, "payment_required") === "true",
     payment_type: text(formData, "payment_type") || "manual",
@@ -96,6 +112,14 @@ export async function updatePaymentStatusAction(formData: FormData) {
   const id = text(formData, "id");
   const status = text(formData, "status");
   if (!id || !status) fail("付款記錄資料不完整。");
+  const lookupClient = requireAdmin();
+  const { data: payment } = await lookupClient
+    .from("crm_payment_records")
+    .select("brand_slug")
+    .eq("id", id)
+    .maybeSingle();
+  if (!payment?.brand_slug) fail("搵唔到付款記錄。");
+  await requireBrandSlugAccess(String(payment.brand_slug));
   const now = new Date().toISOString();
   const payload: Record<string, unknown> = { status, updated_at: now };
   if (status === "paid") payload.paid_at = now;
@@ -111,6 +135,14 @@ export async function updateTemplateMappingAction(formData: FormData) {
   const id = text(formData, "id");
   const approvalStatus = text(formData, "approval_status");
   if (!id || !approvalStatus) fail("Template mapping 資料不完整。");
+  const lookupClient = requireAdmin();
+  const { data: mapping } = await lookupClient
+    .from("crm_template_mappings")
+    .select("brand_slug")
+    .eq("id", id)
+    .maybeSingle();
+  if (!mapping?.brand_slug) fail("搵唔到 Template mapping。");
+  await requireBrandSlugAccess(String(mapping.brand_slug));
   const supabase = requireAdmin();
   const { error } = await supabase.from("crm_template_mappings").update({
     approval_status: approvalStatus,

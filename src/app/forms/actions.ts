@@ -1,6 +1,5 @@
 "use server";
 
-import { cookies } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import {
@@ -13,9 +12,9 @@ import {
   type ManagedFormInput,
 } from "@/lib/data/formManagement";
 import {
-  adminSessionCookieName,
-  verifySignedAdminSession,
-} from "@/lib/security/internalAccess";
+  requireModuleAccess,
+  verifyCurrentInternalAccess,
+} from "@/lib/security/internalAccessServer";
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -41,12 +40,13 @@ function safeReturnTo(value: string, fallback: string) {
 }
 
 async function requireAdmin(path: string) {
-  const cookieStore = await cookies();
-  const session = await verifySignedAdminSession(
-    cookieStore.get(adminSessionCookieName)?.value
-  );
+  const session = await verifyCurrentInternalAccess();
   if (!session.ok) {
     redirect(`/login?next=${encodeURIComponent(path)}`);
+  }
+  const moduleAccess = await requireModuleAccess("forms");
+  if (!moduleAccess.allowed) {
+    redirect(`/login?next=${encodeURIComponent(path)}&error=permission_denied`);
   }
 }
 

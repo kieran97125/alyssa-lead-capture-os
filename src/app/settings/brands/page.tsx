@@ -1,5 +1,6 @@
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   createBrandAction,
   deleteBrandAction,
@@ -68,9 +69,12 @@ export default async function BrandSettingsPage({
               Wix Embed 自動 PageView
             </label>
             <div className="flex items-end">
-              <button className="w-full rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]">
+              <SubmitButton
+                className="w-full rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]"
+                pendingLabel="新增中…"
+              >
                 新增
-              </button>
+              </SubmitButton>
             </div>
           </form>
         </section>
@@ -80,6 +84,9 @@ export default async function BrandSettingsPage({
             const linkedForms = getLinkedForms(
               config,
               (form) => form.brandId === brand.id
+            );
+            const usesSkyBlueMarker = ["ineffable", "ineffable-beauty"].includes(
+              brand.slug.toLowerCase()
             );
 
             return (
@@ -148,24 +155,51 @@ export default async function BrandSettingsPage({
                     placeholder="YISSA GROUP LIMITED"
                     required={false}
                   />
-                  <TextInput
-                    label="Logo URL"
-                    name="logoUrl"
-                    defaultValue={brand.logoUrl ?? ""}
-                    required={false}
-                  />
-                  <TextInput
-                    label="主色"
-                    name="primaryColor"
-                    defaultValue={brand.primaryColor ?? ""}
-                    required={false}
-                  />
-                  <TextInput
-                    label="副色"
-                    name="secondaryColor"
-                    defaultValue={brand.secondaryColor ?? ""}
-                    required={false}
-                  />
+                  {usesSkyBlueMarker ? (
+                    <>
+                      <input type="hidden" name="logoUrl" value="" />
+                      <input
+                        type="hidden"
+                        name="primaryColor"
+                        value="#69C7E8"
+                      />
+                      <input
+                        type="hidden"
+                        name="secondaryColor"
+                        value="#DFF4FB"
+                      />
+                      <div className="rounded-2xl border border-[#b9e4f3] bg-[#f5fbfe] px-4 py-3 lg:col-span-3">
+                        <p className="text-xs font-bold uppercase tracking-[0.14em] text-[#167fa6]">
+                          IB 品牌識別
+                        </p>
+                        <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-[#173b4d]">
+                          <span className="h-4 w-4 rounded-full bg-[#69c7e8]" />
+                          固定使用天藍色標記；管理 App 不載入 Logo
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <TextInput
+                        label="Logo URL"
+                        name="logoUrl"
+                        defaultValue={brand.logoUrl ?? ""}
+                        required={false}
+                      />
+                      <TextInput
+                        label="主色"
+                        name="primaryColor"
+                        defaultValue={brand.primaryColor ?? ""}
+                        required={false}
+                      />
+                      <TextInput
+                        label="副色"
+                        name="secondaryColor"
+                        defaultValue={brand.secondaryColor ?? ""}
+                        required={false}
+                      />
+                    </>
+                  )}
                   <TextInput
                     label="Meta Pixel ID"
                     name="metaPixelId"
@@ -181,9 +215,12 @@ export default async function BrandSettingsPage({
                     Wix Embed 自動 PageView
                   </label>
                   <div className="flex items-end">
-                    <button className="w-full rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
+                    <SubmitButton
+                      className="w-full rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+                      pendingLabel="儲存中…"
+                    >
                       儲存
-                    </button>
+                    </SubmitButton>
                   </div>
                 </form>
 
@@ -197,9 +234,12 @@ export default async function BrandSettingsPage({
                       <input type="checkbox" name="confirmDelete" />
                       確認刪除這個品牌
                     </label>
-                    <button className="rounded-full border border-[#d9b66f] bg-white px-5 py-2 text-sm font-bold text-[#5a2348]">
+                    <SubmitButton
+                      className="rounded-full border border-[#d9b66f] bg-white px-5 py-2 text-sm font-bold text-[#5a2348]"
+                      pendingLabel="刪除中…"
+                    >
                       刪除
-                    </button>
+                    </SubmitButton>
                   </form>
                 </div>
               </article>

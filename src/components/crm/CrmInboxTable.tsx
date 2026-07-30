@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import type { ReactNode } from "react";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
 import type { CrmLeadCase, CrmStatus } from "@/lib/crm/leadOps";
@@ -176,7 +176,7 @@ export function CrmInboxTable({
                     </span>
                   </Cell>
                   <Cell>
-                    <Link
+                    <IntentPrefetchLink
                       href={`/crm/leads/${item.id}`}
                       className="flex min-w-0 items-center gap-2 text-[12px] font-bold text-[#111827] hover:text-[#0f766e]"
                     >
@@ -187,7 +187,7 @@ export function CrmInboxTable({
                           {item.canonicalIdentity}
                         </span>
                       </span>
-                    </Link>
+                    </IntentPrefetchLink>
                   </Cell>
                   <Cell>
                     {item.whatsappUrl ? (
@@ -241,13 +241,13 @@ export function CrmInboxTable({
                   </Cell>
                   <Cell>
                     <div className="flex items-center gap-1.5 whitespace-nowrap">
-                      <Link
+                      <IntentPrefetchLink
                         href={`/crm/leads/${item.id}`}
                         title="Open lead"
                         className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-[#dbeafe] bg-[#eff6ff] px-2 text-[10px] font-bold text-[#1d4ed8] transition hover:bg-[#dbeafe]"
                       >
                         Open
-                      </Link>
+                      </IntentPrefetchLink>
                       {item.whatsappUrl ? (
                         <a
                           href={item.whatsappUrl}
@@ -355,7 +355,7 @@ function Avatar({ name }: { name: string }) {
   const initial = (name.trim()[0] || "?").toUpperCase();
 
   return (
-    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#eef2ff] text-[12px] font-black text-[#4338ca]">
+    <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--crm-accent-soft)] text-[12px] font-black text-[var(--crm-accent)]">
       {initial}
     </span>
   );
@@ -374,7 +374,7 @@ function BookingCell({ item }: { item: CrmLeadCase }) {
           className={`w-fit rounded px-1.5 py-0.5 text-[9px] font-black uppercase tracking-[0.08em] ${
             state === "pending"
               ? "bg-orange-50 text-orange-700"
-              : "bg-purple-50 text-purple-700"
+              : "bg-sky-50 text-sky-700"
           }`}
         >
           {state === "pending" ? "待標記到店" : "今日預約"}
@@ -398,7 +398,7 @@ function BookingOutcomeCell({ item }: { item: CrmLeadCase }) {
     return <OutcomeBadge tone="slate">Invalid</OutcomeBadge>;
   }
   if (item.status === "booked") {
-    return <OutcomeBadge tone="purple">已預約</OutcomeBadge>;
+    return <OutcomeBadge tone="sky">已預約</OutcomeBadge>;
   }
   return <OutcomeBadge tone="amber">待跟進</OutcomeBadge>;
 }
@@ -407,14 +407,14 @@ function OutcomeBadge({
   tone,
   children,
 }: {
-  tone: "emerald" | "red" | "slate" | "purple" | "amber";
+  tone: "emerald" | "red" | "slate" | "sky" | "amber";
   children: ReactNode;
 }) {
   const classes = {
     emerald: "bg-emerald-50 text-emerald-700",
     red: "bg-red-50 text-red-700",
     slate: "bg-slate-100 text-slate-700",
-    purple: "bg-purple-50 text-purple-700",
+    sky: "bg-sky-50 text-sky-700",
     amber: "bg-amber-50 text-amber-700",
   };
 

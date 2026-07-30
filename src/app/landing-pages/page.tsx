@@ -5,6 +5,7 @@ import {
 } from "@/app/landing-pages/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { MotionReveal } from "@/components/alyssa/MotionReveal";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   getLandingPageContext,
   getLandingPageImageStatus,
@@ -286,12 +287,12 @@ export default async function LandingPagesPage({
                                 />
                                 Confirm archive
                               </label>
-                              <button
-                                type="submit"
+                              <SubmitButton
+                                pendingLabel="Archiving…"
                                 className="rounded-full bg-[#5a2348] px-3 py-1.5 text-xs font-bold text-white"
                               >
                                 Archive
-                              </button>
+                              </SubmitButton>
                             </form>
                             <form
                               action={deleteLandingPageAction}
@@ -308,12 +309,12 @@ export default async function LandingPagesPage({
                                 />
                                 Confirm permanent delete
                               </label>
-                              <button
-                                type="submit"
+                              <SubmitButton
+                                pendingLabel="Deleting…"
                                 className="rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-3 py-1.5 text-xs font-bold text-[#8a2732]"
                               >
                                 Safe delete
-                              </button>
+                              </SubmitButton>
                             </form>
                           </div>
                         </details>

@@ -141,7 +141,7 @@ export function WhatsAppConversationComposer({
           onChange={(event) => setBody(event.target.value.slice(0, 4000))}
           rows={4}
           placeholder="輸入 WhatsApp 訊息…"
-          className="mt-4 w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm outline-none focus:border-[#6366f1]"
+          className="mt-4 w-full rounded-lg border border-[#d1d5db] px-3 py-2 text-sm outline-none focus:border-[var(--crm-accent)]"
         />
       ) : (
         <div className="mt-4 grid gap-3">
@@ -174,7 +174,7 @@ export function WhatsAppConversationComposer({
               onChange={(event) => setVariablesText(event.target.value.slice(0, 5000))}
               rows={3}
               placeholder={"Kieran\nFaceLift\n銅鑼灣"}
-              className="rounded-lg border border-[#d1d5db] px-3 py-2 text-sm outline-none focus:border-[#6366f1]"
+              className="rounded-lg border border-[#d1d5db] px-3 py-2 text-sm outline-none focus:border-[var(--crm-accent)]"
             />
           </label>
         </div>

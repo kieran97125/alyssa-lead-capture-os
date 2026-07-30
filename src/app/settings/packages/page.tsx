@@ -7,6 +7,7 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsBrandPicker } from "@/components/alyssa/SettingsBrandPicker";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
 import { SettingsTreatmentPicker } from "@/components/alyssa/SettingsTreatmentPicker";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   getConfigurationData,
   getTreatment,
@@ -167,9 +168,12 @@ export default async function PackageSettingsPage({
               需要付款
             </label>
             <div className="lg:col-span-4">
-              <button className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white">
+              <SubmitButton
+                className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white"
+                pendingLabel="建立中…"
+              >
                 建立項目
-              </button>
+              </SubmitButton>
             </div>
           </form>
         </details>
@@ -307,9 +311,12 @@ export default async function PackageSettingsPage({
                       需要付款
                     </label>
                     <div className="flex items-end lg:col-span-3">
-                      <button className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
+                      <SubmitButton
+                        className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+                        pendingLabel="儲存中…"
+                      >
                         儲存
-                      </button>
+                      </SubmitButton>
                     </div>
                   </form>
 
@@ -338,9 +345,12 @@ export default async function PackageSettingsPage({
                         <input type="checkbox" name="confirmDelete" />
                         確認刪除
                       </label>
-                      <button className="w-fit rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-4 py-2 text-sm font-bold text-[#8a2732]">
+                      <SubmitButton
+                        className="w-fit rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-4 py-2 text-sm font-bold text-[#8a2732]"
+                        pendingLabel="刪除中…"
+                      >
                         安全刪除
-                      </button>
+                      </SubmitButton>
                     </form>
                   </details>
                 </div>

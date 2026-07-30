@@ -13,6 +13,10 @@ import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
+import {
+  getSupabasePublicAuthConfig,
+  isWorkspaceEmailAuthRequired,
+} from "@/lib/supabase/authConfig";
 
 export const dynamic = "force-dynamic";
 
@@ -96,6 +100,8 @@ async function getReadinessChecks() {
   const mainForm = await getFormByIdOrSlug(alyssaDefaultForm.publicFormToken);
   const publicLp = await getPublishedLandingPageBySlug("alyssa-main-trial-offer");
   const sheetsStatus = getGoogleSheetsLeadSyncStatus();
+  const emailAuthReady = getSupabasePublicAuthConfig().ready;
+  const emailAuthRequired = isWorkspaceEmailAuthRequired();
 
   return [
     {
@@ -104,9 +110,9 @@ async function getReadinessChecks() {
       tone: envPresent("NEXT_PUBLIC_SUPABASE_URL") ? "ready" : "missing",
     },
     {
-      label: "Supabase anon key",
-      detail: "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-      tone: envPresent("NEXT_PUBLIC_SUPABASE_ANON_KEY") ? "ready" : "missing",
+      label: "Supabase browser auth key",
+      detail: "publishable / anon key",
+      tone: emailAuthReady ? "ready" : "missing",
     },
     {
       label: "Supabase service role key",
@@ -129,9 +135,20 @@ async function getReadinessChecks() {
       tone: "ready",
     },
     {
-      label: "Admin access",
-      detail: "open internal backend",
-      tone: "ready",
+      label: "Invite-only email access",
+      detail: emailAuthRequired
+        ? "email-only enforcement enabled"
+        : "safe transition mode",
+      tone: emailAuthRequired ? "ready" : "attention",
+    },
+    {
+      label: "Production auth email",
+      detail: envPresent("LAUNCHHUB_AUTH_SMTP_VERIFIED_AT")
+        ? "Custom SMTP delivery verified"
+        : "以實際邀請寄送驗收",
+      tone: envPresent("LAUNCHHUB_AUTH_SMTP_VERIFIED_AT")
+        ? "ready"
+        : "attention",
     },
     {
       label: "Google Sheets lead sync",

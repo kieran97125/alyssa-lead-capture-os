@@ -2,6 +2,7 @@ import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
+import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 import {
   campaignDisplayLabel,
   cleanAttributionText,
@@ -536,6 +537,19 @@ export async function getLeadRows(
   options: LeadRowsOptions = {}
 ): Promise<LeadRowsResult> {
   const range = getDateRange(rangeKey);
+  const access = await getCurrentInternalAccess();
+  const allowedBrandIds =
+    access.source === "supabase_auth" && access.accessLevel !== "master"
+      ? access.brandIds ?? []
+      : null;
+
+  if (
+    allowedBrandIds !== null &&
+    (allowedBrandIds.length === 0 ||
+      (options.brandId && !allowedBrandIds.includes(options.brandId)))
+  ) {
+    return { range, leads: [], error: null };
+  }
 
   if (!hasSupabaseAdminEnv()) {
     return { range, leads: [], error: null };
@@ -573,7 +587,11 @@ export async function getLeadRows(
       .gte("created_at", range.start)
       .lt("created_at", range.end);
 
-    if (options.brandId) query = query.eq("brand_id", options.brandId);
+    if (options.brandId) {
+      query = query.eq("brand_id", options.brandId);
+    } else if (allowedBrandIds !== null) {
+      query = query.in("brand_id", allowedBrandIds);
+    }
     if (options.treatmentId) query = query.eq("treatment_id", options.treatmentId);
     if (options.branchId) query = query.eq("branch_id", options.branchId);
 

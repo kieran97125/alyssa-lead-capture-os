@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { createCampaignAction } from "@/app/campaigns/new/actions";
 import {
   getBranch,
@@ -317,12 +318,12 @@ export default async function NewCampaignPage({
                   Wix 表格會前往表格詳情頁；Landing Page 會前往內容編輯頁。
                 </p>
               </div>
-              <button
-                type="submit"
+              <SubmitButton
                 className="rounded-full bg-[#e46f64] px-6 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 hover:bg-[#d95f55]"
+                pendingLabel="建立中…"
               >
                 建立 Campaign
-              </button>
+              </SubmitButton>
             </div>
           </section>
         </form>

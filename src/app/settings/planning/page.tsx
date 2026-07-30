@@ -1,6 +1,7 @@
 import { Save, SlidersHorizontal } from "lucide-react";
 import { upsertMonthlyPlanAction } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { getCommandCenterSnapshot } from "@/lib/marketing/commandCenter";
 
@@ -85,7 +86,6 @@ export default async function PlanningSettingsPage({
                     compact
                     name={brand.name}
                     color={brand.color}
-                    logoUrl={brand.logoUrl}
                   />
                   <div>
                     <h2>{brand.name}</h2>
@@ -132,14 +132,14 @@ export default async function PlanningSettingsPage({
                   />
                 </label>
 
-                <button
-                  type="submit"
+                <SubmitButton
                   className="command-primary-button"
                   disabled={!snapshot.schemaReady}
+                  pendingLabel={`儲存 ${brand.name}…`}
                 >
                   <Save size={15} />
                   儲存 {brand.name}
-                </button>
+                </SubmitButton>
               </form>
             ))}
           </section>

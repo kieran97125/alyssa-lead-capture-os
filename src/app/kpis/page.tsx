@@ -12,11 +12,15 @@ import {
   type BrandCommandCenterRow,
   type MetricProgress,
 } from "@/lib/marketing/commandCenter";
+import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
 
 export default async function BrandKpisPage() {
-  const snapshot = await getCommandCenterSnapshot();
+  const [snapshot, access] = await Promise.all([
+    getCommandCenterSnapshot(),
+    getCurrentInternalAccess(),
+  ]);
 
   return (
     <main className="alyssa-shell">
@@ -32,10 +36,12 @@ export default async function BrandKpisPage() {
                 Actual、截至昨日應達值同全月目標。
               </p>
             </div>
-            <Link href="/settings/planning" className="command-primary-button">
-              <Settings2 size={16} />
-              設定 Budget／KPI
-            </Link>
+            {access.accessLevel === "master" ? (
+              <Link href="/settings/planning" className="command-primary-button">
+                <Settings2 size={16} />
+                設定 Budget／KPI
+              </Link>
+            ) : null}
           </header>
 
           {snapshot.dataWarnings.map((warning) => (
@@ -79,7 +85,6 @@ function BrandKpiCard({
           <BrandMark
             name={brand.name}
             color={brand.color}
-            logoUrl={brand.logoUrl}
           />
           <div>
             <h2>{brand.name}</h2>

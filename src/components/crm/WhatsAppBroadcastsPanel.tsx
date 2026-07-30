@@ -37,9 +37,9 @@ type Props = {
 };
 
 const inputClass =
-  "h-10 w-full rounded-lg border border-[#dbe2ea] bg-white px-3 text-sm font-semibold text-[#334155] outline-none transition focus:border-[#6366f1] focus:ring-2 focus:ring-[#c7d2fe] disabled:bg-[#f8fafc]";
+  "h-10 w-full rounded-lg border border-[#dbe2ea] bg-white px-3 text-sm font-semibold text-[#334155] outline-none transition focus:border-[var(--crm-accent)] focus:ring-2 focus:ring-[var(--crm-accent-border)] disabled:bg-[#f8fafc]";
 const primaryButtonClass =
-  "mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[#4f46e5] px-4 text-sm font-black text-white transition hover:bg-[#4338ca] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]";
+  "mt-4 inline-flex h-10 items-center justify-center rounded-lg bg-[var(--crm-accent)] px-4 text-sm font-black text-white transition hover:bg-[#0f688a] disabled:cursor-not-allowed disabled:bg-[#cbd5e1]";
 const secondaryButtonClass =
   "mt-4 inline-flex h-10 items-center justify-center rounded-lg border border-[#cbd5e1] bg-white px-4 text-sm font-black text-[#334155] transition hover:bg-[#f8fafc] disabled:cursor-not-allowed disabled:text-[#94a3b8]";
 
@@ -116,10 +116,10 @@ export function WhatsAppBroadcastsPanel({
 
   return (
     <div className="mx-auto max-w-[1500px] px-4 py-5 lg:px-6">
-      <section className="rounded-2xl border border-[#dbe4ff] bg-[linear-gradient(135deg,#ffffff_0%,#f7f9ff_55%,#eef2ff_100%)] p-5 shadow-[0_18px_55px_rgba(79,70,229,0.08)]">
+      <section className="rounded-2xl border border-[var(--crm-accent-border)] bg-[linear-gradient(135deg,#ffffff_0%,#f5fbfe_55%,#dff4fb_100%)] p-5 shadow-[0_18px_55px_rgba(22,127,166,0.08)]">
         <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#6366f1]">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--crm-accent)]">
               CRM Message Operations
             </p>
             <h1 className="mt-2 text-2xl font-black text-[#111827]">
@@ -170,7 +170,7 @@ export function WhatsAppBroadcastsPanel({
           onSubmit={submitBroadcast}
           className="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-sm"
         >
-          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#8b5cf6]">
+          <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--crm-accent)]">
             Broadcast Builder
           </p>
           <h2 className="mt-1 text-lg font-black text-[#111827]">
@@ -215,7 +215,7 @@ export function WhatsAppBroadcastsPanel({
                 <option value="90">90 日</option>
               </select>
             </Field>
-            <div className="rounded-xl border border-[#e0e7ff] bg-[#eef2ff] px-3 py-3 text-xs leading-5 text-[#3730a3]">
+            <div className="rounded-xl border border-[var(--crm-accent-border)] bg-[var(--crm-accent-soft)] px-3 py-3 text-xs leading-5 text-[#123a4a]">
               第一版由 CRM 品牌客戶資料中去重，再檢查 consent、suppression、電話、template variables 及冷卻期。GrowthRadar 日後可輸出已批准名單交由此處執行。
             </div>
           </div>
@@ -285,7 +285,7 @@ export function WhatsAppBroadcastsPanel({
       <section className="mt-4 rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6366f1]">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--crm-accent)]">
               Broadcast Control
             </p>
             <h2 className="mt-1 text-lg font-black text-[#111827]">發送工作</h2>
@@ -477,7 +477,7 @@ function MiniMetric({ label, value }: { label: string; value: number }) {
 function StatusPill({ status }: { status: string }) {
   const styles: Record<string, string> = {
     draft: "bg-[#f1f5f9] text-[#475569]",
-    dry_run_ready: "bg-[#ede9fe] text-[#6d28d9]",
+    dry_run_ready: "bg-[#dff4fb] text-[#167fa6]",
     approved: "bg-[#dbeafe] text-[#1d4ed8]",
     queued: "bg-[#fef3c7] text-[#92400e]",
     sending: "bg-[#e0f2fe] text-[#0369a1]",
@@ -509,7 +509,7 @@ function ActionButton({
       ? "border-[#fecaca] bg-white text-[#b91c1c] hover:bg-[#fef2f2]"
       : tone === "warning"
         ? "border-[#fde68a] bg-white text-[#92400e] hover:bg-[#fffbeb]"
-        : "border-[#c7d2fe] bg-white text-[#4338ca] hover:bg-[#eef2ff]";
+        : "border-[var(--crm-accent-border)] bg-white text-[var(--crm-accent)] hover:bg-[var(--crm-accent-soft)]";
   return (
     <button
       type="button"

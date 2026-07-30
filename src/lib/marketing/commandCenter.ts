@@ -84,11 +84,15 @@ export type CalendarItem = {
 
 export type WorkspaceMember = {
   id: string;
+  authUserId: string | null;
   email: string;
   fullName: string | null;
   role: string;
   status: string;
   isMaster: boolean;
+  inviteSentAt: string | null;
+  inviteAcceptedAt: string | null;
+  lastSignInAt: string | null;
   brandIds: string[];
   modulePermissions: Record<string, boolean>;
 };
@@ -108,7 +112,6 @@ export type BrandCommandCenterRow = {
   slug: string;
   color: string;
   secondaryColor: string;
-  logoUrl: string | null;
   monthlyPlan: MonthlyPlan;
   spend: number;
   expectedSpend: number;
@@ -296,7 +299,9 @@ async function getPlanningRecords(month: HkMonthContext) {
         .order("sort_order", { ascending: true }),
       supabase
         .from("workspace_members")
-        .select("id,email,full_name,workspace_role,status,is_master")
+        .select(
+          "id,auth_user_id,email,full_name,workspace_role,status,is_master,invite_sent_at,invite_accepted_at,last_sign_in_at"
+        )
         .neq("status", "removed")
         .order("is_master", { ascending: false })
         .order("email", { ascending: true }),
@@ -429,11 +434,15 @@ async function getPlanningRecords(month: HkMonthContext) {
       const id = String(row.id ?? "");
       return {
         id,
+        authUserId: textValue(row.auth_user_id),
         email: String(row.email ?? ""),
         fullName: textValue(row.full_name),
         role: String(row.workspace_role ?? "viewer"),
         status: String(row.status ?? "invited"),
         isMaster: row.is_master === true,
+        inviteSentAt: textValue(row.invite_sent_at),
+        inviteAcceptedAt: textValue(row.invite_accepted_at),
+        lastSignInAt: textValue(row.last_sign_in_at),
         brandIds: brandAccess.get(id) ?? [],
         modulePermissions: permissions.get(id) ?? {},
       };
@@ -453,7 +462,21 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
     getConfigurationData(),
     getPlanningRecords(month),
   ]);
-  const hasImportedFunnelMetrics = planning.metrics.some((metric) =>
+  const visibleBrandIds = new Set(config.brands.map((brand) => brand.id));
+  const scopedPlanning = {
+    ...planning,
+    plans: planning.plans.filter((item) => visibleBrandIds.has(item.brandId)),
+    metrics: planning.metrics.filter((item) =>
+      visibleBrandIds.has(item.brandId)
+    ),
+    dataSources: planning.dataSources.filter(
+      (item) => item.brandId === null || visibleBrandIds.has(item.brandId)
+    ),
+    calendarItems: planning.calendarItems.filter((item) =>
+      visibleBrandIds.has(item.brandId)
+    ),
+  };
+  const hasImportedFunnelMetrics = scopedPlanning.metrics.some((metric) =>
     metric.sourceKey.endsWith(":lead_funnel")
   );
   const leadResult = hasImportedFunnelMetrics
@@ -464,14 +487,14 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
     isBeforeHkToday(lead.created_at, month.today)
   );
   const planByBrand = new Map(
-    planning.plans.map((plan) => [plan.brandId, plan])
+    scopedPlanning.plans.map((plan) => [plan.brandId, plan])
   );
   const spendByBrand = new Map<string, number>();
   const funnelByBrand = new Map<
     string,
     { leads: number; bookings: number; shows: number }
   >();
-  for (const row of planning.metrics) {
+  for (const row of scopedPlanning.metrics) {
     spendByBrand.set(
       row.brandId,
       (spendByBrand.get(row.brandId) ?? 0) + row.spend
@@ -504,13 +527,13 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
     const showActual = hasImportedFunnelMetrics
       ? importedFunnel?.shows ?? 0
       : brandLeads.filter(isShow).length;
-    const contentActual = planning.calendarItems.filter(
+    const contentActual = scopedPlanning.calendarItems.filter(
       (item) =>
         item.brandId === brand.id &&
         item.itemType === "post" &&
         item.status === "published"
     ).length;
-    const sources = planning.dataSources.filter(
+    const sources = scopedPlanning.dataSources.filter(
       (source) => source.brandId === brand.id || source.brandId === null
     );
 
@@ -518,9 +541,8 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
       id: brand.id,
       name: brand.name,
       slug: brand.slug,
-      color: brand.primaryColor || "#6d4aff",
-      secondaryColor: brand.secondaryColor || "#c9bdff",
-      logoUrl: brand.logoUrl ?? null,
+      color: brand.primaryColor || "#5a2348",
+      secondaryColor: brand.secondaryColor || "#f8e8e2",
       monthlyPlan: plan,
       spend,
       expectedSpend,
@@ -561,19 +583,23 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
   return {
     month,
     brands: rows,
-    dataSources: planning.dataSources,
-    calendarItems: planning.calendarItems,
+    dataSources: scopedPlanning.dataSources,
+    calendarItems: scopedPlanning.calendarItems,
     members:
       planning.members.length > 0
         ? planning.members
         : [
             {
               id: "bootstrap-master",
+              authUserId: null,
               email: MASTER_ACCOUNT_EMAIL,
               fullName: "Kieran Kwok",
               role: "owner",
               status: "active",
               isMaster: true,
+              inviteSentAt: null,
+              inviteAcceptedAt: null,
+              lastSignInAt: null,
               brandIds: config.brands.map((brand) => brand.id),
               modulePermissions: {},
             },

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { syncGeneratedSuccessRedirectAction } from "@/app/forms/redirectActions";
 
 export const dynamic = "force-dynamic";
@@ -45,12 +46,12 @@ export default function RedirectSyncPage() {
             </div>
 
             <div className="flex flex-wrap gap-3">
-              <button
-                type="submit"
+              <SubmitButton
                 className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)]"
+                pendingLabel="同步中…"
               >
                 安全同步 Redirect
-              </button>
+              </SubmitButton>
               <Link
                 href="/forms"
                 className="rounded-full border border-[#ead9cf] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"

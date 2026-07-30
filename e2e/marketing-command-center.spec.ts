@@ -7,8 +7,11 @@ import {
 } from "../src/lib/marketing/pacing";
 import {
   aggregateDailySpendRows,
+  aggregateLeadSheetPerformance,
   aggregateLeadFunnelColumns,
+  normalizeLeadSheetStatus,
   parseGoogleSheetDate,
+  resolveLeadSheetColumns,
 } from "../src/lib/marketing/googleSheetsMetricParser";
 import {
   createSignedAdminSession,
@@ -16,6 +19,54 @@ import {
   verifyAdminPassword,
   verifySignedAdminSession,
 } from "../src/lib/security/internalAccess";
+import {
+  getWorkspaceRoleDefaultModules,
+  hasWorkspaceBrandPermission,
+  hasWorkspaceModulePermission,
+  normalizeWorkspaceRole,
+} from "../src/lib/security/workspacePermissions";
+import { safeInternalNextPath } from "../src/lib/supabase/authConfig";
+
+test("invite-only permissions honour explicit modules and brand scope", () => {
+  const access = {
+    isMaster: false,
+    workspaceRole: normalizeWorkspaceRole("cs"),
+    modulePermissions: {
+      dashboard: true,
+      crm: true,
+      settings: false,
+    },
+  };
+
+  expect(hasWorkspaceModulePermission(access, "crm")).toBe(true);
+  expect(hasWorkspaceModulePermission(access, "settings")).toBe(false);
+  expect(hasWorkspaceModulePermission(access, "calendar")).toBe(false);
+  expect(
+    hasWorkspaceBrandPermission(
+      { isMaster: false, brandIds: ["ib-brand"] },
+      "ib-brand"
+    )
+  ).toBe(true);
+  expect(
+    hasWorkspaceBrandPermission(
+      { isMaster: false, brandIds: ["ib-brand"] },
+      "alyssa-brand"
+    )
+  ).toBe(false);
+  expect(getWorkspaceRoleDefaultModules("cs")).toEqual([
+    "dashboard",
+    "calendar",
+    "leads",
+    "crm",
+  ]);
+});
+
+test("email login only redirects to safe internal paths", () => {
+  expect(safeInternalNextPath("/crm?tab=leads")).toBe("/crm?tab=leads");
+  expect(safeInternalNextPath("//malicious.example")).toBe("/dashboard");
+  expect(safeInternalNextPath("https://malicious.example")).toBe("/dashboard");
+  expect(safeInternalNextPath("/auth/confirm")).toBe("/dashboard");
+});
 
 test("Hong Kong month pacing uses completed days through yesterday", () => {
   const context = getHkMonthContext(
@@ -41,6 +92,9 @@ test("budget and KPI warnings only activate for configured targets", () => {
 
 test("Google Sheets daily spend uses date column A and total spend column N", () => {
   expect(parseGoogleSheetDate(46204)).toBe("2026-07-01");
+  expect(parseGoogleSheetDate(0)).toBeNull();
+  expect(parseGoogleSheetDate(1)).toBeNull();
+  expect(parseGoogleSheetDate("2026-02-31")).toBeNull();
   const rows = [
     [46204, "", "", "", "", "", "", "", "", "", "", 100, 20, 120],
     [46205, "", "", "", "", "", "", "", "", "", "", 90, "", 90],
@@ -121,6 +175,160 @@ test("Google Sheets funnel trims brand names and keeps Lead, Book and Show date 
   );
 });
 
+test("Lead Sheet treatment performance follows headers, event dates and anonymous dimensions", () => {
+  const headers = [
+    "品牌",
+    "Campaign / 廣告",
+    "Status",
+    "Created At",
+    "療程項目",
+    "來源",
+    "預約日期",
+    "確認到店日期",
+    "跟進狀態",
+    "分店",
+    "Show up",
+    "客人姓名",
+    "電話",
+    "CS Remark",
+  ];
+  const columns = resolveLeadSheetColumns(headers);
+  expect(columns.createdAt).toBe(3);
+  expect(columns.treatment).toBe(4);
+  expect(columns.confirmationDate).toBe(7);
+
+  const result = aggregateLeadSheetPerformance({
+    headers,
+    rows: [
+      [
+        "Alyssa",
+        "Facelift-yanyan-lead-form",
+        "",
+        46204.2,
+        "$988 Facelift",
+        "Facebook Lead Form",
+        46210,
+        "",
+        "已預約",
+        "尖沙咀",
+        "",
+        "私人姓名測試",
+        "91234567",
+        "唔應出現",
+      ],
+      [
+        "Ineffable Beauty",
+        "CTWA / 手動新增",
+        "",
+        46204.3,
+        "$388 柔清舒敏針清",
+        "WhatsApp 廣告",
+        46205,
+        "",
+        "no show",
+        "銅鑼灣",
+        "",
+        "另一姓名",
+        "92345678",
+        "敏感備註",
+      ],
+      [
+        "Alyssa",
+        "Facelift-yanyan-lead-form",
+        "",
+        46205.2,
+        "$988 Facelift",
+        "Facebook Lead Form",
+        46206,
+        46206,
+        "已到店",
+        "尖沙咀",
+        "Show",
+        "第三個姓名",
+        "93456789",
+        "跟進內容",
+      ],
+      [
+        "未有品牌",
+        "Unknown",
+        "",
+        46205.3,
+        "其他",
+        "未標記來源",
+        "",
+        "",
+        "待跟進",
+        "",
+        "",
+        "未知品牌客人",
+        "94567890",
+        "未知品牌備註",
+      ],
+    ],
+    brands: [
+      { id: "alyssa-brand", name: "Alyssa", slug: "alyssa" },
+      {
+        id: "ib-brand",
+        name: "Ineffable Beauty",
+        slug: "ineffable",
+      },
+    ],
+    sourceBrandId: null,
+    treatmentAliases: [
+      {
+        brand: "Ineffable Beauty",
+        label: "$388 柔清舒敏護理",
+        keywords: ["柔清", "針清"],
+      },
+    ],
+    dailyThroughDate: "2026-07-27",
+    activityThroughDate: "2026-07-27",
+    pendingThroughDate: "2027-08-31",
+  });
+
+  expect(result.diagnostics).toMatchObject({
+    sourceRows: 4,
+    acceptedRows: 3,
+    unknownBrandRows: 1,
+    invalidCreatedDateRows: 0,
+  });
+  expect(result.metricFacts).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        brandId: "alyssa-brand",
+        metricKind: "pending_show",
+        metricDate: "2026-07-07",
+        treatmentLabel: "$988 Facelift",
+        count: 1,
+      }),
+      expect.objectContaining({
+        brandId: "ib-brand",
+        metricKind: "no_show",
+        metricDate: "2026-07-02",
+        treatmentLabel: "$388 柔清舒敏護理",
+        count: 1,
+      }),
+      expect.objectContaining({
+        brandId: "alyssa-brand",
+        metricKind: "show",
+        metricDate: "2026-07-03",
+        count: 1,
+      }),
+    ])
+  );
+  const anonymousProjection = JSON.stringify(result.metricFacts);
+  expect(anonymousProjection).not.toContain("私人姓名測試");
+  expect(anonymousProjection).not.toContain("91234567");
+  expect(anonymousProjection).not.toContain("唔應出現");
+  expect(
+    normalizeLeadSheetStatus({
+      followStatus: "待跟進",
+      status: "",
+      showUp: "No Show",
+    })
+  ).toBe("no_show");
+});
+
 test("temporary password gate signs distinct Admin and Master sessions", async () => {
   const previous = {
     admin: process.env.LAUNCHHUB_ADMIN_PASSWORD,
@@ -185,6 +393,9 @@ test("Command Center dashboard exposes budget, KPI and operational navigation", 
   await expect(
     navigation.getByRole("link", { name: "資料來源" })
   ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "療程成效" })
+  ).toBeVisible();
   await expect(page.getByTestId("login-screen")).toHaveCount(0);
 });
 
@@ -195,6 +406,7 @@ test("Command Center feature pages render without migration-dependent crashes", 
     ["/kpis", "品牌 KPI 進度"],
     ["/calendar", "營銷日曆"],
     ["/data-sources", "資料來源"],
+    ["/performance", "療程成效"],
     ["/settings/planning", "月度 Budget／KPI 設定"],
     ["/settings/team", "成員及權限"],
   ]) {
@@ -204,6 +416,25 @@ test("Command Center feature pages render without migration-dependent crashes", 
     ).toBeVisible();
     await expect(page.getByTestId("login-screen")).toHaveCount(0);
   }
+});
+
+test("Treatment Performance is a Lead Sheet projection with explicit metric contracts", async ({
+  page,
+}) => {
+  await page.goto("/performance", { waitUntil: "domcontentloaded" });
+
+  await expect(
+    page.getByRole("heading", { name: "療程成效", exact: true })
+  ).toBeVisible();
+  await expect(page.getByText("Alyssa Workspace Lead Funnel")).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Lead → Book → Show" })
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "療程表現" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "來源／Campaign 表現" })
+  ).toBeVisible();
+  await expect(page.getByText(/唔讀 mkt_dashboard 分頁/)).toBeVisible();
 });
 
 test("Google Sheets connection is presented as OAuth rather than a service-account key", async ({

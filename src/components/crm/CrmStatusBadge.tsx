@@ -7,7 +7,7 @@ const statusStyles: Record<CrmStatus, string> = {
   no_reply: "border-orange-200 bg-orange-50 text-orange-700",
   new: "border-blue-200 bg-blue-50 text-blue-700",
   contacting: "border-amber-200 bg-amber-50 text-amber-700",
-  booked: "border-indigo-200 bg-indigo-50 text-indigo-700",
+  booked: "border-sky-200 bg-sky-50 text-sky-700",
   confirmed: "border-emerald-200 bg-emerald-50 text-emerald-700",
   showed: "border-teal-200 bg-teal-50 text-teal-700",
   paid: "border-green-200 bg-green-50 text-green-700",

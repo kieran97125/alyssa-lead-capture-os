@@ -10,6 +10,7 @@ import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
+import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export type BrandSetting = {
   id: string;
@@ -119,6 +120,61 @@ export type ConfigurationData = {
   templates: LandingPageTemplate[];
   landingPages: typeof alyssaLandingPages;
 };
+
+type ConfigurationScopeOptions = {
+  unscoped?: boolean;
+};
+
+function scopeConfiguration(
+  data: ConfigurationData,
+  allowedBrandIds: string[] | null
+): ConfigurationData {
+  if (allowedBrandIds === null) return data;
+
+  const allowedBrands = new Set(allowedBrandIds);
+  const brands = data.brands.filter((brand) => allowedBrands.has(brand.id));
+  const treatments = data.treatments.filter((item) =>
+    allowedBrands.has(item.brandId)
+  );
+  const treatmentIds = new Set(treatments.map((item) => item.id));
+  const packages = data.packages.filter((item) =>
+    treatmentIds.has(item.treatmentId)
+  );
+  const branches = data.branches.filter((item) =>
+    allowedBrands.has(item.brandId)
+  );
+  const branchIds = new Set(branches.map((item) => item.id));
+  const forms = data.forms.filter((item) => allowedBrands.has(item.brandId));
+  const formIds = new Set(forms.map((item) => item.id));
+  const packageIds = new Set(packages.map((item) => item.id));
+
+  return {
+    ...data,
+    brands,
+    treatments,
+    packages,
+    branches,
+    forms,
+    formBranches: data.formBranches.filter(
+      (item) => formIds.has(item.formId) && branchIds.has(item.branchId)
+    ),
+    formPackages: data.formPackages.filter(
+      (item) => formIds.has(item.formId) && packageIds.has(item.packageId)
+    ),
+    landingPages: data.landingPages.filter((item) =>
+      allowedBrands.has(item.brandId)
+    ),
+  };
+}
+
+async function getAllowedBrandIds(options: ConfigurationScopeOptions) {
+  if (options.unscoped) return null;
+  const access = await getCurrentInternalAccess();
+  if (access.source !== "supabase_auth" || access.accessLevel === "master") {
+    return null;
+  }
+  return access.brandIds ?? [];
+}
 
 export const landingPageTemplates: LandingPageTemplate[] = [
   {
@@ -404,8 +460,13 @@ export function getLinkedLandingPages(
   return data.landingPages.filter(predicate);
 }
 
-export async function getConfigurationData(): Promise<ConfigurationData> {
-  if (!hasSupabaseAdminEnv()) return localConfiguration();
+export async function getConfigurationData(
+  options: ConfigurationScopeOptions = {}
+): Promise<ConfigurationData> {
+  const allowedBrandIds = await getAllowedBrandIds(options);
+  if (!hasSupabaseAdminEnv()) {
+    return scopeConfiguration(localConfiguration(), allowedBrandIds);
+  }
 
   try {
     const supabase = createSupabaseAdminClient();
@@ -518,7 +579,7 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
       });
     }
 
-    return {
+    return scopeConfiguration({
       sourceLabel: "正式設定",
       brands: ((brands.data ?? []) as unknown[]).map((item) => {
         const row = item as Record<string, unknown>;
@@ -650,9 +711,9 @@ export async function getConfigurationData(): Promise<ConfigurationData> {
       formPackages: mappedFormPackages,
       templates: landingPageTemplates,
       landingPages: alyssaLandingPages,
-    };
+    }, allowedBrandIds);
   } catch (error) {
     console.error("configuration_data_read_failed", error);
-    return localConfiguration();
+    return scopeConfiguration(localConfiguration(), allowedBrandIds);
   }
 }

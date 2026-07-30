@@ -33,6 +33,13 @@ function mockSuccessfulLeadResponse() {
   };
 }
 
+function requireSubmittedBody(body: Record<string, unknown> | null) {
+  if (!body) {
+    throw new Error("Expected the public lead request body to be captured.");
+  }
+  return body;
+}
+
 test("every recognized public tracking key remains eligible attribution evidence", () => {
   for (const key of publicAttributionTrackingKeys) {
     expect(
@@ -150,7 +157,9 @@ test("direct LaunchHub form submits UTM and click ID in attribution payload", as
   await fillAndSubmitForm(page);
 
   await expect.poll(() => submittedBody).not.toBeNull();
-  const submittedTouch = submittedBody?.submitted_touch_json as Record<
+  const submittedTouch = requireSubmittedBody(
+    submittedBody
+  ).submitted_touch_json as Record<
     string,
     unknown
   >;
@@ -185,7 +194,9 @@ test("Wix parent UTM reaches nested LaunchHub iframe even when iframe URL has no
   await fillAndSubmitForm(formFrame);
 
   await expect.poll(() => submittedBody).not.toBeNull();
-  const submittedTouch = submittedBody?.submitted_touch_json as Record<
+  const submittedTouch = requireSubmittedBody(
+    submittedBody
+  ).submitted_touch_json as Record<
     string,
     unknown
   >;
@@ -221,8 +232,9 @@ test("Wix placement-only evidence reaches first and submitted touch", async ({
   await fillAndSubmitForm(formFrame);
 
   await expect.poll(() => submittedBody).not.toBeNull();
-  const firstTouch = submittedBody?.first_touch_json as Record<string, unknown>;
-  const submittedTouch = submittedBody?.submitted_touch_json as Record<
+  const capturedBody = requireSubmittedBody(submittedBody);
+  const firstTouch = capturedBody.first_touch_json as Record<string, unknown>;
+  const submittedTouch = capturedBody.submitted_touch_json as Record<
     string,
     unknown
   >;
@@ -254,8 +266,9 @@ test("first touch survives refresh and a clean follow-up URL", async ({ page }) 
   await fillAndSubmitForm(page);
 
   await expect.poll(() => submittedBody).not.toBeNull();
-  const firstTouch = submittedBody?.first_touch_json as Record<string, unknown>;
-  const submittedTouch = submittedBody?.submitted_touch_json as Record<
+  const capturedBody = requireSubmittedBody(submittedBody);
+  const firstTouch = capturedBody.first_touch_json as Record<string, unknown>;
+  const submittedTouch = capturedBody.submitted_touch_json as Record<
     string,
     unknown
   >;

@@ -3,9 +3,11 @@ import type { InternalModule } from "@/lib/security/internalAccess";
 export const publicExactRoutes = ["/login", "/logout", "/thank-you"] as const;
 
 export const publicRoutePrefixes = [
+  "/auth/",
   "/lp/",
   "/embed/",
   "/legal/",
+  "/api/auth/",
   "/api/public/",
   "/api/integrations/google-sheets/callback",
 ] as const;
@@ -26,7 +28,6 @@ export const internalRoutePrefixes = [
   "/settings",
   "/system-audit",
   "/embed-preview",
-  "/debug",
 ] as const;
 
 export function isPublicRoute(pathname: string) {
@@ -64,7 +65,7 @@ export function getInternalRouteModule(pathname: string): InternalModule | null 
   if (pathname.startsWith("/calendar")) return "calendar";
   if (pathname.startsWith("/data-sources")) return "data_sources";
   if (pathname.startsWith("/leads")) return "leads";
-  if (pathname.startsWith("/crm")) return "leads";
+  if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/performance")) return "performance";
   if (pathname.startsWith("/brands")) return "brands";
   if (pathname.startsWith("/campaigns")) return "campaigns";
@@ -75,6 +76,5 @@ export function getInternalRouteModule(pathname: string): InternalModule | null 
   if (pathname.startsWith("/settings/brands")) return "brands";
   if (pathname.startsWith("/settings")) return "settings";
   if (pathname.startsWith("/system-audit")) return "system_audit";
-  if (pathname.startsWith("/debug")) return "system_audit";
   return null;
 }

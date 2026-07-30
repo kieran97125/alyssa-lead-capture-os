@@ -257,7 +257,7 @@ export default async function PublicLandingPage({
 
   const [page, config] = await Promise.all([
     getPublishedLandingPageBySlug(canonicalSlug),
-    getConfigurationData(),
+    getConfigurationData({ unscoped: true }),
   ]);
 
   if (!page) notFound();

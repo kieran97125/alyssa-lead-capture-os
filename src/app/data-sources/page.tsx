@@ -15,6 +15,7 @@ import {
   syncDataSourceAction,
 } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   getGoogleSheetsOAuthStatus,
   getMissingGoogleSheetsOAuthConfiguration,
@@ -51,6 +52,16 @@ const syncModeLabels: Record<string, string> = {
   scheduled: "自動排程",
   native: "原生連接",
   webhook: "Webhook",
+};
+
+const metricLabels: Record<string, string> = {
+  spend: "廣告費",
+  leads: "Lead",
+  bookings: "Book",
+  shows: "Show",
+  no_shows: "No Show",
+  pending_shows: "待到店",
+  treatment_performance: "療程成效",
 };
 
 function firstParam(value: string | string[] | undefined) {
@@ -171,9 +182,9 @@ export default async function DataSourcesPage({
                 action="/api/integrations/google-sheets/start"
                 method="post"
               >
-                <button
-                  type="submit"
+                <SubmitButton
                   className="command-primary-button"
+                  pendingLabel="開啟 Google…"
                   aria-describedby={
                     missingGoogleOAuthConfiguration.length > 0 ||
                     !googleConnectionStatus.tableReady
@@ -189,7 +200,7 @@ export default async function DataSourcesPage({
                     : googleConnectionStatus.connected
                       ? "升級連接"
                       : "連接 Google Sheets"}
-                </button>
+                </SubmitButton>
                 {missingGoogleOAuthConfiguration.length > 0 ||
                 !googleConnectionStatus.tableReady ? (
                   <small id="google-oauth-readiness-note">
@@ -341,7 +352,7 @@ export default async function DataSourcesPage({
                     每日廣告費（日期＋Spend）
                   </option>
                   <option value="lead_funnel">
-                    Lead Funnel（Lead／Book／Show）
+                    Lead Funnel（Lead／Book／Show／療程成效）
                   </option>
                 </select>
               </label>
@@ -406,26 +417,13 @@ export default async function DataSourcesPage({
                     <input name="spendColumn" defaultValue="N" />
                   </label>
                   <label>
-                    <span>Lead Created At</span>
-                    <input name="createdAtColumn" defaultValue="A" />
-                  </label>
-                  <label>
-                    <span>Lead 跟進狀態</span>
-                    <input name="followStatusColumn" defaultValue="B" />
-                  </label>
-                  <label>
-                    <span>Lead 品牌</span>
-                    <input name="brandColumn" defaultValue="C" />
-                  </label>
-                  <label>
-                    <span>預約日期</span>
-                    <input name="bookingDateColumn" defaultValue="J" />
-                  </label>
-                  <label>
-                    <span>確認到店日期</span>
-                    <input name="confirmationDateColumn" defaultValue="L" />
+                    <span>Lead 表最後欄</span>
+                    <input name="lastColumn" defaultValue="V" />
                   </label>
                 </div>
+                <p className="source-mapping-note">
+                  Lead Funnel 會按 header 名稱自動對位，只讀成效所需欄位；調動欄位次序毋須重新設定。
+                </p>
               </details>
 
               <footer>
@@ -433,14 +431,14 @@ export default async function DataSourcesPage({
                   Dataset Profile 會自動決定指標責任。新來源先建立為
                   Draft；完成一次成功同步後先轉為「已連接」。
                 </p>
-                <button
-                  type="submit"
+                <SubmitButton
                   className="command-primary-button"
                   disabled={!snapshot.schemaReady}
+                  pendingLabel="建立中…"
                 >
                   <Link2 size={15} />
                   建立 Draft
-                </button>
+                </SubmitButton>
               </footer>
             </form>
           </section>
@@ -500,13 +498,13 @@ function SourceRow({
         <div className="source-metric-tags">
           {source.providesMetrics.length > 0
             ? source.providesMetrics.map((metric) => (
-                <span key={metric}>{metric}</span>
+                <span key={metric}>{metricLabels[metric] || metric}</span>
               ))
             : "未設定"}
         </div>
       </td>
       <td>{syncModeLabels[source.syncMode] || source.syncMode}</td>
-      <td>{source.lastSuccessAt || "未同步"}</td>
+      <td>{formatSyncTime(source.lastSuccessAt)}</td>
       <td>
         <span className={`source-status source-status-${source.status}`}>
           {statusLabels[source.status] || source.status}
@@ -514,10 +512,13 @@ function SourceRow({
         {source.providerKey === "google_sheets" ? (
           <form action={syncDataSourceAction} className="source-sync-form">
             <input type="hidden" name="dataSourceId" value={source.id} />
-            <button type="submit" aria-label={`同步 ${source.displayName}`}>
+            <SubmitButton
+              pendingLabel="同步中…"
+              aria-label={`同步 ${source.displayName}`}
+            >
               <RefreshCw size={13} />
               立即同步
-            </button>
+            </SubmitButton>
           </form>
         ) : null}
         {source.lastErrorSummary ? (
@@ -528,4 +529,19 @@ function SourceRow({
       </td>
     </tr>
   );
+}
+
+function formatSyncTime(value: string | null) {
+  if (!value) return "未同步";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("zh-HK", {
+    timeZone: "Asia/Hong_Kong",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
 }

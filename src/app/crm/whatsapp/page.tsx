@@ -1,7 +1,9 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getWhatsAppConnectionByBrandSlug } from "@/lib/crm/whatsapp";
 import { getWhatsAppInbox } from "@/lib/crm/whatsappInbox";
+import { getConfigurationData } from "@/lib/data/configuration";
 
 export const dynamic = "force-dynamic";
 
@@ -14,8 +16,18 @@ export default async function WhatsAppInboxPage({
 }: {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
-  const query = await searchParams;
-  const brand = firstParam(query?.brand) || "ineffable";
+  const [query, config] = await Promise.all([
+    searchParams,
+    getConfigurationData(),
+  ]);
+  const requestedBrand = firstParam(query?.brand) || "ineffable";
+  const brandRecord = config.brands.find(
+    (item) =>
+      item.slug === requestedBrand ||
+      (requestedBrand === "ineffable" && item.slug === "ineffable-beauty")
+  );
+  if (!brandRecord) notFound();
+  const brand = brandRecord.slug;
   const filter = firstParam(query?.filter) || "all";
   const search = firstParam(query?.search) || "";
   const feedback = firstParam(query?.success) || firstParam(query?.error) || "";
@@ -28,8 +40,8 @@ export default async function WhatsAppInboxPage({
         <header className="border-b border-[#e5e7eb] bg-white px-4 py-4 lg:px-6">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#7c3aed]">
-                Ineffable Beauty
+              <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#167fa6]">
+                {brandRecord.name}
               </p>
               <h1 className="mt-1 text-2xl font-black text-[#111827]">
                 WhatsApp Inbox
@@ -81,7 +93,7 @@ export default async function WhatsAppInboxPage({
                   href={`/crm/whatsapp?brand=${encodeURIComponent(brand)}&filter=${key}`}
                   className={`whitespace-nowrap rounded-full border px-3 py-1.5 text-xs font-black ${
                     filter === key
-                      ? "border-[#6366f1] bg-[#eef2ff] text-[#4338ca]"
+                      ? "border-[var(--crm-accent)] bg-[var(--crm-accent-soft)] text-[var(--crm-accent)]"
                       : "border-[#e2e8f0] bg-white text-[#64748b]"
                   }`}
                 >

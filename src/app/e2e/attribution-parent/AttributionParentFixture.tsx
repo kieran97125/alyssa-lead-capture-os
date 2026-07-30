@@ -43,11 +43,9 @@ function buildTouch() {
 
 export function AttributionParentFixture() {
   const htmlFrameRef = useRef<HTMLIFrameElement>(null);
-  const [origin, setOrigin] = useState("");
-
-  useEffect(() => {
-    setOrigin(window.location.origin);
-  }, []);
+  const [origin] = useState(() =>
+    typeof window === "undefined" ? "" : window.location.origin
+  );
 
   const srcDoc = useMemo(() => {
     if (!origin) return "";

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CrmShell } from "@/components/crm/CrmShell";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/admin";
 import {
   createAutomationRuleAction,
@@ -33,7 +34,7 @@ export default async function CrmOperationsPage({
         <header className="border-b border-[#e5e7eb] bg-white px-4 py-3 lg:px-5">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#6366f1]">Lead-to-Revenue Operations</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--crm-accent)]">Lead-to-Revenue Operations</p>
               <h1 className="mt-1 text-xl font-black text-[#111827]">營運設定</h1>
               <p className="mt-1 text-[11px] font-semibold text-[#64748b]">Queue、Tags、Template、Automation、付款狀態及 SLA 集中設定。</p>
             </div>
@@ -48,7 +49,7 @@ export default async function CrmOperationsPage({
         <section className="grid gap-2 border-b border-[#e5e7eb] bg-white p-3 sm:grid-cols-2 xl:grid-cols-4 lg:px-5">
           <MetricRow label="未分配" value={data.metrics.unassigned} note="需要指派 CS" tone="rose" />
           <MetricRow label="逾期跟進" value={data.metrics.overdue} note="已超過跟進時間" tone="amber" />
-          <MetricRow label="待確認預約" value={data.metrics.waitingBooking} note="尚未正式 booked" tone="indigo" />
+          <MetricRow label="待確認預約" value={data.metrics.waitingBooking} note="尚未正式 booked" tone="sky" />
           <MetricRow label="待付款／核實" value={data.metrics.paymentQueue} note="PayMe / FPS 流程" tone="emerald" />
         </section>
 
@@ -60,7 +61,7 @@ export default async function CrmOperationsPage({
                   <div key={String(policy.id)} className="grid grid-cols-[minmax(0,1fr)_80px_120px] items-center gap-2 border-b border-[#eef2f7] bg-white px-3 py-2 text-xs last:border-0">
                     <strong className="truncate text-[#111827]">{String(policy.label)}</strong>
                     <span className="text-[#64748b]">{String(policy.threshold_minutes)} 分鐘</span>
-                    <span className="truncate text-right font-mono text-[10px] font-bold text-[#6366f1]">{String(policy.queue_key)}</span>
+                    <span className="truncate text-right font-mono text-[10px] font-bold text-[var(--crm-accent)]">{String(policy.queue_key)}</span>
                   </div>
                 ))}
               </div>
@@ -73,7 +74,7 @@ export default async function CrmOperationsPage({
                     <summary className="grid cursor-pointer grid-cols-[minmax(0,1fr)_120px_90px] items-center gap-2 px-3 py-2.5 text-xs">
                       <strong className="truncate text-[#111827]">{String(rule.rule_name)}</strong>
                       <span className="truncate font-mono text-[10px] text-[#64748b]">{String(rule.trigger_key)}</span>
-                      <span className="rounded bg-indigo-50 px-2 py-1 text-center text-[9px] font-black text-indigo-700">{String(rule.mode).toUpperCase()}</span>
+                      <span className="rounded bg-sky-50 px-2 py-1 text-center text-[9px] font-black text-sky-700">{String(rule.mode).toUpperCase()}</span>
                     </summary>
                     <div className="grid gap-2 border-t border-[#eef2f7] bg-[#f8fafc] p-3 lg:grid-cols-2">
                       <CodeBox label="Conditions" value={rule.conditions_json} />
@@ -90,7 +91,7 @@ export default async function CrmOperationsPage({
                   <Field name="trigger_key" label="Trigger" placeholder="form_submitted" />
                   <TextArea name="conditions_json" label="Conditions JSON" defaultValue='{"brand":"ineffable"}' />
                   <TextArea name="actions_json" label="Actions JSON" defaultValue='[{"action":"add_tag","value":"new_customer"}]' />
-                  <button className="h-9 rounded-lg bg-[#111827] px-3 text-xs font-black text-white lg:col-span-2">建立 Rule</button>
+                  <SubmitButton className="h-9 rounded-lg bg-[#111827] px-3 text-xs font-black text-white lg:col-span-2" pendingLabel="建立中…">建立 Rule</SubmitButton>
                 </form>
               </details>
             </CompactPanel>
@@ -100,7 +101,7 @@ export default async function CrmOperationsPage({
                 {data.templateMappings.map((mapping) => (
                   <details key={String(mapping.id)} className="border-b border-[#eef2f7] bg-white last:border-0">
                     <summary className="grid cursor-pointer grid-cols-[140px_minmax(0,1fr)_120px] items-center gap-2 px-3 py-2.5 text-xs">
-                      <span className="truncate font-mono text-[10px] font-bold text-[#6366f1]">{String(mapping.mapping_key)}</span>
+                      <span className="truncate font-mono text-[10px] font-bold text-[var(--crm-accent)]">{String(mapping.mapping_key)}</span>
                       <strong className="truncate text-[#111827]">{String(mapping.template_name)}</strong>
                       <span className="text-right text-[10px] font-bold text-[#64748b]">{String(mapping.approval_status)}</span>
                     </summary>
@@ -111,7 +112,7 @@ export default async function CrmOperationsPage({
                         <select name="approval_status" defaultValue={String(mapping.approval_status)} className="h-8 rounded-lg border border-[#cbd5e1] bg-white px-2 text-xs font-bold text-[#334155]">
                           <option value="draft">Draft</option><option value="pending_meta">Pending Meta</option><option value="approved">Approved</option><option value="rejected">Rejected</option><option value="paused">Paused</option>
                         </select>
-                        <button className="h-8 rounded-lg bg-[#111827] px-3 text-xs font-black text-white">儲存</button>
+                        <SubmitButton className="h-8 rounded-lg bg-[#111827] px-3 text-xs font-black text-white" pendingLabel="儲存中…">儲存</SubmitButton>
                       </form>
                       <CodeBox label="Variable map" value={mapping.variable_map} />
                     </div>
@@ -131,7 +132,7 @@ export default async function CrmOperationsPage({
                       <select name="status" defaultValue={String(payment.status)} className="h-8 min-w-0 flex-1 rounded-lg border border-[#cbd5e1] bg-white px-2 text-[10px] font-bold">
                         {PAYMENT_STATUSES.map((status) => <option key={status} value={status}>{status}</option>)}
                       </select>
-                      <button className="h-8 rounded-lg bg-[#111827] px-2 text-[10px] font-black text-white">更新</button>
+                      <SubmitButton className="h-8 rounded-lg bg-[#111827] px-2 text-[10px] font-black text-white" pendingLabel="更新中…">更新</SubmitButton>
                     </form>
                   </div>
                 )) : <Empty text="暫時未有付款記錄" />}
@@ -149,7 +150,7 @@ export default async function CrmOperationsPage({
                   <Field name="external_reference" label="Reference" placeholder="交易編號" />
                   <Field name="due_at" label="付款期限" type="datetime-local" />
                   <Field name="note" label="備註" placeholder="CS 已發 PayMe code" />
-                  <button className="h-9 rounded-lg bg-[#111827] px-3 text-xs font-black text-white md:col-span-2">建立付款記錄</button>
+                  <SubmitButton className="h-9 rounded-lg bg-[#111827] px-3 text-xs font-black text-white md:col-span-2" pendingLabel="建立中…">建立付款記錄</SubmitButton>
                 </form>
               </details>
             </CompactPanel>
@@ -181,7 +182,7 @@ export default async function CrmOperationsPage({
                   <Field name="label" label="名稱" placeholder="價錢考慮" />
                   <Field name="tag_key" label="Key" placeholder="price_concern" />
                   <Field name="description" label="用途" placeholder="客人考慮價錢" />
-                  <button className="h-9 rounded-lg bg-[#111827] px-3 text-xs font-black text-white">儲存 Tag</button>
+                  <SubmitButton className="h-9 rounded-lg bg-[#111827] px-3 text-xs font-black text-white" pendingLabel="儲存中…">儲存 Tag</SubmitButton>
                 </form>
               </details>
             </CompactPanel>
@@ -189,7 +190,7 @@ export default async function CrmOperationsPage({
             <CompactPanel title="Booking State" subtitle="客人確認不等於正式預約">
               <ol className="overflow-hidden rounded-lg border border-[#e2e8f0]">
                 {["已登記","聯絡中","客人確認資料","等待門店確認","正式預約","待付款","已付款","到店結果"].map((item, index) => (
-                  <li key={item} className="grid grid-cols-[24px_1fr] items-center gap-2 border-b border-[#eef2f7] px-3 py-2 text-xs font-bold text-[#334155] last:border-0"><span className="text-[10px] font-black text-[#6366f1]">{index + 1}</span>{item}</li>
+                  <li key={item} className="grid grid-cols-[24px_1fr] items-center gap-2 border-b border-[#eef2f7] px-3 py-2 text-xs font-bold text-[#334155] last:border-0"><span className="text-[10px] font-black text-[var(--crm-accent)]">{index + 1}</span>{item}</li>
                 ))}
               </ol>
             </CompactPanel>
@@ -233,15 +234,15 @@ async function loadOperationsData() {
 }
 
 function MetricRow({ label, value, note, tone }: { label: string; value: number; note: string; tone: string }) {
-  const tones: Record<string,string> = { rose:"border-rose-200 bg-rose-50 text-rose-700", amber:"border-amber-200 bg-amber-50 text-amber-700", indigo:"border-indigo-200 bg-indigo-50 text-indigo-700", emerald:"border-emerald-200 bg-emerald-50 text-emerald-700" };
+  const tones: Record<string,string> = { rose:"border-rose-200 bg-rose-50 text-rose-700", amber:"border-amber-200 bg-amber-50 text-amber-700", sky:"border-sky-200 bg-sky-50 text-sky-700", emerald:"border-emerald-200 bg-emerald-50 text-emerald-700" };
   return <article className={`flex items-center justify-between rounded-lg border px-3 py-2.5 ${tones[tone]}`}><div className="min-w-0"><p className="truncate text-[11px] font-black">{label}</p><p className="truncate text-[10px] font-semibold opacity-80">{note}</p></div><strong className="ml-3 text-xl font-black">{value}</strong></article>;
 }
 
 function CompactPanel({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return <section className="overflow-hidden rounded-xl border border-[#e2e8f0] bg-white shadow-sm"><div className="border-b border-[#eef2f7] px-3 py-2.5"><h2 className="text-sm font-black text-[#111827]">{title}</h2>{subtitle ? <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">{subtitle}</p> : null}</div><div className="p-3">{children}</div></section>;
 }
-function Field({ name, label, placeholder, type = "text" }: { name: string; label: string; placeholder?: string; type?: string }) { return <label className="grid gap-1 text-[11px] font-black text-[#475569]">{label}<input name={name} type={type} placeholder={placeholder} className="h-8 rounded-lg border border-[#cbd5e1] bg-white px-2.5 text-xs font-semibold text-[#111827] outline-none focus:border-[#6366f1]" /></label>; }
-function TextArea({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string }) { return <label className="grid gap-1 text-[11px] font-black text-[#475569]">{label}<textarea name={name} defaultValue={defaultValue} rows={3} className="rounded-lg border border-[#cbd5e1] bg-white px-2.5 py-2 font-mono text-[10px] text-[#111827] outline-none focus:border-[#6366f1]" /></label>; }
+function Field({ name, label, placeholder, type = "text" }: { name: string; label: string; placeholder?: string; type?: string }) { return <label className="grid gap-1 text-[11px] font-black text-[#475569]">{label}<input name={name} type={type} placeholder={placeholder} className="h-8 rounded-lg border border-[#cbd5e1] bg-white px-2.5 text-xs font-semibold text-[#111827] outline-none focus:border-[var(--crm-accent)]" /></label>; }
+function TextArea({ name, label, defaultValue }: { name: string; label: string; defaultValue?: string }) { return <label className="grid gap-1 text-[11px] font-black text-[#475569]">{label}<textarea name={name} defaultValue={defaultValue} rows={3} className="rounded-lg border border-[#cbd5e1] bg-white px-2.5 py-2 font-mono text-[10px] text-[#111827] outline-none focus:border-[var(--crm-accent)]" /></label>; }
 function Select({ name, label, options }: { name: string; label: string; options: string[] }) { return <label className="grid gap-1 text-[11px] font-black text-[#475569]">{label}<select name={name} className="h-8 rounded-lg border border-[#cbd5e1] bg-white px-2.5 text-xs font-semibold">{options.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>; }
 function CodeBox({ label, value }: { label: string; value: unknown }) { return <div className="rounded-lg bg-[#0f172a] p-2.5"><p className="text-[9px] font-black uppercase text-[#93c5fd]">{label}</p><pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-all text-[9px] leading-4 text-[#e2e8f0]">{JSON.stringify(value ?? {}, null, 2)}</pre></div>; }
 function SummaryLine({ label, value }: { label: string; value: number }) { return <div className="flex items-center justify-between border-b border-[#eef2f7] px-3 py-2 text-xs last:border-0"><span className="font-bold text-[#64748b]">{label}</span><strong className="font-black text-[#111827]">{value}</strong></div>; }

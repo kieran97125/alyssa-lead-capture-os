@@ -1,9 +1,9 @@
-import { cookies } from "next/headers";
 import { NextRequest, NextResponse } from "next/server";
 import {
-  adminSessionCookieName,
-  verifySignedAdminSession,
-} from "@/lib/security/internalAccess";
+  canAccessInternalBrand,
+  requireModuleAccess,
+  verifyCurrentInternalAccess,
+} from "@/lib/security/internalAccessServer";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -33,13 +33,14 @@ type ContactPhoneRecord = {
 };
 
 export async function POST(request: NextRequest) {
-  const cookieStore = await cookies();
-  const session = await verifySignedAdminSession(
-    cookieStore.get(adminSessionCookieName)?.value
-  );
+  const session = await verifyCurrentInternalAccess();
 
   if (!session.ok) {
     return NextResponse.json({ ok: false, error: "unauthorized" }, { status: 401 });
+  }
+  const moduleAccess = await requireModuleAccess("crm");
+  if (!moduleAccess.allowed) {
+    return NextResponse.json({ ok: false, error: "forbidden" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as Record<
@@ -73,6 +74,12 @@ export async function POST(request: NextRequest) {
   const leadContext = leadId ? await getLeadSendContext(leadId) : null;
   const brandId = explicitBrandId || conversation?.brand_id || leadContext?.brand_id || "";
   const resolvedLeadId = leadId || conversation?.lead_id || null;
+  if (!brandId || !canAccessInternalBrand(session.access, brandId)) {
+    return NextResponse.json(
+      { ok: false, error: "brand_forbidden" },
+      { status: 403 }
+    );
+  }
 
   if (mode === "template") {
     if (!conversationId) {

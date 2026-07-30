@@ -1,11 +1,18 @@
+import { notFound } from "next/navigation";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { WhatsAppBroadcastsPanel } from "@/components/crm/WhatsAppBroadcastsPanel";
 import { getWhatsAppCampaignDashboard } from "@/lib/crm/whatsappCampaigns";
+import { getConfigurationData } from "@/lib/data/configuration";
 
 export const dynamic = "force-dynamic";
 
 export default async function WhatsAppBroadcastsPage() {
-  const dashboard = await getWhatsAppCampaignDashboard("ineffable");
+  const config = await getConfigurationData();
+  const brand = config.brands.find((item) =>
+    ["ineffable", "ineffable-beauty"].includes(item.slug)
+  );
+  if (!brand) notFound();
+  const dashboard = await getWhatsAppCampaignDashboard(brand.slug);
 
   return (
     <CrmShell active="broadcasts">

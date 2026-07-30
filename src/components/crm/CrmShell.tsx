@@ -1,5 +1,5 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import "./crm-shell.css";
 
 type CrmSidebarKey =
@@ -40,47 +40,47 @@ export function CrmShell({
   active?: CrmSidebarKey;
 }) {
   return (
-    <main className="crm-shell min-h-screen bg-[#f6f7fb] text-[#1f2933]">
+    <main className="crm-shell min-h-screen bg-[var(--command-page)] text-[var(--command-navy)]">
       <div className="flex min-h-screen">
-        <aside className="hidden w-[218px] shrink-0 border-r border-[#e5e7eb] bg-white text-[#111827] lg:flex lg:flex-col">
-          <div className="border-b border-[#eef2f6] px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#8b5cf6]">LeadOps</p>
+        <aside className="hidden w-[218px] shrink-0 border-r border-[var(--command-border)] bg-white text-[var(--command-navy)] lg:flex lg:flex-col">
+          <div className="border-b border-[var(--command-border)] px-4 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--command-accent-strong)]">Alyssa LeadOps</p>
             <h1 className="mt-1 text-[15px] font-black">CRM</h1>
           </div>
           <nav className="flex-1 space-y-0.5 px-2.5 py-3">
             {sidebarItems.map((item) =>
               item.enabled ? (
-                <Link
+                <IntentPrefetchLink
                   key={item.key}
                   href={item.href}
                   className={`flex h-8 items-center gap-2 rounded-lg px-2.5 text-[12px] font-bold transition ${
                     item.key === active
-                      ? "bg-[#eef2ff] text-[#4338ca]"
-                      : "text-[#475569] hover:bg-[#f8fafc] hover:text-[#111827]"
+                      ? "bg-[var(--command-primary-soft)] text-[var(--command-primary)]"
+                      : "text-[var(--command-muted)] hover:bg-[var(--command-blush)] hover:text-[var(--command-navy)]"
                   }`}
                 >
                   <SidebarIcon active={item.key === active}>{item.icon}</SidebarIcon>
                   <span className="truncate">{item.label}</span>
-                </Link>
+                </IntentPrefetchLink>
               ) : (
-                <span key={item.key} className="flex h-8 cursor-not-allowed items-center gap-2 rounded-lg px-2.5 text-[12px] font-bold text-[#94a3b8]">
+                <span key={item.key} className="flex h-8 cursor-not-allowed items-center gap-2 rounded-lg px-2.5 text-[12px] font-bold text-[var(--command-disabled)]">
                   <SidebarIcon>{item.icon}</SidebarIcon>
                   <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                  <span className="text-[9px] uppercase tracking-[0.12em] text-[#cbd5e1]">Soon</span>
+                  <span className="text-[9px] uppercase tracking-[0.12em] text-[var(--command-disabled)]">Soon</span>
                 </span>
               )
             )}
           </nav>
-          <div className="border-t border-[#eef2f6] px-2.5 py-2">
-            <Link href="/crm/settings/whatsapp" className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]">
+          <div className="border-t border-[var(--command-border)] px-2.5 py-2">
+            <IntentPrefetchLink href="/crm/settings/whatsapp" className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[var(--command-muted)] transition hover:bg-[var(--command-blush)] hover:text-[var(--command-navy)]">
               WhatsApp 連接設定
-            </Link>
-            <Link href="/dashboard" className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[#64748b] transition hover:bg-[#f8fafc] hover:text-[#111827]">Back to LaunchHub</Link>
+            </IntentPrefetchLink>
+            <IntentPrefetchLink href="/dashboard" className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[var(--command-muted)] transition hover:bg-[var(--command-blush)] hover:text-[var(--command-navy)]">返回 Command Center</IntentPrefetchLink>
           </div>
         </aside>
 
-        <aside className="flex w-[52px] shrink-0 flex-col items-center border-r border-[#e5e7eb] bg-white py-3 text-[#111827] lg:hidden">
-          <Link href="/crm?tab=dashboard" className="grid h-8 w-8 place-items-center rounded-lg bg-[#eef2ff] text-[11px] font-black text-[#4338ca]" title="CRM Dashboard">C</Link>
+        <aside className="flex w-[52px] shrink-0 flex-col items-center border-r border-[var(--command-border)] bg-white py-3 text-[var(--command-navy)] lg:hidden">
+          <IntentPrefetchLink href="/crm?tab=dashboard" className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--command-primary-soft)] text-[11px] font-black text-[var(--command-primary)]" title="CRM Dashboard">C</IntentPrefetchLink>
           <div className="mt-4 grid gap-2">
             {[
               { label: "首", href: "/crm?tab=dashboard", key: "dashboard", title: "Dashboard / 首頁" },
@@ -91,16 +91,18 @@ export function CrmShell({
               { label: "報", href: "/crm?tab=reports", key: "reports", title: "Reports / 報表" },
               { label: "設", href: "/crm/settings", key: "settings", title: "Settings / 設定" },
             ].map((item) => (
-              <Link
+              <IntentPrefetchLink
                 key={item.key}
                 href={item.href}
                 className={`grid h-8 w-8 place-items-center rounded-lg text-[10px] font-black ${
-                  item.key === active ? "bg-[#eef2ff] text-[#4338ca]" : "text-[#94a3b8] hover:bg-[#f8fafc]"
+                  item.key === active
+                    ? "bg-[var(--command-primary-soft)] text-[var(--command-primary)]"
+                    : "text-[var(--command-disabled)] hover:bg-[var(--command-blush)]"
                 }`}
                 title={item.title}
               >
                 {item.label}
-              </Link>
+              </IntentPrefetchLink>
             ))}
           </div>
         </aside>
@@ -113,7 +115,7 @@ export function CrmShell({
 
 function SidebarIcon({ children, active = false }: { children: ReactNode; active?: boolean }) {
   return (
-    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md text-[10px] font-black ${active ? "bg-white text-[#4338ca]" : "bg-[#f1f5f9] text-[#64748b]"}`}>
+    <span className={`grid h-5 w-5 shrink-0 place-items-center rounded-md text-[10px] font-black ${active ? "bg-white text-[var(--command-primary)]" : "bg-[var(--command-blush)] text-[var(--command-muted)]"}`}>
       {children}
     </span>
   );

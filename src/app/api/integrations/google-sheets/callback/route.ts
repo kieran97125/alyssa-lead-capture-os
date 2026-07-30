@@ -8,10 +8,7 @@ import {
 } from "@/lib/integrations/googleSheetsOAuth";
 import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/commandCenter";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import {
-  adminSessionCookieName,
-  verifySignedAdminSession,
-} from "@/lib/security/internalAccess";
+import { verifyCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 function resultRedirect(request: NextRequest, ok: boolean, message: string) {
   const url = new URL("/data-sources", request.url);
@@ -38,11 +35,9 @@ export async function GET(request: NextRequest) {
   const storedState = parseGoogleSheetsOAuthCookie(
     request.cookies.get(googleSheetsOAuthStateCookie.name)?.value
   );
-  const session = await verifySignedAdminSession(
-    request.cookies.get(adminSessionCookieName)?.value
-  );
+  const session = await verifyCurrentInternalAccess();
 
-  if (!session.ok || session.accessLevel !== "master") {
+  if (!session.ok || session.access.accessLevel !== "master") {
     return clearStateCookie(
       resultRedirect(request, false, "Google 授權只限 Master Account 完成。")
     );

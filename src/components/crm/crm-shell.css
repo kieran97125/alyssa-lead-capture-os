@@ -5,8 +5,9 @@
   --crm-surface-soft: #f8fafc;
   --crm-text: #0f172a;
   --crm-muted: #64748b;
-  --crm-accent: #4f46e5;
-  --crm-accent-soft: #eef2ff;
+  --crm-accent: #167fa6;
+  --crm-accent-soft: #dff4fb;
+  --crm-accent-border: #b9e4f3;
 }
 
 .crm-shell header {
@@ -79,7 +80,7 @@
 
 .crm-shell header form select:focus,
 .crm-shell header form input:focus {
-  border-color: #818cf8 !important;
+  border-color: var(--crm-accent) !important;
   box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.12) !important;
 }
 

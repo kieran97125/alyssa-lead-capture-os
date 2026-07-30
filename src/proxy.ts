@@ -14,6 +14,19 @@ import {
   isAdminPasswordGateEnabled,
   verifySignedAdminSession,
 } from "@/lib/security/internalAccess";
+import {
+  isBreakGlassPasswordEnabled,
+  isWorkspaceEmailAuthRequired,
+} from "@/lib/supabase/authConfig";
+import {
+  hasSupabaseAuthCookie,
+  refreshSupabaseAuth,
+} from "@/lib/supabase/authProxy";
+import {
+  canAccessWorkspaceModule,
+  getWorkspaceMemberAccess,
+  getWorkspaceModuleForPath,
+} from "@/lib/security/workspaceAuth";
 
 function cleanBaseUrl(value: string | undefined) {
   const cleaned = value?.trim().replace(/\/+$/, "");
@@ -144,7 +157,13 @@ function attachPublicAttributionCookie(
 }
 
 function isAdminBackendPath(pathname: string) {
-  return pathname === "/login" || pathname === "/logout" || isInternalRoute(pathname);
+  return (
+    pathname === "/login" ||
+    pathname === "/logout" ||
+    pathname.startsWith("/auth/") ||
+    pathname.startsWith("/api/auth/") ||
+    isInternalRoute(pathname)
+  );
 }
 
 function redirectToLogin(request: NextRequest, error?: string) {
@@ -183,9 +202,41 @@ export async function proxy(request: NextRequest) {
   }
 
   if (
-    isAdminPasswordGateEnabled() &&
     isInternalRoute(request.nextUrl.pathname)
   ) {
+    const emailAuthRequired = isWorkspaceEmailAuthRequired();
+    if (emailAuthRequired || hasSupabaseAuthCookie(request)) {
+      const auth = await refreshSupabaseAuth(request);
+      if (auth.identity) {
+        const member = await getWorkspaceMemberAccess(auth.identity, {
+          activate: true,
+        });
+        if (member) {
+          const routeModule = getWorkspaceModuleForPath(
+            request.nextUrl.pathname
+          );
+          if (
+            requiresMasterAccess(request.nextUrl.pathname) &&
+            member.accessLevel !== "master"
+          ) {
+            return redirectToLogin(request, "master_required");
+          }
+          if (routeModule && !canAccessWorkspaceModule(member, routeModule)) {
+            return redirectToLogin(request, "permission_denied");
+          }
+          return auth.response;
+        }
+      }
+
+      if (emailAuthRequired && !isBreakGlassPasswordEnabled()) {
+        return redirectToLogin(request, "not_invited");
+      }
+    }
+
+    if (!isAdminPasswordGateEnabled()) {
+      return NextResponse.next();
+    }
+
     const session = await verifySignedAdminSession(
       request.cookies.get(adminSessionCookieName)?.value
     );
