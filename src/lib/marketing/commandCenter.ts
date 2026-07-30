@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getConfigurationData, type BrandSetting } from "@/lib/data/configuration";
+import { alyssaBrand } from "@/lib/data/alyssaConfig";
 import {
   getLeadRows,
   isBooking,
@@ -243,7 +244,7 @@ async function getPlanningRecords(month: HkMonthContext) {
         ? [
             {
               id: "10000000-0000-4000-8000-000000000001",
-              brandId: "",
+              brandId: alyssaBrand.id,
               title: "DEP Reels 上線",
               itemType: "post",
               channel: "IG",
