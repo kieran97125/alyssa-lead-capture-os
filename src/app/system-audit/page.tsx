@@ -97,8 +97,11 @@ async function getAuditSummary() {
 }
 
 async function getReadinessChecks() {
-  const mainForm = await getFormByIdOrSlug(alyssaDefaultForm.publicFormToken);
-  const publicLp = await getPublishedLandingPageBySlug("alyssa-main-trial-offer");
+  const [mainForm, publicLp, authEmailDelivery] = await Promise.all([
+    getFormByIdOrSlug(alyssaDefaultForm.publicFormToken),
+    getPublishedLandingPageBySlug("alyssa-main-trial-offer"),
+    getAuthEmailDeliveryReadiness(),
+  ]);
   const sheetsStatus = getGoogleSheetsLeadSyncStatus();
   const emailAuthReady = getSupabasePublicAuthConfig().ready;
   const emailAuthRequired = isWorkspaceEmailAuthRequired();
@@ -143,12 +146,8 @@ async function getReadinessChecks() {
     },
     {
       label: "Production auth email",
-      detail: envPresent("LAUNCHHUB_AUTH_SMTP_VERIFIED_AT")
-        ? "Custom SMTP delivery verified"
-        : "以實際邀請寄送驗收",
-      tone: envPresent("LAUNCHHUB_AUTH_SMTP_VERIFIED_AT")
-        ? "ready"
-        : "attention",
+      detail: authEmailDelivery.detail,
+      tone: authEmailDelivery.tone,
     },
     {
       label: "Google Sheets lead sync",
@@ -176,6 +175,57 @@ async function getReadinessChecks() {
       tone: publicLp ? "ready" : "missing",
     },
   ] satisfies Array<{ label: string; detail: string; tone: CheckTone }>;
+}
+
+async function getAuthEmailDeliveryReadiness(): Promise<{
+  detail: string;
+  tone: CheckTone;
+}> {
+  if (!hasSupabaseAdminEnv()) {
+    return { detail: "Supabase 尚未連接", tone: "missing" };
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase
+    .from("workspace_members")
+    .select("status,invite_delivery_status")
+    .eq("is_master", false)
+    .neq("status", "removed");
+  if (error) {
+    return { detail: "未能讀取實際寄送紀錄", tone: "attention" };
+  }
+
+  const rows = data ?? [];
+  const acceptedCount = rows.filter(
+    (row) =>
+      row.status === "active" || row.invite_delivery_status === "accepted"
+  ).length;
+  const submittedCount = rows.filter(
+    (row) => row.invite_delivery_status === "submitted"
+  ).length;
+  const failedCount = rows.filter(
+    (row) => row.invite_delivery_status === "failed"
+  ).length;
+
+  if (acceptedCount > 0) {
+    return {
+      detail: `${acceptedCount} 個帳戶已完成電郵身份確認`,
+      tone: "ready",
+    };
+  }
+  if (failedCount > 0) {
+    return {
+      detail: `${failedCount} 次寄送未獲郵件服務接受`,
+      tone: "attention",
+    };
+  }
+  if (submittedCount > 0) {
+    return {
+      detail: `${submittedCount} 封已提交，等待成員確認`,
+      tone: "attention",
+    };
+  }
+  return { detail: "尚未由 Master 實際寄出邀請", tone: "attention" };
 }
 
 export default async function SystemAuditPage() {

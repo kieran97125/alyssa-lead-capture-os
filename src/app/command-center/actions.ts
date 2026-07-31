@@ -15,7 +15,6 @@ import {
 import {
   getAuthConfirmUrl,
   getSupabasePublicAuthConfig,
-  isWorkspaceAuthSmtpVerified,
 } from "@/lib/supabase/authConfig";
 import {
   syncAllMarketingGoogleSheets,
@@ -649,14 +648,7 @@ export async function createWorkspaceMemberAction(formData: FormData) {
   const email = readString(formData, "email").toLowerCase();
   const fullName = readString(formData, "fullName");
   const role = readString(formData, "role") || "viewer";
-  const allowedRoles = new Set([
-    "admin",
-    "manager",
-    "marketer",
-    "cs",
-    "designer",
-    "viewer",
-  ]);
+  const allowedRoles = new Set(workspaceAssignableRoles);
   if (
     !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email) ||
     !allowedRoles.has(role)
@@ -668,154 +660,177 @@ export async function createWorkspaceMemberAction(formData: FormData) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const { data: existing, error: existingError } = await supabase
-    .from("workspace_members")
-    .select("id,auth_user_id,is_master,status,workspace_role")
-    .ilike("email", email)
-    .maybeSingle();
-  if (existingError) {
+  const { brandIds, moduleKeys } = readWorkspaceMemberPermissions(
+    formData,
+    role
+  );
+  const { data: memberIdValue, error: createError } = await supabase.rpc(
+    "create_workspace_member_invitation",
+    {
+      p_email: email,
+      p_full_name: fullName,
+      p_workspace_role: role,
+      p_brand_ids: brandIds,
+      p_module_keys: moduleKeys,
+      p_invited_by_member_id: access.memberId,
+      p_invited_by_email: access.actorIdentifier,
+    }
+  );
+  const memberId =
+    typeof memberIdValue === "string" ? memberIdValue : "";
+  if (createError || !memberId) {
+    console.warn("workspace_member_create_failed", {
+      code: createError?.code,
+    });
     redirectWithResult(returnPath, {
       ok: false,
-      message: "未能核對現有成員，請稍後再試。",
+      message:
+        createError?.message === "workspace_member_already_exists"
+          ? "呢個電郵已經喺帳戶列表；請直接更改權限或重發登入連結。"
+          : "未能建立成員權限，請稍後再試。",
     });
   }
 
-  let memberId = existing?.id ? String(existing.id) : "";
-  const now = new Date().toISOString();
-  if (memberId) {
-    const { error } = await supabase
-      .from("workspace_members")
-      .update({
-        full_name: fullName || null,
-        workspace_role: existing?.is_master ? "owner" : role,
-        status: existing?.is_master ? existing.status : "invited",
-        invited_by_member_id: access.memberId,
-        invited_by_email: access.actorIdentifier,
-        updated_at: now,
-      })
-      .eq("id", memberId);
-    if (error) {
-      redirectWithResult(returnPath, {
-        ok: false,
-        message: "未能更新成員權限。",
-      });
-    }
-  } else {
-    const { data, error } = await supabase
-      .from("workspace_members")
-      .insert({
-        email,
-        full_name: fullName || null,
-        workspace_role: role,
-        status: "invited",
-        is_master: false,
-        invited_by_member_id: access.memberId,
-        invited_by_email: access.actorIdentifier,
-      })
-      .select("id")
-      .single();
-    if (error || !data?.id) {
-      console.warn("workspace_member_create_failed", {
-        code: error?.code,
-      });
-      redirectWithResult(returnPath, {
-        ok: false,
-        message: "未能新增成員；請確認電郵未被使用。",
-      });
-    }
-    memberId = String(data.id);
-  }
-
-  const brandIds = [
-    ...new Set(formData.getAll("brandIds").map(String).filter(Boolean)),
-  ];
+  const attemptedAt = new Date().toISOString();
   await supabase
-    .from("workspace_member_brand_access")
-    .delete()
-    .eq("member_id", memberId);
-  if (brandIds.length > 0) {
-    const { error } = await supabase.from("workspace_member_brand_access").insert(
-      brandIds.map((brandId) => ({
-        member_id: memberId,
-        brand_id: brandId,
-        status: "active",
-      }))
-    );
-    if (error) {
-      redirectWithResult(returnPath, {
-        ok: false,
-        message: "成員已建立，但品牌權限未能儲存。",
-      });
-    }
-  }
-  const selectedModuleKeys = formData
-    .getAll("moduleKeys")
-    .map(String)
-    .filter((value) =>
-      workspaceModuleKeys.includes(value as (typeof workspaceModuleKeys)[number])
-    );
-  const moduleKeys =
-    selectedModuleKeys.length > 0
-      ? [...new Set(selectedModuleKeys)]
-      : getWorkspaceRoleDefaultModules(normalizeWorkspaceRole(role));
-  await supabase
-    .from("workspace_member_module_permissions")
-    .delete()
-    .eq("member_id", memberId);
-  if (moduleKeys.length > 0) {
-    const { error } = await supabase.from("workspace_member_module_permissions").insert(
-      moduleKeys.map((moduleKey) => ({
-        member_id: memberId,
-        module_key: moduleKey,
-        can_access: true,
-      }))
-    );
-    if (error) {
-      redirectWithResult(returnPath, {
-        ok: false,
-        message: "成員已建立，但模組權限未能儲存。",
-      });
-    }
-  }
-
+    .from("workspace_members")
+    .update({
+      invite_attempted_at: attemptedAt,
+      invite_last_error_code: null,
+      updated_at: attemptedAt,
+    })
+    .eq("id", memberId);
   const invite = await sendWorkspaceAccessEmail({
     email,
     fullName,
-    existingAuthUserId:
-      typeof existing?.auth_user_id === "string" ? existing.auth_user_id : null,
+    existingAuthUserId: null,
   });
   if (!invite.ok) {
     await supabase
       .from("workspace_members")
-      .update({ updated_at: new Date().toISOString() })
+      .update({
+        ...(invite.authUserId
+          ? { auth_user_id: invite.authUserId }
+          : {}),
+        invite_delivery_status: "failed",
+        invite_last_error_code: invite.code,
+        updated_at: new Date().toISOString(),
+      })
       .eq("id", memberId);
+    await writeAudit({
+      actorIdentifier: access.actorIdentifier,
+      action: "workspace_member.invite_failed",
+      entityType: "workspace_member",
+      entityId: memberId,
+      after: { email, role, brandIds, moduleKeys, code: invite.code },
+    });
+    revalidateCommandCenter("/settings/team");
     redirectWithResult(returnPath, {
       ok: false,
       message:
-        "權限已儲存，但邀請電郵未能寄出。請確認 Supabase Auth 已設定 Production SMTP，再按「重發邀請」。",
+        "帳戶及權限已儲存，但郵件服務未接受今次寄送。請完成 Production SMTP 設定後喺帳戶列表按「重發連結」。",
     });
   }
 
+  const sentAt = new Date().toISOString();
   await supabase
     .from("workspace_members")
     .update({
       auth_user_id: invite.authUserId,
-      invite_sent_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      invite_sent_at: sentAt,
+      invite_delivery_status: "submitted",
+      invite_last_error_code: null,
+      updated_at: sentAt,
     })
     .eq("id", memberId);
 
   await writeAudit({
     actorIdentifier: access.actorIdentifier,
-    action: "workspace_member.invited",
+    action: "workspace_member.invite_submitted",
     entityType: "workspace_member",
     entityId: memberId,
-    after: { email, role, brandIds, moduleKeys },
+    after: {
+      email,
+      role,
+      brandIds,
+      moduleKeys,
+      deliveryStatus: "submitted",
+    },
   });
   revalidateCommandCenter("/settings/team");
   redirectWithResult(returnPath, {
     ok: true,
-    message: `邀請已寄到 ${email}；對方按一次性連結後會按你設定嘅角色進入。`,
+    message: `郵件服務已接受寄送到 ${email}。對方首次按安全連結後，帳戶會轉為「已啟用」。`,
+  });
+}
+
+export async function updateWorkspaceMemberAccessAction(formData: FormData) {
+  const returnPath = "/settings/team";
+  const access = await ensureCommandCenterAction(returnPath, {
+    masterOnly: true,
+  });
+  if (!access.ok) redirectWithResult(returnPath, access);
+
+  const memberId = readString(formData, "memberId");
+  const fullName = readString(formData, "fullName");
+  const role = readString(formData, "role") || "viewer";
+  if (!memberId || !workspaceAssignableRoles.includes(role)) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "請選擇有效帳戶及角色。",
+    });
+  }
+
+  const { brandIds, moduleKeys } = readWorkspaceMemberPermissions(
+    formData,
+    role
+  );
+  const supabase = createSupabaseAdminClient();
+  const { data: member, error: memberError } = await supabase
+    .from("workspace_members")
+    .select("id,email,full_name,workspace_role,status,is_master")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (memberError || !member || member.is_master) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "Master Account 不可更改，或帳戶已不存在。",
+    });
+  }
+
+  const { error } = await supabase.rpc("update_workspace_member_access", {
+    p_member_id: memberId,
+    p_full_name: fullName,
+    p_workspace_role: role,
+    p_brand_ids: brandIds,
+    p_module_keys: moduleKeys,
+  });
+  if (error) {
+    console.warn("workspace_member_access_update_failed", {
+      code: error.code,
+    });
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "未能儲存權限更改，請稍後再試。",
+    });
+  }
+
+  await writeAudit({
+    actorIdentifier: access.actorIdentifier,
+    action: "workspace_member.permissions_updated",
+    entityType: "workspace_member",
+    entityId: memberId,
+    before: {
+      fullName: member.full_name,
+      role: member.workspace_role,
+      status: member.status,
+    },
+    after: { fullName, role, brandIds, moduleKeys },
+  });
+  revalidateCommandCenter("/settings/team");
+  redirectWithResult(returnPath, {
+    ok: true,
+    message: `${member.email} 嘅角色、品牌及功能權限已更新。`,
   });
 }
 
@@ -837,10 +852,19 @@ export async function resendWorkspaceInviteAction(formData: FormData) {
   if (!member) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "搵唔到可重發嘅成員邀請。",
+      message: "搵唔到可寄送登入連結嘅帳戶。",
     });
   }
 
+  const attemptedAt = new Date().toISOString();
+  await supabase
+    .from("workspace_members")
+    .update({
+      invite_attempted_at: attemptedAt,
+      invite_last_error_code: null,
+      updated_at: attemptedAt,
+    })
+    .eq("id", memberId);
   const result = await sendWorkspaceAccessEmail({
     email: String(member.email),
     fullName: String(member.full_name || ""),
@@ -848,30 +872,120 @@ export async function resendWorkspaceInviteAction(formData: FormData) {
       typeof member.auth_user_id === "string" ? member.auth_user_id : null,
   });
   if (!result.ok) {
+    await supabase
+      .from("workspace_members")
+      .update({
+        ...(result.authUserId
+          ? { auth_user_id: result.authUserId }
+          : {}),
+        invite_delivery_status: "failed",
+        invite_last_error_code: result.code,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", memberId);
+    await writeAudit({
+      actorIdentifier: access.actorIdentifier,
+      action: "workspace_member.invite_failed",
+      entityType: "workspace_member",
+      entityId: memberId,
+      after: { code: result.code },
+    });
+    revalidateCommandCenter("/settings/team");
     redirectWithResult(returnPath, {
       ok: false,
-      message: "未能重發邀請；請確認 Production SMTP 及稍後再試。",
+      message:
+        "郵件服務未接受今次寄送。帳戶權限冇改動；請完成 Production SMTP 設定後再試。",
     });
   }
 
+  const sentAt = new Date().toISOString();
   await supabase
     .from("workspace_members")
     .update({
       auth_user_id: result.authUserId,
-      invite_sent_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
+      invite_sent_at: sentAt,
+      invite_delivery_status: "submitted",
+      invite_last_error_code: null,
+      updated_at: sentAt,
     })
     .eq("id", memberId);
   await writeAudit({
     actorIdentifier: access.actorIdentifier,
-    action: "workspace_member.invite_resent",
+    action: "workspace_member.invite_submitted",
     entityType: "workspace_member",
     entityId: memberId,
+    after: { deliveryStatus: "submitted" },
   });
   revalidateCommandCenter("/settings/team");
   redirectWithResult(returnPath, {
     ok: true,
-    message: `已重發安全登入連結到 ${member.email}。`,
+    message: `郵件服務已接受寄送安全登入連結到 ${member.email}。`,
+  });
+}
+
+export async function setWorkspaceMemberStatusAction(formData: FormData) {
+  const returnPath = "/settings/team";
+  const access = await ensureCommandCenterAction(returnPath, {
+    masterOnly: true,
+  });
+  if (!access.ok) redirectWithResult(returnPath, access);
+
+  const memberId = readString(formData, "memberId");
+  const requestedStatus = readString(formData, "status");
+  if (!memberId || !["active", "suspended"].includes(requestedStatus)) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "帳戶狀態操作無效。",
+    });
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data: member } = await supabase
+    .from("workspace_members")
+    .select("id,email,is_master,status")
+    .eq("id", memberId)
+    .maybeSingle();
+  if (!member || member.is_master || member.status === "removed") {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "Master Account 不可暫停，或帳戶已不存在。",
+    });
+  }
+
+  const { data: nextStatusValue, error } = await supabase.rpc(
+    "set_workspace_member_status",
+    {
+      p_member_id: memberId,
+      p_requested_status: requestedStatus,
+    }
+  );
+  const nextStatus =
+    typeof nextStatusValue === "string" ? nextStatusValue : "";
+  if (error || !nextStatus) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "未能更改帳戶狀態，請稍後再試。",
+    });
+  }
+
+  await writeAudit({
+    actorIdentifier: access.actorIdentifier,
+    action:
+      nextStatus === "suspended"
+        ? "workspace_member.suspended"
+        : "workspace_member.reactivated",
+    entityType: "workspace_member",
+    entityId: memberId,
+    before: { status: member.status },
+    after: { status: nextStatus },
+  });
+  revalidateCommandCenter("/settings/team");
+  redirectWithResult(returnPath, {
+    ok: true,
+    message:
+      nextStatus === "suspended"
+        ? `${member.email} 已暫停；現有登入 Session 會被伺服器拒絕。`
+        : `${member.email} 已重新啟用。`,
   });
 }
 
@@ -896,17 +1010,16 @@ export async function revokeWorkspaceMemberAction(formData: FormData) {
     });
   }
 
-  const now = new Date().toISOString();
-  await Promise.all([
-    supabase
-      .from("workspace_members")
-      .update({ status: "removed", updated_at: now })
-      .eq("id", memberId),
-    supabase
-      .from("workspace_member_brand_access")
-      .update({ status: "removed", updated_at: now })
-      .eq("member_id", memberId),
-  ]);
+  const { error } = await supabase.rpc("set_workspace_member_status", {
+    p_member_id: memberId,
+    p_requested_status: "removed",
+  });
+  if (error) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "未能移除帳戶，請稍後再試。",
+    });
+  }
   await writeAudit({
     actorIdentifier: access.actorIdentifier,
     action: "workspace_member.revoked",
@@ -932,11 +1045,15 @@ async function sendWorkspaceAccessEmail({
   existingAuthUserId: string | null;
 }): Promise<
   | { ok: true; authUserId: string }
-  | { ok: false; authUserId: null }
+  | { ok: false; authUserId: string | null; code: string }
 > {
   const config = getSupabasePublicAuthConfig();
-  if (!config.ready || !isWorkspaceAuthSmtpVerified()) {
-    return { ok: false, authUserId: null };
+  if (!config.ready) {
+    return {
+      ok: false,
+      authUserId: existingAuthUserId,
+      code: "auth_not_configured",
+    };
   }
 
   const admin = createSupabaseAdminClient();
@@ -967,7 +1084,11 @@ async function sendWorkspaceAccessEmail({
         code: error?.code,
         status: error?.status,
       });
-      return { ok: false, authUserId: null };
+      return {
+        ok: false,
+        authUserId: null,
+        code: safeAuthEmailErrorCode(error),
+      };
     }
   }
 
@@ -990,7 +1111,54 @@ async function sendWorkspaceAccessEmail({
       code: error.code,
       status: error.status,
     });
-    return { ok: false, authUserId: null };
+    return {
+      ok: false,
+      authUserId,
+      code: safeAuthEmailErrorCode(error),
+    };
   }
   return { ok: true, authUserId };
+}
+
+const workspaceAssignableRoles: readonly string[] = [
+  "admin",
+  "manager",
+  "marketer",
+  "cs",
+  "designer",
+  "viewer",
+] as const;
+
+function readWorkspaceMemberPermissions(formData: FormData, role: string) {
+  const brandIds = [
+    ...new Set(formData.getAll("brandIds").map(String).filter(Boolean)),
+  ];
+  const selectedModuleKeys = formData
+    .getAll("moduleKeys")
+    .map(String)
+    .filter((value) =>
+      workspaceModuleKeys.includes(value as (typeof workspaceModuleKeys)[number])
+    );
+  const moduleKeys =
+    selectedModuleKeys.length > 0
+      ? [...new Set(selectedModuleKeys)]
+      : getWorkspaceRoleDefaultModules(normalizeWorkspaceRole(role));
+
+  return { brandIds, moduleKeys };
+}
+
+function safeAuthEmailErrorCode(error: {
+  code?: string;
+  status?: number;
+  message?: string;
+} | null) {
+  if (error?.status === 429) return "rate_limited";
+  const combined = `${error?.code || ""} ${error?.message || ""}`.toLowerCase();
+  if (combined.includes("smtp") || combined.includes("email")) {
+    return "mail_provider_not_ready";
+  }
+  if (combined.includes("user") && combined.includes("exist")) {
+    return "auth_user_conflict";
+  }
+  return "mail_provider_rejected";
 }

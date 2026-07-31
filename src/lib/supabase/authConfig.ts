@@ -16,10 +16,6 @@ export function isWorkspaceEmailAuthRequired() {
   return process.env.LAUNCHHUB_EMAIL_AUTH_ENABLED?.trim().toLowerCase() === "true";
 }
 
-export function isWorkspaceAuthSmtpVerified() {
-  return Boolean(process.env.LAUNCHHUB_AUTH_SMTP_VERIFIED_AT?.trim());
-}
-
 export function isBreakGlassPasswordEnabled() {
   return (
     !isWorkspaceEmailAuthRequired() ||

@@ -89,6 +89,8 @@ export async function getWorkspaceMemberAccess(
         auth_user_id: identity.userId,
         status: "active",
         invite_accepted_at: new Date().toISOString(),
+        invite_delivery_status: "accepted",
+        invite_last_error_code: null,
         last_sign_in_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })

@@ -94,6 +94,10 @@ export type WorkspaceMember = {
   inviteSentAt: string | null;
   inviteAcceptedAt: string | null;
   lastSignInAt: string | null;
+  inviteAttemptedAt: string | null;
+  inviteDeliveryStatus: string;
+  inviteLastErrorCode: string | null;
+  permissionsUpdatedAt: string | null;
   brandIds: string[];
   modulePermissions: Record<string, boolean>;
 };
@@ -239,8 +243,9 @@ function progressMetric(
 
 async function getPlanningRecords(month: HkMonthContext) {
   if (!hasSupabaseAdminEnv()) {
+    const e2eFixturesEnabled = process.env.ALYSSA_E2E_FIXTURES === "1";
     const fixtureCalendarItems: CalendarItem[] =
-      process.env.ALYSSA_E2E_FIXTURES === "1"
+      e2eFixturesEnabled
         ? [
             {
               id: "10000000-0000-4000-8000-000000000001",
@@ -257,13 +262,79 @@ async function getPlanningRecords(month: HkMonthContext) {
             },
           ]
         : [];
+    const fixtureMembers: WorkspaceMember[] = e2eFixturesEnabled
+      ? [
+          {
+            id: "20000000-0000-4000-8000-000000000001",
+            authUserId: null,
+            email: MASTER_ACCOUNT_EMAIL,
+            fullName: "Kieran Kwok",
+            role: "owner",
+            status: "active",
+            isMaster: true,
+            inviteSentAt: null,
+            inviteAcceptedAt: null,
+            lastSignInAt: null,
+            inviteAttemptedAt: null,
+            inviteDeliveryStatus: "not_sent",
+            inviteLastErrorCode: null,
+            permissionsUpdatedAt: month.today,
+            brandIds: [],
+            modulePermissions: {},
+          },
+          {
+            id: "20000000-0000-4000-8000-000000000002",
+            authUserId: "30000000-0000-4000-8000-000000000002",
+            email: "active.member@example.test",
+            fullName: "Active Member",
+            role: "cs",
+            status: "active",
+            isMaster: false,
+            inviteSentAt: `${month.today}T01:00:00.000Z`,
+            inviteAcceptedAt: `${month.today}T01:05:00.000Z`,
+            lastSignInAt: `${month.today}T01:10:00.000Z`,
+            inviteAttemptedAt: `${month.today}T01:00:00.000Z`,
+            inviteDeliveryStatus: "accepted",
+            inviteLastErrorCode: null,
+            permissionsUpdatedAt: `${month.today}T01:00:00.000Z`,
+            brandIds: [alyssaBrand.id],
+            modulePermissions: {
+              dashboard: true,
+              calendar: true,
+              leads: true,
+              crm: true,
+            },
+          },
+          {
+            id: "20000000-0000-4000-8000-000000000003",
+            authUserId: "30000000-0000-4000-8000-000000000003",
+            email: "pending.member@example.test",
+            fullName: "Pending Member",
+            role: "viewer",
+            status: "invited",
+            isMaster: false,
+            inviteSentAt: `${month.today}T02:00:00.000Z`,
+            inviteAcceptedAt: null,
+            lastSignInAt: null,
+            inviteAttemptedAt: `${month.today}T02:00:00.000Z`,
+            inviteDeliveryStatus: "submitted",
+            inviteLastErrorCode: null,
+            permissionsUpdatedAt: `${month.today}T02:00:00.000Z`,
+            brandIds: [alyssaBrand.id],
+            modulePermissions: {
+              dashboard: true,
+              performance: true,
+            },
+          },
+        ]
+      : [];
 
     return {
       plans: [] as MonthlyPlan[],
       metrics: [] as DailyMetric[],
       dataSources: [] as MarketingDataSource[],
       calendarItems: fixtureCalendarItems,
-      members: [] as WorkspaceMember[],
+      members: fixtureMembers,
       schemaReady: false,
       warnings: ["Command Center 資料表尚未連接；目前顯示現有 LaunchHub 數據。"],
     };
@@ -301,7 +372,7 @@ async function getPlanningRecords(month: HkMonthContext) {
       supabase
         .from("workspace_members")
         .select(
-          "id,auth_user_id,email,full_name,workspace_role,status,is_master,invite_sent_at,invite_accepted_at,last_sign_in_at"
+          "id,auth_user_id,email,full_name,workspace_role,status,is_master,invite_sent_at,invite_accepted_at,last_sign_in_at,invite_attempted_at,invite_delivery_status,invite_last_error_code,permissions_updated_at"
         )
         .neq("status", "removed")
         .order("is_master", { ascending: false })
@@ -444,6 +515,12 @@ async function getPlanningRecords(month: HkMonthContext) {
         inviteSentAt: textValue(row.invite_sent_at),
         inviteAcceptedAt: textValue(row.invite_accepted_at),
         lastSignInAt: textValue(row.last_sign_in_at),
+        inviteAttemptedAt: textValue(row.invite_attempted_at),
+        inviteDeliveryStatus: String(
+          row.invite_delivery_status ?? "not_sent"
+        ),
+        inviteLastErrorCode: textValue(row.invite_last_error_code),
+        permissionsUpdatedAt: textValue(row.permissions_updated_at),
         brandIds: brandAccess.get(id) ?? [],
         modulePermissions: permissions.get(id) ?? {},
       };
@@ -601,6 +678,10 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
               inviteSentAt: null,
               inviteAcceptedAt: null,
               lastSignInAt: null,
+              inviteAttemptedAt: null,
+              inviteDeliveryStatus: "not_sent",
+              inviteLastErrorCode: null,
+              permissionsUpdatedAt: null,
               brandIds: config.brands.map((brand) => brand.id),
               modulePermissions: {},
             },
