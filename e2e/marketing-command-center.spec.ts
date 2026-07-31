@@ -418,6 +418,54 @@ test("Command Center feature pages render without migration-dependent crashes", 
   }
 });
 
+test("Master owns invitations and active member permissions from one page", async ({
+  page,
+}) => {
+  await page.goto("/settings/team", { waitUntil: "domcontentloaded" });
+
+  await expect(
+    page.getByRole("heading", { name: "已啟用帳戶", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "待接受邀請", exact: true })
+  ).toBeVisible();
+  await expect(page.getByText("active.member@example.test")).toBeVisible();
+  await expect(page.getByText("pending.member@example.test")).toBeVisible();
+
+  const activeMember = page
+    .locator(".member-card")
+    .filter({ hasText: "active.member@example.test" });
+  await expect(activeMember.getByText("已啟用", { exact: true })).toBeVisible();
+  await expect(
+    activeMember.getByRole("button", { name: "寄出新登入連結" })
+  ).toBeVisible();
+  await activeMember.getByText("更改權限", { exact: true }).click();
+  await expect(
+    activeMember.getByRole("button", { name: "儲存權限" })
+  ).toBeVisible();
+  await expect(activeMember.getByLabel("Workspace Role")).toHaveValue("cs");
+
+  const pendingMember = page
+    .locator(".member-card")
+    .filter({ hasText: "pending.member@example.test" });
+  await expect(
+    pendingMember.getByRole("button", { name: "重發邀請" })
+  ).toBeVisible();
+});
+
+test("login page cannot self-send an account email", async ({ page }) => {
+  await page.goto("/logout");
+
+  await expect(
+    page.getByRole("heading", { name: "受邀帳戶登入" })
+  ).toBeVisible();
+  await expect(page.getByLabel("Company email")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "寄出登入連結" })
+  ).toHaveCount(0);
+  await expect(page.getByText(/安全登入連結只會由 Master/)).toBeVisible();
+});
+
 test("Treatment Performance is a Lead Sheet projection with explicit metric contracts", async ({
   page,
 }) => {

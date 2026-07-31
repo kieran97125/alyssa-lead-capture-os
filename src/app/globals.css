@@ -1359,6 +1359,8 @@ textarea {
 .calendar-create-section textarea,
 .invite-member-section input,
 .invite-member-section select,
+.member-access-editor input,
+.member-access-editor select,
 .add-source-form input,
 .add-source-form select,
 .calendar-create-section input,
@@ -1654,6 +1656,16 @@ textarea {
 .member-status-active {
   background: #e8f8f0;
   color: #168159;
+}
+
+.member-status-invited {
+  background: #fff4df;
+  color: #a7650d;
+}
+
+.member-status-suspended {
+  background: #fff0f1;
+  color: #b4233a;
 }
 
 .source-status-warning {
@@ -2096,6 +2108,38 @@ textarea {
   color: #a06b1d;
 }
 
+.member-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin-top: 1rem;
+}
+
+.member-summary-grid article {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 0.6rem;
+  border: 1px solid var(--command-border);
+  border-radius: 0.9rem;
+  background: white;
+  padding: 0.85rem 0.95rem;
+  box-shadow: var(--command-shadow);
+  color: var(--command-primary);
+}
+
+.member-summary-grid span {
+  color: #6e6270;
+  font-size: 0.62rem;
+  font-weight: 740;
+}
+
+.member-summary-grid strong {
+  color: #321428;
+  font-size: 1rem;
+  font-weight: 860;
+}
+
 .auth-transition-notice strong,
 .auth-transition-notice p {
   display: block;
@@ -2139,6 +2183,182 @@ textarea {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 0.7rem;
+}
+
+.member-registry header div > span {
+  display: block;
+  margin-top: 0.28rem;
+  color: #8c93a3;
+  font-size: 0.58rem;
+  font-weight: 630;
+  line-height: 1.45;
+}
+
+.member-card-list {
+  display: grid;
+}
+
+.member-card {
+  padding: 1rem;
+  border-bottom: 1px solid #edf0f4;
+}
+
+.member-card:last-child {
+  border-bottom: 0;
+}
+
+.member-card-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.member-card-meta {
+  display: grid;
+  min-width: min(100%, 34rem);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.55rem;
+}
+
+.member-card-meta > span {
+  min-width: 0;
+  border-left: 1px solid #eee5e7;
+  padding-left: 0.7rem;
+}
+
+.member-card-meta small,
+.member-card-meta strong {
+  display: block;
+}
+
+.member-card-meta small {
+  color: #9a919a;
+  font-size: 0.5rem;
+  font-weight: 760;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.member-card-meta strong {
+  overflow: hidden;
+  margin-top: 0.22rem;
+  color: #4c3947;
+  font-size: 0.59rem;
+  font-style: normal;
+  font-weight: 760;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+}
+
+.member-card-meta i {
+  font-style: normal;
+}
+
+.member-delivery-line {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 0.4rem 1rem;
+  margin-top: 0.7rem;
+  border-radius: 0.65rem;
+  background: #fcf8f6;
+  padding: 0.55rem 0.7rem;
+  color: #887681;
+  font-size: 0.54rem;
+  font-weight: 680;
+}
+
+.member-access-editor {
+  margin-top: 0.7rem;
+  overflow: hidden;
+  border: 1px solid #eadfe0;
+  border-radius: 0.75rem;
+  background: #fffdfb;
+}
+
+.member-access-editor > summary {
+  display: flex;
+  cursor: pointer;
+  list-style: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.68rem 0.75rem;
+  color: var(--command-primary);
+  font-size: 0.6rem;
+  font-weight: 790;
+}
+
+.member-access-editor > summary::-webkit-details-marker {
+  display: none;
+}
+
+.member-access-editor > summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.member-access-editor[open] > summary > svg {
+  transform: rotate(180deg);
+}
+
+.member-access-editor > summary > svg {
+  transition: transform 160ms ease;
+}
+
+.member-access-editor > form {
+  border-top: 1px solid #eadfe0;
+  padding: 0.85rem;
+}
+
+.member-access-editor input[readonly] {
+  color: #938692;
+  background: #f6f2f1;
+}
+
+.member-access-editor form > footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-top: 0.85rem;
+}
+
+.member-access-editor form > footer p {
+  max-width: 40rem;
+  margin: 0;
+  color: #8c7f88;
+  font-size: 0.56rem;
+  font-weight: 630;
+  line-height: 1.45;
+}
+
+.member-card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.42rem;
+  margin-top: 0.7rem;
+}
+
+.member-master-lock {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin: 0.7rem 0 0;
+  color: #876979;
+  font-size: 0.55rem;
+  font-weight: 680;
+}
+
+.member-empty-state {
+  margin: 0;
+  padding: 1.2rem;
+  color: #938994;
+  font-size: 0.62rem;
+  font-weight: 650;
+  text-align: center;
 }
 
 .member-permission-fieldset {
@@ -2241,6 +2461,19 @@ textarea {
   .member-basic-grid {
     grid-template-columns: 1fr;
   }
+
+  .member-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .member-card-main {
+    flex-direction: column;
+  }
+
+  .member-card-meta {
+    width: 100%;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 639px) {
@@ -2262,6 +2495,11 @@ textarea {
   .add-source-form > footer,
   .calendar-create-section form > footer,
   .invite-member-section form > footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .member-access-editor form > footer {
     align-items: stretch;
     flex-direction: column;
   }

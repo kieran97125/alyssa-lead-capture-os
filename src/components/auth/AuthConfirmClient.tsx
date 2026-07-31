@@ -78,7 +78,7 @@ export function AuthConfirmClient({
       } catch {
         if (!cancelled) {
           setError(
-            "邀請連結已過期、已使用，或者呢個電郵未獲授權。請返回登入頁重新寄送，或請 Owner 重發邀請。"
+            "邀請連結已過期、已使用，或者呢個電郵未獲授權。請聯絡 Master 喺「成員及權限」頁重發安全連結。"
           );
         }
       }
@@ -107,7 +107,7 @@ export function AuthConfirmClient({
             href="/login"
             className="mt-6 inline-flex rounded-full bg-[#5a2348] px-6 py-3 text-sm font-bold text-white"
           >
-            返回公司電郵登入
+            返回登入說明
           </a>
         </>
       ) : (

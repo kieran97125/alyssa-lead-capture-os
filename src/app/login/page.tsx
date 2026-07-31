@@ -1,15 +1,11 @@
 import { MailCheck, ShieldCheck } from "lucide-react";
-import {
-  loginAction,
-  requestEmailLoginAction,
-} from "@/app/login/actions";
+import { loginAction } from "@/app/login/actions";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   getAdminPasswordGateWarning,
   isAdminPasswordGateEnabled,
 } from "@/lib/security/internalAccess";
 import {
-  getSupabasePublicAuthConfig,
   isBreakGlassPasswordEnabled,
   isWorkspaceEmailAuthRequired,
   safeInternalNextPath,
@@ -28,18 +24,13 @@ export default async function LoginPage({
   searchParams?: Promise<{
     next?: string | string[];
     error?: string | string[];
-    email_status?: string | string[];
   }>;
 }) {
   const query = await searchParams;
   const next = safeNextPath(query?.next);
   const error = Array.isArray(query?.error) ? query?.error[0] : query?.error;
-  const emailStatus = Array.isArray(query?.email_status)
-    ? query?.email_status[0]
-    : query?.email_status;
   const warning = getAdminPasswordGateWarning();
   const gateEnabled = isAdminPasswordGateEnabled();
-  const emailAuthReady = getSupabasePublicAuthConfig().ready;
   const emailAuthRequired = isWorkspaceEmailAuthRequired();
   const showPasswordFallback =
     gateEnabled && isBreakGlassPasswordEnabled();
@@ -56,10 +47,11 @@ export default async function LoginPage({
               Alyssa Growth OS
             </p>
             <h1 className="mt-3 text-3xl font-bold text-[#321428]">
-              公司電郵登入
+              受邀帳戶登入
             </h1>
             <p className="mt-4 text-sm font-semibold leading-6 text-[#6d4a5c]">
-              只限已由 Owner 邀請嘅成員。輸入受邀公司電郵，我哋會寄出一次性安全登入連結。
+              安全登入連結只會由 Master 喺「成員及權限」頁寄出。
+              請直接使用收到嘅電郵連結；登入頁唔會自行寄信。
             </p>
           </div>
 
@@ -68,18 +60,6 @@ export default async function LoginPage({
               {warning}
             </p>
           )}
-
-          {emailStatus === "sent" ? (
-            <div className="mt-5 flex gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-emerald-800">
-              <MailCheck className="mt-0.5 shrink-0" size={18} />
-              <div>
-                <strong className="text-sm">請檢查公司電郵</strong>
-                <p className="mt-1 text-xs font-semibold leading-5">
-                  如電郵已獲邀請，幾分鐘內會收到一次性連結；為保障私隱，未受邀地址亦會顯示相同訊息。
-                </p>
-              </div>
-            </div>
-          ) : null}
 
           {error && (
             <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
@@ -99,31 +79,15 @@ export default async function LoginPage({
             </p>
           )}
 
-          <form action={requestEmailLoginAction} className="mt-6 grid gap-4">
-            <input type="hidden" name="next" value={next} />
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                Company email
-              </span>
-              <input
-                name="email"
-                type="email"
-                autoComplete="email"
-                inputMode="email"
-                placeholder="name@alyssa.hk"
-                required
-                disabled={!emailAuthReady}
-                className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none transition focus:border-[#c9828e] focus:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-              />
-            </label>
-            <SubmitButton
-              className="rounded-full bg-[#5a2348] px-6 py-3 text-sm font-bold text-white shadow-[0_16px_36px_rgba(90,35,72,0.22)] transition hover:-translate-y-0.5 hover:bg-[#471b39] disabled:cursor-wait disabled:opacity-70"
-              pendingLabel="寄送安全連結…"
-              disabled={!emailAuthReady}
-            >
-              寄出登入連結
-            </SubmitButton>
-          </form>
+          <div className="mt-6 flex gap-3 rounded-2xl border border-[#ead9cf] bg-[#fff9f3] px-4 py-4 text-[#5a2348]">
+            <MailCheck className="mt-0.5 shrink-0" size={19} />
+            <div>
+              <strong className="text-sm">未收到或者需要新連結？</strong>
+              <p className="mt-1 text-xs font-semibold leading-5 text-[#7a596a]">
+                請聯絡 Master，由佢喺帳戶列表核對你嘅狀態及權限，再按「重發邀請」或「寄出新登入連結」。
+              </p>
+            </div>
+          </div>
 
           {showPasswordFallback ? (
             <details className="mt-6 rounded-2xl border border-[#ead9cf] bg-[#fff9f3]">
