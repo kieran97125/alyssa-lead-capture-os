@@ -251,6 +251,11 @@ function getAllowedRedirectOrigins(brandSlug: string | null | undefined) {
     origins.add("https://ineffablebeautyhk.com");
   }
 
+  if (slug === "gos" || slug === "gos-beauty" || slug === "gosbeauty") {
+    origins.add("https://www.gosbeauty.com");
+    origins.add("https://gosbeauty.com");
+  }
+
   return origins;
 }
 

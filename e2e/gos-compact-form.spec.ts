@@ -5,6 +5,7 @@ const formId = "gos-form-id";
 const treatmentId = "gos-treatment-id";
 const packageId = "gos-package-id";
 const branchId = "gos-branch-id";
+const gosThankYouUrl = "https://www.gosbeauty.com/thank-you";
 
 function publicFormConfig() {
   return {
@@ -86,6 +87,19 @@ function pixelConfiguredForm() {
     brand: {
       ...publicFormConfig().brand,
       meta_pixel_id: "123456789012345",
+    },
+  };
+}
+
+function redirectConfiguredForm() {
+  const config = publicFormConfig();
+
+  return {
+    ...config,
+    form: {
+      ...config.form,
+      conversion_mode: "thank_you_redirect",
+      success_redirect_url: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=688`,
     },
   };
 }
@@ -369,4 +383,85 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
   expect(pixelUrl.searchParams.get("ev")).toBe("CompleteRegistration");
   expect(pixelUrl.searchParams.get("cd[value]")).toBe("688");
   expect(pixelUrl.searchParams.get("cd[currency]")).toBe("HKD");
+});
+
+test("GOS form overrides a legacy LaunchHub redirect with the official thank-you page", async ({
+  page,
+}) => {
+  const officialFinalRedirect = `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=688&lead_id=gos-redirect-lead&event_id=gos-redirect-event&form_id=${formId}`;
+
+  await page.route(`**/api/public/forms/${formToken}`, async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify(redirectConfiguredForm()),
+    });
+  });
+  await page.route("**/api/public/events", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ ok: true }),
+    });
+  });
+  await page.route("**/api/public/leads", async (route) => {
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        ok: true,
+        lead_id: "gos-redirect-lead",
+        event_id: "gos-redirect-event",
+        form_id: formId,
+        conversion_mode: "thank_you_redirect",
+        success_redirect_url: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=688`,
+        final_redirect_url: officialFinalRedirect,
+      }),
+    });
+  });
+  await page.route(`${gosThankYouUrl}**`, async (route) => {
+    await route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><title>GOS Thank You</title><h1>GOS Thank You</h1>",
+    });
+  });
+
+  await page.goto("/login", { waitUntil: "domcontentloaded" });
+  await page.evaluate(
+    ({ targetId, token, id }) => {
+      const target = document.createElement("div");
+      target.id = targetId;
+      const script = document.createElement("script");
+      script.src = `/embed/alyssa-form.js?redirect-test=${Date.now()}`;
+      script.dataset.formToken = token;
+      script.dataset.brand = "gos-beauty";
+      script.dataset.formId = id;
+      script.dataset.conversionMode = "thank_you_redirect";
+      script.dataset.successRedirectUrl =
+        "https://go.beautytrialhk.com/thank-you";
+      script.dataset.target = `#${targetId}`;
+      document.body.replaceChildren(target, script);
+    },
+    {
+      targetId: "gos-redirect-test-target",
+      token: formToken,
+      id: formId,
+    }
+  );
+
+  const form = page.frameLocator('iframe[title="Campaign registration form"]');
+  await expect(form.getByLabel("姓名")).toBeVisible();
+  await form.getByLabel("姓名").fill("GOS Redirect");
+  await form.getByLabel("聯絡電話").fill("93456789");
+  await form.getByLabel("預約日期").fill("2026-08-12");
+  await form.getByLabel("預約時間").selectOption("18:00");
+  await form
+    .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
+    .check();
+  await form.getByRole("button", { name: "提交預約 →" }).click();
+
+  await expect(page).toHaveURL(/^https:\/\/www\.gosbeauty\.com\/thank-you\?/);
+  await expect(page.getByRole("heading", { name: "GOS Thank You" })).toBeVisible();
+
+  const redirectUrl = new URL(page.url());
+  expect(redirectUrl.searchParams.get("submitted")).toBe("1");
+  expect(redirectUrl.searchParams.get("lead_id")).toBe("gos-redirect-lead");
+  expect(redirectUrl.searchParams.get("form_id")).toBe(formId);
 });

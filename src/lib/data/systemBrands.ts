@@ -62,7 +62,7 @@ export const fallbackSystemBrands = [
     primaryColor: "#F36B32",
     secondaryColor: "#FADCCB",
     whatsappNumber: null,
-    defaultThankYouUrl: null,
+    defaultThankYouUrl: "https://www.gosbeauty.com/thank-you",
     legalPageUrl: null,
     legalLinkLabel: null,
     privacyUrl: null,

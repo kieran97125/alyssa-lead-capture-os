@@ -33,6 +33,15 @@ export const brandLaunchDefaults = {
     defaultCurrency: "HKD",
     pixelIdReference: "1020143980486592",
   },
+  gos: {
+    brandSlug: "gos-beauty",
+    websiteDomain: "https://www.gosbeauty.com",
+    thankYouPath: "/thank-you",
+    thankYouUrl: "https://www.gosbeauty.com/thank-you",
+    defaultConversionMode: "thank_you_redirect",
+    defaultCurrency: "HKD",
+    pixelIdReference: "2123283428537266",
+  },
 } as const satisfies Record<string, BrandLaunchDefaults>;
 
 export function normalizeBrandSlug(value: string | null | undefined) {
@@ -48,6 +57,9 @@ export function getBrandLaunchDefaults(
   }
   if (slug === "ineffable" || slug === "ineffable-beauty") {
     return brandLaunchDefaults.ineffable;
+  }
+  if (slug === "gos" || slug === "gos-beauty" || slug === "gosbeauty") {
+    return brandLaunchDefaults.gos;
   }
   return null;
 }
