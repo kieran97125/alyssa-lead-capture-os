@@ -80,6 +80,14 @@ export function getBrandSuggestedDomains(brandSlug: string | null | undefined) {
     ];
   }
 
+  if (slug === "gos" || slug === "gos-beauty" || slug === "gosbeauty") {
+    return [
+      "https://www.gosbeauty.com",
+      "https://gosbeauty.com",
+      "https://go.beautytrialhk.com",
+    ];
+  }
+
   return ["https://go.beautytrialhk.com"];
 }
 

@@ -1231,12 +1231,13 @@ Archive is the preferred cleanup path for records with any uncertainty. Safe del
 
 Reviewed cleanup SQL is available at `docs/ARCHIVE_LEGACY_ALYSSA_FORMS_AND_LANDING_PAGES_APPLY.sql`. It is non-destructive, rollback-only by default, and archives the exact legacy Alyssa form/page candidates without touching active Ineffable production forms or landing pages.
 
-## Alyssa / Ineffable Brand Defaults
+## Brand-owned Thank-you Defaults
 
-LaunchHub now keeps brand launch defaults for Alyssa and Ineffable Beauty in code so generated Wix embeds follow the same thank-you redirect model.
+LaunchHub keeps brand launch defaults for Alyssa, Ineffable Beauty and GOS Beauty in code so generated Wix embeds follow the same thank-you redirect model.
 
 - Alyssa: `https://www.alyssa.hk`, thank-you URL `https://www.alyssa.hk/thankyou`, default conversion mode `thank_you_redirect`, currency `HKD`, Pixel reference `1076420440840443`.
 - Ineffable Beauty: `https://www.ineffablebeautyhk.com`, thank-you URL `https://www.ineffablebeautyhk.com/thank-you`, default conversion mode `thank_you_redirect`, currency `HKD`, Pixel reference `1020143980486592`.
+- GOS Beauty: `https://www.gosbeauty.com`, thank-you URL `https://www.gosbeauty.com/thank-you`, default conversion mode `thank_you_redirect`, currency `HKD`, Pixel reference `2123283428537266`.
 
 Generated thank-you redirect embeds include `data-conversion-mode`, `data-success-redirect-url`, `data-pixel-event-value`, `data-pixel-currency`, `data-lazy-load`, and `data-lazy-root-margin`. They intentionally omit `data-pixel-id` because CompleteRegistration is owned by the Wix thank-you page.
 
