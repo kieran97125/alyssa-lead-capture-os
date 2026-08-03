@@ -1,24 +1,19 @@
 import {
   Braces,
-  CalendarDays,
   CheckCircle2,
   DatabaseZap,
   ExternalLink,
   FileSpreadsheet,
   History,
-  Layers3,
   Link2,
   LockKeyhole,
-  Plus,
   RefreshCw,
   ShieldCheck,
   TriangleAlert,
 } from "lucide-react";
 import {
   createDataSourceAction,
-  registerMonthlyReportingWorkbookAction,
   syncDataSourceAction,
-  syncMonthlyReportingWorkbookAction,
 } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
@@ -44,6 +39,7 @@ const providerLabels: Record<string, string> = {
   google_ads: "Google Ads",
   manual_csv: "CSV Import",
   n8n: "n8n Workflow",
+  internal_ledger: "系統帳簿",
 };
 
 const statusLabels: Record<string, string> = {
@@ -70,14 +66,6 @@ const metricLabels: Record<string, string> = {
   no_shows: "No Show",
   pending_shows: "待到店",
   treatment_performance: "療程成效",
-};
-
-const workbookSyncLabels: Record<string, string> = {
-  pending: "待首次同步",
-  syncing: "同步中",
-  success: "同步成功",
-  partial: "部分完成",
-  error: "同步失敗",
 };
 
 const workbookValidationLabels: Record<string, string> = {
@@ -115,18 +103,7 @@ export default async function DataSourcesPage({
   const standaloneSources = snapshot.dataSources.filter(
     (source) => !source.reportingWorkbookId
   );
-  const currentWorkbook = snapshot.reportingWorkbooks.find(
-    (workbook) =>
-      workbook.reportingMonth === snapshot.month.monthStart &&
-      workbook.status === "active"
-  );
-  const workbookHistory = snapshot.reportingWorkbooks.filter(
-    (workbook) => workbook.id !== currentWorkbook?.id
-  );
-  const monthlyConnectReady =
-    canManageGoogleConnection &&
-    snapshot.schemaReady &&
-    googleConnectionStatus.connected;
+  const workbookHistory = snapshot.reportingWorkbooks;
 
   return (
     <main className="alyssa-shell">
@@ -138,13 +115,12 @@ export default async function DataSourcesPage({
               <p className="command-page-kicker">Connections</p>
               <h1 className="command-page-title">資料來源</h1>
               <p className="command-page-subtitle">
-                管理每個品牌嘅 Google Sheet、廣告平台、LaunchHub、CRM 同 n8n
-                接駁。一般設定只保存公開識別及欄位映射，Token／密碼必須留喺受保護憑證層。
+                CS Lead Sheet 繼續提供 Lead／Book／Show；廣告費改由系統 Daily Ledger 管理。舊月份 Overview Link 只保留作歷史對數，唔再同步或參與 KPI。
               </p>
             </div>
-            <a href="#monthly-workbook" className="command-primary-button">
-              <Plus size={16} />
-              接駁月份表
+            <a href="/performance/daily" className="command-primary-button">
+              <DatabaseZap size={16} />
+              填寫每日廣告費
             </a>
           </header>
 
@@ -188,9 +164,9 @@ export default async function DataSourcesPage({
                 {!canManageGoogleConnection
                   ? "你目前以一般 Admin 登入；Google 帳戶授權只限 Master。請先重新登入 Master，避免撳掣後原地返回。"
                   : googleLeadWriteReady
-                  ? "公司 Google 帳戶已連接；LaunchHub 會按 Sheet 實際 header 自動對位並直接寫入，毋須再更新 Apps Script Web App。"
+                  ? "公司 Google 帳戶已連接；只會同步 CS Lead Sheet 嘅 Lead／Book／Show 及寫入 Lead。廣告費唔再經 Google Sheet。"
                   : googleConnectionStatus.connected
-                    ? "現有連接只具唯讀權限；請重新授權一次，升級後 LaunchHub 會直接寫入 Lead Sheet。"
+                    ? "現有連接只具唯讀權限；請重新授權一次，升級後先可直接寫入 CS Lead Sheet。"
                   : googleConnectionStatus.ready
                     ? "以擁有相關 Sheet 編輯權限嘅公司 Gmail 授權一次，毋須 Service Account、JSON Key 或 Apps Script Web App。"
                     : "OAuth Client 部署設定未完成；以下會列出真正欠缺項目，系統未曾驗證任何 Google 帳戶。"}
@@ -265,104 +241,22 @@ export default async function DataSourcesPage({
           >
             <header className="monthly-workbook-header">
               <div>
-                <p>Monthly workbook</p>
-                <h2>月份數據表</h2>
+                <p>Retired spend lineage</p>
+                <h2>舊月份廣告費數據表</h2>
                 <span>
-                  每個月貼一次完整 Google Sheet Link；系統會自動對應品牌分頁，同時保留歷月 Link、驗證及同步紀錄。
+                  月份 Sheet 接駁已退役；所有原始 Link、最後同步及品牌對應保留作核數。新 Spend 請到「每日 Overview」按類型直接填寫。
                 </span>
               </div>
-              <CalendarDays size={24} />
+              <History size={24} />
             </header>
-
-            <div className="monthly-workbook-primary-grid">
-              <div className="monthly-workbook-connect">
-                <span className="monthly-workbook-eyebrow">
-                  <Layers3 size={14} />
-                  推薦接駁方式
-                </span>
-                <h3>揀月份，再貼一條 Link</h3>
-                <p>
-                  會先檢查文件權限、日期月份、Header 同品牌分頁。Alyssa／IB／GOS 會自動接駁；其他未對應分頁只提示，唔會誤讀。
-                </p>
-                <form
-                  action={registerMonthlyReportingWorkbookAction}
-                  className="monthly-workbook-form"
-                >
-                  <label>
-                    <span>數據月份</span>
-                    <input
-                      type="month"
-                      name="reportingMonth"
-                      defaultValue={snapshot.month.monthStart.slice(0, 7)}
-                      required
-                    />
-                  </label>
-                  <label className="monthly-workbook-link-field">
-                    <span>Google Spreadsheet Link</span>
-                    <input
-                      type="text"
-                      name="spreadsheetLink"
-                      inputMode="url"
-                      placeholder="https://docs.google.com/spreadsheets/d/…/edit"
-                      autoComplete="off"
-                      required
-                    />
-                  </label>
-                  <SubmitButton
-                    className="command-primary-button"
-                    disabled={!monthlyConnectReady}
-                    pendingLabel="驗證及接駁中…"
-                  >
-                    <Link2 size={15} />
-                    驗證並接駁
-                  </SubmitButton>
-                </form>
-                <small className="monthly-workbook-guardrail">
-                  同一月份換新 Link 時，舊版本會轉為「已取代」並保留喺歷史；Dashboard 只會計目前生效版本。Lead／Book／Show 仍以原本 Lead Sheet 為準。
-                </small>
-                {!monthlyConnectReady ? (
-                  <p className="monthly-workbook-blocker">
-                    {!canManageGoogleConnection
-                      ? "接駁月份表只限 Master Account。"
-                      : !snapshot.schemaReady
-                        ? "月份 Registry migration 尚未套用。"
-                        : "請先完成上方 Google Sheets 連接。"}
-                  </p>
-                ) : null}
-              </div>
-
-              <div className="monthly-workbook-current">
-                <div className="monthly-workbook-card-heading">
-                  <span>目前月份</span>
-                  <strong>{formatReportingMonth(snapshot.month.monthStart)}</strong>
-                </div>
-                {currentWorkbook ? (
-                  <WorkbookRecord
-                    workbook={currentWorkbook}
-                    dataSources={snapshot.dataSources}
-                    brands={snapshot.brands}
-                    isCurrent
-                    canSync={monthlyConnectReady}
-                  />
-                ) : (
-                  <div className="monthly-workbook-empty">
-                    <FileSpreadsheet size={26} />
-                    <strong>本月尚未接駁</strong>
-                    <span>
-                      貼上本月 Overview Link 後，系統會一次建立所有已辨認品牌嘅 Spend 來源。
-                    </span>
-                  </div>
-                )}
-              </div>
-            </div>
 
             <div className="monthly-workbook-history">
               <div className="monthly-workbook-history-heading">
                 <div>
                   <History size={17} />
                   <div>
-                    <strong>過去數據表</strong>
-                    <span>原始 Link、使用版本及最近同步時間</span>
+                    <strong>歷史數據表</strong>
+                    <span>只讀原始 Link、品牌對應及最後成功時間</span>
                   </div>
                 </div>
                 <span>{workbookHistory.length} 個記錄</span>
@@ -375,13 +269,12 @@ export default async function DataSourcesPage({
                       workbook={workbook}
                       dataSources={snapshot.dataSources}
                       brands={snapshot.brands}
-                      canSync={monthlyConnectReady}
                     />
                   ))}
                 </div>
               ) : (
                 <p className="monthly-workbook-history-empty">
-                  接駁下一個月份後，舊月份會自動留喺呢度，毋須再搵訊息記錄。
+                  未有舊月份 Sheet 記錄；廣告費會直接保存在系統帳簿。
                 </p>
               )}
             </div>
@@ -390,32 +283,27 @@ export default async function DataSourcesPage({
           <section className="source-summary-grid">
             <SourceSummary
               icon={History}
-              label="月份記錄"
+              label="舊月份 Link"
               value={snapshot.reportingWorkbooks.length}
             />
             <SourceSummary
               icon={CheckCircle2}
-              label="生效版本"
+              label="系統 Spend 帳簿"
               value={
-                snapshot.reportingWorkbooks.filter(
-                  (workbook) => workbook.status === "active"
+                standaloneSources.filter(
+                  (source) => source.providerKey === "internal_ledger"
                 ).length
               }
             />
             <SourceSummary
               icon={DatabaseZap}
-              label="其他來源"
+              label="正式來源"
               value={standaloneSources.length}
             />
             <SourceSummary
               icon={TriangleAlert}
               label="需要處理"
               value={
-                snapshot.reportingWorkbooks.filter(
-                  (workbook) =>
-                    workbook.validationStatus === "error" ||
-                    ["partial", "error"].includes(workbook.lastSyncStatus)
-                ).length +
                 standaloneSources.filter((source) =>
                   ["warning", "error"].includes(source.status)
                 ).length
@@ -427,7 +315,7 @@ export default async function DataSourcesPage({
             <header className="source-registry-header">
               <div>
                 <p>Registry</p>
-                <h2>其他資料來源</h2>
+                <h2>正式資料來源</h2>
               </div>
               <span>{standaloneSources.length} 個來源</span>
             </header>
@@ -461,10 +349,9 @@ export default async function DataSourcesPage({
                       <td colSpan={6}>
                         <div className="source-empty-row">
                           <DatabaseZap size={22} />
-                          <strong>未有外部資料來源</strong>
+                          <strong>未有正式資料來源</strong>
                           <span>
-                            LaunchHub 現有 Lead 資料仍會正常顯示；新增 Google Sheet
-                            或廣告來源後先會開始預算同步。
+                            請先完成 CS Lead Sheet 連接；Spend 帳簿會由 migration 自動建立。
                           </span>
                         </div>
                       </td>
@@ -482,9 +369,9 @@ export default async function DataSourcesPage({
             <header>
               <div>
                 <p>New connection</p>
-                <h2>進階／其他來源設定</h2>
+                <h2>CS Lead Sheet 進階設定</h2>
                 <span>
-                  原始 Lead Sheet 或非月份來源先用呢區；月份 Overview 請用上方主流程。
+                  呢區只用作管理 Lead／Book／Show 嘅 CS Lead Sheet。廣告費唔接受再新增 Google Sheet 來源。
                 </span>
               </div>
               <ShieldCheck size={24} />
@@ -505,19 +392,18 @@ export default async function DataSourcesPage({
               <label>
                 <span>來源類型</span>
                 <select name="providerKey" defaultValue="google_sheets" required>
-                  {Object.entries(providerLabels).map(([key, label]) => (
-                    <option key={key} value={key}>
-                      {label}
-                    </option>
-                  ))}
+                  {Object.entries(providerLabels)
+                    .filter(([key]) => key !== "internal_ledger")
+                    .map(([key, label]) => (
+                      <option key={key} value={key}>
+                        {label}
+                      </option>
+                    ))}
                 </select>
               </label>
               <label>
                 <span>Dataset Profile</span>
-                <select name="dataset" defaultValue="daily_spend">
-                  <option value="daily_spend">
-                    每日廣告費（日期＋Spend）
-                  </option>
+                <select name="dataset" defaultValue="lead_funnel">
                   <option value="lead_funnel">
                     Lead Funnel（Lead／Book／Show／療程成效）
                   </option>
@@ -576,14 +462,6 @@ export default async function DataSourcesPage({
                     />
                   </label>
                   <label>
-                    <span>Spend 日期欄</span>
-                    <input name="dateColumn" defaultValue="A" />
-                  </label>
-                  <label>
-                    <span>Spend 金額欄</span>
-                    <input name="spendColumn" defaultValue="N" />
-                  </label>
-                  <label>
                     <span>Lead 表最後欄</span>
                     <input name="lastColumn" defaultValue="V" />
                   </label>
@@ -595,8 +473,7 @@ export default async function DataSourcesPage({
 
               <footer>
                 <p>
-                  Dataset Profile 會自動決定指標責任。新來源先建立為
-                  Draft；完成一次成功同步後先轉為「已連接」。
+                  CS Lead Sheet 只負責 Funnel 指標。新來源先建立為 Draft；完成一次成功同步後先轉為「已連接」。
                 </p>
                 <SubmitButton
                   className="command-primary-button"
@@ -619,14 +496,10 @@ function WorkbookRecord({
   workbook,
   dataSources,
   brands,
-  isCurrent = false,
-  canSync,
 }: {
   workbook: MarketingReportingWorkbook;
   dataSources: MarketingDataSource[];
   brands: Array<{ id: string; name: string }>;
-  isCurrent?: boolean;
-  canSync: boolean;
 }) {
   const workbookSources = dataSources.filter(
     (source) => source.reportingWorkbookId === workbook.id
@@ -643,30 +516,12 @@ function WorkbookRecord({
   const spreadsheetUrl = canonicalGoogleSpreadsheetUrl(
     workbook.spreadsheetId
   );
-  const lifecycleLabel =
-    workbook.status === "superseded"
-      ? "已取代"
-      : workbook.status === "archived"
-        ? "已封存"
-        : workbookSyncLabels[workbook.lastSyncStatus] ||
-          workbook.lastSyncStatus;
-  const statusTone =
-    workbook.status !== "active"
-      ? "is-muted"
-      : workbook.lastSyncStatus === "error"
-        ? "is-error"
-        : workbook.lastSyncStatus === "partial" ||
-            workbook.validationStatus === "warning"
-          ? "is-warning"
-          : workbook.lastSyncStatus === "success"
-            ? "is-success"
-            : "is-pending";
+  const lifecycleLabel = "已退役 · 歷史記錄";
+  const statusTone = "is-muted";
 
   return (
     <article
-      className={`monthly-workbook-record ${statusTone} ${
-        isCurrent ? "is-current" : ""
-      }`}
+      className={`monthly-workbook-record ${statusTone}`}
     >
       <div className="monthly-workbook-record-topline">
         <span>{formatReportingMonth(workbook.reportingMonth)}</span>
@@ -702,21 +557,6 @@ function WorkbookRecord({
       </dl>
       {workbook.lastErrorSummary ? (
         <p className="monthly-workbook-error">{workbook.lastErrorSummary}</p>
-      ) : null}
-      {workbook.status === "active" ? (
-        <form
-          action={syncMonthlyReportingWorkbookAction}
-          className="monthly-workbook-sync"
-        >
-          <input type="hidden" name="workbookId" value={workbook.id} />
-          <SubmitButton
-            disabled={!canSync || workbook.lastSyncStatus === "syncing"}
-            pendingLabel="同步中…"
-          >
-            <RefreshCw size={13} />
-            重新同步呢個月份
-          </SubmitButton>
-        </form>
       ) : null}
     </article>
   );

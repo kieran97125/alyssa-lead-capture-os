@@ -55,7 +55,7 @@ const modules = [
   ["launchhub", "LaunchHub"],
   ["leads", "Leads"],
   ["crm", "CRM"],
-  ["performance", "療程成效"],
+  ["performance", "療程成效及同期對比"],
   ["data_sources", "資料來源"],
   ["settings", "設定"],
   ["system_audit", "System Audit"],

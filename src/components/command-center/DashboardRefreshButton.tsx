@@ -23,7 +23,7 @@ export function DashboardRefreshButton({
         className={pending ? "command-refresh-icon is-spinning" : undefined}
       />
       <span aria-live="polite">
-        {pending ? "同步數據中…" : "重新整理數據"}
+        {pending ? "同步 CS Lead 中…" : "同步 CS Lead"}
       </span>
     </button>
   );

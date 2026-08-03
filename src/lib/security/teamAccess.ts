@@ -33,7 +33,7 @@ export type CurrentAccessContext = {
 export const accessModules: Array<{ key: AccessModule; label: string }> = [
   { key: "dashboard", label: "總覽" },
   { key: "leads", label: "Leads" },
-  { key: "performance", label: "療程成效" },
+  { key: "performance", label: "療程成效及同期對比" },
   { key: "forms", label: "表格管理" },
   { key: "landing_pages", label: "Landing Pages" },
   { key: "settings", label: "設定" },

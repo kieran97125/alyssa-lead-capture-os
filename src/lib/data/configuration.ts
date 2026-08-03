@@ -6,6 +6,7 @@ import {
   alyssaTreatments,
 } from "@/lib/data/alyssaConfig";
 import { alyssaLandingPages } from "@/lib/data/landingPages";
+import { fallbackSystemBrands } from "@/lib/data/systemBrands";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -214,25 +215,7 @@ export const landingPageTemplates: LandingPageTemplate[] = [
 function localConfiguration(): ConfigurationData {
   return {
     sourceLabel: "設定參考",
-    brands: [
-      {
-        id: alyssaBrand.id,
-        name: alyssaBrand.name,
-        slug: alyssaBrand.slug,
-        logoUrl: alyssaBrand.logoUrl,
-        primaryColor: alyssaBrand.primaryColor,
-        secondaryColor: alyssaBrand.secondaryColor,
-        whatsappNumber: alyssaBrand.whatsappNumber,
-        defaultThankYouUrl: alyssaBrand.defaultThankYouUrl,
-        legalPageUrl: null,
-        legalLinkLabel: null,
-        privacyUrl: "https://www.alyssa.hk/privacy",
-        disclaimerUrl: "https://www.alyssa.hk/disclaimer",
-        operatorName: "Alyssa Group Limited",
-        metaPixelId: null,
-        metaPixelPageViewOnEmbed: false,
-      },
-    ],
+    brands: fallbackSystemBrands.map((brand) => ({ ...brand })),
     treatments: alyssaTreatments.map((treatment) => ({
       id: treatment.id,
       brandId: alyssaBrand.id,

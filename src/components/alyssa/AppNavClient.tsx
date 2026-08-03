@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useState, type ComponentType } from "react";
 import {
   BarChart3,
+  CalendarRange,
   CalendarDays,
   ChevronRight,
   CircleGauge,
@@ -17,6 +18,7 @@ import {
   MessageCircleMore,
   Rocket,
   Settings2,
+  Table2,
   X,
 } from "lucide-react";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
@@ -37,6 +39,7 @@ type NavigationItem = {
   badge?: string;
   module: WorkspaceModuleKey;
   masterOnly?: boolean;
+  exact?: boolean;
 };
 
 type NavigationGroup = {
@@ -71,7 +74,25 @@ const navigationGroups: NavigationGroup[] = [
       },
       { href: "/leads", label: "Leads", icon: Inbox, module: "leads" },
       { href: "/crm", label: "CRM", icon: MessageCircleMore, module: "crm" },
-      { href: "/performance", label: "療程成效", icon: BarChart3, module: "performance" },
+      {
+        href: "/performance",
+        label: "療程成效",
+        icon: BarChart3,
+        module: "performance",
+        exact: true,
+      },
+      {
+        href: "/performance/daily",
+        label: "每日 Overview",
+        icon: Table2,
+        module: "performance",
+      },
+      {
+        href: "/performance/compare",
+        label: "同期對比",
+        icon: CalendarRange,
+        module: "performance",
+      },
     ],
   },
   {
@@ -96,6 +117,7 @@ const navigationGroups: NavigationGroup[] = [
 ];
 
 function isActive(pathname: string, item: NavigationItem) {
+  if (item.exact) return pathname === item.href;
   const matches = item.match ?? [item.href];
   return matches.some(
     (path) => pathname === path || pathname.startsWith(`${path}/`)

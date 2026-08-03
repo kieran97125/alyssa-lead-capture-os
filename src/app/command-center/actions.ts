@@ -8,6 +8,7 @@ import {
   requireModuleAccess,
   verifyCurrentInternalAccess,
 } from "@/lib/security/internalAccessServer";
+import { getConfigurationData } from "@/lib/data/configuration";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -20,12 +21,12 @@ import {
   syncAllMarketingGoogleSheets,
   syncMarketingDataSource,
 } from "@/lib/integrations/googleSheetsMarketingSync";
-import {
-  registerMonthlyReportingWorkbook,
-  safeMonthlyWorkbookError,
-  syncMonthlyReportingWorkbook,
-} from "@/lib/integrations/googleSheetsMonthlyWorkbooks";
 import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/commandCenter";
+import { canEditDailySpendAccess } from "@/lib/marketing/dailyOverview";
+import {
+  SPEND_TYPE_LABELS,
+  isEditableSpendType,
+} from "@/lib/marketing/spendTypes";
 import {
   getWorkspaceRoleDefaultModules,
   normalizeWorkspaceRole,
@@ -36,6 +37,16 @@ type ActionResult = {
   ok: boolean;
   message: string;
 };
+
+const creatableDataSourceProviders = new Set([
+  "launchhub",
+  "crm",
+  "google_sheets",
+  "meta_ads",
+  "google_ads",
+  "manual_csv",
+  "n8n",
+]);
 
 function readString(formData: FormData, key: string) {
   return String(formData.get(key) ?? "").trim();
@@ -53,10 +64,16 @@ function safeReturnPath(value: string, fallback: string) {
     "/kpis",
     "/calendar",
     "/data-sources",
+    "/performance",
     "/settings/planning",
     "/settings/team",
   ];
-  return allowed.some((prefix) => value === prefix || value.startsWith(`${prefix}?`))
+  return allowed.some(
+    (prefix) =>
+      value === prefix ||
+      value.startsWith(`${prefix}/`) ||
+      value.startsWith(`${prefix}?`)
+  )
     ? value
     : fallback;
 }
@@ -85,6 +102,8 @@ async function ensureCommandCenterAction(
         ? "data_sources"
         : path.startsWith("/kpis")
           ? "kpis"
+          : path.startsWith("/performance")
+            ? "performance"
           : path.startsWith("/settings")
             ? "settings"
             : "dashboard";
@@ -224,6 +243,116 @@ export async function upsertMonthlyPlanAction(formData: FormData) {
   });
 }
 
+export async function saveDailySpendAction(formData: FormData) {
+  const returnPath = safeReturnPath(
+    readString(formData, "returnPath"),
+    "/performance/daily"
+  );
+  const access = await ensureCommandCenterAction(returnPath);
+  if (!access.ok) redirectWithResult(returnPath, access);
+
+  if (
+    !canEditDailySpendAccess({
+      accessLevel: access.access.accessLevel,
+      workspaceRole: access.access.workspaceRole,
+    })
+  ) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "只有 Master、Admin、Manager 或 Marketer 可以修改廣告費。",
+    });
+  }
+
+  const spendDate = readString(formData, "spendDate");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(spendDate)) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "請選擇有效嘅廣告費日期。",
+    });
+  }
+  const spendType = readString(formData, "spendType");
+  if (!isEditableSpendType(spendType)) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "請選擇有效嘅廣告費類型。",
+    });
+  }
+
+  const config = await getConfigurationData();
+  if (config.brands.length === 0) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "你目前未獲授權管理任何品牌。",
+    });
+  }
+
+  const entries = config.brands.map((brand) => {
+    const rawAmount = readString(formData, `amount:${brand.id}`);
+    const amount = rawAmount === "" ? null : Number(rawAmount);
+    const note = readString(formData, `note:${brand.id}`) || null;
+    return {
+      brandId: brand.id,
+      amount,
+      note,
+    };
+  });
+  const invalidEntry = entries.find(
+    (entry) =>
+      (entry.amount !== null &&
+        (!Number.isFinite(entry.amount) ||
+          entry.amount < 0 ||
+          entry.amount > 99_999_999.99)) ||
+      (entry.note?.length ?? 0) > 500 ||
+      !canAccessInternalBrand(access.access, entry.brandId)
+  );
+  if (invalidEntry) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "請檢查廣告費數字、備註長度及品牌權限。",
+    });
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.rpc("save_marketing_daily_spend", {
+    p_spend_date: spendDate,
+    p_spend_type: spendType,
+    p_entries: entries,
+    p_actor_email: access.actorIdentifier,
+  });
+  if (error) {
+    console.warn("marketing_daily_spend_save_failed", {
+      code: error.code,
+      message: error.message,
+    });
+    const errorMessage = error.message.includes("future_spend_date_not_allowed")
+      ? "未來日期未能填寫廣告費。"
+      : error.message.includes("invalid_spend_type")
+        ? "請選擇有效嘅廣告費類型。"
+        : error.message.includes("invalid_spend_entry")
+          ? "其中一項廣告費或備註格式不正確。"
+          : "廣告費儲存失敗，請確認 Daily Spend migration 已完成。";
+    redirectWithResult(returnPath, { ok: false, message: errorMessage });
+  }
+
+  const result =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
+  const savedCount = Number(result.savedCount ?? 0);
+  const deletedCount = Number(result.deletedCount ?? 0);
+  revalidateCommandCenter(
+    "/performance/daily",
+    "/performance/compare",
+    "/dashboard",
+    "/kpis",
+    "/data-sources"
+  );
+  redirectWithResult(returnPath, {
+    ok: true,
+    message: `${spendDate} ${SPEND_TYPE_LABELS[spendType]} 已更新：儲存 ${savedCount} 個品牌${deletedCount > 0 ? `，清除 ${deletedCount} 個舊值` : ""}。`,
+  });
+}
+
 export async function createDataSourceAction(formData: FormData) {
   const returnPath = "/data-sources";
   const access = await ensureCommandCenterAction(returnPath, {
@@ -234,7 +363,11 @@ export async function createDataSourceAction(formData: FormData) {
   const providerKey = readString(formData, "providerKey");
   const displayName = readString(formData, "displayName");
   const brandId = readString(formData, "brandId") || null;
-  if (!displayName || !providerKey) {
+  if (
+    !displayName ||
+    !providerKey ||
+    !creatableDataSourceProviders.has(providerKey)
+  ) {
     redirectWithResult(returnPath, {
       ok: false,
       message: "請填寫資料來源名稱及類型。",
@@ -244,11 +377,11 @@ export async function createDataSourceAction(formData: FormData) {
   const dataset = readString(formData, "dataset");
   if (
     providerKey === "google_sheets" &&
-    !["daily_spend", "lead_funnel"].includes(dataset)
+    dataset !== "lead_funnel"
   ) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "請選擇 Google Sheet Dataset Profile。",
+      message: "Google Sheet 只可用作 CS Lead Funnel；廣告費請喺每日 Overview 填寫。",
     });
   }
   if (
@@ -260,17 +393,6 @@ export async function createDataSourceAction(formData: FormData) {
       message: "Google Sheets 來源必須填寫 Sheet ID 及工作表名稱。",
     });
   }
-  if (
-    providerKey === "google_sheets" &&
-    dataset === "daily_spend" &&
-    !brandId
-  ) {
-    redirectWithResult(returnPath, {
-      ok: false,
-      message: "每日廣告費來源必須指定品牌。",
-    });
-  }
-
   const configuredHeaderRow = readNumber(formData, "headerRow");
   const configuration = {
     dataset: dataset || null,
@@ -278,29 +400,25 @@ export async function createDataSourceAction(formData: FormData) {
     tabName: readString(formData, "tabName") || null,
     headerRow:
       configuredHeaderRow ||
-      (dataset === "lead_funnel" ? 1 : dataset === "daily_spend" ? 3 : null),
+      (dataset === "lead_funnel" ? 1 : null),
     maxRows: readNumber(formData, "maxRows") || 5000,
-    dateColumn: readString(formData, "dateColumn") || "A",
-    spendColumn: readString(formData, "spendColumn") || "N",
     lastColumn: readString(formData, "lastColumn") || "V",
     accountLabel: readString(formData, "accountLabel") || null,
   };
   const providesMetrics =
-    providerKey === "google_sheets" && dataset === "daily_spend"
-      ? ["spend"]
-      : providerKey === "google_sheets" && dataset === "lead_funnel"
-        ? [
-            "leads",
-            "bookings",
-            "shows",
-            "no_shows",
-            "pending_shows",
-            "treatment_performance",
-          ]
-        : formData
-            .getAll("providesMetrics")
-            .map(String)
-            .filter(Boolean);
+    providerKey === "google_sheets" && dataset === "lead_funnel"
+      ? [
+          "leads",
+          "bookings",
+          "shows",
+          "no_shows",
+          "pending_shows",
+          "treatment_performance",
+        ]
+      : formData
+          .getAll("providesMetrics")
+          .map(String)
+          .filter(Boolean);
   const payload = {
     brand_id: brandId,
     provider_key: providerKey,
@@ -382,112 +500,6 @@ export async function syncDataSourceAction(formData: FormData) {
   });
 }
 
-export async function registerMonthlyReportingWorkbookAction(
-  formData: FormData
-) {
-  const returnPath = "/data-sources";
-  const access = await ensureCommandCenterAction(returnPath, {
-    masterOnly: true,
-  });
-  if (!access.ok) redirectWithResult(returnPath, access);
-
-  const reportingMonth = readString(formData, "reportingMonth");
-  const spreadsheetLink = readString(formData, "spreadsheetLink");
-  if (!/^\d{4}-\d{2}$/.test(reportingMonth) || !spreadsheetLink) {
-    redirectWithResult(returnPath, {
-      ok: false,
-      message: "請選擇月份並貼上完整 Google Spreadsheet Link。",
-    });
-  }
-
-  let result;
-  try {
-    result = await registerMonthlyReportingWorkbook({
-      reportingMonth,
-      spreadsheetInput: spreadsheetLink,
-      actorIdentifier: access.actorIdentifier,
-    });
-  } catch (error) {
-    console.warn("marketing_reporting_workbook_register_failed", {
-      message: error instanceof Error ? error.message : "unknown",
-    });
-    revalidateCommandCenter(
-      "/data-sources",
-      "/dashboard",
-      "/kpis",
-      "/performance"
-    );
-    redirectWithResult(returnPath, {
-      ok: false,
-      message: safeMonthlyWorkbookError(error),
-    });
-  }
-
-  revalidateCommandCenter(
-    "/data-sources",
-    "/dashboard",
-    "/kpis",
-    "/performance"
-  );
-  const monthLabel = result.inspection.reportingMonth.slice(0, 7);
-  const warningSuffix = result.inspection.warnings.length
-    ? ` 提示：${result.inspection.warnings.join(" ")}`
-    : "";
-  redirectWithResult(returnPath, {
-    ok: result.sync.ok,
-    message: `${monthLabel} 月份數據表已保存，已對應 ${result.inspection.sourceMappings.length} 個品牌。${result.sync.message}${warningSuffix}`,
-  });
-}
-
-export async function syncMonthlyReportingWorkbookAction(formData: FormData) {
-  const returnPath = "/data-sources";
-  const access = await ensureCommandCenterAction(returnPath, {
-    masterOnly: true,
-  });
-  if (!access.ok) redirectWithResult(returnPath, access);
-
-  const workbookId = readString(formData, "workbookId");
-  if (!workbookId) {
-    redirectWithResult(returnPath, {
-      ok: false,
-      message: "搵唔到要同步嘅月份數據表。",
-    });
-  }
-
-  let result;
-  try {
-    result = await syncMonthlyReportingWorkbook({
-      workbookId,
-      actorIdentifier: access.actorIdentifier,
-    });
-  } catch (error) {
-    console.warn("marketing_reporting_workbook_sync_failed", {
-      message: error instanceof Error ? error.message : "unknown",
-    });
-    revalidateCommandCenter(
-      "/data-sources",
-      "/dashboard",
-      "/kpis",
-      "/performance"
-    );
-    redirectWithResult(returnPath, {
-      ok: false,
-      message: safeMonthlyWorkbookError(error),
-    });
-  }
-
-  revalidateCommandCenter(
-    "/data-sources",
-    "/dashboard",
-    "/kpis",
-    "/performance"
-  );
-  redirectWithResult(returnPath, {
-    ok: result.ok,
-    message: `${result.workbookTitle}：${result.message}`,
-  });
-}
-
 export async function refreshDashboardDataAction(formData: FormData) {
   const returnPath = safeReturnPath(
     readString(formData, "returnPath"),
@@ -519,7 +531,7 @@ export async function refreshDashboardDataAction(formData: FormData) {
     );
     redirectWithResult(returnPath, {
       ok: false,
-      message: "數據重新整理失敗，請稍後再試或通知 Master 檢查資料來源。",
+      message: "CS Lead Sheet 同步失敗，請稍後再試或通知 Master 檢查資料來源。",
     });
   }
 
@@ -533,7 +545,7 @@ export async function refreshDashboardDataAction(formData: FormData) {
     );
     redirectWithResult(returnPath, {
       ok: false,
-      message: "未有可同步嘅 Google Sheets 資料來源。",
+      message: "未有可同步嘅 CS Lead Sheet 資料來源。",
     });
   }
 
@@ -557,7 +569,7 @@ export async function refreshDashboardDataAction(formData: FormData) {
     ok: failed.length === 0,
     message:
       failed.length === 0
-        ? `數據已重新整理：${results.length}/${results.length} 個來源成功，共更新 ${metricRows} 個每日指標及 ${analysisRows} 個療程成效組合。`
+        ? `CS Lead 已同步：${results.length}/${results.length} 個來源成功，共更新 ${metricRows} 個每日指標及 ${analysisRows} 個療程成效組合。`
         : `已更新 ${results.length - failed.length}/${results.length} 個來源；${failed
             .map((result) => result.sourceName)
             .join("、")} 需要再檢查。`,
