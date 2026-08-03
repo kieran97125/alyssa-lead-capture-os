@@ -2140,7 +2140,7 @@ textarea {
 }
 
 .source-sync-form {
-  margin-top: 0.38rem;
+  margin: 0;
 }
 
 .source-sync-form button {
@@ -2160,6 +2160,168 @@ textarea {
 
 .source-sync-form button:hover {
   background: #f0d9d3;
+}
+
+.source-action-cell {
+  min-width: 8.8rem;
+}
+
+.source-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.38rem;
+}
+
+.source-delete-button {
+  display: inline-flex;
+  cursor: pointer;
+  align-items: center;
+  gap: 0.25rem;
+  border: 1px solid #f3cfd3;
+  border-radius: 999px;
+  background: #fff7f8;
+  padding: 0.25rem 0.46rem;
+  color: #b4233a;
+  font: inherit;
+  font-size: 0.52rem;
+  font-weight: 790;
+}
+
+.source-delete-button:hover {
+  border-color: #eaaeb6;
+  background: #fff0f1;
+}
+
+.source-delete-button:focus-visible,
+.source-delete-dialog button:focus-visible {
+  outline: 2px solid var(--command-primary);
+  outline-offset: 2px;
+}
+
+.source-protected-label {
+  color: #9aa0ad;
+  font-size: 0.52rem;
+  font-weight: 700;
+}
+
+.source-delete-dialog {
+  width: min(28rem, calc(100vw - 2rem));
+  max-width: none;
+  border: 0;
+  border-radius: 1.3rem;
+  background: transparent;
+  padding: 0;
+  box-shadow: 0 24px 80px rgb(18 25 38 / 24%);
+}
+
+.source-delete-dialog::backdrop {
+  background: rgb(23 31 48 / 48%);
+  backdrop-filter: blur(4px);
+}
+
+.source-delete-dialog-card {
+  border: 1px solid #f0dfe1;
+  border-radius: 1.3rem;
+  background: #fff;
+  padding: 1.15rem;
+}
+
+.source-delete-dialog-card > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.source-delete-dialog-card > header > span {
+  display: grid;
+  height: 2.25rem;
+  width: 2.25rem;
+  place-items: center;
+  border-radius: 0.75rem;
+  background: #fff0f1;
+  color: #b4233a;
+}
+
+.source-delete-dialog-card > header > button {
+  display: grid;
+  height: 2rem;
+  width: 2rem;
+  cursor: pointer;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: #f4f5f7;
+  color: #727b8d;
+}
+
+.source-delete-dialog-card > div {
+  padding: 0.9rem 0 1rem;
+}
+
+.source-delete-dialog-card > div p {
+  color: #b4233a;
+  font-size: 0.56rem;
+  font-weight: 840;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.source-delete-dialog-card > div h2 {
+  margin-top: 0.24rem;
+  color: #202a3d;
+  font-size: 1.08rem;
+  font-weight: 850;
+}
+
+.source-delete-dialog-card > div strong,
+.source-delete-dialog-card > div span {
+  display: block;
+}
+
+.source-delete-dialog-card > div strong {
+  margin-top: 0.85rem;
+  color: #2d374a;
+  font-size: 0.74rem;
+  font-weight: 820;
+}
+
+.source-delete-dialog-card > div span {
+  margin-top: 0.32rem;
+  color: #747d8e;
+  font-size: 0.65rem;
+  font-weight: 620;
+  line-height: 1.55;
+}
+
+.source-delete-dialog-card > footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  border-top: 1px solid #edf0f3;
+  padding-top: 0.9rem;
+}
+
+.source-delete-dialog-card > footer button {
+  display: inline-flex;
+  cursor: pointer;
+  align-items: center;
+  justify-content: center;
+  gap: 0.3rem;
+  border: 1px solid #e2e5ea;
+  border-radius: 0.7rem;
+  background: #fff;
+  padding: 0.55rem 0.8rem;
+  color: #5f6878;
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 780;
+}
+
+.source-delete-dialog-card > footer button:last-child {
+  border-color: #b4233a;
+  background: #b4233a;
+  color: #fff;
 }
 
 .source-error-summary {
