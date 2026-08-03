@@ -536,6 +536,77 @@ export async function syncDataSourceAction(formData: FormData) {
   });
 }
 
+export async function deleteDataSourceAction(formData: FormData) {
+  const returnPath = "/data-sources";
+  const access = await ensureCommandCenterAction(returnPath, {
+    masterOnly: true,
+  });
+  if (!access.ok) redirectWithResult(returnPath, access);
+
+  const dataSourceId = readString(formData, "dataSourceId");
+  const validDataSourceId =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+      dataSourceId
+    );
+  if (!validDataSourceId) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "找不到要刪除嘅資料來源。",
+    });
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const { data, error } = await supabase.rpc(
+    "delete_marketing_data_source",
+    {
+      p_data_source_id: dataSourceId,
+      p_actor_identifier: access.actorIdentifier,
+    }
+  );
+
+  if (error) {
+    console.warn("marketing_data_source_delete_failed", {
+      code: error.code,
+      message: error.message,
+    });
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "資料來源未能刪除，請重新整理後再試。",
+    });
+  }
+
+  const result =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
+  if (result.ok !== true) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message:
+        result.reason === "protected_source"
+          ? "系統 Spend 帳簿及歷史月份來源受保護，唔可以刪除。"
+          : "資料來源已經不存在，列表已重新整理。",
+    });
+  }
+
+  const displayName =
+    typeof result.displayName === "string" && result.displayName.trim()
+      ? result.displayName.trim()
+      : "資料來源";
+  revalidateCommandCenter(
+    "/data-sources",
+    "/dashboard",
+    "/kpis",
+    "/performance",
+    "/performance/daily",
+    "/performance/compare"
+  );
+  redirectWithResult(returnPath, {
+    ok: true,
+    message: `${displayName} 已刪除，相關同步彙總亦已清理。`,
+  });
+}
+
 export async function refreshDashboardDataAction(formData: FormData) {
   const returnPath = safeReturnPath(
     readString(formData, "returnPath"),
