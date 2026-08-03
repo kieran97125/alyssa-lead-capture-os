@@ -2,6 +2,7 @@ import "server-only";
 
 import { getConfigurationData, type BrandSetting } from "@/lib/data/configuration";
 import { alyssaBrand } from "@/lib/data/alyssaConfig";
+import { fallbackSystemBrands } from "@/lib/data/systemBrands";
 import {
   getLeadRows,
   isBooking,
@@ -356,36 +357,40 @@ async function getPlanningRecords(month: HkMonthContext) {
     previousMonthDate.setUTCMonth(previousMonthDate.getUTCMonth() - 1);
     const previousMonth = previousMonthDate.toISOString().slice(0, 10);
     const fixtureSources: MarketingDataSource[] = e2eFixturesEnabled
-      ? [
-          {
-            id: "50000000-0000-4000-8000-000000000001",
-            brandId: alyssaBrand.id,
+      ? fallbackSystemBrands.flatMap((brand, index) => {
+          const tabName =
+            brand.slug === "ineffable"
+              ? "IB"
+              : brand.slug === "gos-beauty"
+                ? "GOS"
+                : brand.name;
+          const currentSource: MarketingDataSource = {
+            id: `50000000-0000-4000-8000-${String(index + 1).padStart(12, "0")}`,
+            brandId: brand.id,
             providerKey: "google_sheets",
-            displayName: `Alyssa · ${month.monthStart.slice(0, 7)} 月份數據`,
+            displayName: `${brand.name} · ${month.monthStart.slice(0, 7)} 月份數據`,
             status: "connected",
             syncMode: "manual",
-            configuration: { dataset: "daily_spend", tabName: "Alyssa" },
+            configuration: { dataset: "daily_spend", tabName },
             providesMetrics: ["spend"],
             lastSyncAt: `${month.today}T01:00:00.000Z`,
             lastSuccessAt: `${month.today}T01:00:00.000Z`,
             lastErrorSummary: null,
             reportingWorkbookId: fixtureWorkbookId,
-          },
-          {
-            id: "50000000-0000-4000-8000-000000000002",
-            brandId: alyssaBrand.id,
-            providerKey: "google_sheets",
-            displayName: `Alyssa · ${previousMonth.slice(0, 7)} 月份數據`,
-            status: "connected",
-            syncMode: "manual",
-            configuration: { dataset: "daily_spend", tabName: "Alyssa" },
-            providesMetrics: ["spend"],
-            lastSyncAt: `${month.today}T00:30:00.000Z`,
-            lastSuccessAt: `${month.today}T00:30:00.000Z`,
-            lastErrorSummary: null,
-            reportingWorkbookId: fixturePreviousWorkbookId,
-          },
-        ]
+          };
+          if (brand.slug === "am") return [currentSource];
+          return [
+            currentSource,
+            {
+              ...currentSource,
+              id: `50000000-0000-4000-9000-${String(index + 1).padStart(12, "0")}`,
+              displayName: `${brand.name} · ${previousMonth.slice(0, 7)} 月份數據`,
+              lastSyncAt: `${month.today}T00:30:00.000Z`,
+              lastSuccessAt: `${month.today}T00:30:00.000Z`,
+              reportingWorkbookId: fixturePreviousWorkbookId,
+            },
+          ];
+        })
       : [];
     const fixtureWorkbooks: MarketingReportingWorkbook[] = e2eFixturesEnabled
       ? [
@@ -395,10 +400,10 @@ async function getPlanningRecords(month: HkMonthContext) {
             spreadsheetId: "1HqOt0TYM8dtOpb5RgChTIeFt4hqX_SBirPz29NMAbFE",
             title: "August Overview_Alyssa_2026",
             status: "active",
-            validationStatus: "warning",
+            validationStatus: "valid",
             lastSyncStatus: "success",
             sheetCount: 9,
-            linkedBrandCount: 3,
+            linkedBrandCount: 4,
             lastValidatedAt: `${month.today}T01:00:00.000Z`,
             lastSyncAt: `${month.today}T01:00:00.000Z`,
             lastSuccessAt: `${month.today}T01:00:00.000Z`,

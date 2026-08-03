@@ -23,6 +23,13 @@ import {
   validateReportingMonthDates,
 } from "../src/lib/marketing/monthlyReportingWorkbooks";
 import {
+  aggregateComparisonRows,
+  buildCumulativeComparisonTrend,
+  calculateComparisonKpis,
+  createComparisonPeriods,
+  relativeComparisonChange,
+} from "../src/lib/marketing/periodComparisonMath";
+import {
   createSignedAdminSession,
   hasAdminPasswordGateConfig,
   verifyAdminPassword,
@@ -184,7 +191,7 @@ test("monthly workbook links, headers and reporting dates are validated before r
   ).toMatchObject({ valid: false, matchingDateCount: 1 });
 });
 
-test("monthly workbook tabs map known brand names and leave unknown tabs isolated", () => {
+test("monthly workbook tabs map all four formal system brands", () => {
   const sheets = ["Alyssa", "IB", "GOS", "AM"].map((title, index) => ({
     sheetId: index + 1,
     title,
@@ -197,6 +204,7 @@ test("monthly workbook tabs map known brand names and leave unknown tabs isolate
       { id: "alyssa", name: "Alyssa", slug: "alyssa" },
       { id: "ib", name: "Ineffable Beauty", slug: "ineffable-beauty" },
       { id: "gos", name: "GOS Beauty", slug: "gos-beauty" },
+      { id: "am", name: "AM", slug: "am" },
     ],
     sheets,
   });
@@ -205,10 +213,123 @@ test("monthly workbook tabs map known brand names and leave unknown tabs isolate
     "Alyssa",
     "IB",
     "GOS",
+    "AM",
   ]);
-  expect(result.unmatchedTabs.map((sheet) => sheet.title)).toEqual(["AM"]);
+  expect(result.unmatchedTabs).toHaveLength(0);
   expect(result.unmatchedBrands).toHaveLength(0);
   expect(result.ambiguousBrands).toHaveLength(0);
+});
+
+test("period comparison clamps the same day window and calculates auditable CPL and CPA", () => {
+  const periods = createComparisonPeriods({
+    anchorMonth: "2026-08",
+    monthCount: 3,
+    startDay: 1,
+    endDay: 31,
+  });
+
+  expect(periods).toEqual([
+    expect.objectContaining({
+      monthStart: "2026-08-01",
+      startDate: "2026-08-01",
+      endDate: "2026-08-31",
+      expectedDays: 31,
+    }),
+    expect.objectContaining({
+      monthStart: "2026-07-01",
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
+      expectedDays: 31,
+    }),
+    expect.objectContaining({
+      monthStart: "2026-06-01",
+      startDate: "2026-06-01",
+      endDate: "2026-06-30",
+      expectedDays: 30,
+    }),
+  ]);
+
+  expect(
+    calculateComparisonKpis({
+      spend: 1_200,
+      leads: 60,
+      bookings: 20,
+      shows: 10,
+    })
+  ).toEqual({
+    spend: 1_200,
+    leads: 60,
+    bookings: 20,
+    shows: 10,
+    cpl: 20,
+    costPerBooking: 60,
+    costPerShow: 120,
+    leadToBookRate: 1 / 3,
+    bookToShowRate: 0.5,
+    leadToShowRate: 1 / 6,
+  });
+  expect(
+    calculateComparisonKpis({ spend: 100, leads: 0, bookings: 0, shows: 0 })
+  ).toMatchObject({
+    cpl: null,
+    costPerBooking: null,
+    costPerShow: null,
+    leadToBookRate: null,
+    bookToShowRate: null,
+    leadToShowRate: null,
+  });
+  expect(relativeComparisonChange(120, 100)).toBeCloseTo(0.2);
+  expect(relativeComparisonChange(100, 0)).toBeNull();
+});
+
+test("period comparison aggregates numerators before rates and builds cumulative pace", () => {
+  const rows = [
+    {
+      brandId: "alyssa",
+      metricDate: "2026-08-01",
+      spend: 100,
+      leads: 10,
+      bookings: 4,
+      shows: 2,
+    },
+    {
+      brandId: "am",
+      metricDate: "2026-08-01",
+      spend: 300,
+      leads: 10,
+      bookings: 6,
+      shows: 3,
+    },
+    {
+      brandId: "alyssa",
+      metricDate: "2026-08-02",
+      spend: 200,
+      leads: 20,
+      bookings: 10,
+      shows: 5,
+    },
+  ];
+  const totals = aggregateComparisonRows(rows);
+  expect(totals).toMatchObject({
+    spend: 600,
+    leads: 40,
+    bookings: 20,
+    shows: 10,
+    cpl: 15,
+    costPerBooking: 30,
+    costPerShow: 60,
+  });
+
+  const period = createComparisonPeriods({
+    anchorMonth: "2026-08",
+    monthCount: 2,
+    startDay: 1,
+    endDay: 2,
+  })[0];
+  const trend = buildCumulativeComparisonTrend({ period, rows });
+  expect(trend).toHaveLength(2);
+  expect(trend[0]).toMatchObject({ spend: 400, leads: 20, cpl: 20 });
+  expect(trend[1]).toMatchObject({ spend: 600, leads: 40, cpl: 15 });
 });
 
 test("only the active workbook version contributes metrics and scheduled refreshes", () => {
@@ -260,10 +381,10 @@ test("only the active workbook version contributes metrics and scheduled refresh
 
 test("Google Sheets funnel trims brand names and keeps Lead, Book and Show date ownership", () => {
   const metrics = aggregateLeadFunnelColumns({
-    createdAtValues: [[46204.2], [46204.4], [46205.3]],
-    followStatusValues: [["待跟進"], ["已預約"], ["已到店"]],
-    brandValues: [["Alyssa "], ["Ineffable Beauty"], ["Alyssa"]],
-    confirmationDateValues: [[], [], [46206]],
+    createdAtValues: [[46204.2], [46204.4], [46205.3], [46205.6]],
+    followStatusValues: [["待跟進"], ["已預約"], ["已到店"], ["已預約"]],
+    brandValues: [["Alyssa "], ["Ineffable Beauty"], ["Alyssa"], ["AM"]],
+    confirmationDateValues: [[], [], [46206], []],
     brands: [
       { id: "alyssa-brand", name: "Alyssa", slug: "alyssa" },
       {
@@ -271,6 +392,7 @@ test("Google Sheets funnel trims brand names and keeps Lead, Book and Show date 
         name: "Ineffable Beauty",
         slug: "ineffable-beauty",
       },
+      { id: "am-brand", name: "AM", slug: "am" },
     ],
     sourceBrandId: null,
     throughDate: "2026-07-27",
@@ -305,6 +427,13 @@ test("Google Sheets funnel trims brand names and keeps Lead, Book and Show date 
         leads: 0,
         bookings: 0,
         shows: 1,
+      },
+      {
+        brandId: "am-brand",
+        date: "2026-07-02",
+        leads: 1,
+        bookings: 1,
+        shows: 0,
       },
     ])
   );
@@ -523,13 +652,16 @@ test("Command Center dashboard exposes budget, KPI and operational navigation", 
   ).toBeVisible();
   await expect(page.getByText(/最後更新：/)).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "主要功能" });
-  await expect(navigation.getByRole("link")).toHaveCount(9);
+  await expect(navigation.getByRole("link")).toHaveCount(10);
   await expect(navigation.getByRole("link", { name: "CRM" })).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "資料來源" })
   ).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "療程成效" })
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "同期對比" })
   ).toBeVisible();
   await expect(page.getByTestId("login-screen")).toHaveCount(0);
 });
@@ -542,6 +674,7 @@ test("Command Center feature pages render without migration-dependent crashes", 
     ["/calendar", "營銷日曆"],
     ["/data-sources", "資料來源"],
     ["/performance", "療程成效"],
+    ["/performance/compare", "品牌同期對比"],
     ["/settings/planning", "月度 Budget／KPI 設定"],
     ["/settings/team", "成員及權限"],
   ]) {
@@ -618,6 +751,30 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
     page.getByRole("heading", { name: "來源／Campaign 表現" })
   ).toBeVisible();
   await expect(page.getByText(/唔讀 mkt_dashboard 分頁/)).toBeVisible();
+});
+
+test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specific CPA", async ({
+  page,
+}) => {
+  await page.goto("/performance/compare", { waitUntil: "domcontentloaded" });
+
+  await expect(
+    page.getByRole("heading", { name: "品牌同期對比", exact: true })
+  ).toBeVisible();
+  await expect(page.getByText("CPA · Book", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("CPA · Show", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("CPL", { exact: true }).first()).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "同期累積走勢", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "月份比較", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "品牌拆解", exact: true })
+  ).toBeVisible();
+  await expect(page.getByText(/同期營運比率/)).toBeVisible();
+  await expect(page.getByText(/Alyssa、AM、IB、GOS/)).toBeVisible();
 });
 
 test("Google Sheets connection is presented as OAuth rather than a service-account key", async ({
