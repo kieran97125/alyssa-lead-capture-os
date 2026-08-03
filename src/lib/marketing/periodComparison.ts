@@ -7,6 +7,11 @@ import {
 } from "@/lib/supabase/admin";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
 import {
+  completeSpendCoverageDates,
+  isSpendType,
+  type SpendType,
+} from "@/lib/marketing/spendTypes";
+import {
   aggregateComparisonRows,
   buildCumulativeComparisonTrend,
   comparisonMonthDays,
@@ -107,6 +112,7 @@ type RawMetricRow = {
 type SpendEntryRow = {
   brandId: string;
   spendDate: string;
+  spendType: SpendType;
   amount: number;
   updatedAt: string | null;
 };
@@ -299,10 +305,12 @@ function canonicalizePeriod(input: {
   for (const brand of input.brands) {
     const funnelSource = chooseFunnelSource(input.sources, brand.id);
     const spendSource = chooseSpendSource(input.sources, brand.id);
-    const spendDates = new Set<string>();
+    const brandSpendEntries = input.spendEntries.filter(
+      (entry) => entry.brandId === brand.id
+    );
+    const spendDates = completeSpendCoverageDates(brandSpendEntries);
 
-    for (const entry of input.spendEntries) {
-      if (entry.brandId !== brand.id) continue;
+    for (const entry of brandSpendEntries) {
       rows.push({
         brandId: brand.id,
         metricDate: entry.spendDate,
@@ -311,7 +319,6 @@ function canonicalizePeriod(input: {
         bookings: 0,
         shows: 0,
       });
-      spendDates.add(entry.spendDate);
     }
 
     for (const metric of input.metrics) {
@@ -341,9 +348,7 @@ function canonicalizePeriod(input: {
         funnelSource,
         spendDates,
         latestSpendAt: uniqueLatest(
-          input.spendEntries
-            .filter((entry) => entry.brandId === brand.id)
-            .map((entry) => entry.updatedAt)
+          brandSpendEntries.map((entry) => entry.updatedAt)
         ),
       })
     );
@@ -505,7 +510,7 @@ async function fetchPeriodSpendEntries(input: {
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabase
       .from("marketing_daily_spend_entries")
-      .select("brand_id,spend_date,amount,updated_at")
+      .select("brand_id,spend_date,spend_type,amount,updated_at")
       .in("brand_id", input.brandIds)
       .gte("spend_date", input.period.startDate)
       .lte("spend_date", input.period.endDate)
@@ -519,6 +524,9 @@ async function fetchPeriodSpendEntries(input: {
     (row): SpendEntryRow => ({
       brandId: String(row.brand_id ?? ""),
       spendDate: String(row.spend_date ?? ""),
+      spendType: isSpendType(String(row.spend_type ?? ""))
+        ? (String(row.spend_type) as SpendType)
+        : "legacy_unclassified",
       amount: numberValue(row.amount),
       updatedAt: textValue(row.updated_at),
     })

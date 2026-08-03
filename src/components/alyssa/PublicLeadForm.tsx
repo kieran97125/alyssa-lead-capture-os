@@ -1188,12 +1188,12 @@ export function PublicLeadForm({
         selectedTreatment?.id || formData.treatment_id || ""
       );
     }
-    if (!baseUrl.searchParams.get("value")) {
-      baseUrl.searchParams.set(
-        "value",
-        String(selectedPackage?.promoPrice ?? 0)
-      );
-    }
+    baseUrl.searchParams.set(
+      "value",
+      String(
+        selectedPackage?.promoPrice ?? selectedPackage?.originalPrice ?? 0
+      )
+    );
     baseUrl.searchParams.set("form_id", formId || publicForm.id);
     baseUrl.searchParams.set("lead_id", leadId);
     if (eventId) baseUrl.searchParams.set("event_id", eventId);
@@ -1210,7 +1210,8 @@ export function PublicLeadForm({
 
   function buildCompleteRegistrationPayload() {
     return {
-      value: selectedPackage?.promoPrice ?? 0,
+      value:
+        selectedPackage?.promoPrice ?? selectedPackage?.originalPrice ?? 0,
       currency: "HKD",
       content_name: `${brand.name || "LaunchHub"} registration`,
       content_category: "registration",

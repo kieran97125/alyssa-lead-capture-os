@@ -19,6 +19,7 @@ import { getHkMonthContext } from "@/lib/marketing/pacing";
 import {
   ALL_SPEND_TYPES,
   SPEND_TYPE_OPTIONS,
+  completeSpendCoverageDates,
   emptySpendTypeAmounts,
   isSpendType,
   normalizeEditableSpendType,
@@ -183,7 +184,12 @@ function previousDate(value: string) {
 }
 
 function isMonthStart(value: string) {
-  return /^\d{4}-\d{2}-01$/.test(value);
+  const match = /^(\d{4})-(\d{2})-01$/.exec(value);
+  if (!match) return false;
+  const month = Number(match[2]);
+  if (month < 1 || month > 12) return false;
+  const date = dateAtUtc(value);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value;
 }
 
 function normalizeMonth(value: string, currentMonth: string) {
@@ -356,12 +362,11 @@ function buildBrandRow(input: {
   });
 
   const expectedSpendDays = input.dates.length;
-  const spendCoverageDays = new Set(spendEntries.map((entry) => entry.spendDate))
-    .size;
+  const spendCoverageDays = completeSpendCoverageDates(spendEntries).size;
   const warnings: string[] = [];
   if (spendCoverageDays < expectedSpendDays) {
     warnings.push(
-      `${input.brand.name} 廣告費已填 ${spendCoverageDays}/${expectedSpendDays} 日`
+      `${input.brand.name} 廣告費完整填寫 ${spendCoverageDays}/${expectedSpendDays} 日（四類均已確認，或屬舊未分類資料）`
     );
   }
   if (!funnelSource) {

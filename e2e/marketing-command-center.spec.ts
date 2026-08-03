@@ -31,6 +31,7 @@ import {
 } from "../src/lib/marketing/periodComparisonMath";
 import {
   EDITABLE_SPEND_TYPES,
+  completeSpendCoverageDates,
   isEditableSpendType,
   normalizeEditableSpendType,
 } from "../src/lib/marketing/spendTypes";
@@ -128,6 +129,35 @@ test("daily Spend input requires one explicit platform and acquisition type", ()
     costPerBooking: 100,
     costPerShow: 200,
   });
+});
+
+test("Spend coverage requires all editable types or one legacy total per day", () => {
+  expect(
+    completeSpendCoverageDates([
+      {
+        spendDate: "2026-08-01",
+        spendType: "meta_whatsapp",
+      },
+    ])
+  ).toEqual(new Set());
+
+  expect(
+    completeSpendCoverageDates(
+      EDITABLE_SPEND_TYPES.map((spendType) => ({
+        spendDate: "2026-08-01",
+        spendType,
+      }))
+    )
+  ).toEqual(new Set(["2026-08-01"]));
+
+  expect(
+    completeSpendCoverageDates([
+      {
+        spendDate: "2026-07-31",
+        spendType: "legacy_unclassified",
+      },
+    ])
+  ).toEqual(new Set(["2026-07-31"]));
 });
 
 test("budget and KPI warnings only activate for configured targets", () => {
@@ -865,6 +895,20 @@ test("Daily Overview records typed Meta Spend and shows daily plus cumulative KP
   await expect(page.getByLabel(/Alyssa.*Meta · Lead Form 廣告費/)).toBeVisible();
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
   expect(pageErrors).toEqual([]);
+});
+
+test("Daily Overview rejects impossible month values without a server error", async ({
+  page,
+}) => {
+  const response = await page.goto("/performance/daily?month=2026-13", {
+    waitUntil: "domcontentloaded",
+  });
+
+  expect(response?.status()).toBe(200);
+  await expect(
+    page.getByRole("heading", { name: "每日 Overview", exact: true })
+  ).toBeVisible();
+  await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
 });
 
 test("Google Sheets connection is presented as OAuth rather than a service-account key", async ({

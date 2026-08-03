@@ -415,6 +415,21 @@ export default async function DailyOverviewPage({
                           />
                         </span>
                       </label>
+                      <input
+                        type="hidden"
+                        name={`originalAmount:${brand.id}`}
+                        value={entry?.amount ?? ""}
+                      />
+                      <input
+                        type="hidden"
+                        name={`originalNote:${brand.id}`}
+                        value={entry?.note ?? ""}
+                      />
+                      <input
+                        type="hidden"
+                        name={`expectedRevision:${brand.id}`}
+                        value={entry?.revision ?? ""}
+                      />
                       <label className="daily-spend-note-field">
                         <span>備註（選填）</span>
                         <input
