@@ -13,10 +13,12 @@ import {
 } from "lucide-react";
 import {
   createDataSourceAction,
+  deleteDataSourceAction,
   syncDataSourceAction,
 } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
+import { DeleteDataSourceButton } from "@/components/command-center/DeleteDataSourceButton";
 import {
   getGoogleSheetsOAuthStatus,
   getMissingGoogleSheetsOAuthConfiguration,
@@ -329,6 +331,7 @@ export default async function DataSourcesPage({
                     <th>同步方式</th>
                     <th>上次成功</th>
                     <th>狀態</th>
+                    <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -346,7 +349,7 @@ export default async function DataSourcesPage({
                     ))
                   ) : (
                     <tr>
-                      <td colSpan={6}>
+                      <td colSpan={7}>
                         <div className="source-empty-row">
                           <DatabaseZap size={22} />
                           <strong>未有正式資料來源</strong>
@@ -623,23 +626,37 @@ function SourceRow({
         <span className={`source-status source-status-${source.status}`}>
           {statusLabels[source.status] || source.status}
         </span>
-        {source.providerKey === "google_sheets" ? (
-          <form action={syncDataSourceAction} className="source-sync-form">
-            <input type="hidden" name="dataSourceId" value={source.id} />
-            <SubmitButton
-              pendingLabel="同步中…"
-              aria-label={`同步 ${source.displayName}`}
-            >
-              <RefreshCw size={13} />
-              立即同步
-            </SubmitButton>
-          </form>
-        ) : null}
         {source.lastErrorSummary ? (
           <small className="source-error-summary">
             {source.lastErrorSummary}
           </small>
         ) : null}
+      </td>
+      <td className="source-action-cell">
+        <div className="source-action-group">
+          {source.providerKey === "google_sheets" ? (
+            <form action={syncDataSourceAction} className="source-sync-form">
+              <input type="hidden" name="dataSourceId" value={source.id} />
+              <SubmitButton
+                pendingLabel="同步中…"
+                aria-label={`同步 ${source.displayName}`}
+              >
+                <RefreshCw size={13} />
+                立即同步
+              </SubmitButton>
+            </form>
+          ) : null}
+          {source.providerKey !== "internal_ledger" &&
+          !source.reportingWorkbookId ? (
+            <DeleteDataSourceButton
+              dataSourceId={source.id}
+              displayName={source.displayName}
+              action={deleteDataSourceAction}
+            />
+          ) : (
+            <small className="source-protected-label">系統管理</small>
+          )}
+        </div>
       </td>
     </tr>
   );
