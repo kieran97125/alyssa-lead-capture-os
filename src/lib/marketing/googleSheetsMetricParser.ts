@@ -59,6 +59,37 @@ export type ParsedLeadSheetPerformance = {
   diagnostics: LeadSheetPerformanceDiagnostics;
 };
 
+export type LeadSheetStatus = "lead" | "booked" | "show" | "no_show";
+
+export type LeadSheetGroupRow = {
+  rowNumber: number;
+  createdAt: unknown;
+  createdDate: string | null;
+  status: LeadSheetStatus;
+  appointmentDate: string | null;
+  appointmentTime: string;
+  confirmationDate: string | null;
+  branchLabel: string;
+  csRemark: string;
+};
+
+export type LeadSheetLeadGroup = {
+  key: string;
+  brandId: string;
+  brandLabel: string;
+  treatmentLabel: string;
+  sourceLabel: string;
+  campaignLabel: string;
+  branchLabel: string;
+  firstTouchDate: string | null;
+  rows: LeadSheetGroupRow[];
+};
+
+export type ParsedLeadSheetGroups = {
+  groups: LeadSheetLeadGroup[];
+  diagnostics: LeadSheetPerformanceDiagnostics;
+};
+
 export const leadSheetFieldKeys = [
   "createdAt",
   "followStatus",
@@ -67,11 +98,15 @@ export const leadSheetFieldKeys = [
   "offer",
   "treatment",
   "appointmentDate",
+  "appointmentTime",
   "confirmationDate",
   "source",
   "campaign",
   "status",
   "showUp",
+  "phone",
+  "leadKey",
+  "csRemark",
 ] as const;
 
 export type LeadSheetFieldKey = (typeof leadSheetFieldKeys)[number];
@@ -89,6 +124,7 @@ const LEAD_SHEET_HEADER_ALIASES: Record<LeadSheetFieldKey, string[]> = {
   offer: ["療程 / 優惠", "療程／優惠", "Treatment / Offer"],
   treatment: ["療程項目", "Treatment Item", "Treatment"],
   appointmentDate: ["預約日期", "Appointment Date"],
+  appointmentTime: ["預約時間", "Appointment Time"],
   confirmationDate: [
     "確認到店日期",
     "Confirmed Show Date",
@@ -98,6 +134,9 @@ const LEAD_SHEET_HEADER_ALIASES: Record<LeadSheetFieldKey, string[]> = {
   campaign: ["Campaign / 廣告", "Campaign／廣告", "Campaign / Ad"],
   status: ["Status", "狀態"],
   showUp: ["Show up", "Show Up", "Show-up", "到店"],
+  phone: ["電話", "Tel No.", "Phone", "phone_number", "Tel"],
+  leadKey: ["lead_key", "Lead Key", "leadKey"],
+  csRemark: ["CS Remark", "Follow Up Remark", "Follow-up Remark", "備註"],
 };
 
 function stringValue(value: unknown) {
@@ -285,11 +324,41 @@ export function normalizeLeadSheetStatus(input: {
   return "lead" as const;
 }
 
-function treatmentLabel(input: {
+function normalizeAppsScriptLeadSheetStatus(input: {
+  followStatus: unknown;
+  status?: unknown;
+  showUp?: unknown;
+}) {
+  const followStatus = compactString(input.followStatus);
+  const joined = [followStatus, input.showUp, input.status]
+    .map(compactString)
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  if (
+    joined.includes("no show") ||
+    joined.includes("noshow") ||
+    joined.includes("no-show")
+  ) {
+    return "no_show" as const;
+  }
+  if (
+    followStatus === "已到店" ||
+    followStatus === "已完成" ||
+    joined.includes("已到店") ||
+    joined.includes("完成療程")
+  ) {
+    return "show" as const;
+  }
+  if (followStatus === "已預約") return "booked" as const;
+  return "lead" as const;
+}
+
+function matchingTreatmentAlias(input: {
   treatment: unknown;
   offer: unknown;
   campaign: unknown;
-  brand: SheetBrandReference;
   aliases: LeadSheetTreatmentAlias[];
 }) {
   const treatment = compactString(input.treatment);
@@ -298,25 +367,236 @@ function treatmentLabel(input: {
   const haystack = normalizeComparableText(
     [treatment, offer, campaign].filter(Boolean).join(" ")
   );
-  const brandKeys = new Set(automaticBrandAliases(input.brand));
-  const matched = input.aliases.find((rule) => {
-    if (rule.brand) {
-      const ruleBrand = normalizeGoogleSheetBrandKey(rule.brand);
-      if (!brandKeys.has(ruleBrand)) return false;
-    }
-    return rule.keywords.some((keyword) => {
+  return input.aliases.find((rule) =>
+    rule.keywords.some((keyword) => {
       const normalized = normalizeComparableText(keyword);
       return Boolean(normalized && haystack.includes(normalized));
-    });
-  });
-  if (matched?.label) return compactString(matched.label).slice(0, 160);
+    })
+  );
+}
 
-  const fallback = treatment || offer;
+function treatmentLabel(input: {
+  treatment: unknown;
+  offer: unknown;
+  matchedAlias: LeadSheetTreatmentAlias | undefined;
+  fallbackLabel?: string;
+}) {
+  const treatment = compactString(input.treatment);
+  const offer = compactString(input.offer);
+  if (input.matchedAlias?.label) {
+    return compactString(input.matchedAlias.label).slice(0, 160);
+  }
+
+  const fallback = input.fallbackLabel || treatment || offer;
   return fallback ? fallback.slice(0, 160) : "未分類療程";
 }
 
 function defaultDimensionLabel(value: unknown, fallback: string) {
   return compactString(value).slice(0, 180) || fallback;
+}
+
+function phoneIdentity(value: unknown) {
+  const digits = compactString(value).replace(/\D/g, "");
+  return digits.length >= 8 ? digits.slice(-8) : "";
+}
+
+function createdAtSortValue(value: unknown, rowNumber: number) {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return `${String(Math.floor(value)).padStart(10, "0")}.${String(
+      Math.round((value - Math.floor(value)) * 1_000_000)
+    ).padStart(6, "0")}|${String(rowNumber).padStart(10, "0")}`;
+  }
+  const raw = compactString(value);
+  const date = parseGoogleSheetDate(value);
+  if (date) {
+    const timeMatch = raw.match(/(?:T|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    const time = timeMatch
+      ? `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}:${
+          timeMatch[3] || "00"
+        }`
+      : "00:00:00";
+    return `${date} ${time}|${String(rowNumber).padStart(10, "0")}`;
+  }
+  return `9999-12-31 23:59:59|${String(rowNumber).padStart(10, "0")}`;
+}
+
+export function buildLeadSheetGroups(input: {
+  headers: unknown[];
+  rows: unknown[][];
+  brands: SheetBrandReference[];
+  sourceBrandId: string | null;
+  brandAliases?: Record<string, string>;
+  treatmentAliases?: LeadSheetTreatmentAlias[];
+  appsScriptContract?: boolean;
+  dedupeByIdentity?: boolean;
+}): ParsedLeadSheetGroups {
+  const columns = resolveLeadSheetColumns(input.headers);
+  const brandLookup = buildBrandLookup(input.brands, input.brandAliases);
+  const sourceBrand = input.sourceBrandId
+    ? input.brands.find((brand) => brand.id === input.sourceBrandId) ?? null
+    : null;
+  const diagnostics: LeadSheetPerformanceDiagnostics = {
+    sourceRows: 0,
+    acceptedRows: 0,
+    unknownBrandRows: 0,
+    invalidCreatedDateRows: 0,
+    invalidShowDateRows: 0,
+    invalidAppointmentDateRows: 0,
+    uncategorizedTreatmentRows: 0,
+  };
+  const groupedRows = new Map<
+    string,
+    Array<{
+      sortValue: string;
+      brand: SheetBrandReference;
+      treatmentLabel: string;
+      sourceLabel: string;
+      campaignLabel: string;
+      branchLabel: string;
+      row: LeadSheetGroupRow;
+    }>
+  >();
+  const aliases = input.treatmentAliases ?? [];
+  const valueAt = (row: unknown[], field: LeadSheetFieldKey): unknown => {
+    const index = columns[field];
+    return index >= 0 ? row[index] : "";
+  };
+
+  input.rows.forEach((rawRow, index) => {
+    const rowNumber = index + 2;
+    const selectedValues = leadSheetFieldKeys.map((field) =>
+      valueAt(rawRow, field)
+    );
+    if (!selectedValues.some((value) => compactString(value))) return;
+    diagnostics.sourceRows += 1;
+
+    const rowBrand =
+      sourceBrand ||
+      brandLookup.get(
+        normalizeGoogleSheetBrandKey(valueAt(rawRow, "brand"))
+      );
+    const rowBrandAliases = rowBrand
+      ? new Set(automaticBrandAliases(rowBrand))
+      : new Set<string>();
+    const eligibleAliases = input.appsScriptContract
+      ? aliases
+      : aliases.filter(
+          (alias) =>
+            !alias.brand ||
+            rowBrandAliases.has(normalizeGoogleSheetBrandKey(alias.brand))
+        );
+    const matchedAlias = matchingTreatmentAlias({
+      treatment: valueAt(rawRow, "treatment"),
+      offer: valueAt(rawRow, "offer"),
+      campaign: valueAt(rawRow, "campaign"),
+      aliases: eligibleAliases,
+    });
+    const aliasBrand = input.appsScriptContract && matchedAlias?.brand
+      ? brandLookup.get(normalizeGoogleSheetBrandKey(matchedAlias.brand))
+      : null;
+    const brand = sourceBrand || aliasBrand || rowBrand;
+    if (!brand) {
+      diagnostics.unknownBrandRows += 1;
+      return;
+    }
+    diagnostics.acceptedRows += 1;
+
+    const canonicalTreatment = treatmentLabel({
+      treatment: valueAt(rawRow, "treatment"),
+      offer: valueAt(rawRow, "offer"),
+      matchedAlias,
+      fallbackLabel: input.appsScriptContract ? "其他" : undefined,
+    });
+    if (canonicalTreatment === "未分類療程") {
+      diagnostics.uncategorizedTreatmentRows += 1;
+    }
+
+    const createdAt = valueAt(rawRow, "createdAt");
+    const createdDate = parseGoogleSheetDate(createdAt);
+    if (!createdDate) diagnostics.invalidCreatedDateRows += 1;
+    const statusInput = {
+      followStatus: valueAt(rawRow, "followStatus"),
+      status: valueAt(rawRow, "status"),
+      showUp: valueAt(rawRow, "showUp"),
+    };
+    const status = input.appsScriptContract
+      ? normalizeAppsScriptLeadSheetStatus(statusInput)
+      : normalizeLeadSheetStatus(statusInput);
+    const confirmationDate = parseGoogleSheetDate(
+      valueAt(rawRow, "confirmationDate")
+    );
+    if (status === "show" && !confirmationDate) {
+      diagnostics.invalidShowDateRows += 1;
+    }
+    const appointmentDate = parseGoogleSheetDate(
+      valueAt(rawRow, "appointmentDate")
+    );
+    if (["booked", "no_show"].includes(status) && !appointmentDate) {
+      diagnostics.invalidAppointmentDateRows += 1;
+    }
+
+    const phone = phoneIdentity(valueAt(rawRow, "phone"));
+    const leadKey = compactString(valueAt(rawRow, "leadKey"));
+    const identity =
+      input.dedupeByIdentity === false
+        ? `row:${rowNumber}`
+        : phone
+          ? `phone:${phone}`
+          : leadKey
+            ? `lead:${leadKey}`
+            : `row:${rowNumber}`;
+    const groupKey = `${brand.id}|${identity}`;
+    const branchLabel = defaultDimensionLabel(
+      valueAt(rawRow, "branch"),
+      "未標記分店"
+    );
+    const item = {
+      sortValue: createdAtSortValue(createdAt, rowNumber),
+      brand,
+      treatmentLabel: canonicalTreatment,
+      sourceLabel: defaultDimensionLabel(
+        valueAt(rawRow, "source"),
+        "未標記來源"
+      ),
+      campaignLabel: defaultDimensionLabel(
+        valueAt(rawRow, "campaign"),
+        "未標記 Campaign"
+      ),
+      branchLabel,
+      row: {
+        rowNumber,
+        createdAt,
+        createdDate,
+        status,
+        appointmentDate,
+        appointmentTime: compactString(valueAt(rawRow, "appointmentTime")),
+        confirmationDate,
+        branchLabel,
+        csRemark: compactString(valueAt(rawRow, "csRemark")).slice(0, 500),
+      } satisfies LeadSheetGroupRow,
+    };
+    const existing = groupedRows.get(groupKey);
+    if (existing) existing.push(item);
+    else groupedRows.set(groupKey, [item]);
+  });
+
+  const groups = Array.from(groupedRows.entries()).map(([key, items]) => {
+    items.sort((left, right) => left.sortValue.localeCompare(right.sortValue));
+    const first = items[0];
+    return {
+      key,
+      brandId: first.brand.id,
+      brandLabel: first.brand.name,
+      treatmentLabel: first.treatmentLabel,
+      sourceLabel: first.sourceLabel,
+      campaignLabel: first.campaignLabel,
+      branchLabel: first.branchLabel,
+      firstTouchDate: first.row.createdDate,
+      rows: items.map((item) => item.row),
+    } satisfies LeadSheetLeadGroup;
+  });
+
+  return { groups, diagnostics };
 }
 
 export function aggregateLeadSheetPerformance(input: {
@@ -330,23 +610,13 @@ export function aggregateLeadSheetPerformance(input: {
   activityThroughDate: string;
   pendingThroughDate: string;
 }): ParsedLeadSheetPerformance {
-  const columns = resolveLeadSheetColumns(input.headers);
-  const brandLookup = buildBrandLookup(input.brands, input.brandAliases);
-  const sourceBrand = input.sourceBrandId
-    ? input.brands.find((brand) => brand.id === input.sourceBrandId) ?? null
-    : null;
+  const parsed = buildLeadSheetGroups({
+    ...input,
+    appsScriptContract: false,
+    dedupeByIdentity: false,
+  });
   const dailyMetrics = new Map<string, ParsedLeadFunnelMetric>();
   const metricFacts = new Map<string, ParsedLeadSheetMetricFact>();
-  const diagnostics: LeadSheetPerformanceDiagnostics = {
-    sourceRows: 0,
-    acceptedRows: 0,
-    unknownBrandRows: 0,
-    invalidCreatedDateRows: 0,
-    invalidShowDateRows: 0,
-    invalidAppointmentDateRows: 0,
-    uncategorizedTreatmentRows: 0,
-  };
-
   const getDailyMetric = (brandId: string, date: string) => {
     const key = `${brandId}:${date}`;
     const existing = dailyMetrics.get(key);
@@ -361,15 +631,6 @@ export function aggregateLeadSheetPerformance(input: {
     dailyMetrics.set(key, metric);
     return metric;
   };
-
-  const valueAt = (
-    row: unknown[],
-    field: LeadSheetFieldKey
-  ): unknown => {
-    const index = columns[field];
-    return index >= 0 ? row[index] : "";
-  };
-
   const addFact = (
     fact: Omit<ParsedLeadSheetMetricFact, "count">
   ) => {
@@ -390,136 +651,70 @@ export function aggregateLeadSheetPerformance(input: {
     metricFacts.set(key, { ...fact, count: 1 });
   };
 
-  for (const row of input.rows) {
-    const selectedValues = leadSheetFieldKeys.map((field) =>
-      valueAt(row, field)
-    );
-    if (!selectedValues.some((value) => compactString(value))) continue;
-    diagnostics.sourceRows += 1;
-
-    const brand =
-      sourceBrand ||
-      brandLookup.get(
-        normalizeGoogleSheetBrandKey(valueAt(row, "brand"))
-      );
-    if (!brand) {
-      diagnostics.unknownBrandRows += 1;
-      continue;
-    }
-    diagnostics.acceptedRows += 1;
-
-    const canonicalTreatment = treatmentLabel({
-      treatment: valueAt(row, "treatment"),
-      offer: valueAt(row, "offer"),
-      campaign: valueAt(row, "campaign"),
-      brand,
-      aliases: input.treatmentAliases ?? [],
-    });
-    if (canonicalTreatment === "未分類療程") {
-      diagnostics.uncategorizedTreatmentRows += 1;
-    }
-
+  parsed.groups.forEach((group) => {
     const dimensions = {
-      brandId: brand.id,
-      brandLabel: brand.name,
-      treatmentLabel: canonicalTreatment,
-      sourceLabel: defaultDimensionLabel(
-        valueAt(row, "source"),
-        "未標記來源"
-      ),
-      campaignLabel: defaultDimensionLabel(
-        valueAt(row, "campaign"),
-        "未標記 Campaign"
-      ),
-      branchLabel: defaultDimensionLabel(
-        valueAt(row, "branch"),
-        "未標記分店"
-      ),
+      brandId: group.brandId,
+      brandLabel: group.brandLabel,
+      treatmentLabel: group.treatmentLabel,
+      sourceLabel: group.sourceLabel,
+      campaignLabel: group.campaignLabel,
+      branchLabel: group.branchLabel,
     };
-    const normalizedStatus = normalizeLeadSheetStatus({
-      followStatus: valueAt(row, "followStatus"),
-      status: valueAt(row, "status"),
-      showUp: valueAt(row, "showUp"),
-    });
-    const isBook = ["booked", "show", "no_show"].includes(normalizedStatus);
-    const createdDate = parseGoogleSheetDate(valueAt(row, "createdAt"));
+    const isBook = group.rows.some((row) => row.status !== "lead");
+    const createdDate = group.firstTouchDate;
 
-    if (!createdDate) {
-      diagnostics.invalidCreatedDateRows += 1;
-    } else {
-      if (createdDate <= input.dailyThroughDate) {
-        const daily = getDailyMetric(brand.id, createdDate);
-        daily.leads += 1;
-        if (isBook) daily.bookings += 1;
-      }
-      if (createdDate <= input.activityThroughDate) {
-        addFact({
-          ...dimensions,
-          metricDate: createdDate,
-          metricKind: "lead",
-        });
-        if (isBook) {
-          addFact({
-            ...dimensions,
-            metricDate: createdDate,
-            metricKind: "book",
-          });
-        }
+    if (createdDate && createdDate <= input.dailyThroughDate) {
+      const daily = getDailyMetric(group.brandId, createdDate);
+      daily.leads += 1;
+      if (isBook) daily.bookings += 1;
+    }
+    if (createdDate && createdDate <= input.activityThroughDate) {
+      addFact({ ...dimensions, metricDate: createdDate, metricKind: "lead" });
+      if (isBook) {
+        addFact({ ...dimensions, metricDate: createdDate, metricKind: "book" });
       }
     }
 
-    if (normalizedStatus === "show") {
-      const showDate = parseGoogleSheetDate(
-        valueAt(row, "confirmationDate")
-      );
-      if (!showDate) {
-        diagnostics.invalidShowDateRows += 1;
-      } else {
-        if (showDate <= input.dailyThroughDate) {
-          getDailyMetric(brand.id, showDate).shows += 1;
-        }
-        if (showDate <= input.activityThroughDate) {
-          addFact({
-            ...dimensions,
-            metricDate: showDate,
-            metricKind: "show",
-          });
-        }
-      }
+    const showDate = group.rows
+      .filter((row) => row.status === "show" && row.confirmationDate)
+      .map((row) => row.confirmationDate as string)
+      .sort()[0];
+    if (showDate && showDate <= input.dailyThroughDate) {
+      getDailyMetric(group.brandId, showDate).shows += 1;
+    }
+    if (showDate && showDate <= input.activityThroughDate) {
+      addFact({ ...dimensions, metricDate: showDate, metricKind: "show" });
     }
 
-    if (normalizedStatus === "no_show" || normalizedStatus === "booked") {
-      const appointmentDate = parseGoogleSheetDate(
-        valueAt(row, "appointmentDate")
-      );
-      if (!appointmentDate) {
-        diagnostics.invalidAppointmentDateRows += 1;
-      } else if (
-        normalizedStatus === "no_show" &&
-        appointmentDate <= input.activityThroughDate
-      ) {
-        addFact({
-          ...dimensions,
-          metricDate: appointmentDate,
-          metricKind: "no_show",
-        });
-      } else if (
-        normalizedStatus === "booked" &&
-        appointmentDate <= input.pendingThroughDate
-      ) {
-        addFact({
-          ...dimensions,
-          metricDate: appointmentDate,
-          metricKind: "pending_show",
-        });
-      }
+    const noShowDate = group.rows
+      .filter((row) => row.status === "no_show" && row.appointmentDate)
+      .map((row) => row.appointmentDate as string)
+      .sort()[0];
+    if (noShowDate && noShowDate <= input.activityThroughDate) {
+      addFact({
+        ...dimensions,
+        metricDate: noShowDate,
+        metricKind: "no_show",
+      });
     }
-  }
+
+    const pendingDate = group.rows
+      .filter((row) => row.status === "booked" && row.appointmentDate)
+      .map((row) => row.appointmentDate as string)
+      .sort()[0];
+    if (pendingDate && pendingDate <= input.pendingThroughDate) {
+      addFact({
+        ...dimensions,
+        metricDate: pendingDate,
+        metricKind: "pending_show",
+      });
+    }
+  });
 
   return {
     dailyMetrics: Array.from(dailyMetrics.values()),
     metricFacts: Array.from(metricFacts.values()),
-    diagnostics,
+    diagnostics: parsed.diagnostics,
   };
 }
 

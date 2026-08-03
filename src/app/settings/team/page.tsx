@@ -49,10 +49,10 @@ const roles = [
 ] as const;
 
 const modules = [
-  ["dashboard", "主頁總覽"],
+  ["dashboard", "Dashboard"],
   ["kpis", "品牌 KPI"],
   ["calendar", "營銷日曆"],
-  ["launchhub", "LaunchHub"],
+  ["launchhub", "建立 Wix Form"],
   ["leads", "Leads"],
   ["crm", "CRM"],
   ["performance", "療程成效及同期對比"],

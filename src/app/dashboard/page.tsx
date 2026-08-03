@@ -1,13 +1,9 @@
 import {
   ArrowUpRight,
   CalendarClock,
-  CircleDollarSign,
   DatabaseZap,
-  Flag,
   Target,
   TriangleAlert,
-  UserRoundCheck,
-  UsersRound,
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
@@ -17,6 +13,7 @@ import {
 } from "@/components/command-center/PaceBar";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { DashboardRefreshButton } from "@/components/command-center/DashboardRefreshButton";
+import { LeadDashboardPanel } from "@/components/command-center/LeadDashboardPanel";
 import { refreshDashboardDataAction } from "@/app/command-center/actions";
 import { money } from "@/lib/data/businessMetrics";
 import {
@@ -24,6 +21,7 @@ import {
   type BrandCommandCenterRow,
   type MetricProgress,
 } from "@/lib/marketing/commandCenter";
+import { getLeadDashboardSnapshot } from "@/lib/marketing/leadDashboard";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
@@ -57,12 +55,30 @@ export default async function DashboardPage({
   searchParams?: Promise<{
     command_status?: string | string[];
     message?: string | string[];
+    startDate?: string | string[];
+    endDate?: string | string[];
+    brandId?: string | string[];
+    treatment?: string | string[];
   }>;
 }) {
-  const [snapshot, query, access] = await Promise.all([
-    getCommandCenterSnapshot(),
-    searchParams,
-    getCurrentInternalAccess(),
+  const commandSnapshotPromise = getCommandCenterSnapshot();
+  const accessPromise = getCurrentInternalAccess();
+  const query = (await searchParams) ?? {};
+  const leadDashboardPromise = accessPromise.then((access) =>
+    getLeadDashboardSnapshot(
+      {
+        startDate: firstParam(query.startDate),
+        endDate: firstParam(query.endDate),
+        brandId: firstParam(query.brandId),
+        treatment: firstParam(query.treatment),
+      },
+      access
+    )
+  );
+  const [snapshot, access, leadDashboard] = await Promise.all([
+    commandSnapshotPromise,
+    accessPromise,
+    leadDashboardPromise,
   ]);
   const isMaster = access.accessLevel === "master";
   const greetingName =
@@ -105,11 +121,11 @@ export default async function DashboardPage({
         <div className="command-page-inner">
           <header className="command-page-header">
             <div>
-              <p className="command-page-kicker">Marketing Command Center</p>
-              <h1 className="command-page-title">早晨，{greetingName}</h1>
+              <p className="command-page-kicker">早晨，{greetingName}</p>
+              <h1 className="command-page-title">Dashboard</h1>
               <p className="command-page-subtitle">
-                {snapshot.month.label}營運進度 · {snapshot.month.throughLabel}。Lead、Book
-                及 Show 只計本月 1 號至昨日，避免今日未完整數據干擾判斷。
+                直接由 Lead 表計算 Lead、Book、Show、No Show 同待到店；下方再集中睇
+                Budget、KPI、資料健康及下一步營銷工作。
               </p>
             </div>
             <div className="command-header-actions">
@@ -119,14 +135,18 @@ export default async function DashboardPage({
                   className="command-refresh-form"
                 >
                   <input type="hidden" name="returnPath" value="/dashboard" />
-                  <DashboardRefreshButton disabled={refreshDisabled} />
+                  <DashboardRefreshButton
+                    disabled={refreshDisabled}
+                    idleLabel="同步其它報表"
+                    pendingLabel="同步其它報表中…"
+                  />
                   <small>
-                    CS Lead 更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
+                    其它報表彙總：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
                   </small>
                 </form>
               ) : (
                 <small>
-                  CS Lead 更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
+                  其它報表彙總：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
                 </small>
               )}
               {isMaster ? (
@@ -163,52 +183,21 @@ export default async function DashboardPage({
             </p>
           ))}
 
-          <section className="command-summary-grid" aria-label="本月整體摘要">
-            <SummaryCard
-              label="廣告已用"
-              value={money(snapshot.total.spend)}
-              meta={
-                snapshot.total.budget > 0
-                  ? `月度預算 ${money(snapshot.total.budget)}`
-                  : "尚未設定月度預算"
-              }
-              icon={CircleDollarSign}
-              tone="rose"
-            />
-            <SummaryCard
-              label="Leads"
-              value={rounded(snapshot.total.leads)}
-              meta={
-                snapshot.total.leadTarget > 0
-                  ? `目標 ${rounded(snapshot.total.leadTarget)}`
-                  : "尚未設定 Lead 目標"
-              }
-              icon={UsersRound}
-              tone="blue"
-            />
-            <SummaryCard
-              label="Bookings"
-              value={rounded(snapshot.total.bookings)}
-              meta={
-                snapshot.total.bookingTarget > 0
-                  ? `目標 ${rounded(snapshot.total.bookingTarget)}`
-                  : "尚未設定 Booking 目標"
-              }
-              icon={UserRoundCheck}
-              tone="amber"
-            />
-            <SummaryCard
-              label="Shows"
-              value={rounded(snapshot.total.shows)}
-              meta={
-                snapshot.total.showTarget > 0
-                  ? `目標 ${rounded(snapshot.total.showTarget)}`
-                  : "尚未設定 Show 目標"
-              }
-              icon={Flag}
-              tone="green"
-            />
-          </section>
+          {leadDashboard.warnings.map((warning) => (
+            <p key={warning} className="command-status-message is-error">
+              {warning}
+            </p>
+          ))}
+
+          <LeadDashboardPanel snapshot={leadDashboard} />
+
+          <div className="lead-dashboard-operations-heading">
+            <p>Operations control</p>
+            <h2>營運控制</h2>
+            <span>
+              Budget 與 KPI 以已完成日期至昨日為準，避免今日未完整數據干擾判斷。
+            </span>
+          </div>
 
           <section className="command-dashboard-layout">
             <div className="command-main-column">
@@ -346,35 +335,6 @@ export default async function DashboardPage({
         </div>
       </div>
     </main>
-  );
-}
-
-type SummaryTone = "rose" | "blue" | "amber" | "green";
-
-function SummaryCard({
-  label,
-  value,
-  meta,
-  icon: Icon,
-  tone,
-}: {
-  label: string;
-  value: string;
-  meta: string;
-  icon: typeof UsersRound;
-  tone: SummaryTone;
-}) {
-  return (
-    <article className={`command-summary-card tone-${tone}`}>
-      <span className="command-summary-icon">
-        <Icon size={19} />
-      </span>
-      <div>
-        <p>{label}</p>
-        <strong>{value}</strong>
-        <span>{meta}</span>
-      </div>
-    </article>
   );
 }
 

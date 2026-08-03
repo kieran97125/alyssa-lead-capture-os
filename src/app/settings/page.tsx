@@ -195,7 +195,7 @@ export default async function SettingsPage({
                     Meta Pixel
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                    儲存一次後，LaunchHub Landing Page、表格及新生成的 Wix Embed
+                    儲存一次後，Growth OS Landing Page、表格及新生成的 Wix Embed
                     會自動使用此品牌 Pixel。
                   </p>
                 </div>
@@ -241,7 +241,7 @@ export default async function SettingsPage({
                   />
                   <span>
                     <span className="block text-sm font-bold text-[#321428]">
-                      Wix Embed 亦由 LaunchHub 發 PageView
+                      Wix Embed 亦由 Growth OS 發 PageView
                     </span>
                     <span className="mt-1 block text-xs font-semibold leading-5 text-[#7b5a6a]">
                       如果 Wix 已經經 Meta Integration 安裝同一 Pixel，請保持關閉，避免重複

@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleGauge,
   DatabaseZap,
+  FilePlus2,
   Home,
   Inbox,
   LockKeyhole,
@@ -16,7 +17,6 @@ import {
   MailCheck,
   Menu,
   MessageCircleMore,
-  Rocket,
   Settings2,
   Table2,
   X,
@@ -49,31 +49,23 @@ type NavigationGroup = {
 
 const navigationGroups: NavigationGroup[] = [
   {
-    label: "Command",
+    label: "總覽",
     items: [
-      { href: "/dashboard", label: "主頁總覽", icon: Home, module: "dashboard" },
+      { href: "/dashboard", label: "Dashboard", icon: Home, module: "dashboard" },
       { href: "/kpis", label: "品牌 KPI", icon: CircleGauge, module: "kpis" },
       { href: "/calendar", label: "營銷日曆", icon: CalendarDays, module: "calendar" },
     ],
   },
   {
-    label: "Operations",
+    label: "客戶營運",
     items: [
-      {
-        href: "/campaigns/new",
-        label: "LaunchHub",
-        icon: Rocket,
-        module: "launchhub",
-        match: [
-          "/campaigns",
-          "/create-campaign",
-          "/forms",
-          "/landing-pages",
-          "/brands",
-        ],
-      },
       { href: "/leads", label: "Leads", icon: Inbox, module: "leads" },
       { href: "/crm", label: "CRM", icon: MessageCircleMore, module: "crm" },
+    ],
+  },
+  {
+    label: "成效報表",
+    items: [
       {
         href: "/performance",
         label: "療程成效",
@@ -96,8 +88,21 @@ const navigationGroups: NavigationGroup[] = [
     ],
   },
   {
-    label: "Control",
+    label: "建立與設定",
     items: [
+      {
+        href: "/forms",
+        label: "建立 Wix Form",
+        icon: FilePlus2,
+        module: "launchhub",
+        match: [
+          "/campaigns",
+          "/create-campaign",
+          "/forms",
+          "/landing-pages",
+          "/brands",
+        ],
+      },
       {
         href: "/data-sources",
         label: "資料來源",

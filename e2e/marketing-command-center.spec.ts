@@ -9,10 +9,12 @@ import {
   aggregateDailySpendRows,
   aggregateLeadSheetPerformance,
   aggregateLeadFunnelColumns,
+  buildLeadSheetGroups,
   normalizeLeadSheetStatus,
   parseGoogleSheetDate,
   resolveLeadSheetColumns,
 } from "../src/lib/marketing/googleSheetsMetricParser";
+import { buildLeadDashboardModel } from "../src/lib/marketing/leadDashboardMath";
 import {
   isMetricFromActiveReportingVersion,
   matchReportingWorkbookTabs,
@@ -656,6 +658,156 @@ test("Lead Sheet treatment performance follows headers, event dates and anonymou
   ).toBe("no_show");
 });
 
+test("Lead Dashboard copies brand-phone dedupe and First Touch rules from the operational sheet", () => {
+  const headers = [
+    "Created At",
+    "品牌",
+    "電話",
+    "lead_key",
+    "療程項目",
+    "來源",
+    "Campaign / 廣告",
+    "跟進狀態",
+    "預約日期",
+    "預約時間",
+    "確認到店日期",
+    "分店",
+    "CS Remark",
+  ];
+  const brands = [
+    { id: "alyssa-brand", name: "Alyssa", slug: "alyssa" },
+    { id: "am-brand", name: "AM", slug: "am" },
+    { id: "ib-brand", name: "Ineffable Beauty", slug: "ineffable" },
+  ];
+  const parsed = buildLeadSheetGroups({
+    headers,
+    rows: [
+      [
+        "2026-07-01 09:00:00",
+        "Alyssa",
+        "+852 9123 4567",
+        "first",
+        "$988 Facelift",
+        "Facebook Lead Form",
+        "first-touch-campaign",
+        "待跟進",
+        "",
+        "",
+        "",
+        "尖沙咀",
+        "",
+      ],
+      [
+        "2026-07-02 12:00:00",
+        "Alyssa",
+        "91234567",
+        "second",
+        "$988 Facelift",
+        "WhatsApp 廣告",
+        "later-campaign",
+        "已到店",
+        "2026-07-03",
+        "14:30",
+        "2026-07-03",
+        "尖沙咀",
+        "",
+      ],
+      [
+        "2026-07-04",
+        "Ineffable Beauty",
+        "91234567",
+        "third",
+        "$388 柔清舒敏護理",
+        "WhatsApp 廣告",
+        "ib-campaign",
+        "no show",
+        "2026-07-06",
+        "16:00",
+        "",
+        "銅鑼灣",
+        "",
+      ],
+      [
+        "2026-07-05",
+        "Alyssa Medical",
+        "",
+        "am-lead",
+        "XEOMIN",
+        "Facebook Lead Form",
+        "xeomin-campaign",
+        "已預約",
+        "2026-07-20",
+        "18:00",
+        "",
+        "中環",
+        "待確認",
+      ],
+      [
+        "2026-07-06",
+        "AM",
+        "",
+        "am-lead",
+        "XEOMIN",
+        "Facebook Lead Form",
+        "later-am-campaign",
+        "已預約",
+        "2026-07-21",
+        "18:30",
+        "",
+        "中環",
+        "",
+      ],
+    ],
+    brands,
+    sourceBrandId: null,
+    brandAliases: { "Alyssa Medical": "am" },
+    treatmentAliases: [
+      { brand: "Alyssa", label: "$988 Facelift", keywords: ["facelift"] },
+      { brand: "AM", label: "XEOMIN", keywords: ["xeomin"] },
+    ],
+    appsScriptContract: true,
+    dedupeByIdentity: true,
+  });
+  expect(parsed.groups).toHaveLength(3);
+  const alyssa = parsed.groups.find((group) => group.brandId === "alyssa-brand");
+  expect(alyssa).toMatchObject({
+    firstTouchDate: "2026-07-01",
+    sourceLabel: "Facebook Lead Form",
+    campaignLabel: "first-touch-campaign",
+  });
+  expect(alyssa?.rows).toHaveLength(2);
+
+  const model = buildLeadDashboardModel({
+    groups: parsed.groups,
+    brands,
+    filters: {
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
+      brandId: "",
+      treatment: "",
+    },
+  });
+  expect(model.totals).toMatchObject({
+    leads: 3,
+    bookings: 3,
+    shows: 1,
+    noShows: 1,
+    outstanding: 1,
+  });
+  expect(model.treatmentRows[0]).toMatchObject({
+    treatmentLabel: "全部療程",
+    leads: 3,
+    bookings: 3,
+  });
+  expect(model.campaignRows.find((row) => row.brandId === "alyssa-brand"))
+    .toMatchObject({ campaignLabel: "first-touch-campaign", leads: 1, bookings: 1 });
+  expect(model.outstandingRows[0]).toMatchObject({
+    brandLabel: "AM",
+    appointmentDate: "2026-07-20",
+    csRemark: "待確認",
+  });
+});
+
 test("temporary password gate signs distinct Admin and Master sessions", async () => {
   const previous = {
     admin: process.env.LAUNCHHUB_ADMIN_PASSWORD,
@@ -700,22 +852,37 @@ test("temporary password gate signs distinct Admin and Master sessions", async (
   }
 });
 
-test("Command Center dashboard exposes budget, KPI and operational navigation", async ({
+test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation", async ({
   page,
 }) => {
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
   await expect(
-    page.getByRole("heading", { name: "早晨，Kieran" })
+    page.getByRole("heading", { name: "Dashboard", exact: true })
   ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "品牌總結" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "療程表現" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "來源／Campaign 表現" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "本月未 Show 明細" })
+  ).toBeVisible();
+  await expect(page.getByText(/不讀.*mkt_dashboard/)).toBeVisible();
   await expect(page.getByRole("heading", { name: "預算概覽" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "品牌 KPI 進度" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "同步 CS Lead" })
+    page.getByRole("button", { name: "同步其它報表" })
   ).toBeVisible();
-  await expect(page.getByText(/CS Lead 更新：/)).toBeVisible();
+  await expect(page.getByText(/其它報表彙總：/)).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "主要功能" });
   await expect(navigation.getByRole("link")).toHaveCount(11);
+  await expect(
+    navigation.getByRole("link", { name: "Dashboard" })
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "建立 Wix Form" })
+  ).toBeVisible();
   await expect(navigation.getByRole("link", { name: "CRM" })).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "資料來源" })

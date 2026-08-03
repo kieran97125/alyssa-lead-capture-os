@@ -621,7 +621,7 @@ export async function bootstrapCrmLeadCaseFromLead(
     caseId: String(createdCase.id),
     contactId: String(contact.id),
     interactionType: "system",
-    body: "CRM case bootstrapped from LaunchHub lead.",
+    body: "CRM case bootstrapped from a Growth OS Wix form lead.",
     author: "system",
     sourceType: "launchhub",
   });

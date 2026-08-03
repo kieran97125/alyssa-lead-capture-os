@@ -34,7 +34,7 @@ import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 export const dynamic = "force-dynamic";
 
 const providerLabels: Record<string, string> = {
-  launchhub: "LaunchHub",
+  launchhub: "建立 Wix Form",
   crm: "CRM",
   google_sheets: "Google Sheets",
   meta_ads: "Meta Ads",
