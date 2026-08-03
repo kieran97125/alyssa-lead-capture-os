@@ -14,6 +14,15 @@ import {
   resolveLeadSheetColumns,
 } from "../src/lib/marketing/googleSheetsMetricParser";
 import {
+  isMetricFromActiveReportingVersion,
+  matchReportingWorkbookTabs,
+  normalizeReportingMonth,
+  parseGoogleSpreadsheetId,
+  resolveMonthlyOverviewColumns,
+  shouldSyncReportingSource,
+  validateReportingMonthDates,
+} from "../src/lib/marketing/monthlyReportingWorkbooks";
+import {
   createSignedAdminSession,
   hasAdminPasswordGateConfig,
   verifyAdminPassword,
@@ -121,6 +130,132 @@ test("Google Sheets daily spend uses date column A and total spend column N", ()
       spend: 90,
     },
   ]);
+});
+
+test("monthly workbook links, headers and reporting dates are validated before registration", () => {
+  const spreadsheetId = "1HqOt0TYM8dtOpb5RgChTIeFt4hqX_SBirPz29NMAbFE";
+  expect(
+    parseGoogleSpreadsheetId(
+      `https://docs.google.com/spreadsheets/d/${spreadsheetId}/edit?gid=29793010#gid=29793010`
+    )
+  ).toBe(spreadsheetId);
+  expect(
+    parseGoogleSpreadsheetId(
+      `https://docs.google.com.evil.test/spreadsheets/d/${spreadsheetId}/edit`
+    )
+  ).toBeNull();
+  expect(normalizeReportingMonth("2026-08")).toBe("2026-08-01");
+  expect(normalizeReportingMonth("2026-13")).toBeNull();
+
+  const headers = [
+    "Date",
+    "weekday",
+    "display date",
+    "查詢#",
+    "預約#",
+    "BR",
+    "到店#",
+    "試做價#",
+    "開單#",
+    "實收金額#",
+    "人均實收#",
+    "廣告費meta$",
+    "廣告費google$",
+    "累計廣告費$",
+  ];
+  expect(resolveMonthlyOverviewColumns(headers)).toMatchObject({
+    dateColumn: "A",
+    spendColumn: "N",
+    valid: true,
+  });
+  expect(
+    validateReportingMonthDates({
+      values: [46235, 46236, ""],
+      reportingMonth: "2026-08-01",
+      parseDate: parseGoogleSheetDate,
+    })
+  ).toMatchObject({ valid: true, matchingDateCount: 2 });
+  expect(
+    validateReportingMonthDates({
+      values: [46204, 46235],
+      reportingMonth: "2026-08-01",
+      parseDate: parseGoogleSheetDate,
+    })
+  ).toMatchObject({ valid: false, matchingDateCount: 1 });
+});
+
+test("monthly workbook tabs map known brand names and leave unknown tabs isolated", () => {
+  const sheets = ["Alyssa", "IB", "GOS", "AM"].map((title, index) => ({
+    sheetId: index + 1,
+    title,
+    hidden: false,
+    rowCount: 100,
+    columnCount: 66,
+  }));
+  const result = matchReportingWorkbookTabs({
+    brands: [
+      { id: "alyssa", name: "Alyssa", slug: "alyssa" },
+      { id: "ib", name: "Ineffable Beauty", slug: "ineffable-beauty" },
+      { id: "gos", name: "GOS Beauty", slug: "gos-beauty" },
+    ],
+    sheets,
+  });
+
+  expect(result.mappings.map((mapping) => mapping.tabName)).toEqual([
+    "Alyssa",
+    "IB",
+    "GOS",
+  ]);
+  expect(result.unmatchedTabs.map((sheet) => sheet.title)).toEqual(["AM"]);
+  expect(result.unmatchedBrands).toHaveLength(0);
+  expect(result.ambiguousBrands).toHaveLength(0);
+});
+
+test("only the active workbook version contributes metrics and scheduled refreshes", () => {
+  expect(
+    isMetricFromActiveReportingVersion({
+      sourceReportingWorkbookId: null,
+      workbookStatus: undefined,
+      workbookReportingMonth: undefined,
+      currentReportingMonth: "2026-08-01",
+    })
+  ).toBe(true);
+  expect(
+    isMetricFromActiveReportingVersion({
+      sourceReportingWorkbookId: "august-old",
+      workbookStatus: "superseded",
+      workbookReportingMonth: "2026-08-01",
+      currentReportingMonth: "2026-08-01",
+    })
+  ).toBe(false);
+  expect(
+    isMetricFromActiveReportingVersion({
+      sourceReportingWorkbookId: "july-active",
+      workbookStatus: "active",
+      workbookReportingMonth: "2026-07-01",
+      currentReportingMonth: "2026-08-01",
+    })
+  ).toBe(false);
+  expect(
+    isMetricFromActiveReportingVersion({
+      sourceReportingWorkbookId: "august-active",
+      workbookStatus: "active",
+      workbookReportingMonth: "2026-08-01",
+      currentReportingMonth: "2026-08-01",
+    })
+  ).toBe(true);
+  expect(
+    shouldSyncReportingSource({
+      sourceReportingWorkbookId: null,
+      activeCurrentWorkbookId: "august-active",
+    })
+  ).toBe(true);
+  expect(
+    shouldSyncReportingSource({
+      sourceReportingWorkbookId: "july-active",
+      activeCurrentWorkbookId: "august-active",
+    })
+  ).toBe(false);
 });
 
 test("Google Sheets funnel trims brand names and keeps Lead, Book and Show date ownership", () => {
@@ -497,6 +632,25 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
     )
   ).toBeVisible();
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
+});
+
+test("monthly workbook registry keeps the current link and historical records together", async ({
+  page,
+}) => {
+  await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
+
+  await expect(
+    page.getByRole("heading", { name: "月份數據表", exact: true })
+  ).toBeVisible();
+  await expect(page.getByLabel("數據月份")).toHaveValue("2026-08");
+  await expect(page.getByLabel("Google Spreadsheet Link")).toBeVisible();
+  await expect(page.getByText("August Overview_Alyssa_2026")).toBeVisible();
+  await expect(page.getByText("July Overview_Alyssa_2026")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: /打開原始數據表/ })
+  ).toHaveCount(2);
+  await expect(page.getByText(/Dashboard 只會計目前生效版本/)).toBeVisible();
+  await expect(page.getByText(/Lead／Book／Show 仍以原本 Lead Sheet/)).toBeVisible();
 });
 
 test("incomplete Google OAuth setup names the blocker and every click returns feedback", async ({

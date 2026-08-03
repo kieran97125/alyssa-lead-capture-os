@@ -23,6 +23,7 @@ import {
   type PaceStatus,
 } from "@/lib/marketing/pacing";
 import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/constants";
+import { isMetricFromActiveReportingVersion } from "@/lib/marketing/monthlyReportingWorkbooks";
 
 export { MASTER_ACCOUNT_EMAIL };
 
@@ -59,6 +60,24 @@ export type MarketingDataSource = {
   lastSyncAt: string | null;
   lastSuccessAt: string | null;
   lastErrorSummary: string | null;
+  reportingWorkbookId: string | null;
+};
+
+export type MarketingReportingWorkbook = {
+  id: string;
+  reportingMonth: string;
+  spreadsheetId: string;
+  title: string;
+  status: "active" | "superseded" | "archived";
+  validationStatus: "pending" | "valid" | "warning" | "error";
+  lastSyncStatus: "pending" | "syncing" | "success" | "partial" | "error";
+  sheetCount: number;
+  linkedBrandCount: number;
+  lastValidatedAt: string | null;
+  lastSyncAt: string | null;
+  lastSuccessAt: string | null;
+  lastErrorSummary: string | null;
+  createdAt: string;
 };
 
 export type CalendarItem = {
@@ -136,6 +155,7 @@ export type CommandCenterSnapshot = {
   month: HkMonthContext;
   brands: BrandCommandCenterRow[];
   dataSources: MarketingDataSource[];
+  reportingWorkbooks: MarketingReportingWorkbook[];
   calendarItems: CalendarItem[];
   members: WorkspaceMember[];
   schemaReady: boolean;
@@ -156,6 +176,7 @@ type DailyMetric = {
   brandId: string;
   metricDate: string;
   sourceKey: string;
+  dataSourceId: string | null;
   spend: number;
   leads: number;
   bookings: number;
@@ -329,10 +350,85 @@ async function getPlanningRecords(month: HkMonthContext) {
         ]
       : [];
 
+    const fixtureWorkbookId = "40000000-0000-4000-8000-000000000001";
+    const fixturePreviousWorkbookId = "40000000-0000-4000-8000-000000000002";
+    const previousMonthDate = new Date(`${month.monthStart}T00:00:00.000Z`);
+    previousMonthDate.setUTCMonth(previousMonthDate.getUTCMonth() - 1);
+    const previousMonth = previousMonthDate.toISOString().slice(0, 10);
+    const fixtureSources: MarketingDataSource[] = e2eFixturesEnabled
+      ? [
+          {
+            id: "50000000-0000-4000-8000-000000000001",
+            brandId: alyssaBrand.id,
+            providerKey: "google_sheets",
+            displayName: `Alyssa · ${month.monthStart.slice(0, 7)} 月份數據`,
+            status: "connected",
+            syncMode: "manual",
+            configuration: { dataset: "daily_spend", tabName: "Alyssa" },
+            providesMetrics: ["spend"],
+            lastSyncAt: `${month.today}T01:00:00.000Z`,
+            lastSuccessAt: `${month.today}T01:00:00.000Z`,
+            lastErrorSummary: null,
+            reportingWorkbookId: fixtureWorkbookId,
+          },
+          {
+            id: "50000000-0000-4000-8000-000000000002",
+            brandId: alyssaBrand.id,
+            providerKey: "google_sheets",
+            displayName: `Alyssa · ${previousMonth.slice(0, 7)} 月份數據`,
+            status: "connected",
+            syncMode: "manual",
+            configuration: { dataset: "daily_spend", tabName: "Alyssa" },
+            providesMetrics: ["spend"],
+            lastSyncAt: `${month.today}T00:30:00.000Z`,
+            lastSuccessAt: `${month.today}T00:30:00.000Z`,
+            lastErrorSummary: null,
+            reportingWorkbookId: fixturePreviousWorkbookId,
+          },
+        ]
+      : [];
+    const fixtureWorkbooks: MarketingReportingWorkbook[] = e2eFixturesEnabled
+      ? [
+          {
+            id: fixtureWorkbookId,
+            reportingMonth: month.monthStart,
+            spreadsheetId: "1HqOt0TYM8dtOpb5RgChTIeFt4hqX_SBirPz29NMAbFE",
+            title: "August Overview_Alyssa_2026",
+            status: "active",
+            validationStatus: "warning",
+            lastSyncStatus: "success",
+            sheetCount: 9,
+            linkedBrandCount: 3,
+            lastValidatedAt: `${month.today}T01:00:00.000Z`,
+            lastSyncAt: `${month.today}T01:00:00.000Z`,
+            lastSuccessAt: `${month.today}T01:00:00.000Z`,
+            lastErrorSummary: null,
+            createdAt: `${month.today}T00:00:00.000Z`,
+          },
+          {
+            id: fixturePreviousWorkbookId,
+            reportingMonth: previousMonth,
+            spreadsheetId: "1C0nXpBCQC7ROsL1LSonw8CBppihIVIt_zFPaJ_NvDjE",
+            title: "July Overview_Alyssa_2026",
+            status: "active",
+            validationStatus: "warning",
+            lastSyncStatus: "success",
+            sheetCount: 8,
+            linkedBrandCount: 3,
+            lastValidatedAt: `${month.today}T00:30:00.000Z`,
+            lastSyncAt: `${month.today}T00:30:00.000Z`,
+            lastSuccessAt: `${month.today}T00:30:00.000Z`,
+            lastErrorSummary: null,
+            createdAt: `${month.today}T00:00:00.000Z`,
+          },
+        ]
+      : [];
+
     return {
       plans: [] as MonthlyPlan[],
       metrics: [] as DailyMetric[],
-      dataSources: [] as MarketingDataSource[],
+      dataSources: fixtureSources,
+      reportingWorkbooks: fixtureWorkbooks,
       calendarItems: fixtureCalendarItems,
       members: fixtureMembers,
       schemaReady: false,
@@ -341,8 +437,14 @@ async function getPlanningRecords(month: HkMonthContext) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const [plansResult, metricsResult, sourcesResult, calendarResult, membersResult] =
-    await Promise.all([
+  const [
+    plansResult,
+    metricsResult,
+    sourcesResult,
+    workbooksResult,
+    calendarResult,
+    membersResult,
+  ] = await Promise.all([
       supabase
         .from("marketing_monthly_plans")
         .select("*")
@@ -350,16 +452,23 @@ async function getPlanningRecords(month: HkMonthContext) {
       supabase
         .from("marketing_daily_metrics")
         .select(
-          "brand_id,metric_date,source_key,spend,leads,bookings,shows"
+          "brand_id,metric_date,source_key,data_source_id,spend,leads,bookings,shows"
         )
         .gte("metric_date", month.monthStart)
         .lte("metric_date", month.throughDate),
       supabase
         .from("marketing_data_sources")
         .select(
-          "id,brand_id,provider_key,display_name,status,sync_mode,configuration,provides_metrics,last_sync_at,last_success_at,last_error_summary"
+          "id,brand_id,provider_key,display_name,status,sync_mode,configuration,provides_metrics,last_sync_at,last_success_at,last_error_summary,reporting_workbook_id"
         )
         .order("display_name", { ascending: true }),
+      supabase
+        .from("marketing_reporting_workbooks")
+        .select(
+          "id,reporting_month,spreadsheet_id,title,status,validation_status,last_sync_status,sheet_count,linked_brand_count,last_validated_at,last_sync_at,last_success_at,last_error_summary,created_at"
+        )
+        .order("reporting_month", { ascending: false })
+        .order("created_at", { ascending: false }),
       supabase
         .from("marketing_calendar_items")
         .select(
@@ -383,6 +492,7 @@ async function getPlanningRecords(month: HkMonthContext) {
     plansResult,
     metricsResult,
     sourcesResult,
+    workbooksResult,
     calendarResult,
     membersResult,
   ];
@@ -396,6 +506,7 @@ async function getPlanningRecords(month: HkMonthContext) {
       plans: [] as MonthlyPlan[],
       metrics: [] as DailyMetric[],
       dataSources: [] as MarketingDataSource[],
+      reportingWorkbooks: [] as MarketingReportingWorkbook[],
       calendarItems: [] as CalendarItem[],
       members: [] as WorkspaceMember[],
       schemaReady: false,
@@ -466,6 +577,7 @@ async function getPlanningRecords(month: HkMonthContext) {
         brandId: String(row.brand_id ?? ""),
         metricDate: String(row.metric_date ?? ""),
         sourceKey: String(row.source_key ?? ""),
+        dataSourceId: textValue(row.data_source_id),
         spend: numberValue(row.spend),
         leads: numberValue(row.leads),
         bookings: numberValue(row.bookings),
@@ -486,6 +598,31 @@ async function getPlanningRecords(month: HkMonthContext) {
       lastSyncAt: textValue(row.last_sync_at),
       lastSuccessAt: textValue(row.last_success_at),
       lastErrorSummary: textValue(row.last_error_summary),
+      reportingWorkbookId: textValue(row.reporting_workbook_id),
+    })),
+    reportingWorkbooks: ((workbooksResult.data ?? []) as Array<
+      Record<string, unknown>
+    >).map((row) => ({
+      id: String(row.id ?? ""),
+      reportingMonth: String(row.reporting_month ?? month.monthStart),
+      spreadsheetId: String(row.spreadsheet_id ?? ""),
+      title: String(row.title ?? "未命名月份數據表"),
+      status: String(
+        row.status ?? "active"
+      ) as MarketingReportingWorkbook["status"],
+      validationStatus: String(
+        row.validation_status ?? "pending"
+      ) as MarketingReportingWorkbook["validationStatus"],
+      lastSyncStatus: String(
+        row.last_sync_status ?? "pending"
+      ) as MarketingReportingWorkbook["lastSyncStatus"],
+      sheetCount: numberValue(row.sheet_count),
+      linkedBrandCount: numberValue(row.linked_brand_count),
+      lastValidatedAt: textValue(row.last_validated_at),
+      lastSyncAt: textValue(row.last_sync_at),
+      lastSuccessAt: textValue(row.last_success_at),
+      lastErrorSummary: textValue(row.last_error_summary),
+      createdAt: String(row.created_at ?? ""),
     })),
     calendarItems: ((calendarResult.data ?? []) as Array<
       Record<string, unknown>
@@ -541,15 +678,54 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
     getPlanningRecords(month),
   ]);
   const visibleBrandIds = new Set(config.brands.map((brand) => brand.id));
+  const visibleDataSources = planning.dataSources.filter(
+    (item) => item.brandId === null || visibleBrandIds.has(item.brandId)
+  );
+  const visibleDataSourceIds = new Set(
+    visibleDataSources.map((source) => source.id)
+  );
+  const visibleReportingWorkbooks = planning.reportingWorkbooks.filter(
+    (workbook) =>
+      visibleDataSources.some(
+        (source) => source.reportingWorkbookId === workbook.id
+      )
+  );
+  const sourceById = new Map(
+    visibleDataSources.map((source) => [source.id, source])
+  );
+  const workbookById = new Map(
+    visibleReportingWorkbooks.map((workbook) => [workbook.id, workbook])
+  );
+  const activeCurrentWorkbookIds = new Set(
+    visibleReportingWorkbooks
+      .filter(
+        (workbook) =>
+          workbook.status === "active" &&
+          workbook.reportingMonth === month.monthStart
+      )
+      .map((workbook) => workbook.id)
+  );
+  const visibleMetrics = planning.metrics.filter((metric) => {
+    if (!visibleBrandIds.has(metric.brandId)) return false;
+    if (!metric.dataSourceId) return true;
+    if (!visibleDataSourceIds.has(metric.dataSourceId)) return false;
+    const source = sourceById.get(metric.dataSourceId);
+    const workbook = source?.reportingWorkbookId
+      ? workbookById.get(source.reportingWorkbookId)
+      : null;
+    return isMetricFromActiveReportingVersion({
+      sourceReportingWorkbookId: source?.reportingWorkbookId,
+      workbookStatus: workbook?.status,
+      workbookReportingMonth: workbook?.reportingMonth,
+      currentReportingMonth: month.monthStart,
+    });
+  });
   const scopedPlanning = {
     ...planning,
     plans: planning.plans.filter((item) => visibleBrandIds.has(item.brandId)),
-    metrics: planning.metrics.filter((item) =>
-      visibleBrandIds.has(item.brandId)
-    ),
-    dataSources: planning.dataSources.filter(
-      (item) => item.brandId === null || visibleBrandIds.has(item.brandId)
-    ),
+    metrics: visibleMetrics,
+    dataSources: visibleDataSources,
+    reportingWorkbooks: visibleReportingWorkbooks,
     calendarItems: planning.calendarItems.filter((item) =>
       visibleBrandIds.has(item.brandId)
     ),
@@ -612,7 +788,10 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
         item.status === "published"
     ).length;
     const sources = scopedPlanning.dataSources.filter(
-      (source) => source.brandId === brand.id || source.brandId === null
+      (source) =>
+        (source.brandId === brand.id || source.brandId === null) &&
+        (!source.reportingWorkbookId ||
+          activeCurrentWorkbookIds.has(source.reportingWorkbookId))
     );
 
     return {
@@ -662,6 +841,7 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
     month,
     brands: rows,
     dataSources: scopedPlanning.dataSources,
+    reportingWorkbooks: scopedPlanning.reportingWorkbooks,
     calendarItems: scopedPlanning.calendarItems,
     members:
       planning.members.length > 0

@@ -1402,6 +1402,467 @@ textarea {
   opacity: 0.48;
 }
 
+.monthly-workbook-section {
+  margin-top: 0.9rem;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.monthly-workbook-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #edf0f4;
+  padding: 1rem;
+}
+
+.monthly-workbook-header p,
+.monthly-workbook-header h2,
+.monthly-workbook-header span {
+  margin: 0;
+}
+
+.monthly-workbook-header p {
+  color: #9aa0af;
+  font-size: 0.56rem;
+  font-weight: 840;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+.monthly-workbook-header h2 {
+  margin-top: 0.22rem;
+  color: #1d273b;
+  font-size: 0.9rem;
+  font-weight: 840;
+}
+
+.monthly-workbook-header span {
+  display: block;
+  margin-top: 0.28rem;
+  max-width: 680px;
+  color: #7f8797;
+  font-size: 0.6rem;
+  font-weight: 620;
+  line-height: 1.55;
+}
+
+.monthly-workbook-header > svg {
+  color: #6f2c59;
+}
+
+.monthly-workbook-primary-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) minmax(280px, 0.8fr);
+  gap: 0.9rem;
+  padding: 1rem;
+}
+
+.monthly-workbook-connect {
+  border: 1px solid #eadde7;
+  border-radius: 0.95rem;
+  background:
+    radial-gradient(circle at 100% 0, rgba(192, 132, 169, 0.14), transparent 36%),
+    linear-gradient(145deg, #fffafd, #ffffff 65%);
+  padding: 1rem;
+}
+
+.monthly-workbook-eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32rem;
+  border-radius: 999px;
+  background: #f4eaf1;
+  padding: 0.3rem 0.52rem;
+  color: #682653;
+  font-size: 0.54rem;
+  font-style: normal;
+  font-weight: 820;
+  letter-spacing: 0.04em;
+}
+
+.monthly-workbook-connect h3,
+.monthly-workbook-connect p {
+  margin: 0;
+}
+
+.monthly-workbook-connect h3 {
+  margin-top: 0.72rem;
+  color: #242d40;
+  font-size: 1rem;
+  font-weight: 860;
+}
+
+.monthly-workbook-connect > p {
+  margin-top: 0.35rem;
+  max-width: 690px;
+  color: #747d8f;
+  font-size: 0.62rem;
+  font-weight: 620;
+  line-height: 1.58;
+}
+
+.monthly-workbook-form {
+  display: grid;
+  grid-template-columns: minmax(145px, 0.33fr) minmax(260px, 1fr) auto;
+  align-items: end;
+  gap: 0.65rem;
+  margin-top: 0.92rem;
+}
+
+.monthly-workbook-form label {
+  display: grid;
+  gap: 0.32rem;
+}
+
+.monthly-workbook-form label > span {
+  color: #5e6779;
+  font-size: 0.56rem;
+  font-weight: 770;
+}
+
+.monthly-workbook-form input {
+  width: 100%;
+  min-height: 2.42rem;
+  border: 1px solid #dfe3e9;
+  border-radius: 0.62rem;
+  background: #fff;
+  padding: 0.58rem 0.68rem;
+  color: #283247;
+  font: inherit;
+  font-size: 0.62rem;
+  font-weight: 640;
+  outline: none;
+}
+
+.monthly-workbook-form input:focus {
+  border-color: #9c6087;
+  box-shadow: 0 0 0 3px rgba(111, 44, 89, 0.1);
+}
+
+.monthly-workbook-form .command-primary-button {
+  min-height: 2.42rem;
+  white-space: nowrap;
+}
+
+.monthly-workbook-guardrail {
+  display: block;
+  margin-top: 0.75rem;
+  color: #8b7183;
+  font-size: 0.54rem;
+  font-weight: 650;
+  line-height: 1.55;
+}
+
+.monthly-workbook-blocker {
+  margin-top: 0.5rem !important;
+  color: #a85d40 !important;
+  font-size: 0.56rem !important;
+  font-weight: 760 !important;
+}
+
+.monthly-workbook-current {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  border: 1px solid #e4e7ec;
+  border-radius: 0.95rem;
+  background: #fafbfc;
+  padding: 0.85rem;
+}
+
+.monthly-workbook-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+  margin-bottom: 0.58rem;
+}
+
+.monthly-workbook-card-heading span {
+  color: #989faf;
+  font-size: 0.54rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.monthly-workbook-card-heading strong {
+  color: #5a2348;
+  font-size: 0.62rem;
+  font-weight: 840;
+}
+
+.monthly-workbook-empty {
+  display: grid;
+  min-height: 230px;
+  flex: 1;
+  place-items: center;
+  align-content: center;
+  gap: 0.4rem;
+  border: 1px dashed #d6dbe3;
+  border-radius: 0.8rem;
+  padding: 1.2rem;
+  text-align: center;
+  color: #9aa2b1;
+}
+
+.monthly-workbook-empty strong {
+  color: #4f596c;
+  font-size: 0.72rem;
+}
+
+.monthly-workbook-empty span {
+  max-width: 260px;
+  font-size: 0.56rem;
+  font-weight: 620;
+  line-height: 1.5;
+}
+
+.monthly-workbook-record {
+  position: relative;
+  min-width: 0;
+  border: 1px solid #e2e6eb;
+  border-radius: 0.8rem;
+  background: #fff;
+  padding: 0.82rem;
+  box-shadow: 0 8px 24px rgba(35, 29, 45, 0.035);
+}
+
+.monthly-workbook-record::before {
+  position: absolute;
+  top: 0;
+  right: 0.82rem;
+  left: 0.82rem;
+  height: 2px;
+  border-radius: 0 0 999px 999px;
+  background: #c9ced7;
+  content: "";
+}
+
+.monthly-workbook-record.is-success::before {
+  background: #2c9b70;
+}
+
+.monthly-workbook-record.is-warning::before {
+  background: #d69a42;
+}
+
+.monthly-workbook-record.is-error::before {
+  background: #c45d58;
+}
+
+.monthly-workbook-record.is-current {
+  flex: 1;
+  border-color: #dfcbd9;
+}
+
+.monthly-workbook-record-topline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.monthly-workbook-record-topline span {
+  color: #6f2c59;
+  font-size: 0.58rem;
+  font-weight: 840;
+}
+
+.monthly-workbook-record-topline em {
+  border-radius: 999px;
+  background: #f1f3f6;
+  padding: 0.25rem 0.42rem;
+  color: #697286;
+  font-size: 0.5rem;
+  font-style: normal;
+  font-weight: 780;
+}
+
+.monthly-workbook-record.is-success .monthly-workbook-record-topline em {
+  background: #e9f7f1;
+  color: #267b5c;
+}
+
+.monthly-workbook-record.is-warning .monthly-workbook-record-topline em {
+  background: #fff4e2;
+  color: #9a651c;
+}
+
+.monthly-workbook-record.is-error .monthly-workbook-record-topline em {
+  background: #fff0ef;
+  color: #aa4e49;
+}
+
+.monthly-workbook-record h3 {
+  margin: 0.58rem 0 0;
+  overflow: hidden;
+  color: #273145;
+  font-size: 0.72rem;
+  font-weight: 830;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monthly-workbook-record > a {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  margin-top: 0.38rem;
+  color: #6f2c59;
+  font-size: 0.55rem;
+  font-weight: 760;
+  text-decoration: none;
+}
+
+.monthly-workbook-record > a:hover {
+  text-decoration: underline;
+}
+
+.monthly-workbook-brand-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.3rem;
+  margin-top: 0.65rem;
+}
+
+.monthly-workbook-brand-tags span {
+  border: 1px solid #e2d5df;
+  border-radius: 999px;
+  background: #fbf7fa;
+  padding: 0.22rem 0.4rem;
+  color: #6d4a62;
+  font-size: 0.5rem;
+  font-weight: 760;
+}
+
+.monthly-workbook-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.55rem;
+  margin: 0.72rem 0 0;
+  border-top: 1px solid #eef0f3;
+  padding-top: 0.62rem;
+}
+
+.monthly-workbook-meta div {
+  min-width: 0;
+}
+
+.monthly-workbook-meta dt {
+  color: #a0a6b3;
+  font-size: 0.49rem;
+  font-weight: 740;
+}
+
+.monthly-workbook-meta dd {
+  margin: 0.18rem 0 0;
+  overflow: hidden;
+  color: #555f71;
+  font-size: 0.54rem;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.monthly-workbook-error {
+  margin: 0.55rem 0 0;
+  color: #a54b45;
+  font-size: 0.52rem;
+  font-weight: 680;
+  line-height: 1.45;
+}
+
+.monthly-workbook-sync {
+  margin-top: 0.7rem;
+}
+
+.monthly-workbook-sync button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.28rem;
+  border: 1px solid #dbdfe6;
+  border-radius: 0.55rem;
+  background: #fff;
+  padding: 0.42rem 0.55rem;
+  color: #5b6476;
+  font-size: 0.53rem;
+  font-weight: 770;
+  cursor: pointer;
+}
+
+.monthly-workbook-sync button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.monthly-workbook-history {
+  border-top: 1px solid #edf0f4;
+  padding: 0.95rem 1rem 1rem;
+}
+
+.monthly-workbook-history-heading,
+.monthly-workbook-history-heading > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.monthly-workbook-history-heading {
+  justify-content: space-between;
+}
+
+.monthly-workbook-history-heading > div > svg {
+  color: #7b3d68;
+}
+
+.monthly-workbook-history-heading strong,
+.monthly-workbook-history-heading span {
+  display: block;
+}
+
+.monthly-workbook-history-heading strong {
+  color: #303a4e;
+  font-size: 0.66rem;
+  font-weight: 820;
+}
+
+.monthly-workbook-history-heading span {
+  margin-top: 0.12rem;
+  color: #969dac;
+  font-size: 0.52rem;
+  font-weight: 650;
+}
+
+.monthly-workbook-history-heading > span {
+  margin: 0;
+  border-radius: 999px;
+  background: #f0f1f5;
+  padding: 0.28rem 0.5rem;
+  color: #777f90;
+  font-weight: 760;
+}
+
+.monthly-workbook-history-list {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.7rem;
+  margin-top: 0.72rem;
+}
+
+.monthly-workbook-history-empty {
+  margin: 0.72rem 0 0;
+  border: 1px dashed #dfe2e8;
+  border-radius: 0.7rem;
+  padding: 0.8rem;
+  color: #939aa9;
+  font-size: 0.56rem;
+  font-weight: 650;
+  text-align: center;
+}
+
 .source-summary-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2437,6 +2898,19 @@ textarea {
   .source-summary-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .monthly-workbook-form {
+    grid-template-columns: minmax(145px, 0.4fr) minmax(250px, 1fr);
+  }
+
+  .monthly-workbook-form .command-primary-button {
+    grid-column: 1 / -1;
+    justify-self: start;
+  }
+
+  .monthly-workbook-history-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 @media (max-width: 760px) {
@@ -2474,6 +2948,10 @@ textarea {
     width: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  .monthly-workbook-primary-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 639px) {
@@ -2502,6 +2980,24 @@ textarea {
   .member-access-editor form > footer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .monthly-workbook-form,
+  .monthly-workbook-history-list {
+    grid-template-columns: 1fr;
+  }
+
+  .monthly-workbook-form .command-primary-button {
+    grid-column: 1;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .monthly-workbook-primary-grid,
+  .monthly-workbook-history,
+  .monthly-workbook-header {
+    padding-right: 0.78rem;
+    padding-left: 0.78rem;
   }
 }
 

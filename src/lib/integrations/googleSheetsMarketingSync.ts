@@ -12,6 +12,10 @@ import {
   type LeadSheetPerformanceDiagnostics,
   type LeadSheetTreatmentAlias,
 } from "@/lib/marketing/googleSheetsMetricParser";
+import {
+  resolveMonthlyOverviewColumns,
+  shouldSyncReportingSource,
+} from "@/lib/marketing/monthlyReportingWorkbooks";
 
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5000;
@@ -26,6 +30,7 @@ type DataSourceRow = {
   configuration: Record<string, unknown> | null;
   provides_metrics: string[] | null;
   last_sync_at: string | null;
+  reporting_workbook_id?: string | null;
 };
 
 type BrandRow = {
@@ -262,8 +267,23 @@ async function collectDailySpendMetrics(
   const tabName = stringValue(configuration.tabName);
   const headerRow = integerValue(configuration.headerRow, 3);
   const maxRows = integerValue(configuration.maxRows, DEFAULT_MAX_ROWS);
-  const dateColumn = normalizeColumn(configuration.dateColumn, "A");
-  const spendColumn = normalizeColumn(configuration.spendColumn, "N");
+  let dateColumn = normalizeColumn(configuration.dateColumn, "A");
+  let spendColumn = normalizeColumn(configuration.spendColumn, "N");
+  if (stringValue(configuration.schemaProfile) === "monthly_overview_v1") {
+    const headerResponse = await batchGetValues({
+      spreadsheetId: spreadsheetId(configuration),
+      ranges: [`${quoteSheetName(tabName)}!A${headerRow}:BN${headerRow}`],
+    });
+    const headers = headerResponse.valueRanges?.[0]?.values?.[0] ?? [];
+    const resolved = resolveMonthlyOverviewColumns(headers);
+    if (!resolved.valid) {
+      throw new Error(
+        `${tabName} 分頁欠缺 Date 或「累計廣告費」Header，請檢查月份數據表格式。`
+      );
+    }
+    dateColumn = resolved.dateColumn;
+    spendColumn = resolved.spendColumn;
+  }
   const finalColumn = columnFromIndex(
     Math.max(columnIndex(dateColumn), columnIndex(spendColumn))
   );
@@ -664,16 +684,33 @@ export async function syncAllMarketingGoogleSheets(
   options: { actorIdentifier?: string } = {}
 ) {
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("marketing_data_sources")
+  const month = getHkMonthContext();
+  const { data: activeWorkbook, error: workbookError } = await supabase
+    .from("marketing_reporting_workbooks")
     .select("id")
     .eq("provider_key", "google_sheets")
+    .eq("reporting_month", month.monthStart)
+    .eq("status", "active")
+    .maybeSingle();
+  if (workbookError) throw workbookError;
+  const { data, error } = await supabase
+    .from("marketing_data_sources")
+    .select("id,reporting_workbook_id")
+    .eq("provider_key", "google_sheets")
     .neq("status", "paused")
-    .limit(20);
+    .limit(50);
   if (error) throw error;
 
+  const sourceRows = (data ?? []).filter(
+    (source) =>
+      shouldSyncReportingSource({
+        sourceReportingWorkbookId: source.reporting_workbook_id,
+        activeCurrentWorkbookId: activeWorkbook?.id,
+      })
+  );
+
   return Promise.all(
-    (data ?? []).map((source) =>
+    sourceRows.map((source) =>
       syncMarketingDataSource(source.id, options)
     )
   );
