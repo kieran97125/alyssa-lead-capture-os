@@ -17,12 +17,24 @@ export function BrandMark({
       aria-label={`${name} 品牌色`}
       title={name}
     >
-      {brandInitials(name)}
+      {brandShortCode(name)}
     </span>
   );
 }
 
-function brandInitials(name: string) {
+const SYSTEM_BRAND_SHORT_CODES: Record<string, string> = {
+  alyssa: "AL",
+  am: "AM",
+  "ineffable beauty": "IB",
+  "gos beauty": "GOS",
+};
+
+export function brandShortCode(name: string) {
+  const normalizedName = name.trim().toLowerCase().replace(/\s+/g, " ");
+  const configuredCode = SYSTEM_BRAND_SHORT_CODES[normalizedName];
+
+  if (configuredCode) return configuredCode;
+
   return name
     .trim()
     .split(/\s+/)
