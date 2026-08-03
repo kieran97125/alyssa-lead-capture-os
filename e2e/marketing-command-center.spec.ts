@@ -851,10 +851,6 @@ test("Daily Overview records typed Meta Spend and shows daily plus cumulative KP
     "Meta · Website Form",
     "Google Ads",
   ]);
-  await expect(page.getByText("Meta · WhatsApp", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Meta · Lead Form", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Meta · Website Form", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("Google Ads", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("舊資料 · 未分類", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("總廣告費", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("CPL", { exact: true }).first()).toBeVisible();
