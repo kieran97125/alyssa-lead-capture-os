@@ -20,6 +20,11 @@ import {
   syncAllMarketingGoogleSheets,
   syncMarketingDataSource,
 } from "@/lib/integrations/googleSheetsMarketingSync";
+import {
+  registerMonthlyReportingWorkbook,
+  safeMonthlyWorkbookError,
+  syncMonthlyReportingWorkbook,
+} from "@/lib/integrations/googleSheetsMonthlyWorkbooks";
 import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/commandCenter";
 import {
   getWorkspaceRoleDefaultModules,
@@ -374,6 +379,112 @@ export async function syncDataSourceAction(formData: FormData) {
     message: result.ok
       ? `${result.sourceName}：${result.message}`
       : `${result.sourceName}：${result.message}`,
+  });
+}
+
+export async function registerMonthlyReportingWorkbookAction(
+  formData: FormData
+) {
+  const returnPath = "/data-sources";
+  const access = await ensureCommandCenterAction(returnPath, {
+    masterOnly: true,
+  });
+  if (!access.ok) redirectWithResult(returnPath, access);
+
+  const reportingMonth = readString(formData, "reportingMonth");
+  const spreadsheetLink = readString(formData, "spreadsheetLink");
+  if (!/^\d{4}-\d{2}$/.test(reportingMonth) || !spreadsheetLink) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "請選擇月份並貼上完整 Google Spreadsheet Link。",
+    });
+  }
+
+  let result;
+  try {
+    result = await registerMonthlyReportingWorkbook({
+      reportingMonth,
+      spreadsheetInput: spreadsheetLink,
+      actorIdentifier: access.actorIdentifier,
+    });
+  } catch (error) {
+    console.warn("marketing_reporting_workbook_register_failed", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    revalidateCommandCenter(
+      "/data-sources",
+      "/dashboard",
+      "/kpis",
+      "/performance"
+    );
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: safeMonthlyWorkbookError(error),
+    });
+  }
+
+  revalidateCommandCenter(
+    "/data-sources",
+    "/dashboard",
+    "/kpis",
+    "/performance"
+  );
+  const monthLabel = result.inspection.reportingMonth.slice(0, 7);
+  const warningSuffix = result.inspection.warnings.length
+    ? ` 提示：${result.inspection.warnings.join(" ")}`
+    : "";
+  redirectWithResult(returnPath, {
+    ok: result.sync.ok,
+    message: `${monthLabel} 月份數據表已保存，已對應 ${result.inspection.sourceMappings.length} 個品牌。${result.sync.message}${warningSuffix}`,
+  });
+}
+
+export async function syncMonthlyReportingWorkbookAction(formData: FormData) {
+  const returnPath = "/data-sources";
+  const access = await ensureCommandCenterAction(returnPath, {
+    masterOnly: true,
+  });
+  if (!access.ok) redirectWithResult(returnPath, access);
+
+  const workbookId = readString(formData, "workbookId");
+  if (!workbookId) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "搵唔到要同步嘅月份數據表。",
+    });
+  }
+
+  let result;
+  try {
+    result = await syncMonthlyReportingWorkbook({
+      workbookId,
+      actorIdentifier: access.actorIdentifier,
+    });
+  } catch (error) {
+    console.warn("marketing_reporting_workbook_sync_failed", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    revalidateCommandCenter(
+      "/data-sources",
+      "/dashboard",
+      "/kpis",
+      "/performance"
+    );
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: safeMonthlyWorkbookError(error),
+    });
+  }
+
+  revalidateCommandCenter(
+    "/data-sources",
+    "/dashboard",
+    "/kpis",
+    "/performance"
+  );
+  redirectWithResult(returnPath, {
+    ok: result.ok,
+    message: `${result.workbookTitle}：${result.message}`,
   });
 }
 

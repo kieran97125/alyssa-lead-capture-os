@@ -1,8 +1,12 @@
 import {
   Braces,
+  CalendarDays,
   CheckCircle2,
   DatabaseZap,
+  ExternalLink,
   FileSpreadsheet,
+  History,
+  Layers3,
   Link2,
   LockKeyhole,
   Plus,
@@ -12,7 +16,9 @@ import {
 } from "lucide-react";
 import {
   createDataSourceAction,
+  registerMonthlyReportingWorkbookAction,
   syncDataSourceAction,
+  syncMonthlyReportingWorkbookAction,
 } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
@@ -23,7 +29,9 @@ import {
 import {
   getCommandCenterSnapshot,
   type MarketingDataSource,
+  type MarketingReportingWorkbook,
 } from "@/lib/marketing/commandCenter";
+import { canonicalGoogleSpreadsheetUrl } from "@/lib/marketing/monthlyReportingWorkbooks";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
@@ -64,6 +72,21 @@ const metricLabels: Record<string, string> = {
   treatment_performance: "療程成效",
 };
 
+const workbookSyncLabels: Record<string, string> = {
+  pending: "待首次同步",
+  syncing: "同步中",
+  success: "同步成功",
+  partial: "部分完成",
+  error: "同步失敗",
+};
+
+const workbookValidationLabels: Record<string, string> = {
+  pending: "待驗證",
+  valid: "格式已驗證",
+  warning: "已接駁 · 有提示",
+  error: "驗證失敗",
+};
+
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value || "";
 }
@@ -89,6 +112,21 @@ export default async function DataSourcesPage({
     googleConnectionStatus.connected && googleConnectionStatus.writeEnabled;
   const missingGoogleOAuthConfiguration =
     getMissingGoogleSheetsOAuthConfiguration(googleConnectionStatus);
+  const standaloneSources = snapshot.dataSources.filter(
+    (source) => !source.reportingWorkbookId
+  );
+  const currentWorkbook = snapshot.reportingWorkbooks.find(
+    (workbook) =>
+      workbook.reportingMonth === snapshot.month.monthStart &&
+      workbook.status === "active"
+  );
+  const workbookHistory = snapshot.reportingWorkbooks.filter(
+    (workbook) => workbook.id !== currentWorkbook?.id
+  );
+  const monthlyConnectReady =
+    canManageGoogleConnection &&
+    snapshot.schemaReady &&
+    googleConnectionStatus.connected;
 
   return (
     <main className="alyssa-shell">
@@ -104,9 +142,9 @@ export default async function DataSourcesPage({
                 接駁。一般設定只保存公開識別及欄位映射，Token／密碼必須留喺受保護憑證層。
               </p>
             </div>
-            <a href="#add-source" className="command-primary-button">
+            <a href="#monthly-workbook" className="command-primary-button">
               <Plus size={16} />
-              新增資料來源
+              接駁月份表
             </a>
           </header>
 
@@ -221,36 +259,165 @@ export default async function DataSourcesPage({
             )}
           </section>
 
+          <section
+            id="monthly-workbook"
+            className="command-surface monthly-workbook-section"
+          >
+            <header className="monthly-workbook-header">
+              <div>
+                <p>Monthly workbook</p>
+                <h2>月份數據表</h2>
+                <span>
+                  每個月貼一次完整 Google Sheet Link；系統會自動對應品牌分頁，同時保留歷月 Link、驗證及同步紀錄。
+                </span>
+              </div>
+              <CalendarDays size={24} />
+            </header>
+
+            <div className="monthly-workbook-primary-grid">
+              <div className="monthly-workbook-connect">
+                <span className="monthly-workbook-eyebrow">
+                  <Layers3 size={14} />
+                  推薦接駁方式
+                </span>
+                <h3>揀月份，再貼一條 Link</h3>
+                <p>
+                  會先檢查文件權限、日期月份、Header 同品牌分頁。Alyssa／IB／GOS 會自動接駁；其他未對應分頁只提示，唔會誤讀。
+                </p>
+                <form
+                  action={registerMonthlyReportingWorkbookAction}
+                  className="monthly-workbook-form"
+                >
+                  <label>
+                    <span>數據月份</span>
+                    <input
+                      type="month"
+                      name="reportingMonth"
+                      defaultValue={snapshot.month.monthStart.slice(0, 7)}
+                      required
+                    />
+                  </label>
+                  <label className="monthly-workbook-link-field">
+                    <span>Google Spreadsheet Link</span>
+                    <input
+                      type="text"
+                      name="spreadsheetLink"
+                      inputMode="url"
+                      placeholder="https://docs.google.com/spreadsheets/d/…/edit"
+                      autoComplete="off"
+                      required
+                    />
+                  </label>
+                  <SubmitButton
+                    className="command-primary-button"
+                    disabled={!monthlyConnectReady}
+                    pendingLabel="驗證及接駁中…"
+                  >
+                    <Link2 size={15} />
+                    驗證並接駁
+                  </SubmitButton>
+                </form>
+                <small className="monthly-workbook-guardrail">
+                  同一月份換新 Link 時，舊版本會轉為「已取代」並保留喺歷史；Dashboard 只會計目前生效版本。Lead／Book／Show 仍以原本 Lead Sheet 為準。
+                </small>
+                {!monthlyConnectReady ? (
+                  <p className="monthly-workbook-blocker">
+                    {!canManageGoogleConnection
+                      ? "接駁月份表只限 Master Account。"
+                      : !snapshot.schemaReady
+                        ? "月份 Registry migration 尚未套用。"
+                        : "請先完成上方 Google Sheets 連接。"}
+                  </p>
+                ) : null}
+              </div>
+
+              <div className="monthly-workbook-current">
+                <div className="monthly-workbook-card-heading">
+                  <span>目前月份</span>
+                  <strong>{formatReportingMonth(snapshot.month.monthStart)}</strong>
+                </div>
+                {currentWorkbook ? (
+                  <WorkbookRecord
+                    workbook={currentWorkbook}
+                    dataSources={snapshot.dataSources}
+                    brands={snapshot.brands}
+                    isCurrent
+                    canSync={monthlyConnectReady}
+                  />
+                ) : (
+                  <div className="monthly-workbook-empty">
+                    <FileSpreadsheet size={26} />
+                    <strong>本月尚未接駁</strong>
+                    <span>
+                      貼上本月 Overview Link 後，系統會一次建立所有已辨認品牌嘅 Spend 來源。
+                    </span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="monthly-workbook-history">
+              <div className="monthly-workbook-history-heading">
+                <div>
+                  <History size={17} />
+                  <div>
+                    <strong>過去數據表</strong>
+                    <span>原始 Link、使用版本及最近同步時間</span>
+                  </div>
+                </div>
+                <span>{workbookHistory.length} 個記錄</span>
+              </div>
+              {workbookHistory.length > 0 ? (
+                <div className="monthly-workbook-history-list">
+                  {workbookHistory.map((workbook) => (
+                    <WorkbookRecord
+                      key={workbook.id}
+                      workbook={workbook}
+                      dataSources={snapshot.dataSources}
+                      brands={snapshot.brands}
+                      canSync={monthlyConnectReady}
+                    />
+                  ))}
+                </div>
+              ) : (
+                <p className="monthly-workbook-history-empty">
+                  接駁下一個月份後，舊月份會自動留喺呢度，毋須再搵訊息記錄。
+                </p>
+              )}
+            </div>
+          </section>
+
           <section className="source-summary-grid">
             <SourceSummary
-              icon={DatabaseZap}
-              label="已登記"
-              value={snapshot.dataSources.length}
+              icon={History}
+              label="月份記錄"
+              value={snapshot.reportingWorkbooks.length}
             />
             <SourceSummary
               icon={CheckCircle2}
-              label="已連接"
+              label="生效版本"
               value={
-                snapshot.dataSources.filter(
-                  (source) => source.status === "connected"
+                snapshot.reportingWorkbooks.filter(
+                  (workbook) => workbook.status === "active"
                 ).length
               }
+            />
+            <SourceSummary
+              icon={DatabaseZap}
+              label="其他來源"
+              value={standaloneSources.length}
             />
             <SourceSummary
               icon={TriangleAlert}
               label="需要處理"
               value={
-                snapshot.dataSources.filter((source) =>
+                snapshot.reportingWorkbooks.filter(
+                  (workbook) =>
+                    workbook.validationStatus === "error" ||
+                    ["partial", "error"].includes(workbook.lastSyncStatus)
+                ).length +
+                standaloneSources.filter((source) =>
                   ["warning", "error"].includes(source.status)
-                ).length
-              }
-            />
-            <SourceSummary
-              icon={RefreshCw}
-              label="同步中"
-              value={
-                snapshot.dataSources.filter(
-                  (source) => source.status === "syncing"
                 ).length
               }
             />
@@ -260,9 +427,9 @@ export default async function DataSourcesPage({
             <header className="source-registry-header">
               <div>
                 <p>Registry</p>
-                <h2>現有資料來源</h2>
+                <h2>其他資料來源</h2>
               </div>
-              <span>{snapshot.dataSources.length} 個來源</span>
+              <span>{standaloneSources.length} 個來源</span>
             </header>
             <div className="source-table-wrap">
               <table className="source-table">
@@ -277,8 +444,8 @@ export default async function DataSourcesPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {snapshot.dataSources.length > 0 ? (
-                    snapshot.dataSources.map((source) => (
+                  {standaloneSources.length > 0 ? (
+                    standaloneSources.map((source) => (
                       <SourceRow
                         key={source.id}
                         source={source}
@@ -315,9 +482,9 @@ export default async function DataSourcesPage({
             <header>
               <div>
                 <p>New connection</p>
-                <h2>新增資料來源設定</h2>
+                <h2>進階／其他來源設定</h2>
                 <span>
-                  Google Sheet ID 只係文件識別；登入憑證唔會放入呢張表。
+                  原始 Lead Sheet 或非月份來源先用呢區；月份 Overview 請用上方主流程。
                 </span>
               </div>
               <ShieldCheck size={24} />
@@ -448,6 +615,113 @@ export default async function DataSourcesPage({
   );
 }
 
+function WorkbookRecord({
+  workbook,
+  dataSources,
+  brands,
+  isCurrent = false,
+  canSync,
+}: {
+  workbook: MarketingReportingWorkbook;
+  dataSources: MarketingDataSource[];
+  brands: Array<{ id: string; name: string }>;
+  isCurrent?: boolean;
+  canSync: boolean;
+}) {
+  const workbookSources = dataSources.filter(
+    (source) => source.reportingWorkbookId === workbook.id
+  );
+  const brandLabels = Array.from(
+    new Set(
+      workbookSources.map(
+        (source) =>
+          brands.find((brand) => brand.id === source.brandId)?.name ??
+          source.displayName
+      )
+    )
+  );
+  const spreadsheetUrl = canonicalGoogleSpreadsheetUrl(
+    workbook.spreadsheetId
+  );
+  const lifecycleLabel =
+    workbook.status === "superseded"
+      ? "已取代"
+      : workbook.status === "archived"
+        ? "已封存"
+        : workbookSyncLabels[workbook.lastSyncStatus] ||
+          workbook.lastSyncStatus;
+  const statusTone =
+    workbook.status !== "active"
+      ? "is-muted"
+      : workbook.lastSyncStatus === "error"
+        ? "is-error"
+        : workbook.lastSyncStatus === "partial" ||
+            workbook.validationStatus === "warning"
+          ? "is-warning"
+          : workbook.lastSyncStatus === "success"
+            ? "is-success"
+            : "is-pending";
+
+  return (
+    <article
+      className={`monthly-workbook-record ${statusTone} ${
+        isCurrent ? "is-current" : ""
+      }`}
+    >
+      <div className="monthly-workbook-record-topline">
+        <span>{formatReportingMonth(workbook.reportingMonth)}</span>
+        <em>{lifecycleLabel}</em>
+      </div>
+      <h3>{workbook.title}</h3>
+      {spreadsheetUrl ? (
+        <a href={spreadsheetUrl} target="_blank" rel="noreferrer">
+          <FileSpreadsheet size={14} />
+          打開原始數據表
+          <ExternalLink size={12} />
+        </a>
+      ) : null}
+      <div className="monthly-workbook-brand-tags">
+        {brandLabels.length > 0 ? (
+          brandLabels.map((label) => <span key={label}>{label}</span>)
+        ) : (
+          <span>{workbook.linkedBrandCount} 個品牌來源</span>
+        )}
+      </div>
+      <dl className="monthly-workbook-meta">
+        <div>
+          <dt>格式</dt>
+          <dd>
+            {workbookValidationLabels[workbook.validationStatus] ||
+              workbook.validationStatus}
+          </dd>
+        </div>
+        <div>
+          <dt>最近成功</dt>
+          <dd>{formatSyncTime(workbook.lastSuccessAt)}</dd>
+        </div>
+      </dl>
+      {workbook.lastErrorSummary ? (
+        <p className="monthly-workbook-error">{workbook.lastErrorSummary}</p>
+      ) : null}
+      {workbook.status === "active" ? (
+        <form
+          action={syncMonthlyReportingWorkbookAction}
+          className="monthly-workbook-sync"
+        >
+          <input type="hidden" name="workbookId" value={workbook.id} />
+          <SubmitButton
+            disabled={!canSync || workbook.lastSyncStatus === "syncing"}
+            pendingLabel="同步中…"
+          >
+            <RefreshCw size={13} />
+            重新同步呢個月份
+          </SubmitButton>
+        </form>
+      ) : null}
+    </article>
+  );
+}
+
 function SourceSummary({
   icon: Icon,
   label,
@@ -543,5 +817,15 @@ function formatSyncTime(value: string | null) {
     hour: "2-digit",
     minute: "2-digit",
     hour12: false,
+  }).format(date);
+}
+
+function formatReportingMonth(value: string) {
+  const date = new Date(`${value.slice(0, 7)}-01T12:00:00.000Z`);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 7);
+  return new Intl.DateTimeFormat("zh-HK", {
+    timeZone: "Asia/Hong_Kong",
+    year: "numeric",
+    month: "long",
   }).format(date);
 }
