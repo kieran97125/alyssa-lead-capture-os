@@ -752,6 +752,38 @@ test("Command Center feature pages render without migration-dependent crashes", 
   }
 });
 
+test("Data Sources exposes guarded deletion for operator-managed sources", async ({
+  page,
+}) => {
+  await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
+
+  const leadSourceRow = page
+    .getByRole("row")
+    .filter({ hasText: "Alyssa Workspace Lead Funnel" });
+  await expect(
+    leadSourceRow.getByRole("button", {
+      name: "刪除 Alyssa Workspace Lead Funnel",
+    })
+  ).toBeVisible();
+
+  await leadSourceRow
+    .getByRole("button", { name: "刪除 Alyssa Workspace Lead Funnel" })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "確認刪除資料來源？" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog.getByText("Alyssa Workspace Lead Funnel")).toBeVisible();
+  await dialog.getByRole("button", { name: "取消" }).click();
+  await expect(dialog).toBeHidden();
+
+  const systemLedgerRow = page
+    .getByRole("row")
+    .filter({ hasText: "Alyssa · 系統每日廣告費" });
+  await expect(systemLedgerRow.getByText("系統管理")).toBeVisible();
+  await expect(
+    systemLedgerRow.getByRole("button", { name: /刪除/ })
+  ).toHaveCount(0);
+});
+
 test("Master owns invitations and active member permissions from one page", async ({
   page,
 }) => {
