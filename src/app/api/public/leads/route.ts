@@ -25,6 +25,7 @@ import {
   LEGAL_CONSENT_REQUIRED_MESSAGE,
   LEGAL_CONSENT_TEXT,
 } from "@/lib/legal/consent";
+import { buildSubmittedSuccessRedirectUrl } from "@/lib/data/brandDefaults";
 import { appendLeadToGoogleSheet } from "@/lib/integrations/googleSheetsLeadSync";
 import {
   createSupabaseAdminClient,
@@ -789,33 +790,6 @@ function normalizeConversionMode(value: unknown) {
   return value === "thank_you_redirect"
     ? "thank_you_redirect"
     : "form_submit_pixel";
-}
-
-function buildFinalSuccessRedirectUrl({
-  successRedirectUrl,
-  leadId,
-  eventId,
-  formId,
-}: {
-  successRedirectUrl: unknown;
-  leadId: string;
-  eventId: string;
-  formId: string;
-}) {
-  const cleaned =
-    typeof successRedirectUrl === "string" ? successRedirectUrl.trim() : "";
-  if (!cleaned || !leadId || !formId) return null;
-
-  try {
-    const url = new URL(cleaned);
-    if (url.protocol !== "https:") return null;
-    url.searchParams.set("lead_id", leadId);
-    if (eventId) url.searchParams.set("event_id", eventId);
-    url.searchParams.set("form_id", formId);
-    return url.toString();
-  } catch {
-    return null;
-  }
 }
 
 async function getAllowedFormBranchIds(
@@ -1693,11 +1667,12 @@ export async function POST(request: NextRequest) {
       : null;
   const finalRedirectUrl =
     conversionMode === "thank_you_redirect"
-      ? buildFinalSuccessRedirectUrl({
+      ? buildSubmittedSuccessRedirectUrl({
           successRedirectUrl,
           leadId: lead.id,
           eventId,
           formId: form.id,
+          value: packageDisplayPrice,
         })
       : null;
 

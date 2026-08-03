@@ -290,12 +290,36 @@ export async function saveDailySpendAction(formData: FormData) {
     const rawAmount = readString(formData, `amount:${brand.id}`);
     const amount = rawAmount === "" ? null : Number(rawAmount);
     const note = readString(formData, `note:${brand.id}`) || null;
+    const rawOriginalAmount = readString(
+      formData,
+      `originalAmount:${brand.id}`
+    );
+    const originalAmount =
+      rawOriginalAmount === "" ? null : Number(rawOriginalAmount);
+    const originalNote =
+      readString(formData, `originalNote:${brand.id}`) || null;
+    const rawExpectedRevision = readString(
+      formData,
+      `expectedRevision:${brand.id}`
+    );
+    const expectedRevision = rawExpectedRevision
+      ? Number(rawExpectedRevision)
+      : null;
     return {
       brandId: brand.id,
       amount,
       note,
+      expectedRevision,
+      changed: amount !== originalAmount || note !== originalNote,
     };
-  });
+  }).filter((entry) => entry.changed);
+
+  if (entries.length === 0) {
+    redirectWithResult(returnPath, {
+      ok: true,
+      message: `${spendDate} ${SPEND_TYPE_LABELS[spendType]} 未有變更，帳簿保持不變。`,
+    });
+  }
   const invalidEntry = entries.find(
     (entry) =>
       (entry.amount !== null &&
@@ -303,6 +327,9 @@ export async function saveDailySpendAction(formData: FormData) {
           entry.amount < 0 ||
           entry.amount > 99_999_999.99)) ||
       (entry.note?.length ?? 0) > 500 ||
+      (entry.expectedRevision !== null &&
+        (!Number.isInteger(entry.expectedRevision) ||
+          entry.expectedRevision < 1)) ||
       !canAccessInternalBrand(access.access, entry.brandId)
   );
   if (invalidEntry) {
@@ -316,7 +343,14 @@ export async function saveDailySpendAction(formData: FormData) {
   const { data, error } = await supabase.rpc("save_marketing_daily_spend", {
     p_spend_date: spendDate,
     p_spend_type: spendType,
-    p_entries: entries,
+    p_entries: entries.map(
+      ({ brandId, amount, note, expectedRevision }) => ({
+        brandId,
+        amount,
+        note,
+        expectedRevision,
+      })
+    ),
     p_actor_email: access.actorIdentifier,
   });
   if (error) {
@@ -326,6 +360,8 @@ export async function saveDailySpendAction(formData: FormData) {
     });
     const errorMessage = error.message.includes("future_spend_date_not_allowed")
       ? "未來日期未能填寫廣告費。"
+      : error.message.includes("stale_spend_entry")
+        ? "呢筆廣告費已被另一位使用者更新。為免覆蓋新資料，請重新載入頁面再儲存。"
       : error.message.includes("invalid_spend_type")
         ? "請選擇有效嘅廣告費類型。"
         : error.message.includes("invalid_spend_entry")

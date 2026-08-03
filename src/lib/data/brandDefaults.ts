@@ -104,6 +104,38 @@ export function buildBrandSuccessRedirectUrl({
   return url.toString();
 }
 
+export function buildSubmittedSuccessRedirectUrl({
+  successRedirectUrl,
+  leadId,
+  eventId,
+  formId,
+  value,
+}: {
+  successRedirectUrl: unknown;
+  leadId: string;
+  eventId: string;
+  formId: string;
+  value: string | number | null | undefined;
+}) {
+  const cleaned =
+    typeof successRedirectUrl === "string" ? successRedirectUrl.trim() : "";
+  if (!cleaned || !leadId || !formId) return null;
+
+  try {
+    const url = new URL(cleaned);
+    if (url.protocol !== "https:") return null;
+    if (value !== null && value !== undefined && String(value).trim()) {
+      url.searchParams.set("value", String(value).trim());
+    }
+    url.searchParams.set("lead_id", leadId);
+    if (eventId) url.searchParams.set("event_id", eventId);
+    url.searchParams.set("form_id", formId);
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 export function isValidBrandSuccessRedirectUrl(
   brandSlug: string | null | undefined,
   value: string | null | undefined

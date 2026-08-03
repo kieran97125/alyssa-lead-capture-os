@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { buildSubmittedSuccessRedirectUrl } from "../src/lib/data/brandDefaults";
 
 const formToken = "gos-compact-form-test";
 const formId = "gos-form-id";
@@ -103,6 +104,23 @@ function redirectConfiguredForm() {
     },
   };
 }
+
+test("submitted redirect replaces the default value with the selected package value", () => {
+  const redirect = buildSubmittedSuccessRedirectUrl({
+    successRedirectUrl: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=1390`,
+    leadId: "gos-selected-package-lead",
+    eventId: "gos-selected-package-event",
+    formId,
+    value: 4680,
+  });
+
+  expect(redirect).not.toBeNull();
+  const url = new URL(redirect || gosThankYouUrl);
+  expect(url.searchParams.get("value")).toBe("4680");
+  expect(url.searchParams.get("lead_id")).toBe("gos-selected-package-lead");
+  expect(url.searchParams.get("event_id")).toBe("gos-selected-package-event");
+  expect(url.searchParams.get("form_id")).toBe(formId);
+});
 
 test("GOS compact form shows the configured item and submits the short booking flow", async ({
   page,
@@ -255,11 +273,20 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
   page,
 }) => {
   let submittedPayload: Record<string, unknown> | null = null;
+  const customerChoiceBase = customerChoiceConfig();
+  const customerChoiceRedirectConfig = {
+    ...customerChoiceBase,
+    form: {
+      ...customerChoiceBase.form,
+      conversion_mode: "thank_you_redirect",
+      success_redirect_url: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=1390`,
+    },
+  };
 
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
     await route.fulfill({
       contentType: "application/json",
-      body: JSON.stringify(customerChoiceConfig()),
+      body: JSON.stringify(customerChoiceRedirectConfig),
     });
   });
   await page.route("**/api/public/events", async (route) => {
@@ -279,8 +306,17 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
         ok: true,
         lead_id: "gos-choice-lead",
         event_id: "gos-choice-event",
+        form_id: formId,
+        conversion_mode: "thank_you_redirect",
+        success_redirect_url: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=1390`,
         event_payload: { value: 4680, currency: "HKD" },
       }),
+    });
+  });
+  await page.route(`${gosThankYouUrl}**`, async (route) => {
+    await route.fulfill({
+      contentType: "text/html",
+      body: "<!doctype html><title>GOS Thank You</title><h1>GOS Thank You</h1>",
     });
   });
 
@@ -310,9 +346,9 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
     .check();
   await page.getByRole("button", { name: "提交預約 →" }).click();
 
-  await expect(
-    page.getByRole("heading", { name: "已收到你的預約" })
-  ).toBeVisible();
+  await expect(page).toHaveURL(/^https:\/\/www\.gosbeauty\.com\/thank-you\?/);
+  await expect(page.getByRole("heading", { name: "GOS Thank You" })).toBeVisible();
+  expect(new URL(page.url()).searchParams.get("value")).toBe("4680");
   expect(submittedPayload).toMatchObject({
     treatment_id: treatmentId,
     package_id: "permanent-xl",

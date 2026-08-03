@@ -78,3 +78,23 @@ export function emptySpendTypeAmounts(): Record<SpendType, number> {
     legacy_unclassified: 0,
   };
 }
+
+export function completeSpendCoverageDates(
+  entries: Array<{ spendDate: string; spendType: SpendType }>
+) {
+  const typesByDate = new Map<string, Set<SpendType>>();
+  for (const entry of entries) {
+    const types = typesByDate.get(entry.spendDate) ?? new Set<SpendType>();
+    types.add(entry.spendType);
+    typesByDate.set(entry.spendDate, types);
+  }
+
+  return new Set(
+    Array.from(typesByDate.entries())
+      .filter(([, types]) => {
+        if (types.has("legacy_unclassified")) return true;
+        return EDITABLE_SPEND_TYPES.every((spendType) => types.has(spendType));
+      })
+      .map(([spendDate]) => spendDate)
+  );
+}
