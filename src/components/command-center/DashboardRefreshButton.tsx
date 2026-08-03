@@ -5,8 +5,12 @@ import { useFormStatus } from "react-dom";
 
 export function DashboardRefreshButton({
   disabled = false,
+  idleLabel = "同步 CS Lead",
+  pendingLabel = "同步 CS Lead 中…",
 }: {
   disabled?: boolean;
+  idleLabel?: string;
+  pendingLabel?: string;
 }) {
   const { pending } = useFormStatus();
   const isDisabled = disabled || pending;
@@ -23,7 +27,7 @@ export function DashboardRefreshButton({
         className={pending ? "command-refresh-icon is-spinning" : undefined}
       />
       <span aria-live="polite">
-        {pending ? "同步 CS Lead 中…" : "同步 CS Lead"}
+        {pending ? pendingLabel : idleLabel}
       </span>
     </button>
   );

@@ -3,12 +3,11 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
+import { readLiveLeadTable } from "@/lib/integrations/googleSheetsLeadTable";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
 import {
   aggregateDailySpendRows,
   aggregateLeadSheetPerformance,
-  leadSheetFieldKeys,
-  resolveLeadSheetColumns,
   type LeadSheetPerformanceDiagnostics,
   type LeadSheetTreatmentAlias,
 } from "@/lib/marketing/googleSheetsMetricParser";
@@ -321,45 +320,7 @@ async function collectLeadFunnelMetrics(
   brands: BrandRow[],
   throughDate: string
 ) {
-  const tabName = stringValue(configuration.tabName) || "lead";
-  const headerRow = integerValue(configuration.headerRow, 1);
-  const maxRows = integerValue(configuration.maxRows, DEFAULT_MAX_ROWS);
-  const finalColumn = normalizeColumn(configuration.lastColumn, "V");
-  const headerResponse = await batchGetValues({
-    spreadsheetId: spreadsheetId(configuration),
-    ranges: [
-      `${quoteSheetName(tabName)}!A${headerRow}:${finalColumn}${headerRow}`,
-    ],
-  });
-  const headers = headerResponse.valueRanges?.[0]?.values?.[0] ?? [];
-  const columnMap = resolveLeadSheetColumns(headers);
-  const selectedIndexes = Array.from(
-    new Set(
-      leadSheetFieldKeys
-        .map((field) => columnMap[field])
-        .filter((index) => index >= 0)
-    )
-  ).sort((left, right) => left - right);
-  const response = await batchGetValues({
-    spreadsheetId: spreadsheetId(configuration),
-    ranges: selectedIndexes.map((index) => {
-      const column = columnFromIndex(index);
-      return `${quoteSheetName(tabName)}!${column}${
-        headerRow + 1
-      }:${column}${maxRows}`;
-    }),
-  });
-  const columnValues = selectedIndexes.map(
-    (_, index) => response.valueRanges?.[index]?.values ?? []
-  );
-  const rowCount = Math.max(0, ...columnValues.map((values) => values.length));
-  const rows = Array.from({ length: rowCount }, (_, rowIndex) => {
-    const row: unknown[] = [];
-    selectedIndexes.forEach((columnIndex, selectedIndex) => {
-      row[columnIndex] = columnValues[selectedIndex]?.[rowIndex]?.[0] ?? "";
-    });
-    return row;
-  });
+  const { headers, rows } = await readLiveLeadTable(configuration);
   const timestamp = new Date().toISOString();
   const month = getHkMonthContext();
   const parsed = aggregateLeadSheetPerformance({

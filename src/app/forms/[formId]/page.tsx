@@ -236,7 +236,7 @@ export default async function FormConfigPage({
             <EmbedCodeCard
               code={ops.wixAttributionBridgeCode}
               title="Wix UTM Bridge（每個表格頁面設定一次）"
-              description="貼到 Wix Page Code，並將 #html1 改成該頁 HTML Embed 元件 ID。呢段 bridge 會將 Wix 頁面 UTM 安全傳入 LaunchHub 表格。"
+              description="貼到 Wix Page Code，並將 #html1 改成該頁 HTML Embed 元件 ID。呢段 bridge 會將 Wix 頁面 UTM 安全傳入 Growth OS 表格。"
             />
 
             <section className="alyssa-premium-card min-w-0 p-5">

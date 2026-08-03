@@ -482,7 +482,7 @@ async function getPlanningRecords(month: HkMonthContext) {
       calendarItems: fixtureCalendarItems,
       members: fixtureMembers,
       schemaReady: false,
-      warnings: ["Command Center 資料表尚未連接；目前顯示現有 LaunchHub 數據。"],
+      warnings: ["Command Center 資料表尚未連接；目前顯示現有表格數據。"],
     };
   }
 
@@ -940,7 +940,7 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
     dataWarnings: [
       ...planning.warnings,
       ...(!hasImportedFunnelMetrics
-        ? ["Google Sheet Lead Funnel 尚未成功同步；暫用 LaunchHub 現有數據。"]
+        ? ["Google Sheet Lead Funnel 尚未成功同步；暫用系統現有表格數據。"]
         : []),
       ...(leadResult.error ? ["Lead／Booking 數據暫時未能完整讀取。"] : []),
     ],

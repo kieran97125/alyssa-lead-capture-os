@@ -1213,7 +1213,7 @@ export function PublicLeadForm({
       value:
         selectedPackage?.promoPrice ?? selectedPackage?.originalPrice ?? 0,
       currency: "HKD",
-      content_name: `${brand.name || "LaunchHub"} registration`,
+      content_name: `${brand.name || "Growth OS"} registration`,
       content_category: "registration",
     };
   }
@@ -2479,7 +2479,7 @@ function FormLoadingSkeleton() {
   return (
     <section className="box-border w-full max-w-full rounded-[14px] border border-[#f3e5ec] bg-white p-3 text-left sm:rounded-[22px] sm:p-4">
       <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#d85ba3]">
-        LaunchHub
+        Growth OS
       </p>
       <h2 className="mt-2 text-base font-bold text-[#5a2348]">
         表格載入中...
