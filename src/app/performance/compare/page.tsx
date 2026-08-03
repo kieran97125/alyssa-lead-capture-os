@@ -610,7 +610,9 @@ export default async function PeriodComparisonPage({
             <div className="period-definition-grid">
               <article>
                 <strong>廣告費</strong>
-                <p>只讀該月份目前生效 Workbook 嘅品牌分頁；同月份舊版本唔計。</p>
+                <p>
+                  只讀系統 Daily Spend Ledger；Meta WhatsApp／Lead Form／Website Form、Google Ads 同舊資料未分類總額會先加總，再重算 CPL／CPA。
+                </p>
               </article>
               <article>
                 <strong>Lead／Book</strong>

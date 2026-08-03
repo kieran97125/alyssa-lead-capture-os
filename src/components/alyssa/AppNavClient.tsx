@@ -18,6 +18,7 @@ import {
   MessageCircleMore,
   Rocket,
   Settings2,
+  Table2,
   X,
 } from "lucide-react";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
@@ -79,6 +80,12 @@ const navigationGroups: NavigationGroup[] = [
         icon: BarChart3,
         module: "performance",
         exact: true,
+      },
+      {
+        href: "/performance/daily",
+        label: "每日 Overview",
+        icon: Table2,
+        module: "performance",
       },
       {
         href: "/performance/compare",

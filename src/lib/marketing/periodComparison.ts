@@ -91,15 +91,6 @@ type SourceRow = {
   brandId: string | null;
   status: string;
   dataset: string;
-  reportingWorkbookId: string | null;
-  lastSuccessAt: string | null;
-};
-
-type WorkbookRow = {
-  id: string;
-  reportingMonth: string;
-  status: string;
-  lastSyncStatus: string;
   lastSuccessAt: string | null;
 };
 
@@ -108,10 +99,16 @@ type RawMetricRow = {
   metricDate: string;
   sourceKey: string;
   dataSourceId: string | null;
-  spend: number;
   leads: number;
   bookings: number;
   shows: number;
+};
+
+type SpendEntryRow = {
+  brandId: string;
+  spendDate: string;
+  amount: number;
+  updatedAt: string | null;
 };
 
 type PeriodCanonicalData = {
@@ -207,33 +204,19 @@ function chooseFunnelSource(sources: SourceRow[], brandId: string) {
   );
 }
 
-function chooseSpendSource(input: {
-  sources: SourceRow[];
-  workbooks: WorkbookRow[];
-  brandId: string;
-  reportingMonth: string;
-}) {
-  const activeWorkbook = input.workbooks.find(
-    (workbook) =>
-      workbook.status === "active" &&
-      workbook.reportingMonth === input.reportingMonth
-  );
-  const candidates = input.sources.filter(
-    (source) =>
-      source.dataset === "daily_spend" && source.brandId === input.brandId
-  );
-  const eligible = activeWorkbook
-    ? candidates.filter(
-        (source) => source.reportingWorkbookId === activeWorkbook.id
+function chooseSpendSource(sources: SourceRow[], brandId: string) {
+  return (
+    sources
+      .filter(
+        (source) =>
+          source.dataset === "daily_spend_ledger" &&
+          source.brandId === brandId
       )
-    : candidates.filter((source) => source.reportingWorkbookId === null);
-  const source =
-    eligible.sort(
-      (left, right) =>
-        sourcePriority(right, input.brandId) -
-        sourcePriority(left, input.brandId)
-    )[0] ?? null;
-  return { source, workbook: activeWorkbook ?? null };
+      .sort(
+        (left, right) =>
+          sourcePriority(right, brandId) - sourcePriority(left, brandId)
+      )[0] ?? null
+  );
 }
 
 function uniqueLatest(values: Array<string | null | undefined>) {
@@ -249,15 +232,13 @@ function healthForBrand(input: {
   period: ComparisonPeriod;
   spendSource: SourceRow | null;
   funnelSource: SourceRow | null;
-  workbook: WorkbookRow | null;
   spendDates: Set<string>;
+  latestSpendAt: string | null;
 }) {
   const warnings: string[] = [];
   const spendCoverageDays = input.spendDates.size;
   const spendConnected = input.spendSource?.status === "connected";
   const funnelConnected = input.funnelSource?.status === "connected";
-  const workbookHealthy =
-    !input.workbook || input.workbook.lastSyncStatus === "success";
   const coverageHealthy =
     spendCoverageDays >= input.period.expectedDays &&
     input.period.expectedDays > 0;
@@ -274,11 +255,6 @@ function healthForBrand(input: {
       `${input.brand.name} 廣告費只覆蓋 ${spendCoverageDays}/${input.period.expectedDays} 日`
     );
   }
-  if (input.workbook && !workbookHealthy) {
-    warnings.push(
-      `${input.brand.name} 月份表同步狀態：${input.workbook.lastSyncStatus}`
-    );
-  }
   if (!input.funnelSource) {
     warnings.push(`${input.brand.name} 未有 Lead Funnel 來源`);
   } else if (!funnelConnected) {
@@ -287,7 +263,7 @@ function healthForBrand(input: {
     );
   }
 
-  const spendHealthy = spendConnected && coverageHealthy && workbookHealthy;
+  const spendHealthy = spendConnected && coverageHealthy;
   const quality: ComparisonDataQuality =
     spendHealthy && funnelConnected
       ? "complete"
@@ -303,8 +279,8 @@ function healthForBrand(input: {
     funnelSourceStatus: input.funnelSource?.status ?? null,
     latestSyncAt: uniqueLatest([
       input.spendSource?.lastSuccessAt,
+      input.latestSpendAt,
       input.funnelSource?.lastSuccessAt,
-      input.workbook?.lastSuccessAt,
     ]),
     warnings,
   } satisfies PeriodSourceHealth;
@@ -314,35 +290,32 @@ function canonicalizePeriod(input: {
   period: ComparisonPeriod;
   brands: BrandSetting[];
   sources: SourceRow[];
-  workbooks: WorkbookRow[];
   metrics: RawMetricRow[];
+  spendEntries: SpendEntryRow[];
 }): PeriodCanonicalData {
   const rows: CanonicalComparisonMetricRow[] = [];
   const healthByBrand = new Map<string, PeriodSourceHealth>();
 
   for (const brand of input.brands) {
     const funnelSource = chooseFunnelSource(input.sources, brand.id);
-    const { source: spendSource, workbook } = chooseSpendSource({
-      sources: input.sources,
-      workbooks: input.workbooks,
-      brandId: brand.id,
-      reportingMonth: input.period.monthStart,
-    });
+    const spendSource = chooseSpendSource(input.sources, brand.id);
     const spendDates = new Set<string>();
+
+    for (const entry of input.spendEntries) {
+      if (entry.brandId !== brand.id) continue;
+      rows.push({
+        brandId: brand.id,
+        metricDate: entry.spendDate,
+        spend: entry.amount,
+        leads: 0,
+        bookings: 0,
+        shows: 0,
+      });
+      spendDates.add(entry.spendDate);
+    }
 
     for (const metric of input.metrics) {
       if (metric.brandId !== brand.id) continue;
-      if (spendSource && metric.dataSourceId === spendSource.id) {
-        rows.push({
-          brandId: brand.id,
-          metricDate: metric.metricDate,
-          spend: metric.spend,
-          leads: 0,
-          bookings: 0,
-          shows: 0,
-        });
-        spendDates.add(metric.metricDate);
-      }
       if (
         funnelSource &&
         metric.dataSourceId === funnelSource.id &&
@@ -366,8 +339,12 @@ function canonicalizePeriod(input: {
         period: input.period,
         spendSource,
         funnelSource,
-        workbook,
         spendDates,
+        latestSpendAt: uniqueLatest(
+          input.spendEntries
+            .filter((entry) => entry.brandId === brand.id)
+            .map((entry) => entry.updatedAt)
+        ),
       })
     );
   }
@@ -478,20 +455,9 @@ function sourceRows(rows: Array<Record<string, unknown>>) {
       brandId: textValue(row.brand_id),
       status: String(row.status ?? "draft"),
       dataset: String(configuration.dataset ?? ""),
-      reportingWorkbookId: textValue(row.reporting_workbook_id),
       lastSuccessAt: textValue(row.last_success_at),
     };
   });
-}
-
-function workbookRows(rows: Array<Record<string, unknown>>) {
-  return rows.map((row): WorkbookRow => ({
-    id: String(row.id ?? ""),
-    reportingMonth: String(row.reporting_month ?? ""),
-    status: String(row.status ?? "active"),
-    lastSyncStatus: String(row.last_sync_status ?? "pending"),
-    lastSuccessAt: textValue(row.last_success_at),
-  }));
 }
 
 function metricRows(rows: Array<Record<string, unknown>>) {
@@ -500,7 +466,6 @@ function metricRows(rows: Array<Record<string, unknown>>) {
     metricDate: String(row.metric_date ?? ""),
     sourceKey: String(row.source_key ?? ""),
     dataSourceId: textValue(row.data_source_id),
-    spend: numberValue(row.spend),
     leads: numberValue(row.leads),
     bookings: numberValue(row.bookings),
     shows: numberValue(row.shows),
@@ -517,7 +482,7 @@ async function fetchPeriodMetrics(input: {
     const { data, error } = await supabase
       .from("marketing_daily_metrics")
       .select(
-        "brand_id,metric_date,source_key,data_source_id,spend,leads,bookings,shows"
+        "brand_id,metric_date,source_key,data_source_id,leads,bookings,shows"
       )
       .in("brand_id", input.brandIds)
       .gte("metric_date", input.period.startDate)
@@ -529,6 +494,35 @@ async function fetchPeriodMetrics(input: {
     if (batch.length < PAGE_SIZE) break;
   }
   return metricRows(rows);
+}
+
+async function fetchPeriodSpendEntries(input: {
+  period: ComparisonPeriod;
+  brandIds: string[];
+}) {
+  const supabase = createSupabaseAdminClient();
+  const rows: Array<Record<string, unknown>> = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("marketing_daily_spend_entries")
+      .select("brand_id,spend_date,amount,updated_at")
+      .in("brand_id", input.brandIds)
+      .gte("spend_date", input.period.startDate)
+      .lte("spend_date", input.period.endDate)
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as Array<Record<string, unknown>>;
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+  return rows.map(
+    (row): SpendEntryRow => ({
+      brandId: String(row.brand_id ?? ""),
+      spendDate: String(row.spend_date ?? ""),
+      amount: numberValue(row.amount),
+      updatedAt: textValue(row.updated_at),
+    })
+  );
 }
 
 function fixtureCanonicalData(
@@ -700,42 +694,36 @@ export async function getPeriodComparisonSnapshot(
 
   try {
     const supabase = createSupabaseAdminClient();
-    const [sourcesResult, workbooksResult, metricResults] =
-      await Promise.all([
-        supabase
-          .from("marketing_data_sources")
-          .select(
-            "id,brand_id,status,configuration,reporting_workbook_id,last_success_at"
-          ),
-        supabase
-          .from("marketing_reporting_workbooks")
-          .select(
-            "id,reporting_month,status,last_sync_status,last_success_at"
-          ),
-        Promise.all(
-          periods.map((period) =>
+    const [sourcesResult, periodResults] = await Promise.all([
+      supabase
+        .from("marketing_data_sources")
+        .select("id,brand_id,status,configuration,last_success_at"),
+      Promise.all(
+        periods.map((period) =>
+          Promise.all([
             fetchPeriodMetrics({
               period,
               brandIds: selectedBrands.map((brand) => brand.id),
-            })
-          )
-        ),
-      ]);
+            }),
+            fetchPeriodSpendEntries({
+              period,
+              brandIds: selectedBrands.map((brand) => brand.id),
+            }),
+          ])
+        )
+      ),
+    ]);
     if (sourcesResult.error) throw sourcesResult.error;
-    if (workbooksResult.error) throw workbooksResult.error;
     const sources = sourceRows(
       (sourcesResult.data ?? []) as Array<Record<string, unknown>>
-    );
-    const workbooks = workbookRows(
-      (workbooksResult.data ?? []) as Array<Record<string, unknown>>
     );
     const canonicalData = periods.map((period, index) =>
       canonicalizePeriod({
         period,
         brands: selectedBrands,
         sources,
-        workbooks,
-        metrics: metricResults[index] ?? [],
+        metrics: periodResults[index]?.[0] ?? [],
+        spendEntries: periodResults[index]?.[1] ?? [],
       })
     );
 

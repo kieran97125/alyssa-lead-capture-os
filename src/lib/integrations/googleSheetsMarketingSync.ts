@@ -14,7 +14,6 @@ import {
 } from "@/lib/marketing/googleSheetsMetricParser";
 import {
   resolveMonthlyOverviewColumns,
-  shouldSyncReportingSource,
 } from "@/lib/marketing/monthlyReportingWorkbooks";
 
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
@@ -684,33 +683,17 @@ export async function syncAllMarketingGoogleSheets(
   options: { actorIdentifier?: string } = {}
 ) {
   const supabase = createSupabaseAdminClient();
-  const month = getHkMonthContext();
-  const { data: activeWorkbook, error: workbookError } = await supabase
-    .from("marketing_reporting_workbooks")
-    .select("id")
-    .eq("provider_key", "google_sheets")
-    .eq("reporting_month", month.monthStart)
-    .eq("status", "active")
-    .maybeSingle();
-  if (workbookError) throw workbookError;
   const { data, error } = await supabase
     .from("marketing_data_sources")
-    .select("id,reporting_workbook_id")
+    .select("id")
     .eq("provider_key", "google_sheets")
+    .eq("configuration->>dataset", "lead_funnel")
     .neq("status", "paused")
     .limit(50);
   if (error) throw error;
 
-  const sourceRows = (data ?? []).filter(
-    (source) =>
-      shouldSyncReportingSource({
-        sourceReportingWorkbookId: source.reporting_workbook_id,
-        activeCurrentWorkbookId: activeWorkbook?.id,
-      })
-  );
-
   return Promise.all(
-    sourceRows.map((source) =>
+    (data ?? []).map((source) =>
       syncMarketingDataSource(source.id, options)
     )
   );

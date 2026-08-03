@@ -30,6 +30,12 @@ import {
   relativeComparisonChange,
 } from "../src/lib/marketing/periodComparisonMath";
 import {
+  EDITABLE_SPEND_TYPES,
+  isEditableSpendType,
+  normalizeEditableSpendType,
+} from "../src/lib/marketing/spendTypes";
+import { deriveDailyMetrics } from "../src/lib/marketing/dailyOverviewMath";
+import {
   createSignedAdminSession,
   hasAdminPasswordGateConfig,
   verifyAdminPassword,
@@ -97,6 +103,33 @@ test("Hong Kong month pacing uses completed days through yesterday", () => {
   expect(expectedAtPace(310, context.paceRatio)).toBe(270);
 });
 
+test("daily Spend input requires one explicit platform and acquisition type", () => {
+  expect(EDITABLE_SPEND_TYPES).toEqual([
+    "meta_whatsapp",
+    "meta_lead_form",
+    "meta_website_form",
+    "google_ads",
+  ]);
+  expect(isEditableSpendType("legacy_unclassified")).toBe(false);
+  expect(normalizeEditableSpendType("meta_lead_form")).toBe(
+    "meta_lead_form"
+  );
+  expect(normalizeEditableSpendType("unknown")).toBe("meta_whatsapp");
+  expect(
+    deriveDailyMetrics({
+      spend: 100 + 200 + 300 + 400,
+      leads: 20,
+      bookings: 10,
+      shows: 5,
+    })
+  ).toMatchObject({
+    spend: 1000,
+    cpl: 50,
+    costPerBooking: 100,
+    costPerShow: 200,
+  });
+});
+
 test("budget and KPI warnings only activate for configured targets", () => {
   expect(budgetPaceStatus(0, 0, 0, 27)).toBe("unconfigured");
   expect(budgetPaceStatus(125, 310, 100, 10)).toBe("critical");
@@ -106,7 +139,7 @@ test("budget and KPI warnings only activate for configured targets", () => {
   expect(kpiPaceStatus(60, 100, 90)).toBe("behind");
 });
 
-test("Google Sheets daily spend uses date column A and total spend column N", () => {
+test("legacy Google Sheets Spend parser stays deterministic for the one-time cutover", () => {
   expect(parseGoogleSheetDate(46204)).toBe("2026-07-01");
   expect(parseGoogleSheetDate(0)).toBeNull();
   expect(parseGoogleSheetDate(1)).toBeNull();
@@ -332,7 +365,7 @@ test("period comparison aggregates numerators before rates and builds cumulative
   expect(trend[1]).toMatchObject({ spend: 600, leads: 40, cpl: 15 });
 });
 
-test("only the active workbook version contributes metrics and scheduled refreshes", () => {
+test("legacy workbook selection stays deterministic for cutover reconciliation", () => {
   expect(
     isMetricFromActiveReportingVersion({
       sourceReportingWorkbookId: null,
@@ -648,17 +681,20 @@ test("Command Center dashboard exposes budget, KPI and operational navigation", 
   await expect(page.getByRole("heading", { name: "預算概覽" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "品牌 KPI 進度" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "重新整理數據" })
+    page.getByRole("button", { name: "同步 CS Lead" })
   ).toBeVisible();
-  await expect(page.getByText(/最後更新：/)).toBeVisible();
+  await expect(page.getByText(/CS Lead 更新：/)).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "主要功能" });
-  await expect(navigation.getByRole("link")).toHaveCount(10);
+  await expect(navigation.getByRole("link")).toHaveCount(11);
   await expect(navigation.getByRole("link", { name: "CRM" })).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "資料來源" })
   ).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "療程成效" })
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "每日 Overview" })
   ).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "同期對比" })
@@ -791,7 +827,46 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
     })
   ).toBeVisible();
   await expect(page.getByText(/同期營運比率/)).toBeVisible();
+  await expect(page.getByText(/Daily Spend Ledger/)).toBeVisible();
+  await expect(page.getByText(/Meta WhatsApp／Lead Form／Website Form、Google Ads/)).toBeVisible();
   await expect(page.getByText(/Alyssa、AM、IB、GOS/)).toBeVisible();
+  await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
+});
+
+test("Daily Overview records typed Meta Spend and shows daily plus cumulative KPIs", async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.goto("/performance/daily", { waitUntil: "domcontentloaded" });
+
+  await expect(
+    page.getByRole("heading", { name: "每日 Overview", exact: true })
+  ).toBeVisible();
+  await expect(page.getByLabel("廣告費類型")).toHaveValue("meta_whatsapp");
+  await expect(page.getByLabel("廣告費類型").locator("option")).toHaveText([
+    "Meta · WhatsApp",
+    "Meta · Lead Form",
+    "Meta · Website Form",
+    "Google Ads",
+  ]);
+  await expect(page.getByText("Meta · WhatsApp", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Meta · Lead Form", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Meta · Website Form", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Google Ads", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("舊資料 · 未分類", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("總廣告費", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("CPL", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("CPA · Book", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("CPA · Show", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText(/CS Lead Sheet · Funnel/)).toBeVisible();
+  await expect(page.getByText(/Internal Daily Spend · Spend/)).toBeVisible();
+
+  await page.getByLabel("廣告費類型").selectOption("meta_lead_form");
+  await page.getByRole("button", { name: "載入日期及類型" }).click();
+  await expect(page).toHaveURL(/spend_type=meta_lead_form/);
+  await expect(page.getByLabel(/Alyssa.*Meta · Lead Form 廣告費/)).toBeVisible();
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });
@@ -810,23 +885,26 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
 });
 
-test("monthly workbook registry keeps the current link and historical records together", async ({
+test("retired monthly Spend workbooks keep read-only historical links", async ({
   page,
 }) => {
   await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
 
   await expect(
-    page.getByRole("heading", { name: "月份數據表", exact: true })
+    page.getByRole("heading", { name: "舊月份廣告費數據表", exact: true })
   ).toBeVisible();
-  await expect(page.getByLabel("數據月份")).toHaveValue("2026-08");
-  await expect(page.getByLabel("Google Spreadsheet Link")).toBeVisible();
+  await expect(page.getByLabel("數據月份")).toHaveCount(0);
+  await expect(page.getByLabel("Google Spreadsheet Link")).toHaveCount(0);
   await expect(page.getByText("August Overview_Alyssa_2026")).toBeVisible();
   await expect(page.getByText("July Overview_Alyssa_2026")).toBeVisible();
   await expect(
     page.getByRole("link", { name: /打開原始數據表/ })
   ).toHaveCount(2);
-  await expect(page.getByText(/Dashboard 只會計目前生效版本/)).toBeVisible();
-  await expect(page.getByText(/Lead／Book／Show 仍以原本 Lead Sheet/)).toBeVisible();
+  await expect(page.getByText(/月份 Sheet 接駁已退役/)).toBeVisible();
+  await expect(page.getByText(/廣告費改由系統 Daily Ledger/)).toBeVisible();
+  await expect(page.getByRole("link", { name: "填寫每日廣告費" })).toBeVisible();
+  await expect(page.getByText("系統帳簿", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: /重新同步呢個月份/ })).toHaveCount(0);
 });
 
 test("incomplete Google OAuth setup names the blocker and every click returns feedback", async ({

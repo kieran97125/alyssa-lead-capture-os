@@ -184,6 +184,12 @@ type DailyMetric = {
   shows: number;
 };
 
+type DailySpend = {
+  brandId: string;
+  spendDate: string;
+  amount: number;
+};
+
 function numberValue(value: unknown) {
   if (typeof value === "number") return Number.isFinite(value) ? value : 0;
   if (typeof value === "string") {
@@ -357,7 +363,8 @@ async function getPlanningRecords(month: HkMonthContext) {
     previousMonthDate.setUTCMonth(previousMonthDate.getUTCMonth() - 1);
     const previousMonth = previousMonthDate.toISOString().slice(0, 10);
     const fixtureSources: MarketingDataSource[] = e2eFixturesEnabled
-      ? fallbackSystemBrands.flatMap((brand, index) => {
+      ? [
+          ...fallbackSystemBrands.flatMap((brand, index) => {
           const tabName =
             brand.slug === "ineffable"
               ? "IB"
@@ -369,7 +376,7 @@ async function getPlanningRecords(month: HkMonthContext) {
             brandId: brand.id,
             providerKey: "google_sheets",
             displayName: `${brand.name} · ${month.monthStart.slice(0, 7)} 月份數據`,
-            status: "connected",
+            status: "paused",
             syncMode: "manual",
             configuration: { dataset: "daily_spend", tabName },
             providesMetrics: ["spend"],
@@ -390,7 +397,44 @@ async function getPlanningRecords(month: HkMonthContext) {
               reportingWorkbookId: fixturePreviousWorkbookId,
             },
           ];
-        })
+          }),
+          {
+            id: "50000000-0000-4000-7000-000000000001",
+            brandId: null,
+            providerKey: "google_sheets",
+            displayName: "Alyssa Workspace Lead Funnel",
+            status: "connected",
+            syncMode: "manual",
+            configuration: { dataset: "lead_funnel", tabName: "lead" },
+            providesMetrics: [
+              "leads",
+              "bookings",
+              "shows",
+              "treatment_performance",
+            ],
+            lastSyncAt: `${month.today}T01:30:00.000Z`,
+            lastSuccessAt: `${month.today}T01:30:00.000Z`,
+            lastErrorSummary: null,
+            reportingWorkbookId: null,
+          },
+          ...fallbackSystemBrands.map((brand, index) => ({
+            id: `50000000-0000-4000-6000-${String(index + 1).padStart(12, "0")}`,
+            brandId: brand.id,
+            providerKey: "internal_ledger",
+            displayName: `${brand.name} · 系統每日廣告費`,
+            status: "connected" as const,
+            syncMode: "native" as const,
+            configuration: {
+              dataset: "daily_spend_ledger",
+              currency: "HKD",
+            },
+            providesMetrics: ["spend"],
+            lastSyncAt: `${month.today}T01:20:00.000Z`,
+            lastSuccessAt: `${month.today}T01:20:00.000Z`,
+            lastErrorSummary: null,
+            reportingWorkbookId: null,
+          })),
+        ]
       : [];
     const fixtureWorkbooks: MarketingReportingWorkbook[] = e2eFixturesEnabled
       ? [
@@ -432,6 +476,7 @@ async function getPlanningRecords(month: HkMonthContext) {
     return {
       plans: [] as MonthlyPlan[],
       metrics: [] as DailyMetric[],
+      spendEntries: [] as DailySpend[],
       dataSources: fixtureSources,
       reportingWorkbooks: fixtureWorkbooks,
       calendarItems: fixtureCalendarItems,
@@ -445,6 +490,7 @@ async function getPlanningRecords(month: HkMonthContext) {
   const [
     plansResult,
     metricsResult,
+    spendResult,
     sourcesResult,
     workbooksResult,
     calendarResult,
@@ -461,6 +507,11 @@ async function getPlanningRecords(month: HkMonthContext) {
         )
         .gte("metric_date", month.monthStart)
         .lte("metric_date", month.throughDate),
+      supabase
+        .from("marketing_daily_spend_entries")
+        .select("brand_id,spend_date,amount")
+        .gte("spend_date", month.monthStart)
+        .lte("spend_date", month.throughDate),
       supabase
         .from("marketing_data_sources")
         .select(
@@ -496,6 +547,7 @@ async function getPlanningRecords(month: HkMonthContext) {
   const coreResults = [
     plansResult,
     metricsResult,
+    spendResult,
     sourcesResult,
     workbooksResult,
     calendarResult,
@@ -510,6 +562,7 @@ async function getPlanningRecords(month: HkMonthContext) {
     return {
       plans: [] as MonthlyPlan[],
       metrics: [] as DailyMetric[],
+      spendEntries: [] as DailySpend[],
       dataSources: [] as MarketingDataSource[],
       reportingWorkbooks: [] as MarketingReportingWorkbook[],
       calendarItems: [] as CalendarItem[],
@@ -589,6 +642,13 @@ async function getPlanningRecords(month: HkMonthContext) {
         shows: numberValue(row.shows),
       })
     ),
+    spendEntries: ((spendResult.data ?? []) as Array<
+      Record<string, unknown>
+    >).map((row) => ({
+      brandId: String(row.brand_id ?? ""),
+      spendDate: String(row.spend_date ?? ""),
+      amount: numberValue(row.amount),
+    })),
     dataSources: ((sourcesResult.data ?? []) as Array<
       Record<string, unknown>
     >).map((row) => ({
@@ -729,6 +789,9 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
     ...planning,
     plans: planning.plans.filter((item) => visibleBrandIds.has(item.brandId)),
     metrics: visibleMetrics,
+    spendEntries: planning.spendEntries.filter((item) =>
+      visibleBrandIds.has(item.brandId)
+    ),
     dataSources: visibleDataSources,
     reportingWorkbooks: visibleReportingWorkbooks,
     calendarItems: planning.calendarItems.filter((item) =>
@@ -753,11 +816,13 @@ export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot>
     string,
     { leads: number; bookings: number; shows: number }
   >();
-  for (const row of scopedPlanning.metrics) {
+  for (const row of scopedPlanning.spendEntries) {
     spendByBrand.set(
       row.brandId,
-      (spendByBrand.get(row.brandId) ?? 0) + row.spend
+      (spendByBrand.get(row.brandId) ?? 0) + row.amount
     );
+  }
+  for (const row of scopedPlanning.metrics) {
     if (!row.sourceKey.endsWith(":lead_funnel")) continue;
     const funnel = funnelByBrand.get(row.brandId) ?? {
       leads: 0,

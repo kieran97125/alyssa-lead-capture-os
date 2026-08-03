@@ -84,13 +84,19 @@ export default async function DashboardPage({
   const upcoming = snapshot.calendarItems
     .filter((item) => item.scheduledDate >= snapshot.month.today)
     .slice(0, 5);
+  const leadSheetSources = snapshot.dataSources.filter(
+    (source) =>
+      source.providerKey === "google_sheets" &&
+      !source.reportingWorkbookId &&
+      source.status !== "paused"
+  );
   const latestSuccessAt =
-    snapshot.dataSources
+    leadSheetSources
       .map((source) => source.lastSuccessAt)
       .filter((value): value is string => Boolean(value))
       .sort((left, right) => right.localeCompare(left))[0] ?? null;
   const refreshDisabled =
-    !isMaster || !snapshot.schemaReady || snapshot.dataSources.length === 0;
+    !isMaster || !snapshot.schemaReady || leadSheetSources.length === 0;
 
   return (
     <main className="alyssa-shell">
@@ -115,12 +121,12 @@ export default async function DashboardPage({
                   <input type="hidden" name="returnPath" value="/dashboard" />
                   <DashboardRefreshButton disabled={refreshDisabled} />
                   <small>
-                    最後更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
+                    CS Lead 更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
                   </small>
                 </form>
               ) : (
                 <small>
-                  最後更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
+                  CS Lead 更新：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
                 </small>
               )}
               {isMaster ? (
