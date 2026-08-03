@@ -756,6 +756,8 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
 test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specific CPA", async ({
   page,
 }) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto("/performance/compare", { waitUntil: "domcontentloaded" });
 
   await expect(
@@ -773,8 +775,25 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
   await expect(
     page.getByRole("heading", { name: "品牌拆解", exact: true })
   ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: "廣告費同期累積走勢", exact: true })
+  ).toBeVisible();
+  const showCostTrend = page.getByRole("button", {
+    name: "CPA · Show",
+    exact: true,
+  });
+  await showCostTrend.click();
+  await expect(showCostTrend).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.getByRole("img", {
+      name: "每個 Show 成本同期累積走勢",
+      exact: true,
+    })
+  ).toBeVisible();
   await expect(page.getByText(/同期營運比率/)).toBeVisible();
   await expect(page.getByText(/Alyssa、AM、IB、GOS/)).toBeVisible();
+  await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
+  expect(pageErrors).toEqual([]);
 });
 
 test("Google Sheets connection is presented as OAuth rather than a service-account key", async ({
