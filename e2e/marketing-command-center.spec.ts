@@ -1123,7 +1123,9 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
   await expect(
     page.getByRole("heading", { name: "本月待到店明細" })
   ).toBeVisible();
-  await expect(page.getByText(/唔會重複讀取舊報表數據/)).toBeVisible();
+  await expect(
+    page.getByText(/未有療程成本歸屬時會清楚標示為未分配/)
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "預算概覽" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "品牌 KPI 進度" })).toBeVisible();
   await expect(
