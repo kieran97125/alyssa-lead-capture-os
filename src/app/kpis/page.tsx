@@ -13,6 +13,7 @@ import {
   type MetricProgress,
 } from "@/lib/marketing/commandCenter";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
+import { canManageMonthlyKpis } from "@/lib/security/workspacePermissions";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,7 @@ export default async function BrandKpisPage() {
                 Actual、截至昨日應達值同全月目標。
               </p>
             </div>
-            {access.accessLevel === "master" ? (
+            {canManageMonthlyKpis(access) ? (
               <Link href="/settings/planning" className="command-primary-button">
                 <Settings2 size={16} />
                 設定 Budget／KPI

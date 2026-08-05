@@ -398,7 +398,7 @@ export default async function PeriodComparisonPage({
                   <small>每條線都由同一日開始，避免完整月份壓住未完月份。</small>
                 </div>
               </div>
-              <PeriodComparisonChartLazy series={snapshot.trendSeries} />
+              <PeriodComparisonChartLazy scopes={snapshot.trendScopes} />
             </article>
 
             <article className="command-surface period-rate-card">

@@ -6,6 +6,15 @@ import {
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
+import { getOperationalAnnotations } from "@/lib/marketing/operationalAnnotationStore";
+import type { OperationalAnnotation } from "@/lib/marketing/operationalAnnotations";
+import {
+  brandTrendMetricKeys,
+  buildCumulativeTreatmentTrend,
+  treatmentTrendMetricKeys,
+  type PerformanceTrendScope,
+  type TreatmentTrendFact,
+} from "@/lib/marketing/performanceTrend";
 import {
   completeSpendCoverageDates,
   isSpendType,
@@ -23,10 +32,9 @@ import {
   type ComparisonKpis,
   type ComparisonMetricKey,
   type ComparisonPeriod,
-  type PeriodComparisonTrendSeries,
 } from "@/lib/marketing/periodComparisonMath";
 
-export type { PeriodComparisonTrendSeries } from "@/lib/marketing/periodComparisonMath";
+export type { PeriodComparisonTrendScope } from "@/lib/marketing/periodComparisonMath";
 
 export type ComparisonDataQuality = "complete" | "partial" | "missing";
 
@@ -85,7 +93,7 @@ export type PeriodComparisonSnapshot = {
   periods: ComparisonPeriod[];
   totals: PeriodComparisonRow[];
   brandRows: BrandPeriodComparisonRow[];
-  trendSeries: PeriodComparisonTrendSeries[];
+  trendScopes: PerformanceTrendScope[];
   schemaReady: boolean;
   sourceUpdatedAt: string | null;
   warnings: string[];
@@ -117,8 +125,13 @@ type SpendEntryRow = {
   updatedAt: string | null;
 };
 
+type RawTreatmentFact = TreatmentTrendFact & {
+  dataSourceId: string;
+};
+
 type PeriodCanonicalData = {
   rows: CanonicalComparisonMetricRow[];
+  treatmentFacts: TreatmentTrendFact[];
   healthByBrand: Map<string, PeriodSourceHealth>;
 };
 
@@ -298,8 +311,10 @@ function canonicalizePeriod(input: {
   sources: SourceRow[];
   metrics: RawMetricRow[];
   spendEntries: SpendEntryRow[];
+  treatmentFacts: RawTreatmentFact[];
 }): PeriodCanonicalData {
   const rows: CanonicalComparisonMetricRow[] = [];
+  const treatmentFacts: TreatmentTrendFact[] = [];
   const healthByBrand = new Map<string, PeriodSourceHealth>();
 
   for (const brand of input.brands) {
@@ -339,6 +354,24 @@ function canonicalizePeriod(input: {
       }
     }
 
+    if (funnelSource) {
+      treatmentFacts.push(
+        ...input.treatmentFacts
+          .filter(
+            (fact) =>
+              fact.brandId === brand.id && fact.dataSourceId === funnelSource.id
+          )
+          .map((fact) => ({
+            brandId: fact.brandId,
+            brandName: fact.brandName,
+            metricDate: fact.metricDate,
+            metricKind: fact.metricKind,
+            treatmentLabel: fact.treatmentLabel,
+            metricCount: fact.metricCount,
+          }))
+      );
+    }
+
     healthByBrand.set(
       brand.id,
       healthForBrand({
@@ -354,7 +387,7 @@ function canonicalizePeriod(input: {
     );
   }
 
-  return { rows, healthByBrand };
+  return { rows, treatmentFacts, healthByBrand };
 }
 
 function mergeHealth(
@@ -533,24 +566,119 @@ async function fetchPeriodSpendEntries(input: {
   );
 }
 
+const treatmentMetricKinds = new Set<TreatmentTrendFact["metricKind"]>([
+  "lead",
+  "book",
+  "show",
+  "no_show",
+  "pending_show",
+]);
+
+async function fetchPeriodTreatmentFacts(input: {
+  period: ComparisonPeriod;
+  brandIds: string[];
+}) {
+  const supabase = createSupabaseAdminClient();
+  const rows: Array<Record<string, unknown>> = [];
+  for (let from = 0; ; from += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("marketing_treatment_performance_daily")
+      .select(
+        "data_source_id,brand_id,brand_label,metric_date,metric_kind,treatment_label,metric_count"
+      )
+      .in("brand_id", input.brandIds)
+      .gte("metric_date", input.period.startDate)
+      .lte("metric_date", input.period.endDate)
+      .range(from, from + PAGE_SIZE - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as Array<Record<string, unknown>>;
+    rows.push(...batch);
+    if (batch.length < PAGE_SIZE) break;
+  }
+  return rows.flatMap((row): RawTreatmentFact[] => {
+    const metricKind = String(
+      row.metric_kind ?? ""
+    ) as TreatmentTrendFact["metricKind"];
+    const treatmentLabel = textValue(row.treatment_label);
+    if (!treatmentMetricKinds.has(metricKind) || !treatmentLabel) return [];
+    return [
+      {
+        dataSourceId: String(row.data_source_id ?? ""),
+        brandId: String(row.brand_id ?? ""),
+        brandName: String(row.brand_label ?? ""),
+        metricDate: String(row.metric_date ?? ""),
+        metricKind,
+        treatmentLabel,
+        metricCount: numberValue(row.metric_count),
+      },
+    ];
+  });
+}
+
 function fixtureCanonicalData(
   period: ComparisonPeriod,
   brands: BrandSetting[],
   monthIndex: number
 ): PeriodCanonicalData {
   const rows: CanonicalComparisonMetricRow[] = [];
+  const treatmentFacts: TreatmentTrendFact[] = [];
   const healthByBrand = new Map<string, PeriodSourceHealth>();
   for (const [brandIndex, brand] of brands.entries()) {
     for (let day = period.startDay; day <= period.endDay; day += 1) {
       const activity = Math.max(0, 4 - monthIndex + brandIndex);
+      const metricDate = `${period.monthStart.slice(0, 8)}${String(day).padStart(2, "0")}`;
+      const treatmentLabel =
+        brandIndex % 2 === 0 ? "Facelift" : "DEP 無針水光 Combo";
       rows.push({
         brandId: brand.id,
-        metricDate: `${period.monthStart.slice(0, 8)}${String(day).padStart(2, "0")}`,
+        metricDate,
         spend: 180 + brandIndex * 55 + monthIndex * 18 + day * 4,
         leads: activity + (day % 2),
         bookings: Math.max(0, Math.floor(activity * 0.42)),
         shows: Math.max(0, Math.floor(activity * 0.22)),
       });
+      treatmentFacts.push(
+        {
+          brandId: brand.id,
+          brandName: brand.name,
+          metricDate,
+          metricKind: "lead",
+          treatmentLabel,
+          metricCount: activity + (day % 2),
+        },
+        {
+          brandId: brand.id,
+          brandName: brand.name,
+          metricDate,
+          metricKind: "book",
+          treatmentLabel,
+          metricCount: Math.max(0, Math.floor(activity * 0.42)),
+        },
+        {
+          brandId: brand.id,
+          brandName: brand.name,
+          metricDate,
+          metricKind: "show",
+          treatmentLabel,
+          metricCount: Math.max(0, Math.floor(activity * 0.22)),
+        },
+        {
+          brandId: brand.id,
+          brandName: brand.name,
+          metricDate,
+          metricKind: "no_show",
+          treatmentLabel,
+          metricCount: day % 5 === 0 ? 1 : 0,
+        },
+        {
+          brandId: brand.id,
+          brandName: brand.name,
+          metricDate,
+          metricKind: "pending_show",
+          treatmentLabel,
+          metricCount: day % 4 === 0 ? 1 : 0,
+        }
+      );
     }
     healthByBrand.set(brand.id, {
       quality: "complete",
@@ -562,7 +690,109 @@ function fixtureCanonicalData(
       warnings: [],
     });
   }
-  return { rows, healthByBrand };
+  return { rows, treatmentFacts, healthByBrand };
+}
+
+function buildTrendScopes(input: {
+  periods: ComparisonPeriod[];
+  canonicalData: PeriodCanonicalData[];
+  selectedBrands: BrandSetting[];
+  annotations: OperationalAnnotation[];
+}) {
+  const scopes: PerformanceTrendScope[] = [];
+  const allBrandIds = new Set(input.selectedBrands.map((brand) => brand.id));
+  const makeBrandSeries = (brandIds: Set<string>, scopeKey: string) =>
+    input.periods.map((period, index) => ({
+      key: `${scopeKey}:${period.monthStart}`,
+      monthStart: period.monthStart,
+      label: monthLabel(period.monthStart),
+      color: trendColors[index % trendColors.length],
+      points: buildCumulativeComparisonTrend({
+        period,
+        rows: input.canonicalData[index].rows,
+        treatmentFacts: input.canonicalData[index].treatmentFacts,
+        brandIds,
+        annotations: input.annotations.filter(
+          (annotation) =>
+            brandIds.has(annotation.brandId) &&
+            annotation.date >= period.startDate &&
+            annotation.date <= period.endDate
+        ),
+      }),
+    }));
+
+  scopes.push({
+    key: "overall",
+    type: "overall",
+    label:
+      input.selectedBrands.length === 1
+        ? input.selectedBrands[0].name
+        : "全部品牌",
+    description: "品牌整體成本、成效、No Show 及待到店同期累積；橙點係該範圍日曆操作。",
+    availableMetrics: brandTrendMetricKeys,
+    series: makeBrandSeries(allBrandIds, "overall"),
+  });
+
+  for (const brand of input.selectedBrands) {
+    scopes.push({
+      key: `brand:${brand.id}`,
+      type: "brand",
+      label: brand.name,
+      description: `${brand.name} 成本、Lead、Book、Show、No Show、待到店及轉換率同期走勢。`,
+      availableMetrics: brandTrendMetricKeys,
+      series: makeBrandSeries(new Set([brand.id]), `brand:${brand.id}`),
+    });
+  }
+
+  const treatmentGroups = new Map<
+    string,
+    { brandId: string; brandName: string; treatmentLabel: string }
+  >();
+  for (const data of input.canonicalData) {
+    for (const fact of data.treatmentFacts) {
+      const key = JSON.stringify([fact.brandId, fact.treatmentLabel]);
+      treatmentGroups.set(key, {
+        brandId: fact.brandId,
+        brandName: fact.brandName,
+        treatmentLabel: fact.treatmentLabel,
+      });
+    }
+  }
+  const multipleBrands = input.selectedBrands.length > 1;
+  for (const [groupKey, treatment] of Array.from(treatmentGroups).sort(
+    ([, left], [, right]) =>
+      left.brandName.localeCompare(right.brandName, "zh-HK") ||
+      left.treatmentLabel.localeCompare(right.treatmentLabel, "zh-HK")
+  )) {
+    const scopeKey = `treatment:${groupKey}`;
+    scopes.push({
+      key: scopeKey,
+      type: "treatment",
+      label: multipleBrands
+        ? `${treatment.brandName} · ${treatment.treatmentLabel}`
+        : treatment.treatmentLabel,
+      description:
+        "療程層只顯示可核實嘅 Lead／Book／Show／No Show／待到店及轉換率；未有成本分攤。",
+      availableMetrics: treatmentTrendMetricKeys,
+      series: input.periods.map((period, index) => ({
+        key: `${scopeKey}:${period.monthStart}`,
+        monthStart: period.monthStart,
+        label: monthLabel(period.monthStart),
+        color: trendColors[index % trendColors.length],
+        brandId: treatment.brandId,
+        treatmentLabel: treatment.treatmentLabel,
+        points: buildCumulativeTreatmentTrend({
+          facts: input.canonicalData[index].treatmentFacts,
+          annotations: input.annotations,
+          brandId: treatment.brandId,
+          treatmentLabel: treatment.treatmentLabel,
+          startDate: period.startDate,
+          endDate: period.endDate,
+        }),
+      })),
+    });
+  }
+  return scopes;
 }
 
 function buildSnapshot(input: {
@@ -572,6 +802,7 @@ function buildSnapshot(input: {
   canonicalData: PeriodCanonicalData[];
   schemaReady: boolean;
   warnings: string[];
+  annotations?: OperationalAnnotation[];
 }): PeriodComparisonSnapshot {
   const selectedBrands = input.filters.brandId
     ? input.brands.filter((brand) => brand.id === input.filters.brandId)
@@ -628,18 +859,12 @@ function buildSnapshot(input: {
     }));
   });
 
-  const trendSeries = input.periods.map(
-    (period, index): PeriodComparisonTrendSeries => ({
-      monthStart: period.monthStart,
-      label: monthLabel(period.monthStart),
-      color: trendColors[index % trendColors.length],
-      points: buildCumulativeComparisonTrend({
-        period,
-        rows: input.canonicalData[index].rows,
-        brandIds: selectedBrandIds,
-      }),
-    })
-  );
+  const trendScopes = buildTrendScopes({
+    periods: input.periods,
+    canonicalData: input.canonicalData,
+    selectedBrands,
+    annotations: input.annotations ?? [],
+  });
   const dataWarnings = Array.from(
     new Set([
       ...input.warnings,
@@ -662,7 +887,7 @@ function buildSnapshot(input: {
     periods: input.periods,
     totals,
     brandRows,
-    trendSeries,
+    trendScopes,
     schemaReady: input.schemaReady,
     sourceUpdatedAt: uniqueLatest(
       totals.map((row) => row.quality.latestSyncAt)
@@ -688,6 +913,15 @@ export async function getPeriodComparisonSnapshot(
     : brands;
 
   if (!hasSupabaseAdminEnv()) {
+    const annotations = await getOperationalAnnotations({
+      startDate: periods[periods.length - 1]?.startDate ?? filters.anchorMonth,
+      endDate: periods[0]?.endDate ?? filters.anchorMonth,
+      brands: selectedBrands.map((brand) => ({
+        id: brand.id,
+        name: brand.name,
+        color: brand.primaryColor || "#5A2348",
+      })),
+    });
     return buildSnapshot({
       filters,
       brands,
@@ -697,12 +931,13 @@ export async function getPeriodComparisonSnapshot(
       ),
       schemaReady: false,
       warnings: ["正式數據庫未連接；目前顯示驗收用同期數據。"],
+      annotations,
     });
   }
 
   try {
     const supabase = createSupabaseAdminClient();
-    const [sourcesResult, periodResults] = await Promise.all([
+    const [sourcesResult, periodResults, annotations] = await Promise.all([
       supabase
         .from("marketing_data_sources")
         .select("id,brand_id,status,configuration,last_success_at"),
@@ -717,9 +952,22 @@ export async function getPeriodComparisonSnapshot(
               period,
               brandIds: selectedBrands.map((brand) => brand.id),
             }),
+            fetchPeriodTreatmentFacts({
+              period,
+              brandIds: selectedBrands.map((brand) => brand.id),
+            }),
           ])
         )
       ),
+      getOperationalAnnotations({
+        startDate: periods[periods.length - 1]?.startDate ?? filters.anchorMonth,
+        endDate: periods[0]?.endDate ?? filters.anchorMonth,
+        brands: selectedBrands.map((brand) => ({
+          id: brand.id,
+          name: brand.name,
+          color: brand.primaryColor || "#5A2348",
+        })),
+      }),
     ]);
     if (sourcesResult.error) throw sourcesResult.error;
     const sources = sourceRows(
@@ -732,6 +980,7 @@ export async function getPeriodComparisonSnapshot(
         sources,
         metrics: periodResults[index]?.[0] ?? [],
         spendEntries: periodResults[index]?.[1] ?? [],
+        treatmentFacts: periodResults[index]?.[2] ?? [],
       })
     );
 
@@ -742,6 +991,7 @@ export async function getPeriodComparisonSnapshot(
       canonicalData,
       schemaReady: true,
       warnings: [],
+      annotations,
     });
   } catch (error) {
     console.warn("period_comparison_snapshot_failed", {
@@ -753,6 +1003,7 @@ export async function getPeriodComparisonSnapshot(
       periods,
       canonicalData: periods.map(() => ({
         rows: [],
+        treatmentFacts: [],
         healthByBrand: new Map(),
       })),
       schemaReady: false,

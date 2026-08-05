@@ -45,6 +45,7 @@ import {
   verifySignedAdminSession,
 } from "../src/lib/security/internalAccess";
 import {
+  canManageMonthlyKpis,
   getWorkspaceRoleDefaultModules,
   hasWorkspaceBrandPermission,
   hasWorkspaceModulePermission,
@@ -88,6 +89,29 @@ test("invite-only permissions honour explicit modules and brand scope", () => {
     "leads",
     "crm",
   ]);
+});
+
+test("Manager can always enter KPI planning without receiving system settings access", () => {
+  const access = {
+    isMaster: false,
+    workspaceRole: normalizeWorkspaceRole("manager"),
+    modulePermissions: {
+      kpis: false,
+      settings: false,
+      data_sources: false,
+    },
+  };
+
+  expect(hasWorkspaceModulePermission(access, "kpis")).toBe(true);
+  expect(hasWorkspaceModulePermission(access, "settings")).toBe(false);
+  expect(hasWorkspaceModulePermission(access, "data_sources")).toBe(false);
+  expect(
+    canManageMonthlyKpis({
+      source: "supabase_auth",
+      accessLevel: "admin",
+      workspaceRole: "manager",
+    })
+  ).toBe(true);
 });
 
 test("Production invitations cannot be redirected to localhost by environment drift", () => {
@@ -411,6 +435,31 @@ test("period comparison aggregates numerators before rates and builds cumulative
   expect(trend).toHaveLength(2);
   expect(trend[0]).toMatchObject({ spend: 400, leads: 20, cpl: 20 });
   expect(trend[1]).toMatchObject({ spend: 600, leads: 40, cpl: 15 });
+
+  const treatmentAwareTrend = buildCumulativeComparisonTrend({
+    period,
+    rows,
+    treatmentFacts: [
+      {
+        brandId: "alyssa",
+        brandName: "Alyssa",
+        metricDate: period.startDate,
+        metricKind: "no_show",
+        treatmentLabel: "Facelift",
+        metricCount: 2,
+      },
+      {
+        brandId: "alyssa",
+        brandName: "Alyssa",
+        metricDate: period.endDate,
+        metricKind: "pending_show",
+        treatmentLabel: "Facelift",
+        metricCount: 3,
+      },
+    ],
+  });
+  expect(treatmentAwareTrend[0]).toMatchObject({ noShows: 2, pendingShows: 0 });
+  expect(treatmentAwareTrend[1]).toMatchObject({ noShows: 2, pendingShows: 3 });
 });
 
 test("legacy workbook selection stays deterministic for cutover reconciliation", () => {
@@ -935,6 +984,26 @@ test("Command Center feature pages render without migration-dependent crashes", 
   }
 });
 
+test("Marketing Calendar can open another month and keeps new items inside that month", async ({
+  page,
+}) => {
+  await page.goto("/calendar?month=2026-07", {
+    waitUntil: "domcontentloaded",
+  });
+
+  await expect(page.getByLabel("顯示月份")).toHaveValue("2026-07");
+  await expect(page.getByRole("link", { name: "上一個月" })).toHaveAttribute(
+    "href",
+    "/calendar?month=2026-06"
+  );
+  await expect(page.getByRole("link", { name: "下一個月" })).toHaveAttribute(
+    "href",
+    "/calendar?month=2026-08"
+  );
+  await expect(page.getByLabel("日期")).toHaveValue("2026-07-01");
+  await expect(page.getByLabel("影響療程（可選）")).toBeEnabled();
+});
+
 test("Data Sources exposes guarded deletion for operator-managed sources", async ({
   page,
 }) => {
@@ -1031,6 +1100,21 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
   await expect(
     page.getByRole("heading", { name: "來源／Campaign 表現" })
   ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "療程成效走勢", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: /每日 Lead走勢；橙色圓點代表日曆操作/ })
+  ).toBeVisible();
+  const noShowTrend = page.getByRole("button", {
+    name: "No Show",
+    exact: true,
+  });
+  await noShowTrend.click();
+  await expect(noShowTrend).toHaveAttribute("aria-pressed", "true");
+  await expect(
+    page.locator('[aria-label="1 個日曆操作"]').first()
+  ).toBeVisible();
   await expect(page.getByText(/唔讀 mkt_dashboard 分頁/)).toBeVisible();
 });
 
@@ -1057,8 +1141,10 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
     page.getByRole("heading", { name: "品牌拆解", exact: true })
   ).toBeVisible();
   await expect(
-    page.getByRole("img", { name: "廣告費同期累積走勢", exact: true })
+    page.getByRole("img", { name: /全部品牌 廣告費同期累積走勢/ })
   ).toBeVisible();
+  const scopeSelect = page.getByLabel("分析範圍");
+  await expect(scopeSelect).toBeVisible();
   const showCostTrend = page.getByRole("button", {
     name: "CPA · Show",
     exact: true,
@@ -1067,9 +1153,19 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
   await expect(showCostTrend).toHaveAttribute("aria-pressed", "true");
   await expect(
     page.getByRole("img", {
-      name: "每個 Show 成本同期累積走勢",
-      exact: true,
+      name: /全部品牌 每個 Show 成本同期累積走勢/,
     })
+  ).toBeVisible();
+  await scopeSelect.selectOption({ label: "Alyssa · Facelift" });
+  await expect(page.getByRole("button", { name: "Spend" })).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "No Show", exact: true })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: /Alyssa · Facelift Lead同期累積走勢/ })
+  ).toBeVisible();
+  await expect(
+    page.locator('[aria-label="1 個日曆操作"]').first()
   ).toBeVisible();
   await expect(page.getByText(/同期營運比率/)).toBeVisible();
   await expect(page.getByText(/Daily Spend Ledger/)).toBeVisible();

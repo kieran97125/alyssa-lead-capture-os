@@ -28,6 +28,7 @@ import {
   isEditableSpendType,
 } from "@/lib/marketing/spendTypes";
 import {
+  canManageMonthlyKpis,
   getWorkspaceRoleDefaultModules,
   normalizeWorkspaceRole,
 } from "@/lib/security/workspacePermissions";
@@ -104,9 +105,11 @@ async function ensureCommandCenterAction(
           ? "kpis"
           : path.startsWith("/performance")
             ? "performance"
-          : path.startsWith("/settings")
-            ? "settings"
-            : "dashboard";
+            : path.startsWith("/settings/planning")
+              ? "kpis"
+              : path.startsWith("/settings")
+                ? "settings"
+                : "dashboard";
   const moduleAccess = await requireModuleAccess(routeModule);
   if (!moduleAccess.allowed) {
     return {
@@ -174,15 +177,42 @@ async function writeAudit(input: {
   }
 }
 
+async function getCalendarItemForMutation(itemId: string) {
+  const supabase = createSupabaseAdminClient();
+  const extended = await supabase
+    .from("marketing_calendar_items")
+    .select(
+      "id,brand_id,treatment_id,treatment_label,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+    )
+    .eq("id", itemId)
+    .maybeSingle();
+  if (!extended.error || !extended.error.message.includes("treatment_")) {
+    return extended;
+  }
+  return supabase
+    .from("marketing_calendar_items")
+    .select(
+      "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+    )
+    .eq("id", itemId)
+    .maybeSingle();
+}
+
 export async function upsertMonthlyPlanAction(formData: FormData) {
   const returnPath = safeReturnPath(
     readString(formData, "returnPath"),
     "/settings/planning"
   );
   const access = await ensureCommandCenterAction(returnPath, {
-    masterOnly: true,
+    masterOnly: false,
   });
   if (!access.ok) redirectWithResult(returnPath, access);
+  if (!canManageMonthlyKpis(access.access)) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "只有 Master、Admin 或 Manager 可以修改品牌 KPI。",
+    });
+  }
 
   const brandId = readString(formData, "brandId");
   const monthStart = readString(formData, "monthStart");
@@ -200,6 +230,13 @@ export async function upsertMonthlyPlanAction(formData: FormData) {
     redirectWithResult(returnPath, {
       ok: false,
       message: "請檢查品牌、月份及所有目標數字。",
+    });
+  }
+  const unscopedConfig = await getConfigurationData({ unscoped: true });
+  if (!unscopedConfig.brands.some((brand) => brand.id === brandId)) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "找不到要更新嘅品牌 KPI。",
     });
   }
 
@@ -684,7 +721,10 @@ export async function refreshDashboardDataAction(formData: FormData) {
 }
 
 export async function createCalendarItemAction(formData: FormData) {
-  const returnPath = "/calendar";
+  const returnPath = safeReturnPath(
+    readString(formData, "returnPath"),
+    "/calendar"
+  );
   const access = await ensureCommandCenterAction(returnPath);
   if (!access.ok) redirectWithResult(returnPath, access);
 
@@ -704,8 +744,24 @@ export async function createCalendarItemAction(formData: FormData) {
     });
   }
 
+  const treatmentId = readString(formData, "treatmentId") || null;
+  const config = await getConfigurationData();
+  const treatment = treatmentId
+    ? config.treatments.find(
+        (item) => item.id === treatmentId && item.brandId === brandId
+      )
+    : null;
+  if (treatmentId && !treatment) {
+    redirectWithResult(returnPath, {
+      ok: false,
+      message: "所選療程唔屬於呢個品牌，請重新選擇。",
+    });
+  }
+
   const payload = {
     brand_id: brandId,
+    treatment_id: treatment?.id ?? null,
+    treatment_label: treatment?.name ?? null,
     title,
     item_type: readString(formData, "itemType") || "post",
     channel: readString(formData, "channel") || null,
@@ -716,11 +772,32 @@ export async function createCalendarItemAction(formData: FormData) {
     notes: readString(formData, "notes") || null,
   };
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
+  let { data, error } = await supabase
     .from("marketing_calendar_items")
     .insert(payload)
     .select("id")
     .single();
+
+  if (error?.message.includes("treatment_") && !treatment) {
+    const legacyPayload = {
+      brand_id: payload.brand_id,
+      title: payload.title,
+      item_type: payload.item_type,
+      channel: payload.channel,
+      status: payload.status,
+      scheduled_date: payload.scheduled_date,
+      scheduled_time: payload.scheduled_time,
+      assignee_email: payload.assignee_email,
+      notes: payload.notes,
+    };
+    const legacyResult = await supabase
+      .from("marketing_calendar_items")
+      .insert(legacyPayload)
+      .select("id")
+      .single();
+    data = legacyResult.data;
+    error = legacyResult.error;
+  }
 
   if (error) {
     console.warn("marketing_calendar_item_create_failed", {
@@ -742,7 +819,13 @@ export async function createCalendarItemAction(formData: FormData) {
     brandId,
     after: payload,
   });
-  revalidateCommandCenter("/calendar", "/dashboard", "/kpis");
+  revalidateCommandCenter(
+    "/calendar",
+    "/dashboard",
+    "/kpis",
+    "/performance",
+    "/performance/compare"
+  );
   redirectWithResult(returnPath, {
     ok: true,
     message: "營銷事項已加入日曆。",
@@ -760,11 +843,8 @@ export async function moveCalendarItemAction(
   }
 
   const supabase = createSupabaseAdminClient();
-  const { data: existing, error: lookupError } = await supabase
-    .from("marketing_calendar_items")
-    .select("id,brand_id")
-    .eq("id", itemId)
-    .maybeSingle();
+  const { data: existing, error: lookupError } =
+    await getCalendarItemForMutation(itemId);
   if (
     lookupError ||
     !existing ||
@@ -798,7 +878,13 @@ export async function moveCalendarItemAction(
     brandId: data?.brand_id,
     after: { scheduledDate },
   });
-  revalidateCommandCenter("/calendar", "/dashboard", "/kpis");
+  revalidateCommandCenter(
+    "/calendar",
+    "/dashboard",
+    "/kpis",
+    "/performance",
+    "/performance/compare"
+  );
   return { ok: true, message: "日曆日期已更新。" };
 }
 
@@ -812,13 +898,8 @@ export async function deleteCalendarItemAction(
   }
 
   const supabase = createSupabaseAdminClient();
-  const { data: existing, error: lookupError } = await supabase
-    .from("marketing_calendar_items")
-    .select(
-      "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
-    )
-    .eq("id", itemId)
-    .maybeSingle();
+  const { data: existing, error: lookupError } =
+    await getCalendarItemForMutation(itemId);
   if (
     lookupError ||
     !existing ||
@@ -854,6 +935,10 @@ export async function deleteCalendarItemAction(
     brandId: existing.brand_id,
     before: {
       title: existing.title,
+      treatmentId:
+        "treatment_id" in existing ? existing.treatment_id : null,
+      treatmentLabel:
+        "treatment_label" in existing ? existing.treatment_label : null,
       itemType: existing.item_type,
       channel: existing.channel,
       status: existing.status,
@@ -864,7 +949,13 @@ export async function deleteCalendarItemAction(
       sortOrder: existing.sort_order,
     },
   });
-  revalidateCommandCenter("/calendar", "/dashboard", "/kpis");
+  revalidateCommandCenter(
+    "/calendar",
+    "/dashboard",
+    "/kpis",
+    "/performance",
+    "/performance/compare"
+  );
   return { ok: true, message: "日曆事項已刪除。" };
 }
 

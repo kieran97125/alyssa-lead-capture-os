@@ -24,6 +24,7 @@ export type HkMonthContext = {
 };
 
 const HK_OFFSET_MS = 8 * 60 * 60 * 1000;
+const MONTH_PATTERN = /^(\d{4})-(\d{2})(?:-\d{2})?$/;
 
 function isoDate(year: number, monthIndex: number, day: number) {
   return new Date(Date.UTC(year, monthIndex, day)).toISOString().slice(0, 10);
@@ -66,6 +67,48 @@ export function getHkMonthContext(now = new Date()): HkMonthContext {
     paceRatio: daysInMonth > 0 ? elapsedDays / daysInMonth : 0,
     label,
     throughLabel,
+  };
+}
+
+export function getHkMonthContextForMonth(
+  requestedMonth: unknown,
+  now = new Date()
+): HkMonthContext {
+  const current = getHkMonthContext(now);
+  const match = String(requestedMonth ?? "").trim().match(MONTH_PATTERN);
+  if (!match) return current;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  if (year < 2020 || year > 2100 || month < 1 || month > 12) return current;
+
+  const monthIndex = month - 1;
+  const monthStart = isoDate(year, monthIndex, 1);
+  if (monthStart === current.monthStart) return current;
+
+  const daysInMonth = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const monthEnd = isoDate(year, monthIndex, daysInMonth);
+  const historical = monthStart < current.monthStart;
+  const elapsedDays = historical ? daysInMonth : 0;
+  const reference = new Date(`${monthStart}T00:00:00.000Z`);
+
+  return {
+    monthStart,
+    monthEnd,
+    today: current.today,
+    throughDate: historical ? monthEnd : monthStart,
+    year,
+    month,
+    day: historical ? daysInMonth : 1,
+    daysInMonth,
+    elapsedDays,
+    paceRatio: historical ? 1 : 0,
+    label: new Intl.DateTimeFormat("zh-HK", {
+      year: "numeric",
+      month: "long",
+      timeZone: "UTC",
+    }).format(reference),
+    throughLabel: historical ? `完整 ${daysInMonth} 日` : "未來月份",
   };
 }
 

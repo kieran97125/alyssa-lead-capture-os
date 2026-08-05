@@ -1,9 +1,12 @@
 import { Save, SlidersHorizontal } from "lucide-react";
+import { redirect } from "next/navigation";
 import { upsertMonthlyPlanAction } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { getCommandCenterSnapshot } from "@/lib/marketing/commandCenter";
+import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
+import { canManageMonthlyKpis } from "@/lib/security/workspacePermissions";
 
 export const dynamic = "force-dynamic";
 
@@ -19,8 +22,10 @@ export default async function PlanningSettingsPage({
     message?: string | string[];
   }>;
 }) {
+  const access = await getCurrentInternalAccess();
+  if (!canManageMonthlyKpis(access)) redirect("/kpis");
   const [snapshot, query] = await Promise.all([
-    getCommandCenterSnapshot(),
+    getCommandCenterSnapshot({ unscoped: true }),
     searchParams,
   ]);
   const message = firstParam(query?.message);
@@ -38,6 +43,9 @@ export default async function PlanningSettingsPage({
               <p className="command-page-subtitle">
                 設定 {snapshot.month.label}各品牌預算、Lead、Book、Show
                 及內容產量。儲存後主頁同 KPI 頁會立即使用同一口徑。
+              </p>
+              <p className="planning-access-note">
+                Manager 可修改全部品牌 KPI；Team、資料來源及其它系統設定權限不受影響。
               </p>
             </div>
             <span className="planning-month-chip">

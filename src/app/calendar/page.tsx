@@ -1,9 +1,11 @@
-import { CalendarPlus, Info } from "lucide-react";
+import { CalendarPlus, ChevronLeft, ChevronRight, Info } from "lucide-react";
 import { createCalendarItemAction } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { MarketingCalendarBoard } from "@/components/command-center/MarketingCalendarBoard";
-import { getCommandCenterSnapshot } from "@/lib/marketing/commandCenter";
+import { getMarketingCalendarSnapshot } from "@/lib/marketing/marketingCalendar";
+import { shiftComparisonMonth } from "@/lib/marketing/periodComparisonMath";
 
 export const dynamic = "force-dynamic";
 
@@ -17,14 +19,23 @@ export default async function MarketingCalendarPage({
   searchParams?: Promise<{
     command_status?: string | string[];
     message?: string | string[];
+    month?: string | string[];
   }>;
 }) {
-  const [snapshot, query] = await Promise.all([
-    getCommandCenterSnapshot(),
-    searchParams,
-  ]);
+  const query = await searchParams;
+  const requestedMonth = firstParam(query?.month);
+  const snapshot = await getMarketingCalendarSnapshot(requestedMonth);
   const message = firstParam(query?.message);
   const status = firstParam(query?.command_status);
+  const monthValue = snapshot.month.monthStart.slice(0, 7);
+  const previousMonth = shiftComparisonMonth(snapshot.month.monthStart, -1) as string;
+  const nextMonth = shiftComparisonMonth(snapshot.month.monthStart, 1) as string;
+  const createDefaultDate =
+    snapshot.month.today >= snapshot.month.monthStart &&
+    snapshot.month.today <= snapshot.month.monthEnd
+      ? snapshot.month.today
+      : snapshot.month.monthStart;
+  const returnPath = `/calendar?month=${monthValue}`;
 
   return (
     <main className="alyssa-shell">
@@ -40,10 +51,31 @@ export default async function MarketingCalendarPage({
                 同營運事項。可用滑鼠或鍵盤拖放到其他日期。
               </p>
             </div>
-            <a href="#new-calendar-item" className="command-primary-button">
-              <CalendarPlus size={16} />
-              新增事項
-            </a>
+            <div className="calendar-header-actions">
+              <form method="get" action="/calendar" className="calendar-month-picker">
+                <IntentPrefetchLink
+                  href={`/calendar?month=${previousMonth.slice(0, 7)}`}
+                  aria-label="上一個月"
+                >
+                  <ChevronLeft size={16} />
+                </IntentPrefetchLink>
+                <label>
+                  <span>顯示月份</span>
+                  <input type="month" name="month" defaultValue={monthValue} />
+                </label>
+                <button type="submit">前往</button>
+                <IntentPrefetchLink
+                  href={`/calendar?month=${nextMonth.slice(0, 7)}`}
+                  aria-label="下一個月"
+                >
+                  <ChevronRight size={16} />
+                </IntentPrefetchLink>
+              </form>
+              <a href="#new-calendar-item" className="command-primary-button">
+                <CalendarPlus size={16} />
+                新增事項
+              </a>
+            </div>
           </header>
 
           {message ? (
@@ -55,6 +87,11 @@ export default async function MarketingCalendarPage({
               {message}
             </p>
           ) : null}
+          {snapshot.warnings.map((warning) => (
+            <p key={warning} className="command-status-message">
+              {warning}
+            </p>
+          ))}
           {!snapshot.schemaReady ? (
             <p className="command-status-message">
               Migration 尚未套用；拖放及新增功能會喺正式套用後啟用。
@@ -100,6 +137,7 @@ export default async function MarketingCalendarPage({
               <h2>新增營銷事項</h2>
             </header>
             <form action={createCalendarItemAction}>
+              <input type="hidden" name="returnPath" value={returnPath} />
               <label>
                 <span>品牌</span>
                 <select name="brandId" defaultValue="" required>
@@ -111,6 +149,30 @@ export default async function MarketingCalendarPage({
                       {brand.name}
                     </option>
                   ))}
+                </select>
+              </label>
+              <label>
+                <span>影響療程（可選）</span>
+                <select
+                  name="treatmentId"
+                  defaultValue=""
+                  disabled={!snapshot.treatmentLinkReady}
+                >
+                  <option value="">品牌整體／所有療程</option>
+                  {snapshot.brands.map((brand) => {
+                    const treatments = snapshot.treatments.filter(
+                      (treatment) => treatment.brandId === brand.id
+                    );
+                    return treatments.length > 0 ? (
+                      <optgroup key={brand.id} label={brand.name}>
+                        {treatments.map((treatment) => (
+                          <option key={treatment.id} value={treatment.id}>
+                            {treatment.name}
+                          </option>
+                        ))}
+                      </optgroup>
+                    ) : null;
+                  })}
                 </select>
               </label>
               <label className="calendar-title-field">
@@ -139,7 +201,7 @@ export default async function MarketingCalendarPage({
                   name="scheduledDate"
                   min={snapshot.month.monthStart}
                   max={snapshot.month.monthEnd}
-                  defaultValue={snapshot.month.today}
+                  defaultValue={createDefaultDate}
                   required
                 />
               </label>

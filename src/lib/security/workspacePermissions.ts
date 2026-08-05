@@ -68,6 +68,19 @@ export function getWorkspaceRoleDefaultModules(
   return [...roleDefaultModules[role]];
 }
 
+export function canManageMonthlyKpis(access: {
+  source: string;
+  accessLevel: "admin" | "master";
+  workspaceRole?: string;
+}) {
+  if (access.accessLevel === "master") return true;
+  if (access.source !== "supabase_auth") {
+    return false;
+  }
+  const role = normalizeWorkspaceRole(access.workspaceRole);
+  return role === "owner" || role === "admin" || role === "manager";
+}
+
 export function hasWorkspaceModulePermission(
   access: {
     isMaster: boolean;
@@ -77,6 +90,14 @@ export function hasWorkspaceModulePermission(
   module: WorkspaceModuleKey
 ) {
   if (access.isMaster) return true;
+  if (
+    module === "kpis" &&
+    (access.workspaceRole === "owner" ||
+      access.workspaceRole === "admin" ||
+      access.workspaceRole === "manager")
+  ) {
+    return true;
+  }
   const explicitKeys = Object.keys(access.modulePermissions);
   if (explicitKeys.length > 0) {
     return access.modulePermissions[module] === true;
@@ -104,6 +125,7 @@ export function getWorkspaceModuleForPath(
   if (pathname.startsWith("/leads")) return "leads";
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/performance")) return "performance";
+  if (pathname.startsWith("/settings/planning")) return "kpis";
   if (
     pathname.startsWith("/brands") ||
     pathname.startsWith("/campaigns") ||
