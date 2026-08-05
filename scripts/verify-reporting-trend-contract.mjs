@@ -8,9 +8,15 @@ const files = Object.fromEntries(
     [
       "src/app/calendar/page.tsx",
       "src/app/command-center/actions.ts",
+      "src/app/dashboard/page.tsx",
       "src/components/command-center/PeriodComparisonChart.tsx",
+      "src/components/command-center/LeadDashboardPanel.tsx",
+      "src/components/command-center/PerformanceCostSummary.tsx",
       "src/components/command-center/TreatmentPerformanceTrendChart.tsx",
       "src/lib/marketing/periodComparison.ts",
+      "src/lib/marketing/performanceCostMath.ts",
+      "src/lib/marketing/performanceCosts.ts",
+      "src/lib/marketing/leadDashboard.ts",
       "src/lib/marketing/treatmentPerformance.ts",
       "src/lib/security/internalAccessServer.ts",
       "src/lib/security/routeBoundary.ts",
@@ -47,6 +53,28 @@ assert.match(
   /日曆操作/
 );
 
+const costMath = files["src/lib/marketing/performanceCostMath.ts"];
+assert.match(costMath, /calculateComparisonKpis/);
+assert.match(costMath, /availability: "unallocated"/);
+assert.match(
+  files["src/lib/marketing/performanceCosts.ts"],
+  /marketing_daily_spend_entries/
+);
+assert.match(files["src/lib/marketing/leadDashboard.ts"], /costs:/);
+assert.match(files["src/lib/marketing/treatmentPerformance.ts"], /costs,/);
+assert.match(
+  files["src/components/command-center/LeadDashboardPanel.tsx"],
+  /PerformanceCostSummary costs=\{snapshot\.costs\}/
+);
+assert.match(
+  files["src/components/command-center/PerformanceCostSummary.tsx"],
+  /CPBook/
+);
+assert.match(
+  files["src/components/command-center/PerformanceCostSummary.tsx"],
+  /CPShow/
+);
+
 const permissions = files["src/lib/security/workspacePermissions.ts"];
 assert.match(permissions, /role === "manager"/);
 assert.match(permissions, /pathname\.startsWith\("\/settings\/planning"\).*"kpis"/s);
@@ -69,4 +97,6 @@ assert.match(migration, /treatment_label text/);
 assert.match(migration, /where treatment_id is not null/);
 assert.doesNotMatch(migration, /\bgrant\b|\bpolicy\b/i);
 
-console.log("Reporting trend, calendar annotation, and Manager KPI contracts verified.");
+console.log(
+  "Reporting trend, cost metrics, calendar annotation, and Manager KPI contracts verified."
+);

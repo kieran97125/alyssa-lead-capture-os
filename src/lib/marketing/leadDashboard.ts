@@ -14,6 +14,12 @@ import {
   type LeadDashboardModel,
 } from "@/lib/marketing/leadDashboardMath";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
+import {
+  calculatePerformanceCostSummary,
+  type DailySpendFact,
+  type PerformanceCostSummary,
+} from "@/lib/marketing/performanceCostMath";
+import { fetchDailySpendFacts } from "@/lib/marketing/performanceCosts";
 import type { InternalAccessContext } from "@/lib/security/internalAccess";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 import {
@@ -35,6 +41,7 @@ type BrandRow = SheetBrandReference & {
 
 export type LeadDashboardSnapshot = LeadDashboardModel & {
   filters: LeadDashboardFilters;
+  costs: PerformanceCostSummary;
   sourceName: string;
   sourceStatus: string;
   lastSuccessAt: string | null;
@@ -44,6 +51,27 @@ export type LeadDashboardSnapshot = LeadDashboardModel & {
   warnings: string[];
   live: boolean;
 };
+
+function costSummaryForModel(input: {
+  model: LeadDashboardModel;
+  filters: LeadDashboardFilters;
+  brands: BrandRow[];
+  spendFacts: DailySpendFact[];
+}) {
+  const selectedBrandIds = input.filters.brandId
+    ? input.brands
+        .filter((brand) => brand.id === input.filters.brandId)
+        .map((brand) => brand.id)
+    : input.brands.map((brand) => brand.id);
+  return calculatePerformanceCostSummary({
+    spendFacts: input.spendFacts,
+    selectedBrandIds,
+    leads: input.model.totals.leads,
+    bookings: input.model.totals.bookings,
+    shows: input.model.totals.shows,
+    attributable: !input.filters.treatment,
+  });
+}
 
 function firstString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
@@ -213,9 +241,14 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
     brands,
     filters,
   });
+  const spendFacts: DailySpendFact[] = [
+    { brandId: "alyssa-brand", spendDate: filters.startDate, amount: 1_200 },
+    { brandId: "ib-brand", spendDate: filters.startDate, amount: 600 },
+  ];
   return {
     ...model,
     filters,
+    costs: costSummaryForModel({ model, filters, brands, spendFacts }),
     sourceName: "Alyssa Workspace Lead Funnel",
     sourceStatus: "connected",
     lastSuccessAt: new Date().toISOString(),
@@ -242,6 +275,12 @@ function emptySnapshot(
   return {
     ...model,
     filters,
+    costs: costSummaryForModel({
+      model,
+      filters,
+      brands: [],
+      spendFacts: [],
+    }),
     sourceName: source?.display_name || "Lead Sheet",
     sourceStatus: source?.status || "draft",
     lastSuccessAt: source?.last_success_at || null,
@@ -275,7 +314,7 @@ export async function getLeadDashboardSnapshot(
 
   try {
     const supabase = createSupabaseAdminClient();
-    const [sourceResult, brandsResult] = await Promise.all([
+    const [sourceResult, brandsResult, spendFacts] = await Promise.all([
       supabase
         .from("marketing_data_sources")
         .select("id,display_name,status,last_success_at,configuration")
@@ -286,6 +325,11 @@ export async function getLeadDashboardSnapshot(
         .from("brands")
         .select("id,name,slug,primary_color")
         .order("name", { ascending: true }),
+      fetchDailySpendFacts({
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        allowedBrandIds,
+      }),
     ]);
     if (sourceResult.error) throw sourceResult.error;
     if (brandsResult.error) throw brandsResult.error;
@@ -347,6 +391,12 @@ export async function getLeadDashboardSnapshot(
     return {
       ...model,
       filters,
+      costs: costSummaryForModel({
+        model,
+        filters,
+        brands: visibleBrands,
+        spendFacts,
+      }),
       sourceName: source.display_name,
       sourceStatus: source.status,
       lastSuccessAt: source.last_success_at,

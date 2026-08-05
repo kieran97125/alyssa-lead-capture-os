@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
+import { PerformanceCostSummary } from "@/components/command-center/PerformanceCostSummary";
 import type {
   LeadDashboardDimensionRow,
   LeadDashboardStats,
@@ -278,6 +279,8 @@ export function LeadDashboardPanel({
         />
       </section>
 
+      <PerformanceCostSummary costs={snapshot.costs} />
+
       <section className="command-surface treatment-ranking-section">
         <div className="lead-dashboard-section-heading">
           <div><UsersRound size={17} /><div><p>Brand summary</p><h2>品牌總結</h2></div></div>
@@ -373,7 +376,9 @@ export function LeadDashboardPanel({
           </p>
           <p>
             呢個 Dashboard 由系統直接讀取 <code>lead</code> 分頁再即時計算；
-            不讀 <code>mkt_dashboard</code>、每日 Overview 或任何外部報表頁。
+            廣告費只讀系統 Daily Spend Ledger，CPL／CPBook／CPShow 會先加總
+            Spend、Lead、Book、Show 再計算。不讀 <code>mkt_dashboard</code>、每日
+            Overview 或任何外部報表頁。
           </p>
         </div>
       </section>

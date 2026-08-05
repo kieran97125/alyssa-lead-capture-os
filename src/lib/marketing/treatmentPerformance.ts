@@ -12,6 +12,12 @@ import {
   type PerformanceTrendSeries,
   type TreatmentTrendFact,
 } from "@/lib/marketing/performanceTrend";
+import {
+  calculatePerformanceCostSummary,
+  type DailySpendFact,
+  type PerformanceCostSummary,
+} from "@/lib/marketing/performanceCostMath";
+import { fetchDailySpendFacts } from "@/lib/marketing/performanceCosts";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export type TreatmentPerformanceSort =
@@ -67,6 +73,7 @@ export type TreatmentPerformanceInsight = {
 export type TreatmentPerformanceSnapshot = {
   filters: TreatmentPerformanceFilters;
   totals: TreatmentPerformanceTotals;
+  costs: PerformanceCostSummary;
   treatmentRows: TreatmentPerformanceRow[];
   sourceRows: TreatmentPerformanceRow[];
   brandOptions: TreatmentPerformanceOption[];
@@ -533,6 +540,7 @@ function buildSnapshot(input: {
   analysisReady?: boolean;
   warnings?: string[];
   annotations?: OperationalAnnotation[];
+  spendFacts?: DailySpendFact[];
 }): TreatmentPerformanceSnapshot {
   const brandOptions = uniqueOptions(
     input.brands.map((brand) => ({
@@ -573,6 +581,23 @@ function buildSnapshot(input: {
   const totalCounts = emptyCounts();
   filteredFacts.forEach((fact) => addFact(totalCounts, fact));
   const totals = withRates(totalCounts);
+  const selectedBrandIds = input.filters.brandId
+    ? input.brands
+        .filter((brand) => brand.id === input.filters.brandId)
+        .map((brand) => brand.id)
+    : input.brands.map((brand) => brand.id);
+  const costs = calculatePerformanceCostSummary({
+    spendFacts: input.spendFacts ?? [],
+    selectedBrandIds,
+    leads: totals.leads,
+    bookings: totals.bookings,
+    shows: totals.shows,
+    attributable: !(
+      input.filters.treatment ||
+      input.filters.source ||
+      input.filters.campaign
+    ),
+  });
   const treatmentRows = sortTreatmentRows(
     buildRows(filteredFacts, "treatment"),
     input.filters.sort
@@ -609,6 +634,7 @@ function buildSnapshot(input: {
   return {
     filters: input.filters,
     totals,
+    costs,
     treatmentRows,
     sourceRows,
     brandOptions,
@@ -666,6 +692,14 @@ export async function getTreatmentPerformanceSnapshot(
         color: brand.primary_color || "#5a2348",
       })),
     });
+    const spendFacts: DailySpendFact[] = [
+      {
+        brandId: "alyssa-brand",
+        spendDate: filters.startDate,
+        amount: 1_200,
+      },
+      { brandId: "ib-brand", spendDate: filters.startDate, amount: 600 },
+    ];
     return buildSnapshot({
       filters,
       facts,
@@ -680,6 +714,7 @@ export async function getTreatmentPerformanceSnapshot(
       schemaReady: facts.length > 0,
       analysisReady: facts.length > 0,
       annotations,
+      spendFacts,
       warnings:
         facts.length > 0
           ? []
@@ -724,7 +759,7 @@ export async function getTreatmentPerformanceSnapshot(
     const source =
       (sourceResult.data as TreatmentDataSource | null) ?? null;
     const brandRows = (brandsResult.data ?? []) as BrandColorRow[];
-    const [facts, analysisPresenceResult, annotations] = source
+    const [facts, analysisPresenceResult, annotations, spendFacts] = source
       ? await Promise.all([
           fetchFacts({
             dataSourceId: source.id,
@@ -747,11 +782,21 @@ export async function getTreatmentPerformanceSnapshot(
               color: brand.primary_color || "#5a2348",
             })),
           }),
+          fetchDailySpendFacts({
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+            allowedBrandIds,
+          }),
         ])
       : [
           [],
           { data: null, error: null },
           [] as OperationalAnnotation[],
+          await fetchDailySpendFacts({
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+            allowedBrandIds,
+          }),
         ];
     if (analysisPresenceResult.error) throw analysisPresenceResult.error;
     const analysisReady = Boolean(analysisPresenceResult.data);
@@ -764,6 +809,7 @@ export async function getTreatmentPerformanceSnapshot(
       schemaReady: true,
       analysisReady,
       annotations,
+      spendFacts,
       warnings:
         !source
           ? ["未找到指定 Lead Sheet 資料來源；療程成效未有可顯示數據。"]

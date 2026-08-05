@@ -3647,6 +3647,156 @@ textarea {
   margin-top: 1rem;
 }
 
+.performance-cost-summary {
+  margin-top: 1rem;
+  padding: 1.15rem;
+}
+
+.performance-cost-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.9rem;
+}
+
+.performance-cost-heading p,
+.performance-cost-heading h2,
+.performance-cost-note,
+.performance-cost-card p,
+.performance-cost-card strong,
+.performance-cost-card small {
+  margin: 0;
+}
+
+.performance-cost-heading p {
+  color: var(--command-primary);
+  font-size: 0.63rem;
+  font-weight: 850;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.performance-cost-heading h2 {
+  margin-top: 0.16rem;
+  color: var(--command-navy);
+  font-size: 1.02rem;
+  font-weight: 850;
+}
+
+.performance-cost-heading > span {
+  border: 1px solid rgba(90, 35, 72, 0.11);
+  border-radius: 999px;
+  background: var(--command-primary-soft);
+  padding: 0.34rem 0.62rem;
+  color: var(--command-primary);
+  font-size: 0.64rem;
+  font-weight: 780;
+}
+
+.performance-cost-heading > span.is-partial,
+.performance-cost-heading > span.is-missing {
+  border-color: rgba(181, 124, 33, 0.18);
+  background: #fff7e7;
+  color: #9a6517;
+}
+
+.performance-cost-heading > span.is-unallocated {
+  border-color: rgba(75, 104, 126, 0.16);
+  background: #f0f5f8;
+  color: #4b687e;
+}
+
+.performance-cost-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.72rem;
+}
+
+.performance-cost-card {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 0.72rem;
+  border: 1px solid rgba(90, 35, 72, 0.08);
+  border-radius: 0.9rem;
+  background: linear-gradient(145deg, #fff 0%, #fffcfd 100%);
+  padding: 0.9rem;
+}
+
+.performance-cost-icon {
+  display: grid;
+  width: 2.2rem;
+  height: 2.2rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 0.68rem;
+  background: #f7f1f4;
+  color: var(--command-primary);
+}
+
+.performance-cost-card.tone-gold .performance-cost-icon {
+  background: #fff5dd;
+  color: #a76d16;
+}
+
+.performance-cost-card.tone-rose .performance-cost-icon {
+  background: #fff0f1;
+  color: #bd6675;
+}
+
+.performance-cost-card.tone-blue .performance-cost-icon {
+  background: #e9f7fc;
+  color: #318eb2;
+}
+
+.performance-cost-card p {
+  color: var(--command-muted);
+  font-size: 0.67rem;
+  font-weight: 780;
+}
+
+.performance-cost-card strong {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--command-navy);
+  font-size: clamp(1.25rem, 2vw, 1.75rem);
+  font-weight: 880;
+  letter-spacing: -0.045em;
+}
+
+.performance-cost-card small {
+  display: block;
+  margin-top: 0.18rem;
+  color: var(--command-disabled);
+  font-size: 0.62rem;
+  font-weight: 680;
+}
+
+.performance-cost-note {
+  margin-top: 0.72rem;
+  color: var(--command-muted);
+  font-size: 0.67rem;
+  line-height: 1.55;
+}
+
+@media (max-width: 900px) {
+  .performance-cost-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .performance-cost-heading {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .performance-cost-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 .treatment-metric-card {
   position: relative;
   display: flex;
