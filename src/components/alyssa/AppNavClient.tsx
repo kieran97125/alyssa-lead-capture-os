@@ -82,7 +82,7 @@ const navigationGroups: NavigationGroup[] = [
       },
       {
         href: "/performance/daily",
-        label: "每日 Overview",
+        label: "每日總覽",
         icon: Table2,
         module: "performance",
       },

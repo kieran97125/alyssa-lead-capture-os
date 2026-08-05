@@ -6,7 +6,6 @@ type CrmSidebarKey =
   | "dashboard"
   | "inbox"
   | "whatsapp"
-  | "broadcasts"
   | "bookings"
   | "operations"
   | "reports"
@@ -20,7 +19,6 @@ const sidebarItems: Array<{
 }> = [
   { key: "dashboard", icon: "D", label: "首頁", href: "/crm?tab=dashboard" },
   { key: "inbox", icon: "C", label: "客戶對話", href: "/crm?tab=leads" },
-  { key: "broadcasts", icon: "W", label: "WhatsApp 群發", href: "/crm/whatsapp-broadcasts" },
   { key: "bookings", icon: "B", label: "預約", href: "/crm?tab=bookings" },
   { key: "operations", icon: "O", label: "營運", href: "/crm/operations" },
   { key: "reports", icon: "R", label: "報表", href: "/crm?tab=reports" },
@@ -72,7 +70,6 @@ export function CrmShell({
             {[
               { label: "首", href: "/crm?tab=dashboard", key: "dashboard", title: "首頁" },
               { label: "聊", href: "/crm?tab=leads", key: "inbox", title: "客戶對話" },
-              { label: "發", href: "/crm/whatsapp-broadcasts", key: "broadcasts", title: "WhatsApp 群發" },
               { label: "約", href: "/crm?tab=bookings", key: "bookings", title: "預約" },
               { label: "營", href: "/crm/operations", key: "operations", title: "營運" },
               { label: "報", href: "/crm?tab=reports", key: "reports", title: "報表" },

@@ -102,12 +102,12 @@ export default async function NewCampaignPage({
 
         <form action={createCampaignAction} className="mt-6 grid gap-6">
           <section className="alyssa-premium-card p-5">
-            <p className="alyssa-kicker">Brand first</p>
+            <p className="alyssa-kicker">先選品牌</p>
             <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              Choose brand before selecting offers
+              選擇品牌後再設定優惠
             </h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-[#6d4a5c]">
-              Treatments, campaign offers, existing forms, and landing pages are filtered by the selected brand to avoid cross-brand setup mistakes.
+              系統只會顯示所選品牌嘅療程、優惠、表格同廣告頁，避免跨品牌混用設定。
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               {config.brands.map((brand) => (

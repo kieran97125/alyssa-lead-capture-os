@@ -398,7 +398,7 @@ export function PublicLpAttributionCapture({
     };
   }, [brandSlug, formId, formToken, initialQueryString, serverInitialAttribution]);
 
-  if (!debugState) return null;
+  if (process.env.NODE_ENV === "production" || !debugState) return null;
 
   return (
     <aside className="fixed bottom-4 left-4 z-50 max-w-md rounded-2xl border border-amber-200 bg-white/95 p-4 text-xs font-semibold text-slate-800 shadow-2xl backdrop-blur">

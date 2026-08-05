@@ -454,7 +454,7 @@ export async function createDataSourceAction(formData: FormData) {
   ) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "Google Sheet 只可用作 CS Lead Funnel；廣告費請喺每日 Overview 填寫。",
+      message: "Google Sheet 只可用作 CS Lead Funnel；廣告費請喺每日總覽填寫。",
     });
   }
   if (

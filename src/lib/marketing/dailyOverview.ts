@@ -671,7 +671,7 @@ export async function getDailyOverviewSnapshot(
     spendEntries = fixtures.spendEntries;
     plans = fixtures.plans;
     schemaReady = false;
-    warnings = ["正式數據庫未連接；目前顯示驗收用每日 Overview 數據。"];
+    warnings = ["每日總覽暫時未能連接正式數據，請聯絡系統管理員。"];
   } else if (brandIds.length > 0) {
     try {
       const supabase = createSupabaseAdminClient();
@@ -725,7 +725,7 @@ export async function getDailyOverviewSnapshot(
         message: error instanceof Error ? error.message : "unknown",
       });
       schemaReady = false;
-      warnings = ["每日 Overview 暫時未能完整讀取，請檢查正式 migration 狀態。"];
+      warnings = ["每日總覽暫時未能完整讀取，請聯絡系統管理員。"];
     }
   }
 

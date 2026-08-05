@@ -170,30 +170,30 @@ export default async function BrandWorkspacePage({
                   label="Meta Pixel"
                   value={
                     brandDefaults.conversionMode === "thank_you_redirect"
-                      ? `${brandDefaults.pixelIdReference || pixelId || "Not set"} · Wix thank-you owns CompleteRegistration`
+                      ? `${brandDefaults.pixelIdReference || pixelId || "未設定"} · 由 Wix 成功頁記錄轉化`
                       : pixelId
                         ? `已設定：${pixelId}`
-                        : "未設定，embed 會省略 data-pixel-id"
+                        : "未設定，嵌入碼不會加入 Pixel"
                   }
                   good={Boolean(pixelId)}
                 />
                 <SetupRow
-                  label="Allowed domains"
+                  label="允許網域"
                   value={suggestedDomains.join(", ")}
                   good
                 />
                 <SetupRow
-                  label="Website / thank-you"
-                  value={`${brandDefaults.websiteDomain || suggestedDomains[0] || "未設定"} → ${brandDefaults.thankYouUrl || "Default brand flow"}`}
+                  label="網站／成功頁"
+                  value={`${brandDefaults.websiteDomain || suggestedDomains[0] || "未設定"} → ${brandDefaults.thankYouUrl || "品牌預設流程"}`}
                   good={Boolean(suggestedDomains[0])}
                 />
                 <SetupRow
-                  label="Default conversion mode"
+                  label="轉化方式"
                   value={brandDefaults.conversionMode}
                   good
                 />
                 <SetupRow
-                  label="Google Sheet Sync"
+                  label="Google Sheet 同步"
                   value={
                     process.env.GOOGLE_SHEETS_SYNC_ENABLED === "true"
                       ? "已啟用"
@@ -210,7 +210,7 @@ export default async function BrandWorkspacePage({
           <section className="alyssa-premium-card min-w-0 p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="alyssa-kicker">Recent Forms</p>
+                <p className="alyssa-kicker">最近表格</p>
                 <h2 className="mt-2 text-xl font-bold text-[#321428]">
                   此品牌表格
                 </h2>
@@ -219,7 +219,7 @@ export default async function BrandWorkspacePage({
                 href={`/forms?brand=${selectedBrand?.slug || ""}`}
                 className="rounded-full border border-[#ead9cf] bg-white px-4 py-2 text-sm font-bold text-[#5a2348]"
               >
-                View all
+                查看全部
               </Link>
             </div>
             <div className="mt-4 grid gap-3">
@@ -241,12 +241,12 @@ export default async function BrandWorkspacePage({
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
-                        <CopyButton value={ops.embedCode} label="Copy Embed" />
+                        <CopyButton value={ops.embedCode} label="複製嵌入碼" />
                         <Link
                           href={`/forms/${form.id}`}
                           className="rounded-full bg-[#5a2348] px-3 py-1.5 text-xs font-bold text-white"
                         >
-                          Edit
+                          編輯
                         </Link>
                       </div>
                     </div>
@@ -267,10 +267,10 @@ export default async function BrandWorkspacePage({
               廣告 URL 參數
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-              貼到 Meta Ads 的 URL Parameters。正式廣告不要加入 pixel_debug 或 attribution_debug。
+              貼到 Meta Ads 的 URL Parameters；正式廣告請使用不含測試參數嘅連結。
             </p>
             <div className="mt-4">
-              <CopyButton value={META_URL_PARAMETER_GUIDE} label="Copy URL Parameters" />
+              <CopyButton value={META_URL_PARAMETER_GUIDE} label="複製 URL 參數" />
             </div>
             <pre className="mt-4 max-h-48 overflow-auto rounded-2xl bg-[#321428] p-4 text-xs leading-6 text-[#fff9f3]">
               {META_URL_PARAMETER_GUIDE}

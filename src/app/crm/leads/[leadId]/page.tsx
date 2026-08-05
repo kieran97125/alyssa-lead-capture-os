@@ -185,7 +185,7 @@ export default async function CrmLeadDetailPage({
               <div className="border-b border-[#eef2f7] bg-gradient-to-r from-[#f8f7ff] via-white to-[#f0fdf4] px-5 py-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--crm-accent)]">Customer 360</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--crm-accent)]">客戶概覽</p>
                     <h2 className="mt-1 text-lg font-black text-[#111827]">{leadCase.customerName}</h2>
                     <p className="mt-1 text-xs font-semibold text-[#64748b]">{leadCase.brandName} · {leadCase.treatmentOffer}</p>
                   </div>
@@ -519,12 +519,12 @@ function CsActionRow({
   canMarkAttendance: boolean;
 }) {
   const actions = [
-    { href: "#contact-actions", label: "Log contact attempt", primary: false },
-    { href: "#confirm-booking", label: "Confirm booking", primary: true },
-    { href: "#booking-outcomes", label: "Mark showed", primary: false, muted: !canMarkAttendance },
-    { href: "#booking-outcomes", label: "Mark no-show", primary: false, muted: !canMarkAttendance },
-    { href: "#booking-outcomes", label: "Mark lost", primary: false },
-    { href: "#booking-outcomes", label: "Mark invalid", primary: false },
+    { href: "#contact-actions", label: "記錄聯絡", primary: false },
+    { href: "#confirm-booking", label: "確認預約", primary: true },
+    { href: "#booking-outcomes", label: "標記已到店", primary: false, muted: !canMarkAttendance },
+    { href: "#booking-outcomes", label: "標記未到店", primary: false, muted: !canMarkAttendance },
+    { href: "#booking-outcomes", label: "標記已流失", primary: false },
+    { href: "#booking-outcomes", label: "標記無效", primary: false },
   ];
 
   return (
@@ -713,7 +713,7 @@ function ActionPanel({
               : "bg-[#fef3c7] text-[#92400e]"
           }`}
         >
-          {enabled ? "Enabled" : "Disabled"}
+          {enabled ? "可操作" : "只讀"}
         </span>
       </div>
       <form action={action} className="mt-3 grid gap-2">

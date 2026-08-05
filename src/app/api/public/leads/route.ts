@@ -535,6 +535,13 @@ function shouldReturnAttributionDebug(
   payload: LeadSubmitPayload,
   submittedTouch: TouchPayload
 ) {
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.ALYSSA_E2E_FIXTURES !== "1"
+  ) {
+    return false;
+  }
+
   return Boolean(
     request.nextUrl.searchParams.get("attribution_debug") === "1" ||
       touchHasAttributionDebug(getSafeTouch(payload.first_touch_json)) ||

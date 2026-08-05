@@ -195,7 +195,7 @@ export function CrmInboxTable({
                         href={item.whatsappUrl}
                         target="_blank"
                         rel="noreferrer"
-                        title="Manual WhatsApp open only"
+                        title="只會開啟 WhatsApp，不會自動發送"
                         className="inline-flex h-7 items-center justify-center rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2 text-[10px] font-black text-[#15803d] transition hover:bg-[#dcfce7]"
                       >
                         WA
@@ -253,7 +253,7 @@ export function CrmInboxTable({
                           href={item.whatsappUrl}
                           target="_blank"
                           rel="noreferrer"
-                          title="Open WhatsApp manually"
+                          title="開啟 WhatsApp"
                           className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-[#bbf7d0] bg-[#f0fdf4] px-2 text-[10px] font-bold text-[#15803d] transition hover:bg-[#dcfce7]"
                         >
                           WA

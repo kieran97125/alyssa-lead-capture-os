@@ -79,7 +79,7 @@ export default async function FormConfigPage({
                 {form.formName}
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                This form belongs to {ops.brand?.name || "未設定品牌"}。請勿將此品牌的 form token 或 Pixel 用到其他品牌 Wix 頁面。
+                此表格屬於 {ops.brand?.name || "未設定品牌"}。請勿將表格識別碼或 Pixel 用到其他品牌 Wix 頁面。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -93,7 +93,7 @@ export default async function FormConfigPage({
                 href={`/embed/${form.publicFormToken}`}
                 className="rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
               >
-                Open Test Form
+                預覽表格
               </Link>
             </div>
           </div>
@@ -106,8 +106,8 @@ export default async function FormConfigPage({
         )}
 
         <section className="mt-6 grid gap-5 lg:grid-cols-4">
-          <StatusCard label="Brand" value={ops.brand?.name || "未設定"} />
-          <StatusCard label="Treatment" value={ops.treatment?.name || "未設定"} />
+          <StatusCard label="品牌" value={ops.brand?.name || "未設定"} />
+          <StatusCard label="療程" value={ops.treatment?.name || "未設定"} />
           <StatusCard label="Package" value={ops.packageLabel} />
           <StatusCard
             label="Pixel"
@@ -132,9 +132,9 @@ export default async function FormConfigPage({
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">
-              <TextField label="Form name" name="formName" value={form.formName} />
+              <TextField label="表格名稱" name="formName" value={form.formName} />
               <SelectField
-                label="Brand"
+                label="品牌"
                 name="brandId"
                 value={form.brandId}
                 options={config.brands.map((item) => ({
@@ -143,7 +143,7 @@ export default async function FormConfigPage({
                 }))}
               />
               <SelectField
-                label="Treatment"
+                label="療程"
                 name="defaultTreatmentId"
                 value={form.defaultTreatmentId ?? ""}
                 options={brandTreatments.map((item) => ({
@@ -212,24 +212,24 @@ export default async function FormConfigPage({
                 className="rounded-full bg-[#e46f64] px-5 py-3 text-sm font-bold text-white shadow-[0_12px_30px_rgba(228,111,100,0.22)] transition hover:-translate-y-1 hover:bg-[#d95f55]"
                 pendingLabel="儲存中…"
               >
-                Save Form
+                儲存表格
               </SubmitButton>
-              <CopyButton value={ops.embedCode} label="Copy Wix Embed" />
-              <CopyButton value={form.publicFormToken} label="Copy Token" />
-              <CopyButton value={ops.previewUrl} label="Copy Test URL" />
+              <CopyButton value={ops.embedCode} label="複製 Wix 嵌入碼" />
+              <CopyButton value={form.publicFormToken} label="複製表格識別碼" />
+              <CopyButton value={ops.previewUrl} label="複製預覽網址" />
             </div>
           </form>
 
           <aside className="grid h-fit min-w-0 gap-5">
             <EmbedCodeCard
               code={ops.embedCode}
-              title="Ready-to-paste Wix embed"
+              title="Wix 嵌入碼"
               description={
                 ops.conversionMode === "thank_you_redirect"
-                  ? "此 snippet 會在成功儲存 lead 後轉到已設定的 Thank You Page，由 Wix Thank You Page 觸發轉換。"
+                  ? "客人成功提交後會前往已設定嘅 Wix 成功頁，由成功頁記錄轉化。"
                   : ops.pixelConfigured
-                  ? "此 snippet 已包含此品牌的 data-pixel-id，成功儲存 lead 後會發送 CompleteRegistration beacon。"
-                  : "此品牌未設定 Pixel，snippet 會省略 data-pixel-id。"
+                  ? "嵌入碼已包含此品牌嘅 Pixel，客人成功提交後會記錄完成登記。"
+                  : "此品牌未設定 Pixel，嵌入碼不會加入 Pixel。"
               }
             />
 
@@ -245,10 +245,10 @@ export default async function FormConfigPage({
                 廣告 URL 參數
               </h2>
               <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                貼到 Meta Ads。正式廣告不要加入 pixel_debug=1 或 attribution_debug=1。
+                貼到 Meta Ads；正式廣告請使用不含測試參數嘅連結。
               </p>
               <div className="mt-4">
-                <CopyButton value={META_URL_PARAMETER_GUIDE} label="Copy URL Parameters" />
+                <CopyButton value={META_URL_PARAMETER_GUIDE} label="複製 URL 參數" />
               </div>
               <pre className="mt-4 max-h-44 overflow-auto rounded-2xl bg-[#321428] p-4 text-xs leading-6 text-[#fff9f3]">
                 {META_URL_PARAMETER_GUIDE}
@@ -256,20 +256,20 @@ export default async function FormConfigPage({
             </section>
 
             <section className="alyssa-premium-card min-w-0 p-5">
-              <p className="alyssa-kicker">Brand safety</p>
+              <p className="alyssa-kicker">品牌安全</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
                 上線前提醒
               </h2>
               <ul className="mt-3 grid gap-2 text-sm font-semibold leading-6 text-[#6d4a5c]">
-                <li>This form belongs to {ops.brand?.name || "此品牌"}。</li>
-                <li>Do not use Alyssa Pixel on Ineffable pages.</li>
-                <li>Do not use Ineffable form token on Alyssa Wix page.</li>
-                <li>Website URL 應為乾淨 Wix URL，不要帶 debug params。</li>
+                <li>此表格屬於 {ops.brand?.name || "此品牌"}。</li>
+                <li>只可使用該品牌嘅 Pixel 設定。</li>
+                <li>表格識別碼只可用喺所屬品牌 Wix 頁面。</li>
+                <li>正式廣告請使用不含測試參數嘅 Wix 網址。</li>
               </ul>
             </section>
 
             <section className="alyssa-premium-card min-w-0 p-5">
-              <p className="alyssa-kicker">Duplicate</p>
+              <p className="alyssa-kicker">複製表格</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
                 複製成新表格
               </h2>
@@ -279,7 +279,7 @@ export default async function FormConfigPage({
                   className="w-full rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
                   pendingLabel="複製中…"
                 >
-                  Duplicate
+                  複製表格
                 </SubmitButton>
               </form>
             </section>
@@ -412,14 +412,14 @@ function BranchSelection({
                   value={branch.id}
                   defaultChecked={isDefault}
                 />
-                <span>Default selected branch</span>
+                <span>預設選擇此分店</span>
               </label>
             </div>
           );
         })}
       </div>
       <p className="mt-2 text-xs font-semibold leading-5 text-[#7b5a6a]">
-        Customers will choose one of the selected branches before submitting.
+        客人提交前需要選擇其中一間已啟用分店。
       </p>
     </div>
   );

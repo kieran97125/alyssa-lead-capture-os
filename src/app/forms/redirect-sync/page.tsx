@@ -16,7 +16,7 @@ export default function RedirectSyncPage() {
             按 Treatment Slug 同步 Success Redirect
           </h1>
           <p className="mt-3 max-w-3xl text-sm font-semibold leading-6 text-[#6d4a5c]">
-            此工具只更新所選 Form 的 success_redirect_url。Form token、Form ID、提交 API、分店、Pixel value、Preview URL 及現有 Embed runtime 均不會改動。
+            此工具只更新所選表格嘅成功頁網址；表格識別碼、提交流程、分店、Pixel、預覽網址及現有嵌入設定均不會改動。
           </p>
         </header>
 
@@ -70,7 +70,7 @@ export default function RedirectSyncPage() {
             <li>Lead submission flow</li>
             <li>Branch selection</li>
             <li>Pixel event value</li>
-            <li>Preview URL</li>
+            <li>預覽網址</li>
             <li>已貼出的 Wix Embed Code</li>
           </ul>
         </section>

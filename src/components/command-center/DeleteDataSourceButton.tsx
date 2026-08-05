@@ -61,7 +61,7 @@ export function DeleteDataSourceButton({
             </button>
           </header>
           <div>
-            <p>Delete data source</p>
+            <p>刪除資料來源</p>
             <h2 id={`delete-source-title-${dataSourceId}`}>確認刪除資料來源？</h2>
             <strong>{displayName}</strong>
             <span>

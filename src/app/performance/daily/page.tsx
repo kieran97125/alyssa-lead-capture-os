@@ -300,7 +300,7 @@ export default async function DailyOverviewPage({
           <section className="daily-overview-kpis" aria-label="月份累計摘要">
             <OverviewKpi
               icon={<WalletCards size={18} />}
-              label="Spend"
+              label="廣告費"
               value={money(snapshot.allBrands.total.spend)}
               note={`截至 ${formatHkDate(snapshot.throughDate)}`}
             />
@@ -327,10 +327,10 @@ export default async function DailyOverviewPage({
           <section className="command-surface daily-spend-editor">
             <header>
               <div>
-                <p>Spend ledger</p>
+                <p>每日廣告費</p>
                 <h2>填寫每日廣告費</h2>
                 <span>
-                  先揀 Meta 細分類或 Google Ads，再一次更新你有權限管理嘅品牌；輸入 0 代表確認冇 Spend，清空再儲存代表刪除該類舊值。每次修改都有 audit。
+                  先揀 Meta 細分類或 Google Ads，再一次更新你有權限管理嘅品牌；輸入 0 代表確認冇廣告費，清空再儲存代表刪除該類舊值。每次修改都會保留紀錄。
                 </span>
               </div>
               <BadgeDollarSign size={24} />
@@ -395,7 +395,7 @@ export default async function DailyOverviewPage({
                           {entry
                             ? entry.entryMethod === "legacy_import"
                               ? "已由舊表搬入"
-                              : `Revision ${entry.revision}`
+                              : `第 ${entry.revision} 次更新`
                             : "尚未填寫"}
                         </span>
                       </div>
@@ -457,8 +457,8 @@ export default async function DailyOverviewPage({
                   )}
                   <span>
                     {snapshot.schemaReady
-                      ? `將更新 ${snapshot.selectedEntryDate} · ${selectedSpendLabel}，儲存後總 Spend、CPL 同 CPA 會即時重算。`
-                      : "Daily Spend migration 尚未套用，正式儲存暫時鎖定。"}
+                      ? `將更新 ${snapshot.selectedEntryDate} · ${selectedSpendLabel}，儲存後總廣告費、CPL 同 CPA 會即時重算。`
+                      : "廣告費記錄功能暫時未能使用，請聯絡系統管理員。"}
                   </span>
                 </div>
                 <SubmitButton
@@ -476,7 +476,7 @@ export default async function DailyOverviewPage({
           <section className="command-surface daily-overview-surface">
             <header className="daily-overview-table-header">
               <div>
-                <p>Daily / month-to-date</p>
+                <p>每日／累計</p>
                 <h2>{snapshot.monthLabel} 每日數據</h2>
                 <span>
                   每格左邊係單日、右邊係截至該日累計；橫向捲動可查閱整個月份。
@@ -524,14 +524,14 @@ export default async function DailyOverviewPage({
               <Coins size={18} />
               <strong>成本口徑</strong>
               <p>
-                CPL = Spend ÷ Lead；CPA · Book = Spend ÷ Book；CPA · Show = Spend ÷ Show。分母為 0 時顯示「—」。
+                CPL = 廣告費 ÷ Lead；CPA · Book = 廣告費 ÷ Book；CPA · Show = 廣告費 ÷ Show。分母為 0 時顯示「—」。
               </p>
             </article>
             <article className="command-surface">
               <Info size={18} />
               <strong>資料歸屬</strong>
               <p>
-                Spend 只讀系統 Daily Ledger；Lead／Book／Show 只讀 CS Lead Sheet，同一指標唔會由兩個來源重複相加。
+                廣告費只讀系統廣告費帳簿；Lead／Book／Show 只讀 CS Lead Sheet，同一指標唔會由兩個來源重複相加。
                 新輸入按 Meta WhatsApp／Lead Form／Website Form 同 Google Ads 分開；舊 Sheet 總額只會標示為未分類。
               </p>
             </article>

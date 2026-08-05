@@ -611,7 +611,7 @@ export default async function PeriodComparisonPage({
               <article>
                 <strong>廣告費</strong>
                 <p>
-                  只讀系統 Daily Spend Ledger；Meta WhatsApp／Lead Form／Website Form、Google Ads 同舊資料未分類總額會先加總，再重算 CPL／CPA。
+                  只讀系統廣告費帳簿；Meta WhatsApp／Lead Form／Website Form、Google Ads 同舊資料未分類總額會先加總，再重算 CPL／CPA。
                 </p>
               </article>
               <article>

@@ -533,9 +533,9 @@ export default async function TreatmentPerformancePage({
               </p>
               <p>
                 呢頁只保存品牌、療程、來源、Campaign、分店及每日數量彙總；唔保存姓名、電話、Email、Lead
-                Key 或 CS Remark。廣告費只讀品牌級 Daily Spend Ledger；如篩選到
+                Key 或 CS Remark。廣告費只讀品牌級系統廣告費帳簿；如篩選到
                 單一療程、來源或 Campaign，成本會顯示未分配，唔會用 Lead 比例估算。
-                亦唔讀 <code>mkt_dashboard</code> 分頁。
+                亦唔會重複讀取舊報表數據。
               </p>
             </div>
           </section>

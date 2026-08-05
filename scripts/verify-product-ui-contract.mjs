@@ -8,12 +8,23 @@ const paths = [
   "src/app/dashboard/page.tsx",
   "src/app/lead-audit/page.tsx",
   "src/app/data-sources/page.tsx",
+  "src/app/performance/page.tsx",
+  "src/app/performance/compare/page.tsx",
+  "src/app/performance/daily/page.tsx",
   "src/app/system-audit/page.tsx",
+  "src/app/forms/page.tsx",
+  "src/app/forms/new/page.tsx",
+  "src/app/forms/[formId]/page.tsx",
+  "src/app/brands/page.tsx",
+  "src/app/landing-pages/page.tsx",
   "src/app/crm/page.tsx",
   "src/app/crm/operations/page.tsx",
   "src/app/crm/leads/[leadId]/page.tsx",
+  "src/app/crm/whatsapp-broadcasts/page.tsx",
+  "src/app/crm/settings/QuickRepliesSettingsTable.tsx",
   "src/app/landing-pages/[pageId]/page.tsx",
   "src/components/alyssa/AppNavClient.tsx",
+  "src/components/command-center/PerformanceCostSummary.tsx",
   "src/components/crm/CrmShell.tsx",
   "src/components/crm/ReplyComposer.tsx",
   "src/components/crm/WhatsAppSendBox.tsx",
@@ -41,11 +52,32 @@ for (const forbidden of [
   "Send via WhatsApp 尚未啟用",
   "Coming soon",
   "LEAD_AUDIT_ENCRYPTION_KEY 尚未設定",
+  "每日 Overview",
+  "Daily Ledger",
+  "Spend ledger",
+  "Revision ",
+  "Future CRM",
+  "Open Test Form",
+  "Copy Test URL",
+  "Copy Wix Embed",
+  "Ready-to-paste Wix embed",
+  "Archive / Delete",
+  "Safe delete",
+  "Confirm permanent delete",
+  "Save enabled",
 ]) {
   assert.ok(!combined.includes(forbidden), `product UI must not expose: ${forbidden}`);
 }
 
 assert.doesNotMatch(files["src/components/crm/CrmShell.tsx"], /\bSoon\b|enabled:\s*false/);
+assert.doesNotMatch(
+  files["src/components/crm/CrmShell.tsx"],
+  /WhatsApp 群發|whatsapp-broadcasts/
+);
+assert.match(
+  files["src/app/crm/whatsapp-broadcasts/page.tsx"],
+  /redirect\("\/crm\?tab=leads"\)/
+);
 assert.doesNotMatch(
   files["src/app/crm/operations/page.tsx"],
   /Automation Rules Simulation|createAutomationRuleAction|Simulation Rule/

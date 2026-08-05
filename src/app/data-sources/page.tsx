@@ -245,7 +245,7 @@ export default async function DataSourcesPage({
                 <p>歷史對數</p>
                 <h2>舊月份廣告費數據表</h2>
                 <span>
-                  舊月份 Sheet 只保留作對數；新廣告費請到「每日 Overview」按類型填寫。
+                  舊月份 Sheet 只保留作對數；新廣告費請到「每日總覽」按類型填寫。
                 </span>
               </div>
               <History size={24} />
@@ -257,7 +257,7 @@ export default async function DataSourcesPage({
                   <History size={17} />
                   <div>
                     <strong>歷史數據表</strong>
-                    <span>只讀原始 Link、品牌對應及最後成功時間</span>
+                    <span>只供開啟數據表、核對品牌及查看最後成功時間</span>
                   </div>
                 </div>
                 <span>{workbookHistory.length} 個記錄</span>
@@ -341,7 +341,7 @@ export default async function DataSourcesPage({
                         brandName={
                           snapshot.brands.find(
                             (brand) => brand.id === source.brandId
-                          )?.name ?? "全 Workspace"
+                          )?.name ?? "全部品牌"
                         }
                       />
                     ))
@@ -352,7 +352,7 @@ export default async function DataSourcesPage({
                           <DatabaseZap size={22} />
                           <strong>未有正式資料來源</strong>
                           <span>
-                            請先完成 CS Lead Sheet 連接；Spend 帳簿會由 migration 自動建立。
+                            請先完成 CS Lead Sheet 連接；廣告費會直接保存在系統帳簿。
                           </span>
                         </div>
                       </td>
@@ -382,7 +382,7 @@ export default async function DataSourcesPage({
               <label>
                 <span>品牌</span>
                 <select name="brandId" defaultValue="">
-                  <option value="">全 Workspace（多品牌）</option>
+                  <option value="">全部品牌（跨品牌）</option>
                   {snapshot.brands.map((brand) => (
                     <option key={brand.id} value={brand.id}>
                       {brand.name}

@@ -346,7 +346,7 @@ export function MetaPixelPageView({
 
   return (
     <>
-      {debugState.debugEnabled && (
+      {process.env.NODE_ENV !== "production" && debugState.debugEnabled && (
         <aside className="fixed bottom-4 left-4 z-[1000] max-w-xs rounded-2xl border border-[#f3c8dd] bg-white/95 p-4 text-xs font-semibold leading-5 text-[#5a2348] shadow-[0_18px_50px_rgba(90,35,72,0.18)]">
           <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-[#d85ba3]">
             Meta Pixel Debug

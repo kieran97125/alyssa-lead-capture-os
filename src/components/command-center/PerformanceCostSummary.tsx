@@ -25,7 +25,7 @@ function availabilityCopy(costs: PerformanceCostSummaryModel) {
   if (costs.availability === "missing") {
     return {
       label: "未有廣告費紀錄",
-      detail: "所選品牌及日期未有 Daily Spend Ledger 紀錄，成本暫不顯示。",
+      detail: "所選品牌及日期未有廣告費紀錄，成本暫不顯示。",
     };
   }
   if (costs.availability === "partial") {
@@ -89,7 +89,7 @@ export function PerformanceCostSummary({
         <CostCard
           label="廣告費"
           value={costs.spend}
-          formula="Daily Spend Ledger"
+          formula="系統廣告費帳簿"
           icon={CircleDollarSign}
           tone="gold"
         />

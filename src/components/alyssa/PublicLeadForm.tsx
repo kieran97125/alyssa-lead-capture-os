@@ -1870,7 +1870,7 @@ export function PublicLeadForm({
                   </p>
                 )}
               </Notice>
-              {attributionDebug && (
+              {process.env.NODE_ENV !== "production" && attributionDebug && (
                 <AttributionDebugPanel debug={attributionDebug} />
               )}
             </div>
@@ -2133,7 +2133,7 @@ export function PublicLeadForm({
                   </p>
                 )}
               </Notice>
-              {attributionDebug && (
+              {process.env.NODE_ENV !== "production" && attributionDebug && (
                 <AttributionDebugPanel debug={attributionDebug} />
               )}
             </div>

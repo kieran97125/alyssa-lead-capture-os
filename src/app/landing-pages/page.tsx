@@ -59,9 +59,9 @@ function findConnectedForm(page: LandingPageConfig, forms: FormSetting[]) {
 }
 
 function archiveViewLabel(view: ArchiveView) {
-  if (view === "archived") return "Archived / legacy";
-  if (view === "all") return "All";
-  return "Active";
+  if (view === "archived") return "已封存／舊版本";
+  if (view === "all") return "全部";
+  return "使用中";
 }
 
 function buildLandingPagesHref(view: ArchiveView, brand: string) {
@@ -138,22 +138,22 @@ export default async function LandingPagesPage({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="text-sm font-bold text-[#321428]">
-                View: {archiveViewLabel(selectedArchive)}
+                顯示：{archiveViewLabel(selectedArchive)}
               </p>
               <p className="mt-1 text-xs font-semibold text-[#7b5a6a]">
-                Active hides archived pages and known Alyssa UXV2/test/demo landing pages by default.
+                使用中列表會隱藏已封存及舊版廣告頁。
               </p>
               {selectedBrand && (
                 <p className="mt-1 text-xs font-semibold text-[#7b5a6a]">
-                  Brand scope: {selectedBrand.name}
+                  品牌：{selectedBrand.name}
                 </p>
               )}
             </div>
             <div className="flex flex-wrap gap-2">
               {([
-                ["active", `Active (${activeCount})`],
-                ["archived", `Archived / legacy (${archivedCount})`],
-                ["all", `All (${scopedPages.length})`],
+                ["active", `使用中 (${activeCount})`],
+                ["archived", `已封存／舊版本 (${archivedCount})`],
+                ["all", `全部 (${scopedPages.length})`],
               ] as Array<[ArchiveView, string]>).map(([view, label]) => (
                 <Link
                   key={view}
@@ -269,11 +269,11 @@ export default async function LandingPagesPage({
                         )}
                         <details>
                           <summary className="cursor-pointer rounded-full border border-[#ead9cf] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]">
-                            Archive / Delete
+                            封存／刪除
                           </summary>
                           <div className="mt-2 w-80 rounded-2xl border border-[#ead9cf] bg-white p-3 shadow-[0_18px_42px_rgba(90,35,72,0.12)]">
                             <p className="text-xs font-semibold leading-5 text-[#7b5a6a]">
-                              Archive hides this page from active lists. Safe delete only works when no linked form, versions, or lead snapshots are found.
+                              封存後會移出使用中列表；只有冇連接表格、版本或 Lead 記錄嘅廣告頁先可以永久刪除。
                             </p>
                             <form action={archiveLandingPageAction} className="mt-3 grid gap-2">
                               <input type="hidden" name="pageId" value={page.id} />
@@ -285,13 +285,13 @@ export default async function LandingPagesPage({
                                   value="yes"
                                   className="h-4 w-4"
                                 />
-                                Confirm archive
+                                確認封存
                               </label>
                               <SubmitButton
-                                pendingLabel="Archiving…"
+                                pendingLabel="封存中…"
                                 className="rounded-full bg-[#5a2348] px-3 py-1.5 text-xs font-bold text-white"
                               >
-                                Archive
+                                封存
                               </SubmitButton>
                             </form>
                             <form
@@ -307,13 +307,13 @@ export default async function LandingPagesPage({
                                   value="yes"
                                   className="h-4 w-4"
                                 />
-                                Confirm permanent delete
+                                確認永久刪除
                               </label>
                               <SubmitButton
-                                pendingLabel="Deleting…"
+                                pendingLabel="刪除中…"
                                 className="rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-3 py-1.5 text-xs font-bold text-[#8a2732]"
                               >
-                                Safe delete
+                                永久刪除
                               </SubmitButton>
                             </form>
                           </div>

@@ -13,15 +13,15 @@ test("desktop CRM conversations stay in the approved horizontal row layout", asy
   await expect(page.getByTestId("login-screen")).toHaveCount(0);
 
   for (const heading of [
-    "Last contact",
-    "Assigned to",
-    "Customer",
+    "最近聯絡",
+    "負責人",
+    "客人",
     "WhatsApp",
-    "Status",
-    "Phone",
-    "Treatment / offer",
-    "Preferred appointment",
-    "Actions",
+    "狀態",
+    "電話",
+    "療程／優惠",
+    "偏好時間",
+    "操作",
   ]) {
     await expect(page.getByRole("columnheader", { name: heading, exact: true })).toBeVisible();
   }
@@ -43,7 +43,7 @@ test("desktop CRM conversations stay in the approved horizontal row layout", asy
     const row = rows.nth(index);
     await expect(row).toHaveCSS("display", "table-row");
     expect(await row.locator("td").count()).toBeGreaterThanOrEqual(13);
-    await expect(row.getByTitle("Open lead")).toBeVisible();
+    await expect(row.getByTitle("開啟 Lead")).toBeVisible();
   }
 
   await expect(screen).toHaveScreenshot("alyssa-crm-desktop-reference.png", {
