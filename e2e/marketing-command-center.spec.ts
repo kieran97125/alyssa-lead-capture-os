@@ -50,7 +50,11 @@ import {
   hasWorkspaceModulePermission,
   normalizeWorkspaceRole,
 } from "../src/lib/security/workspacePermissions";
-import { safeInternalNextPath } from "../src/lib/supabase/authConfig";
+import {
+  PRODUCTION_ADMIN_ORIGIN,
+  resolveCanonicalAdminOrigin,
+  safeInternalNextPath,
+} from "../src/lib/supabase/authConfig";
 
 test("invite-only permissions honour explicit modules and brand scope", () => {
   const access = {
@@ -84,6 +88,18 @@ test("invite-only permissions honour explicit modules and brand scope", () => {
     "leads",
     "crm",
   ]);
+});
+
+test("Production invitations cannot be redirected to localhost by environment drift", () => {
+  expect(
+    resolveCanonicalAdminOrigin("http://localhost:3000", "production")
+  ).toBe(PRODUCTION_ADMIN_ORIGIN);
+  expect(
+    resolveCanonicalAdminOrigin("https://preview.example.test", "production")
+  ).toBe(PRODUCTION_ADMIN_ORIGIN);
+  expect(
+    resolveCanonicalAdminOrigin("http://localhost:3000/", "development")
+  ).toBe("http://localhost:3000");
 });
 
 test("email login only redirects to safe internal paths", () => {
