@@ -38,6 +38,7 @@ import {
   normalizeEditableSpendType,
 } from "../src/lib/marketing/spendTypes";
 import { deriveDailyMetrics } from "../src/lib/marketing/dailyOverviewMath";
+import { calculatePerformanceCostSummary } from "../src/lib/marketing/performanceCostMath";
 import {
   createSignedAdminSession,
   hasAdminPasswordGateConfig,
@@ -385,6 +386,75 @@ test("period comparison clamps the same day window and calculates auditable CPL 
   });
   expect(relativeComparisonChange(120, 100)).toBeCloseTo(0.2);
   expect(relativeComparisonChange(100, 0)).toBeNull();
+});
+
+test("Dashboard and Treatment Performance costs share aggregate-first math and allocation boundaries", () => {
+  const spendFacts = [
+    { brandId: "alyssa", spendDate: "2026-08-01", amount: 1_200 },
+    { brandId: "ib", spendDate: "2026-08-01", amount: 600 },
+  ];
+  expect(
+    calculatePerformanceCostSummary({
+      spendFacts,
+      selectedBrandIds: ["alyssa", "ib"],
+      leads: 60,
+      bookings: 20,
+      shows: 10,
+      attributable: true,
+    })
+  ).toMatchObject({
+    spend: 1_800,
+    cpl: 30,
+    costPerBooking: 90,
+    costPerShow: 180,
+    availability: "available",
+    trackedBrandCount: 2,
+    selectedBrandCount: 2,
+  });
+  expect(
+    calculatePerformanceCostSummary({
+      spendFacts,
+      selectedBrandIds: ["alyssa", "ib"],
+      leads: 60,
+      bookings: 20,
+      shows: 10,
+      attributable: false,
+    })
+  ).toMatchObject({
+    spend: null,
+    cpl: null,
+    costPerBooking: null,
+    costPerShow: null,
+    availability: "unallocated",
+  });
+  expect(
+    calculatePerformanceCostSummary({
+      spendFacts: spendFacts.slice(0, 1),
+      selectedBrandIds: ["alyssa", "ib"],
+      leads: 60,
+      bookings: 20,
+      shows: 10,
+      attributable: true,
+    }).availability
+  ).toBe("partial");
+  expect(
+    calculatePerformanceCostSummary({
+      spendFacts: [
+        { brandId: "alyssa", spendDate: "2026-08-01", amount: 0 },
+      ],
+      selectedBrandIds: ["alyssa"],
+      leads: 10,
+      bookings: 5,
+      shows: 2,
+      attributable: true,
+    })
+  ).toMatchObject({
+    spend: 0,
+    cpl: 0,
+    costPerBooking: 0,
+    costPerShow: 0,
+    availability: "available",
+  });
 });
 
 test("period comparison aggregates numerators before rates and builds cumulative pace", () => {
@@ -926,6 +996,17 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
     page.getByRole("heading", { name: "Dashboard", exact: true })
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "品牌總結" })).toBeVisible();
+  const dashboardCosts = page.getByRole("region", { name: "廣告成本成效" });
+  await expect(
+    dashboardCosts.getByRole("heading", { name: "廣告成本成效" })
+  ).toBeVisible();
+  await expect(dashboardCosts.getByText("CPL", { exact: true })).toBeVisible();
+  await expect(
+    dashboardCosts.getByText("CPBook", { exact: true })
+  ).toBeVisible();
+  await expect(
+    dashboardCosts.getByText("CPShow", { exact: true })
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "療程表現" })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "來源／Campaign 表現" })
@@ -1096,6 +1177,24 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
   await expect(
     page.getByRole("heading", { name: "Lead → Book → Show" })
   ).toBeVisible();
+  const performanceCosts = page.getByRole("region", {
+    name: "廣告成本成效",
+  });
+  await expect(
+    performanceCosts.getByRole("heading", { name: "廣告成本成效" })
+  ).toBeVisible();
+  await expect(
+    performanceCosts.getByText("廣告費", { exact: true })
+  ).toBeVisible();
+  await expect(
+    performanceCosts.getByText("CPL", { exact: true })
+  ).toBeVisible();
+  await expect(
+    performanceCosts.getByText("CPBook", { exact: true })
+  ).toBeVisible();
+  await expect(
+    performanceCosts.getByText("CPShow", { exact: true })
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "療程表現" })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "來源／Campaign 表現" })
@@ -1116,6 +1215,21 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
     page.locator('[aria-label="1 個日曆操作"]').first()
   ).toBeVisible();
   await expect(page.getByText(/唔讀 mkt_dashboard 分頁/)).toBeVisible();
+});
+
+test("Treatment-level filters do not fabricate brand Spend allocation", async ({
+  page,
+}) => {
+  await page.goto(
+    "/performance?treatment=%24988%20Facelift&startDate=2026-08-01&endDate=2026-08-31",
+    { waitUntil: "domcontentloaded" }
+  );
+
+  const costs = page.getByRole("region", { name: "廣告成本成效" });
+  await expect(costs.getByText("未分配到此篩選", { exact: true })).toBeVisible();
+  await expect(
+    costs.getByText(/目前廣告費只記錄到品牌層/)
+  ).toBeVisible();
 });
 
 test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specific CPA", async ({
