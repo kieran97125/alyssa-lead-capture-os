@@ -1,10 +1,6 @@
 import "server-only";
 
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
-import {
-  leadSheetFieldKeys,
-  resolveLeadSheetColumns,
-} from "@/lib/marketing/googleSheetsMetricParser";
 
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
@@ -26,6 +22,7 @@ export type LeadTableSourceConfiguration = {
 export type LiveLeadTable = {
   headers: unknown[];
   rows: unknown[][];
+  headerRow: number;
 };
 
 function stringValue(value: unknown) {
@@ -57,17 +54,6 @@ function tabName(configuration: LeadTableSourceConfiguration) {
 
 function quoteSheetName(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
-}
-
-function columnFromIndex(index: number) {
-  let value = index + 1;
-  let column = "";
-  while (value > 0) {
-    const remainder = (value - 1) % 26;
-    column = String.fromCharCode(65 + remainder) + column;
-    value = Math.floor((value - 1) / 26);
-  }
-  return column;
 }
 
 async function batchGetValues(input: {
@@ -134,36 +120,17 @@ export async function readLiveLeadTable(
     ],
   });
   const headers = headerResponse.valueRanges?.[0]?.values?.[0] ?? [];
-  const columnMap = resolveLeadSheetColumns(headers);
-  const selectedIndexes = Array.from(
-    new Set(
-      leadSheetFieldKeys
-        .map((field) => columnMap[field])
-        .filter((index) => index >= 0)
-    )
-  ).sort((left, right) => left - right);
-
+  // Read the governed operational range once. Funnel aggregation continues to
+  // consume only its approved fields, while the server-only audit pipeline can
+  // compare the complete CS record without a second inconsistent provider read.
   const dataResponse = await batchGetValues({
     accessToken,
     spreadsheetId: sourceSpreadsheetId,
-    ranges: selectedIndexes.map((index) => {
-      const column = columnFromIndex(index);
-      return `${quoteSheetName(sourceTabName)}!${column}${
-        headerRow + 1
-      }:${column}${maxRows}`;
-    }),
+    ranges: [
+      `${quoteSheetName(sourceTabName)}!A${headerRow + 1}:${lastColumn}${maxRows}`,
+    ],
   });
-  const columnValues = selectedIndexes.map(
-    (_, index) => dataResponse.valueRanges?.[index]?.values ?? []
-  );
-  const rowCount = Math.max(0, ...columnValues.map((values) => values.length));
-  const rows = Array.from({ length: rowCount }, (_, rowIndex) => {
-    const row: unknown[] = [];
-    selectedIndexes.forEach((columnIndex, selectedIndex) => {
-      row[columnIndex] = columnValues[selectedIndex]?.[rowIndex]?.[0] ?? "";
-    });
-    return row;
-  });
+  const rows = dataResponse.valueRanges?.[0]?.values ?? [];
 
-  return { headers, rows };
+  return { headers, rows, headerRow };
 }

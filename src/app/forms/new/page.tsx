@@ -68,19 +68,19 @@ export default async function NewFormPage({
         <header className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="alyssa-kicker">Create Wix Form</p>
+              <p className="alyssa-kicker">建立 Wix 表格</p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
                 建立品牌登記表格
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                先選品牌，再選療程、優惠同分店。表格建立後會生成可直接貼入 Wix 的 embed code。
+                先選品牌，再選療程、優惠同分店。表格建立後會生成可直接貼入 Wix 嘅嵌入碼。
               </p>
             </div>
             <Link
               href="/forms"
               className="w-fit rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
             >
-              返回 Forms
+              返回表格管理
             </Link>
           </div>
         </header>
@@ -92,8 +92,8 @@ export default async function NewFormPage({
         )}
 
         <section className="mt-6 rounded-[28px] border border-[#ead9cf] bg-white/86 p-5">
-          <p className="alyssa-kicker">Step 1</p>
-          <h2 className="mt-2 text-xl font-bold text-[#321428]">Choose brand</h2>
+          <p className="alyssa-kicker">步驟 1</p>
+          <h2 className="mt-2 text-xl font-bold text-[#321428]">選擇品牌</h2>
           <div className="mt-4 flex flex-wrap gap-2">
             {config.brands.map((brand) => (
               <Link
@@ -116,9 +116,9 @@ export default async function NewFormPage({
 
           <section className="alyssa-premium-card grid gap-5 p-5">
             <div>
-              <p className="alyssa-kicker">Step 2</p>
+              <p className="alyssa-kicker">步驟 2</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                Treatment / offer
+                療程／優惠
               </h2>
               <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
                 只顯示 {selectedBrand?.name || "此品牌"} 的療程及套餐，避免跨品牌混用。
@@ -126,7 +126,7 @@ export default async function NewFormPage({
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <TextField
-                label="Form name"
+                label="表格名稱"
                 name="formName"
                 defaultValue={suggestedFormName(
                   selectedBrand?.name || "Brand",
@@ -134,7 +134,7 @@ export default async function NewFormPage({
                 )}
               />
               <SelectField
-                label="Treatment"
+                label="療程"
                 name="defaultTreatmentId"
                 defaultValue={selectedTreatment?.id}
                 options={brandTreatments.map((treatment) => ({
@@ -148,15 +148,15 @@ export default async function NewFormPage({
                 selectedPackageIds={firstPackage ? [firstPackage.id] : []}
                 treatmentNames={treatmentNames}
               />
-              <ReadonlyInfo label="Default payment option" value="booking_only" />
+              <ReadonlyInfo label="付款方式" value="只需預約" />
             </div>
           </section>
 
           <section className="alyssa-premium-card grid gap-5 p-5">
             <div>
-              <p className="alyssa-kicker">Step 3</p>
+              <p className="alyssa-kicker">步驟 3</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                Branch selection
+                分店選擇
               </h2>
               <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
                 目前每張表格連接一個主分店；如同一療程要多分店測試，可複製表格再改分店。
@@ -171,14 +171,14 @@ export default async function NewFormPage({
 
           <section className="alyssa-premium-card grid gap-5 p-5">
             <div>
-              <p className="alyssa-kicker">Step 4</p>
+              <p className="alyssa-kicker">步驟 4</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                Form settings
+                表格設定
               </h2>
             </div>
             <label className="block min-w-0">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                Allowed domains
+                允許網域
               </span>
               <textarea
                 name="allowedDomains"
@@ -191,10 +191,10 @@ export default async function NewFormPage({
               </span>
             </label>
             <div className="grid gap-3 md:grid-cols-3">
-              <ReadonlyInfo label="Legal consent" value="Enabled" />
+              <ReadonlyInfo label="私隱同意" value="已啟用" />
               <ReadonlyInfo
-                label="Thank-you handling"
-                value={`${brandDefaults.conversionMode} → ${brandDefaults.thankYouUrl || "Default brand flow"}`}
+                label="完成後安排"
+                value={brandDefaults.thankYouUrl || "使用品牌預設流程"}
               />
               <ReadonlyInfo label="Status" value="可使用" />
             </div>
@@ -202,50 +202,50 @@ export default async function NewFormPage({
 
           <section className="alyssa-premium-card grid gap-5 p-5">
             <div>
-              <p className="alyssa-kicker">Step 5</p>
+              <p className="alyssa-kicker">步驟 5</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                Tracking / Pixel
+                追蹤設定
               </h2>
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               <ReadonlyInfo
-                label="Brand Pixel reference"
+                label="品牌 Pixel"
                 value={
                   brandDefaults.conversionMode === "thank_you_redirect"
-                    ? `${brandDefaults.pixelIdReference || pixelId || "Not set"} - handled on Wix thank-you page`
+                    ? `${brandDefaults.pixelIdReference || pixelId || "未設定"} · 由 Wix 成功頁處理`
                     : pixelId
-                      ? `Configured: ${pixelId}`
-                      : "Missing - form can still be created"
+                      ? `已設定：${pixelId}`
+                      : "未設定；仍可建立表格"
                 }
                 warning={!pixelId && !brandDefaults.pixelIdReference}
               />
               <ReadonlyInfo
-                label="Wix embed"
+                label="Wix 嵌入設定"
                 value={
                   brandDefaults.conversionMode === "thank_you_redirect"
-                    ? "Embed redirects to brand thank-you page and omits data-pixel-id"
+                    ? "提交後轉到品牌成功頁，由成功頁處理轉化"
                     : pixelId
-                      ? "Embed snippet will include data-pixel-id"
-                      : "Embed snippet will omit data-pixel-id"
+                      ? "嵌入碼會加入品牌 Pixel"
+                      : "嵌入碼不會加入 Pixel"
                 }
               />
             </div>
             <div>
-              <CopyButton value={META_URL_PARAMETER_GUIDE} label="Copy Meta URL Parameters" />
+              <CopyButton value={META_URL_PARAMETER_GUIDE} label="複製 Meta URL 參數" />
               <p className="mt-2 text-xs font-semibold leading-5 text-[#7b5a6a]">
-                正式廣告不要使用 pixel_debug=1 或 attribution_debug=1。
+                正式廣告請使用不含測試參數嘅連結。
               </p>
             </div>
           </section>
 
           <section className="alyssa-premium-card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="alyssa-kicker">Step 6</p>
+              <p className="alyssa-kicker">步驟 6</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                Publish / Embed
+                建立及嵌入
               </h2>
               <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-                建立後會前往 form detail，直接複製 Wix embed code、test URL 同 Meta URL parameters。
+                建立後會前往表格詳情，直接複製 Wix 嵌入碼、預覽網址同 Meta URL 參數。
               </p>
             </div>
             <SubmitButton
@@ -358,14 +358,14 @@ function BranchSelection({
                   value={branch.id}
                   defaultChecked={isDefault}
                 />
-                <span>Default selected branch</span>
+                <span>預設選擇此分店</span>
               </label>
             </div>
           );
         })}
       </div>
       <p className="mt-2 text-xs font-semibold leading-5 text-[#7b5a6a]">
-        Customers will choose one of the selected branches before submitting.
+        客人提交前需要選擇其中一間已啟用分店。
       </p>
     </div>
   );

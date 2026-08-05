@@ -66,7 +66,7 @@ export default async function NewCampaignPage({
       <div className="mx-auto max-w-6xl px-5 py-8">
         <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="alyssa-kicker">Launch</p>
+            <p className="alyssa-kicker">建立內容</p>
             <h1 className="mt-2 text-3xl font-bold text-[#321428]">
               建立新 Campaign
             </h1>
@@ -79,7 +79,7 @@ export default async function NewCampaignPage({
               href="/settings#brand-library"
               className="rounded-full border border-[#d9b66f] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
             >
-              Brand Library
+              品牌資料
             </Link>
             <Link
               href="/landing-pages"
@@ -91,7 +91,7 @@ export default async function NewCampaignPage({
         </header>
 
         <section className="mt-5 rounded-2xl border border-[#ead9cf] bg-white/82 px-5 py-4 text-sm leading-6 text-[#6d4a5c]">
-          Launch 會用 Brand Library 入面的品牌、療程、優惠套餐和分店資料建立 Campaign。若資料未齊，請先到 Brand Library 更新，再回來建立表格或 Landing Page。
+          系統會用品牌資料入面嘅療程、優惠套餐同分店建立 Campaign。若資料未齊，請先更新品牌資料，再建立表格或廣告頁。
         </section>
 
         {message && (
@@ -102,12 +102,12 @@ export default async function NewCampaignPage({
 
         <form action={createCampaignAction} className="mt-6 grid gap-6">
           <section className="alyssa-premium-card p-5">
-            <p className="alyssa-kicker">Brand first</p>
+            <p className="alyssa-kicker">先選品牌</p>
             <h2 className="mt-2 text-xl font-bold text-[#321428]">
-              Choose brand before selecting offers
+              選擇品牌後再設定優惠
             </h2>
             <p className="mt-2 text-sm font-semibold leading-6 text-[#6d4a5c]">
-              Treatments, campaign offers, existing forms, and landing pages are filtered by the selected brand to avoid cross-brand setup mistakes.
+              系統只會顯示所選品牌嘅療程、優惠、表格同廣告頁，避免跨品牌混用設定。
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
               {config.brands.map((brand) => (

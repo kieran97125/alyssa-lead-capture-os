@@ -55,13 +55,13 @@ export default async function WhatsAppInboxPage({
                 {connectionView.statusLabel}
               </StatusPill>
               <StatusPill tone={inbox.tableReady ? "green" : "red"}>
-                {inbox.tableReady ? "Inbox DB ready" : "Phase 2B SQL required"}
+                {inbox.tableReady ? "訊息紀錄正常" : "訊息儲存未就緒"}
               </StatusPill>
               <Link
                 href="/crm/whatsapp/templates"
                 className="rounded-lg border border-[#cbd5e1] bg-white px-3 py-2 text-xs font-black text-[#334155]"
               >
-                Templates
+                訊息範本
               </Link>
               <Link
                 href="/crm/settings/whatsapp"
@@ -121,7 +121,7 @@ export default async function WhatsAppInboxPage({
           <section className="m-4 rounded-xl border border-amber-200 bg-amber-50 p-5 lg:m-6">
             <h2 className="text-lg font-black text-amber-950">WhatsApp 尚未連接</h2>
             <p className="mt-2 text-sm font-semibold text-amber-900">
-              Phase 2B Inbox 已準備好；請先完成 IB Meta WhatsApp Cloud API 連接。
+              請先完成 IB WhatsApp 連接，之後先可以收發訊息。
             </p>
             <Link
               href="/crm/settings/whatsapp"
@@ -132,9 +132,9 @@ export default async function WhatsAppInboxPage({
           </section>
         ) : !inbox.tableReady ? (
           <section className="m-4 rounded-xl border border-red-200 bg-red-50 p-5 lg:m-6">
-            <h2 className="text-lg font-black text-red-900">需要套用 Phase 2B SQL</h2>
+            <h2 className="text-lg font-black text-red-900">訊息儲存尚未就緒</h2>
             <p className="mt-2 text-sm font-semibold text-red-800">
-              請 review 並套用 docs/CRM_WHATSAPP_PHASE2B_APPLY.sql，Inbox 先會開始儲存 conversation / unread 狀態。
+              功能尚未完成設定，請聯絡系統管理員。
             </p>
           </section>
         ) : (
@@ -225,8 +225,8 @@ function ServiceWindowBadge({
 }) {
   const labels = {
     open: ["可自由回覆", "border-emerald-200 bg-emerald-50 text-emerald-700"],
-    template_required: ["需要 Template", "border-amber-200 bg-amber-50 text-amber-800"],
-    unknown: ["首次聯絡 Template", "border-slate-200 bg-slate-50 text-slate-600"],
+    template_required: ["需要已批准範本", "border-amber-200 bg-amber-50 text-amber-800"],
+    unknown: ["首次聯絡需使用範本", "border-slate-200 bg-slate-50 text-slate-600"],
   } as const;
   const [label, className] = labels[state];
   return (

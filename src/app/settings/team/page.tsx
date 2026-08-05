@@ -40,12 +40,12 @@ import {
 export const dynamic = "force-dynamic";
 
 const roles = [
-  ["admin", "Admin"],
-  ["manager", "Manager"],
-  ["marketer", "Marketer"],
-  ["cs", "Customer Service"],
-  ["designer", "Designer"],
-  ["viewer", "Viewer"],
+  ["admin", "管理員"],
+  ["manager", "經理"],
+  ["marketer", "市場營銷"],
+  ["cs", "客戶服務"],
+  ["designer", "設計"],
+  ["viewer", "只讀"],
 ] as const;
 
 const modules = [
@@ -54,11 +54,12 @@ const modules = [
   ["calendar", "營銷日曆"],
   ["launchhub", "建立 Wix Form"],
   ["leads", "Leads"],
+  ["lead_audit", "Lead 變更監察"],
   ["crm", "CRM"],
   ["performance", "療程成效及同期對比"],
   ["data_sources", "資料來源"],
   ["settings", "設定"],
-  ["system_audit", "System Audit"],
+  ["system_audit", "系統狀態"],
 ] as const;
 
 function firstParam(value: string | string[] | undefined) {
@@ -98,11 +99,10 @@ export default async function TeamSettingsPage({
         <div className="command-page-inner">
           <header className="command-page-header">
             <div>
-              <p className="command-page-kicker">Master Access Control</p>
+              <p className="command-page-kicker">帳戶管理</p>
               <h1 className="command-page-title">成員及權限</h1>
               <p className="command-page-subtitle">
-                由 Master 喺呢一頁建立帳戶、寄出安全連結，同時設定角色、品牌及功能權限。
-                已接受邀請嘅帳戶會自動列入「已啟用帳戶」。
+                邀請團隊成員，並設定角色、品牌同功能權限。
               </p>
             </div>
             <a href="#invite-member" className="command-primary-button">
@@ -142,10 +142,9 @@ export default async function TeamSettingsPage({
           <div className="auth-transition-notice">
             {emailAuthRequired ? <MailCheck size={18} /> : <KeyRound size={18} />}
             <div>
-              <strong>安全連結只由 Master 喺權限頁寄出</strong>
+              <strong>安全登入連結由呢一頁寄出</strong>
               <p>
-                登入頁唔會再提供自行寄信。郵件服務接受寄送後會顯示「已提交」；
-                成員首次完成身份確認先會轉做「已啟用」，同一瀏覽器之後會保持登入。
+                成員完成首次身份確認後，帳戶會自動轉為「已啟用」。
               </p>
             </div>
           </div>
@@ -155,24 +154,23 @@ export default async function TeamSettingsPage({
               <div>
                 <strong>身份驗證連接未完成</strong>
                 <p>
-                  成員及權限仍可查看，但要完成 Supabase Auth Production
-                  設定先可以建立身份及寄送安全連結。
+                  成員及權限仍可查看，但暫時未能建立帳戶或寄送登入連結。
                 </p>
               </div>
             </div>
           ) : null}
 
           <MemberSection
-            eyebrow="Active accounts"
+            eyebrow="帳戶狀態"
             title="已啟用帳戶"
-            description="包括 Master 及已完成首次身份確認嘅帳戶。"
+            description="包括系統擁有人及已完成首次身份確認嘅帳戶。"
             members={activeMembers}
             snapshot={snapshot}
             emptyMessage="暫時未有已啟用成員帳戶。"
           />
 
           <MemberSection
-            eyebrow="Pending invitations"
+            eyebrow="等待確認"
             title="待接受邀請"
             description="已建立權限、但成員未完成首次安全連結確認。"
             members={invitedMembers}
@@ -182,9 +180,9 @@ export default async function TeamSettingsPage({
 
           {suspendedMembers.length > 0 ? (
             <MemberSection
-              eyebrow="Suspended accounts"
+              eyebrow="已停用"
               title="已暫停帳戶"
-              description="登入 Session 會被伺服器拒絕；Master 可修改權限後重新啟用。"
+              description="帳戶暫時不能登入；系統擁有人可重新啟用。"
               members={suspendedMembers}
               snapshot={snapshot}
               emptyMessage=""
@@ -197,11 +195,10 @@ export default async function TeamSettingsPage({
           >
             <header>
               <div>
-                <p>Invite and assign</p>
+                <p>新增成員</p>
                 <h2>邀請新成員並分配權限</h2>
                 <span>
-                  呢個表格係唯一寄出首次邀請嘅位置。提交會先原子化儲存權限，再向
-                  Auth 郵件服務發出真正寄送請求。
+                  提交後會先儲存品牌及功能權限，再寄出安全登入連結。
                 </span>
               </div>
               <UsersRound size={24} />
@@ -223,7 +220,7 @@ export default async function TeamSettingsPage({
                   />
                 </label>
                 <label>
-                  <span>Workspace Role</span>
+                  <span>角色</span>
                   <select name="role" defaultValue="viewer">
                     {roles.map(([value, label]) => (
                       <option key={value} value={value}>
@@ -238,8 +235,7 @@ export default async function TeamSettingsPage({
 
               <footer>
                 <p>
-                  如冇逐項選模組，系統會套用該角色嘅預設功能。寄送成功代表郵件服務已接受，
-                  唔等於代替收件人確認收件箱。
+                  如冇逐項選功能，系統會套用該角色嘅預設權限。
                 </p>
                 <SubmitButton
                   className="command-primary-button"
@@ -329,14 +325,14 @@ function MemberCard({
           {member.isMaster ? (
             <em>
               <ShieldCheck size={12} />
-              Master
+              系統擁有人
             </em>
           ) : null}
         </div>
         <div className="member-card-meta">
           <span>
             <small>角色</small>
-            <strong>{member.isMaster ? "Owner" : roleLabel}</strong>
+            <strong>{member.isMaster ? "系統擁有人" : roleLabel}</strong>
           </span>
           <span>
             <small>品牌</small>
@@ -390,7 +386,7 @@ function MemberCard({
                   <input value={member.email} readOnly aria-readonly="true" />
                 </label>
                 <label>
-                  <span>Workspace Role</span>
+                  <span>角色</span>
                   <select name="role" defaultValue={member.role}>
                     {roles.map(([value, label]) => (
                       <option key={value} value={value}>
@@ -407,7 +403,7 @@ function MemberCard({
               />
               <footer>
                 <p>
-                  儲存後會即時影響下一個伺服器請求；唔需要重新建立或重寄帳戶。
+                  儲存後即時生效，毋須重新建立帳戶。
                 </p>
                 <SubmitButton
                   className="command-primary-button"
@@ -475,7 +471,7 @@ function MemberCard({
       ) : (
         <p className="member-master-lock">
           <ShieldCheck size={13} />
-          Master Account 永久保留全部控制權，唔可喺成員頁降級或移除。
+          系統擁有人永久保留全部控制權，不能停用或移除。
         </p>
       )}
     </article>
@@ -567,7 +563,7 @@ function memberDeliveryLabel(member: WorkspaceMember) {
   }
   if (member.inviteDeliveryStatus === "failed") return "上次寄送未成功";
   if (member.inviteDeliveryStatus === "suppressed") return "寄送已停止";
-  return member.isMaster ? "Master 後備身份" : "尚未寄送";
+  return member.isMaster ? "系統擁有人" : "尚未寄送";
 }
 
 function formatMemberTime(value: string) {

@@ -4,7 +4,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Alyssa Growth OS",
   description:
-    "Marketing Command Center for multi-brand growth, lead operations and campaign execution.",
+    "Alyssa 多品牌營銷、Lead、預約及客戶營運系統。",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

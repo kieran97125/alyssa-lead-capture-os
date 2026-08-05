@@ -18,6 +18,7 @@ import {
   Menu,
   MessageCircleMore,
   Settings2,
+  ShieldAlert,
   Table2,
   X,
 } from "lucide-react";
@@ -60,6 +61,12 @@ const navigationGroups: NavigationGroup[] = [
     label: "客戶營運",
     items: [
       { href: "/leads", label: "Leads", icon: Inbox, module: "leads" },
+      {
+        href: "/lead-audit",
+        label: "Lead 變更監察",
+        icon: ShieldAlert,
+        module: "lead_audit",
+      },
       { href: "/crm", label: "CRM", icon: MessageCircleMore, module: "crm" },
     ],
   },
@@ -75,7 +82,7 @@ const navigationGroups: NavigationGroup[] = [
       },
       {
         href: "/performance/daily",
-        label: "每日 Overview",
+        label: "每日總覽",
         icon: Table2,
         module: "performance",
       },
@@ -160,21 +167,23 @@ function SidebarContent({
   pathname,
   onNavigate,
   access,
+  leadAuditAlertCount,
 }: {
   pathname: string;
   onNavigate: () => void;
   access: InternalAccessContext;
+  leadAuditAlertCount: number;
 }) {
   const isMaster = access.accessLevel === "master";
   const isEmailMember = access.source === "supabase_auth";
   const accountName = isEmailMember
-    ? access.fullName || access.workspaceRole || "Workspace member"
+    ? access.fullName || access.workspaceRole || "團隊成員"
     : isMaster
-      ? "Master 系統身份"
-      : "Admin 系統身份";
+      ? "系統擁有人"
+      : "系統管理員";
   const accountDetail = isEmailMember
     ? access.email || "已驗證公司電郵"
-    : "密碼權限 · 非 Google 帳戶";
+    : "安全管理登入";
   const avatarLabel = isEmailMember
     ? accountName.slice(0, 1).toUpperCase()
     : isMaster
@@ -185,6 +194,9 @@ function SidebarContent({
       ...group,
       items: group.items.filter((item) => {
         if (item.masterOnly && !isMaster) return false;
+        if (item.module === "lead_audit" && !isMaster && !isEmailMember) {
+          return false;
+        }
         if (!isEmailMember) return true;
         return hasWorkspaceModulePermission(
           {
@@ -194,7 +206,11 @@ function SidebarContent({
           },
           item.module
         );
-      }),
+      }).map((item) =>
+        item.module === "lead_audit" && leadAuditAlertCount > 0
+          ? { ...item, badge: String(leadAuditAlertCount) }
+          : item
+      ),
     }))
     .filter((group) => group.items.length > 0);
   const accountCard = (
@@ -223,13 +239,9 @@ function SidebarContent({
           </span>
           <span className="min-w-0">
             <span className="command-brand-eyebrow">Alyssa Growth OS</span>
-            <span className="command-brand-title">Command Center</span>
+            <span className="command-brand-title">營運中心</span>
           </span>
         </IntentPrefetchLink>
-        <div className="command-workspace-pill">
-          <span className="command-workspace-dot" />
-          Enterprise workspace
-        </div>
       </div>
 
       <nav aria-label="主要功能" className="command-navigation">
@@ -283,8 +295,10 @@ function SidebarContent({
 
 export function AppNavClient({
   access,
+  leadAuditAlertCount = 0,
 }: {
   access: InternalAccessContext;
+  leadAuditAlertCount?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -294,7 +308,7 @@ export function AppNavClient({
       <header className="command-mobile-bar">
         <IntentPrefetchLink href="/dashboard" className="command-mobile-brand">
           <span>GO</span>
-          <strong>Command Center</strong>
+          <strong>營運中心</strong>
         </IntentPrefetchLink>
         <button
           type="button"
@@ -320,6 +334,7 @@ export function AppNavClient({
           pathname={pathname}
           onNavigate={() => setOpen(false)}
           access={access}
+          leadAuditAlertCount={leadAuditAlertCount}
         />
       </aside>
     </>

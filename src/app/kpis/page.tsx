@@ -30,11 +30,10 @@ export default async function BrandKpisPage() {
         <div className="command-page-inner">
           <header className="command-page-header">
             <div>
-              <p className="command-page-kicker">Growth Intelligence</p>
+              <p className="command-page-kicker">目標進度</p>
               <h1 className="command-page-title">品牌 KPI 進度</h1>
               <p className="command-page-subtitle">
-                {snapshot.month.label} · {snapshot.month.throughLabel}。每個指標同時顯示
-                Actual、截至昨日應達值同全月目標。
+                {snapshot.month.label} · {snapshot.month.throughLabel}。對照目前數值、截至昨日應達值同全月目標。
               </p>
             </div>
             {canManageMonthlyKpis(access) ? (

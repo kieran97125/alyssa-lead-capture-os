@@ -40,6 +40,12 @@ import {
 import { deriveDailyMetrics } from "../src/lib/marketing/dailyOverviewMath";
 import { calculatePerformanceCostSummary } from "../src/lib/marketing/performanceCostMath";
 import {
+  buildLeadAuditDiff,
+  prepareLeadAuditRecords,
+  type LeadAuditCanonicalRecord,
+  type LeadAuditComparableRecord,
+} from "../src/lib/marketing/leadSheetAuditContract";
+import {
   createSignedAdminSession,
   hasAdminPasswordGateConfig,
   verifyAdminPassword,
@@ -106,12 +112,115 @@ test("Manager can always enter KPI planning without receiving system settings ac
   expect(hasWorkspaceModulePermission(access, "kpis")).toBe(true);
   expect(hasWorkspaceModulePermission(access, "settings")).toBe(false);
   expect(hasWorkspaceModulePermission(access, "data_sources")).toBe(false);
+  expect(hasWorkspaceModulePermission(access, "lead_audit")).toBe(false);
   expect(
     canManageMonthlyKpis({
       source: "supabase_auth",
       accessLevel: "admin",
       workspaceRole: "manager",
     })
+  ).toBe(true);
+});
+
+test("Lead Audit stays explicit-only and canonical row identity survives row movement", () => {
+  const headers = [
+    "Created At",
+    "跟進狀態",
+    "品牌",
+    "電話",
+    "預約日期",
+    "確認到店日期",
+    "lead_key",
+  ];
+  const hashIdentity = (value: string) =>
+    Buffer.from(value).toString("hex").slice(0, 64).padEnd(64, "0");
+  const first = prepareLeadAuditRecords({
+    headers,
+    rows: [["2026/8/1", "待跟進", "Alyssa", "9123 4567", "", "", "lead-1"]],
+    hashIdentity,
+    firstDataRowNumber: 4,
+  }).records[0];
+  const moved = prepareLeadAuditRecords({
+    headers,
+    rows: [["2026/8/1", "待跟進", "Alyssa", "91234567", "", "", "lead-1"]],
+    hashIdentity,
+    firstDataRowNumber: 18,
+  }).records[0];
+
+  expect(first.recordKey).toBe(moved.recordKey);
+  expect(first.rowNumber).toBe(4);
+  expect(moved.rowNumber).toBe(18);
+  expect(
+    hasWorkspaceModulePermission(
+      {
+        isMaster: false,
+        workspaceRole: "manager",
+        modulePermissions: { lead_audit: true },
+      },
+      "lead_audit"
+    )
+  ).toBe(true);
+});
+
+test("Lead Audit flags state regression and quarantines a large source shrink", () => {
+  const canonical = (
+    overrides: Partial<LeadAuditCanonicalRecord> = {}
+  ): LeadAuditCanonicalRecord => ({
+    createdAt: "2026-08-01 09:00:00",
+    followUpStatus: "已到店",
+    brand: "Alyssa",
+    branch: "CWB",
+    customerName: "Test",
+    phone: "91234567",
+    email: "",
+    treatmentOffer: "Trial",
+    treatmentItem: "Trial",
+    appointmentDate: "2026-08-02",
+    appointmentTime: "12:00:00",
+    confirmedShowDate: "2026-08-02",
+    source: "meta",
+    campaignAd: "campaign",
+    pageUrl: "",
+    lastFollowUpAt: "",
+    leadKey: "lead-1",
+    csRemark: "",
+    assignedTo: "",
+    followUpRemark: "",
+    status: "",
+    showUp: "",
+    ...overrides,
+  });
+  const record = (
+    index: number,
+    overrides: Partial<LeadAuditCanonicalRecord> = {}
+  ): LeadAuditComparableRecord => ({
+    recordKey: String(index).padStart(64, "0"),
+    rowNumber: index + 2,
+    subjectLabel: `Lead · ${index}`,
+    brandId: "brand-1",
+    canonical: canonical({ leadKey: `lead-${index}`, ...overrides }),
+    contentHash: `hash-${index}-${JSON.stringify(overrides)}`,
+  });
+  const previous = Array.from({ length: 50 }, (_, index) => record(index));
+  const regressed = record(0, {
+    followUpStatus: "已預約",
+    confirmedShowDate: "",
+  });
+  const current = [regressed, ...previous.slice(1, 35)];
+  const diff = buildLeadAuditDiff({ previous, current });
+
+  expect(diff.quarantined).toBe(true);
+  expect(diff.deletedCount).toBe(15);
+  expect(diff.changes[0]).toMatchObject({
+    riskCode: "source_truncation",
+    severity: "critical",
+  });
+  expect(
+    diff.changes.some(
+      (change) =>
+        change.recordKey === regressed.recordKey &&
+        change.riskCode === "status_regression"
+    )
   ).toBe(true);
 });
 
@@ -1012,17 +1121,18 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
     page.getByRole("heading", { name: "來源／Campaign 表現" })
   ).toBeVisible();
   await expect(
-    page.getByRole("heading", { name: "本月未 Show 明細" })
+    page.getByRole("heading", { name: "本月待到店明細" })
   ).toBeVisible();
-  await expect(page.getByText(/不讀.*mkt_dashboard/)).toBeVisible();
+  await expect(
+    page.getByText(/未有療程成本歸屬時會清楚標示為未分配/)
+  ).toBeVisible();
   await expect(page.getByRole("heading", { name: "預算概覽" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "品牌 KPI 進度" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "同步其它報表" })
+    page.getByRole("button", { name: "同步最新數據" })
   ).toBeVisible();
-  await expect(page.getByText(/其它報表彙總：/)).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "主要功能" });
-  await expect(navigation.getByRole("link")).toHaveCount(11);
+  await expect(navigation.getByRole("link")).toHaveCount(12);
   await expect(
     navigation.getByRole("link", { name: "Dashboard" })
   ).toBeVisible();
@@ -1037,7 +1147,10 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
     navigation.getByRole("link", { name: "療程成效" })
   ).toBeVisible();
   await expect(
-    navigation.getByRole("link", { name: "每日 Overview" })
+    navigation.getByRole("link", { name: "每日總覽" })
+  ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "Lead 變更監察" })
   ).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "同期對比" })
@@ -1142,7 +1255,7 @@ test("Master owns invitations and active member permissions from one page", asyn
   await expect(
     activeMember.getByRole("button", { name: "儲存權限" })
   ).toBeVisible();
-  await expect(activeMember.getByLabel("Workspace Role")).toHaveValue("cs");
+  await expect(activeMember.getByLabel("角色")).toHaveValue("cs");
 
   const pendingMember = page
     .locator(".member-card")
@@ -1162,7 +1275,7 @@ test("login page cannot self-send an account email", async ({ page }) => {
   await expect(
     page.getByRole("button", { name: "寄出登入連結" })
   ).toHaveCount(0);
-  await expect(page.getByText(/安全登入連結只會由 Master/)).toBeVisible();
+  await expect(page.getByText(/請聯絡系統管理員重新發送登入連結/)).toBeVisible();
 });
 
 test("Treatment Performance is a Lead Sheet projection with explicit metric contracts", async ({
@@ -1173,7 +1286,7 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
   await expect(
     page.getByRole("heading", { name: "療程成效", exact: true })
   ).toBeVisible();
-  await expect(page.getByText("Alyssa Workspace Lead Funnel")).toBeVisible();
+  await expect(page.getByText("Lead Sheet", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Lead → Book → Show" })
   ).toBeVisible();
@@ -1214,7 +1327,7 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
   await expect(
     page.locator('[aria-label="1 個日曆操作"]').first()
   ).toBeVisible();
-  await expect(page.getByText(/唔讀 mkt_dashboard 分頁/)).toBeVisible();
+  await expect(page.getByText(/唔會重複讀取舊報表數據/)).toBeVisible();
 });
 
 test("Treatment-level filters do not fabricate brand Spend allocation", async ({
@@ -1282,7 +1395,7 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
     page.locator('[aria-label="1 個日曆操作"]').first()
   ).toBeVisible();
   await expect(page.getByText(/同期營運比率/)).toBeVisible();
-  await expect(page.getByText(/Daily Spend Ledger/)).toBeVisible();
+  await expect(page.getByText(/系統廣告費帳簿/)).toBeVisible();
   await expect(page.getByText(/Meta WhatsApp／Lead Form／Website Form、Google Ads/)).toBeVisible();
   await expect(page.getByText(/Alyssa、AM、IB、GOS/)).toBeVisible();
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
@@ -1297,7 +1410,7 @@ test("Daily Overview records typed Meta Spend and shows daily plus cumulative KP
   await page.goto("/performance/daily", { waitUntil: "domcontentloaded" });
 
   await expect(
-    page.getByRole("heading", { name: "每日 Overview", exact: true })
+    page.getByRole("heading", { name: "每日總覽", exact: true })
   ).toBeVisible();
   await expect(page.getByLabel("廣告費類型")).toHaveValue("meta_whatsapp");
   await expect(page.getByLabel("廣告費類型").locator("option")).toHaveText([
@@ -1311,8 +1424,8 @@ test("Daily Overview records typed Meta Spend and shows daily plus cumulative KP
   await expect(page.getByText("CPL", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("CPA · Book", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("CPA · Show", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText(/CS Lead Sheet · Funnel/)).toBeVisible();
-  await expect(page.getByText(/Internal Daily Spend · Spend/)).toBeVisible();
+  await expect(page.getByText(/Lead Sheet · 轉化/)).toBeVisible();
+  await expect(page.getByText("每日廣告費", { exact: true }).first()).toBeVisible();
 
   await page.getByLabel("廣告費類型").selectOption("meta_lead_form");
   await page.getByRole("button", { name: "載入日期及類型" }).click();
@@ -1331,7 +1444,7 @@ test("Daily Overview rejects impossible month values without a server error", as
 
   expect(response?.status()).toBe(200);
   await expect(
-    page.getByRole("heading", { name: "每日 Overview", exact: true })
+    page.getByRole("heading", { name: "每日總覽", exact: true })
   ).toBeVisible();
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
 });
@@ -1344,7 +1457,7 @@ test("Google Sheets connection is presented as OAuth rather than a service-accou
   await expect(page.getByText("Google Sheets 一鍵連接")).toBeVisible();
   await expect(
     page.getByText(
-      /毋須 Service Account、JSON Key 或 Apps Script Web App|OAuth Client 部署設定未完成/
+      /Google 連接尚未完成設定|請使用擁有相關 Sheet 編輯權限嘅公司 Google 帳戶連接/
     )
   ).toBeVisible();
   await expect(page.getByText(/Service Account Email|Private Key/)).toHaveCount(0);
@@ -1365,8 +1478,8 @@ test("retired monthly Spend workbooks keep read-only historical links", async ({
   await expect(
     page.getByRole("link", { name: /打開原始數據表/ })
   ).toHaveCount(2);
-  await expect(page.getByText(/月份 Sheet 接駁已退役/)).toBeVisible();
-  await expect(page.getByText(/廣告費改由系統 Daily Ledger/)).toBeVisible();
+  await expect(page.getByText(/舊月份 Sheet 只保留作對數/)).toBeVisible();
+  await expect(page.getByText(/新廣告費請到「每日總覽」/)).toBeVisible();
   await expect(page.getByRole("link", { name: "填寫每日廣告費" })).toBeVisible();
   await expect(page.getByText("系統帳簿", { exact: true }).first()).toBeVisible();
   await expect(page.getByRole("button", { name: /重新同步呢個月份/ })).toHaveCount(0);
@@ -1395,8 +1508,8 @@ test("password session is labelled as system access rather than a verified Googl
 }) => {
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
-  await expect(page.getByText("Master 系統身份")).toBeVisible();
-  await expect(page.getByText("密碼權限 · 非 Google 帳戶")).toBeVisible();
+  await expect(page.getByText("系統擁有人")).toBeVisible();
+  await expect(page.getByText("安全管理登入")).toBeVisible();
   await expect(page.getByText("kieran.kwok@alyssa.hk")).toHaveCount(0);
 });
 
@@ -1425,7 +1538,7 @@ test("protected Google Sheets POST uses a safe redirect and Master guidance rend
     /\/login\?next=%2Fdata-sources&error=master_required/
   );
   await expect(
-    page.getByText(/呢個頁面只限 Master Account/)
+    page.getByText(/呢個頁面只限系統擁有人使用/)
   ).toBeVisible();
 });
 

@@ -151,28 +151,19 @@ export default async function CrmLeadDetailPage({
               </a>
             ) : (
               <span className="inline-flex h-8 whitespace-nowrap rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 text-[11px] font-bold text-[#94a3b8]">
-                <span className="self-center">No WhatsApp</span>
+                <span className="self-center">無 WhatsApp</span>
               </span>
             )}
           </div>
 
           {error && (
             <p className="mt-2 rounded-md bg-red-50 px-3 py-2 text-[12px] font-semibold text-red-700">
-              CRM detail could not refresh all latest records.
+              暫時未能更新全部最新紀錄，請稍後再試。
             </p>
           )}
           {!runtime.actionsEnabled && (
             <div className="mt-2 rounded-md bg-amber-50 px-3 py-2 text-[12px] font-semibold text-amber-800">
-              <p>{runtime.disabledReason}</p>
-              {runtime.debug && (
-                <dl className="mt-2 grid gap-1 rounded-md bg-white/70 p-2 font-mono text-[10px] leading-4 text-[#475569]">
-                  <DebugLine label="operation" value={runtime.debug.operation} />
-                  <DebugLine label="code" value={runtime.debug.code ?? "-"} />
-                  <DebugLine label="message" value={runtime.debug.message} />
-                  <DebugLine label="details" value={runtime.debug.details ?? "-"} />
-                  <DebugLine label="hint" value={runtime.debug.hint ?? "-"} />
-                </dl>
-              )}
+              CRM 目前只供查看；資料服務恢復後即可更新紀錄。
             </div>
           )}
           {feedback && (
@@ -184,15 +175,6 @@ export default async function CrmLeadDetailPage({
               }`}
             >
               <p>{feedback.message}</p>
-              {feedback.debug && (
-                <dl className="mt-2 grid gap-1 rounded-md bg-white/70 p-2 font-mono text-[10px] leading-4 text-[#475569]">
-                  <DebugLine label="operation" value={feedback.debug.operation} />
-                  <DebugLine label="code" value={feedback.debug.code} />
-                  <DebugLine label="message" value={feedback.debug.message} />
-                  <DebugLine label="details" value={feedback.debug.details} />
-                  <DebugLine label="hint" value={feedback.debug.hint} />
-                </dl>
-              )}
             </div>
           )}
         </header>
@@ -203,7 +185,7 @@ export default async function CrmLeadDetailPage({
               <div className="border-b border-[#eef2f7] bg-gradient-to-r from-[#f8f7ff] via-white to-[#f0fdf4] px-5 py-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--crm-accent)]">Customer 360</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--crm-accent)]">客戶概覽</p>
                     <h2 className="mt-1 text-lg font-black text-[#111827]">{leadCase.customerName}</h2>
                     <p className="mt-1 text-xs font-semibold text-[#64748b]">{leadCase.brandName} · {leadCase.treatmentOffer}</p>
                   </div>
@@ -228,7 +210,7 @@ export default async function CrmLeadDetailPage({
                 ))}
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[#eef2f7] bg-[#fbfcfe] px-5 py-3">
-                <p className="text-xs font-semibold text-[#64748b]">客人確認資料 ≠ 門店已確認預約；必須由 CS 完成 Confirm booking。</p>
+                <p className="text-xs font-semibold text-[#64748b]">客人偏好時間唔等於已確認預約；必須由同事完成預約確認。</p>
                 <a href="/crm/operations" className="text-xs font-black text-[var(--crm-accent)] hover:text-[#0f688a]">查看營運狀態 →</a>
               </div>
             </section>
@@ -260,85 +242,85 @@ export default async function CrmLeadDetailPage({
               <aside className="grid content-start gap-3.5">
                 <section id="contact-actions" className="grid gap-3.5">
                   <ActionPanel
-                    title="Log contact attempt"
+                    title="記錄聯絡"
                     enabled={runtime.actionsEnabled}
                     action={recordContactAttemptAction.bind(null, leadId)}
-                    submitLabel="Save contact attempt"
+                    submitLabel="保存聯絡紀錄"
                   >
                     <SelectInput
                       name="contact_channel"
-                      label="Channel"
+                      label="聯絡渠道"
                       defaultValue="whatsapp"
                       options={optionTuples(crmSettings.contactChannelOptions)}
                     />
                     <SelectInput
                       name="contact_outcome"
-                      label="Outcome"
+                      label="聯絡結果"
                       defaultValue="pending"
                       options={optionTuples(crmSettings.followUpOutcomeOptions)}
                     />
                     <TextAreaInput
                       name="contact_note"
-                      label="Follow-up note"
+                      label="跟進備註"
                       placeholder="例：WhatsApp 已發出，客人話明天下午再覆。"
                       maxLength={2000}
                     />
                     <TextInput
                       name="next_follow_up_at"
                       type="datetime-local"
-                      label="Next follow-up"
+                      label="下次跟進"
                     />
                   </ActionPanel>
                 </section>
 
                 <section id="confirm-booking">
                   <ActionPanel
-                    title="Confirm booking"
+                    title="確認預約"
                     enabled={runtime.actionsEnabled}
                     action={confirmBookingAction.bind(null, leadId)}
-                    submitLabel="Confirm booking"
+                    submitLabel="確認預約"
                   >
                     <TextInput
                       name="branch_label"
-                      label="Branch"
+                      label="分店"
                       defaultValue={bundle.booking?.branch_label || leadCase.branchName}
                     />
                     <TextInput
                       name="treatment_label"
-                      label="Treatment"
+                      label="療程"
                       defaultValue={bundle.booking?.treatment_label || leadCase.treatmentOffer}
                     />
                     <div className="grid gap-2 sm:grid-cols-2">
                       <TextInput
                         type="date"
                         name="confirmed_appointment_date"
-                        label="Confirmed date"
+                        label="確認日期"
                         defaultValue={bundle.booking?.booking_date || ""}
                       />
                       <TextInput
                         type="time"
                         name="confirmed_appointment_time"
-                        label="Confirmed time"
+                        label="確認時間"
                         defaultValue={bundle.booking?.booking_time || ""}
                       />
                     </div>
                     <TextInput
                       name="room_arrangement"
-                      label="Room arrangement"
+                      label="房間安排"
                       defaultValue={bookingMeta.roomArrangement}
                       placeholder="例：CWB Room 1"
                     />
                     <SelectInput
                       name="paid_status"
-                      label="Paid status"
+                      label="付款狀態"
                       defaultValue={bookingMeta.paidStatus}
                       options={optionTuples(crmSettings.paidStatusOptions)}
                     />
                     <TextAreaInput
                       name="booking_note"
-                      label="Booking note"
+                      label="預約備註"
                       defaultValue={bookingMeta.bookingNote}
-                      placeholder="Internal booking note"
+                      placeholder="只供內部查看嘅預約備註"
                     />
                   </ActionPanel>
                 </section>
@@ -351,41 +333,41 @@ export default async function CrmLeadDetailPage({
                   />
 
                   <ActionPanel
-                    title="Mark lost"
+                    title="標記流失"
                     enabled={runtime.actionsEnabled}
                     action={saveLostReasonAction.bind(null, leadId)}
-                    submitLabel="Save lost reason"
+                    submitLabel="保存流失原因"
                   >
                     <SelectInput
                       name="lost_reason_code"
-                      label="Reason"
+                      label="原因"
                       defaultValue=""
                       options={[["", "請選擇原因"], ...optionTuples(crmSettings.lostReasonOptions)]}
                     />
                     <TextAreaInput
                       name="lost_reason_note"
-                      label="Reason note"
+                      label="原因備註"
                       defaultValue={bundle.caseRecord?.lost_reason || ""}
-                      placeholder="Optional note"
+                      placeholder="可選填"
                     />
                   </ActionPanel>
 
                   <ActionPanel
-                    title="Mark invalid"
+                    title="標記無效"
                     enabled={runtime.actionsEnabled}
                     action={markInvalidAction.bind(null, leadId)}
-                    submitLabel="Mark invalid"
+                    submitLabel="標記無效"
                   >
                     <SelectInput
                       name="invalid_reason_code"
-                      label="Reason"
+                      label="原因"
                       defaultValue=""
                       options={[["", "請選擇原因"], ...optionTuples(crmSettings.invalidReasonOptions)]}
                     />
                     <TextAreaInput
                       name="invalid_reason_note"
-                      label="Reason note"
-                      placeholder="Optional note"
+                      label="原因備註"
+                      placeholder="可選填"
                     />
                   </ActionPanel>
                 </section>
@@ -394,57 +376,55 @@ export default async function CrmLeadDetailPage({
                   title="CS 跟進狀態"
                   enabled={runtime.actionsEnabled}
                   action={updateStatusAction.bind(null, leadId)}
-                  submitLabel="Update status"
+                  submitLabel="更新狀態"
                 >
                   <SelectInput
                     name="status"
-                    label="Status"
+                    label="狀態"
                     defaultValue={leadCase.status}
                     options={crmPipelineStatuses.map((item) => [item.value, item.label])}
                   />
                   <TextAreaInput
                     name="status_note"
-                    label="Status note"
-                    placeholder="Optional note"
+                    label="狀態備註"
+                    placeholder="可選填"
                   />
                 </ActionPanel>
 
                 <ActionPanel
-                  title="Assignment"
+                  title="負責人"
                   enabled={runtime.actionsEnabled}
                   action={assignCsAction.bind(null, leadId)}
-                  submitLabel="Save assignment"
+                  submitLabel="保存負責人"
                 >
                   <TextInput
                     name="assigned_to"
-                    label="Assigned CS"
+                    label="負責同事"
                     defaultValue={bundle.caseRecord?.assigned_to || ""}
-                    placeholder="CS name"
+                    placeholder="同事姓名"
                   />
                 </ActionPanel>
 
                 <ActionPanel
-                  title="Follow-up Task"
+                  title="跟進任務"
                   enabled={runtime.actionsEnabled}
                   action={createFollowUpTaskAction.bind(null, leadId)}
-                  submitLabel="Create task"
+                  submitLabel="建立任務"
                 >
                   <TextInput
                     name="task_assigned_to"
-                    label="CS owner"
+                    label="負責同事"
                     defaultValue={bundle.caseRecord?.assigned_to || ""}
                   />
-                  <TextInput name="due_at" type="datetime-local" label="Due at" />
-                  <TextInput name="task_type" label="Task type" defaultValue="follow_up" />
+                  <TextInput name="due_at" type="datetime-local" label="到期時間" />
+                  <TextInput name="task_type" label="任務類型" defaultValue="follow_up" />
                   <TextAreaInput
                     name="task_note"
-                    label="Task note"
-                    placeholder="Follow-up reminder"
+                    label="任務備註"
+                    placeholder="跟進提醒"
                   />
                 </ActionPanel>
 
-                <Placeholder title="Brand Knowledge" body="Treatment FAQ, policies, and brand information will support CS and AI responses." />
-                <Placeholder title="Next Best Action" body="Future CRM can recommend WhatsApp follow-up, booking confirmation, or payment reminders." />
               </aside>
             </div>
             <MarketingTrackingPanel
@@ -475,24 +455,16 @@ function getCrmFeedback(
 ) {
   const success = firstQueryValue(query?.crm_success);
   const error = firstQueryValue(query?.crm_error);
-  const debug = {
-    operation: firstQueryValue(query?.crm_operation) || "-",
-    code: firstQueryValue(query?.crm_code) || "-",
-    message: firstQueryValue(query?.crm_message) || "-",
-    details: firstQueryValue(query?.crm_details) || "-",
-    hint: firstQueryValue(query?.crm_hint) || "-",
-  };
-
   const successMessages: Record<string, string> = {
-    assignment_saved: "Assignment saved.",
-    status_updated: "Status updated. Timeline has been refreshed.",
-    contact_attempt_saved: "Contact attempt saved. Timeline has been refreshed.",
-    booking_confirmed: "Booking confirmed. Timeline has been refreshed.",
-    showed_saved: "Lead marked as showed.",
-    no_show_saved: "Lead marked as no-show.",
-    invalid_saved: "Lead marked as invalid.",
-    follow_up_saved: "Follow-up task saved.",
-    lost_reason_saved: "Lost reason saved.",
+    assignment_saved: "負責人已更新。",
+    status_updated: "狀態已更新。",
+    contact_attempt_saved: "聯絡紀錄已保存。",
+    booking_confirmed: "預約已確認。",
+    showed_saved: "已標記客人到店。",
+    no_show_saved: "已標記客人未到店。",
+    invalid_saved: "已標記為無效 Lead。",
+    follow_up_saved: "跟進安排已保存。",
+    lost_reason_saved: "流失原因已保存。",
   };
 
   if (success && successMessages[success]) {
@@ -505,22 +477,14 @@ function getCrmFeedback(
   if (error === "write_disabled") {
     return {
       kind: "error" as const,
-      message:
-        debug.message !== "-"
-          ? debug.message
-          : "CRM write actions are not enabled yet.",
-      debug: debug.message !== "-" ? debug : undefined,
+      message: "CRM 目前只供查看，暫時未能更新紀錄。",
     };
   }
 
   if (error === "action_failed") {
     return {
       kind: "error" as const,
-      message:
-        debug.message !== "-"
-          ? debug.message
-          : "CRM action could not be saved. Please check CRM table setup and try again.",
-      debug,
+      message: "未能保存呢次操作，請稍後再試。",
     };
   }
 
@@ -536,7 +500,7 @@ function getBookingMeta(metadata: Record<string, unknown> | null | undefined) {
   return {
     paidStatus,
     paidStatusLabel:
-      paidStatus === "paid" ? "Paid" : paidStatus === "unpaid" ? "Unpaid" : "Unknown",
+      paidStatus === "paid" ? "已付款" : paidStatus === "unpaid" ? "未付款" : "未確認",
     roomArrangement: metadataString(metadata, "room_arrangement"),
     bookingNote: metadataString(metadata, "booking_note"),
   };
@@ -547,15 +511,6 @@ function metadataString(metadata: Record<string, unknown> | null | undefined, ke
   return typeof value === "string" ? value : "";
 }
 
-function DebugLine({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="grid gap-1 sm:grid-cols-[88px_1fr]">
-      <dt className="font-bold uppercase text-[#64748b]">{label}</dt>
-      <dd className="break-words text-[#111827]">{value}</dd>
-    </div>
-  );
-}
-
 function CsActionRow({
   whatsappUrl,
   canMarkAttendance,
@@ -564,12 +519,12 @@ function CsActionRow({
   canMarkAttendance: boolean;
 }) {
   const actions = [
-    { href: "#contact-actions", label: "Log contact attempt", primary: false },
-    { href: "#confirm-booking", label: "Confirm booking", primary: true },
-    { href: "#booking-outcomes", label: "Mark showed", primary: false, muted: !canMarkAttendance },
-    { href: "#booking-outcomes", label: "Mark no-show", primary: false, muted: !canMarkAttendance },
-    { href: "#booking-outcomes", label: "Mark lost", primary: false },
-    { href: "#booking-outcomes", label: "Mark invalid", primary: false },
+    { href: "#contact-actions", label: "記錄聯絡", primary: false },
+    { href: "#confirm-booking", label: "確認預約", primary: true },
+    { href: "#booking-outcomes", label: "標記已到店", primary: false, muted: !canMarkAttendance },
+    { href: "#booking-outcomes", label: "標記未到店", primary: false, muted: !canMarkAttendance },
+    { href: "#booking-outcomes", label: "標記已流失", primary: false },
+    { href: "#booking-outcomes", label: "標記無效", primary: false },
   ];
 
   return (
@@ -582,11 +537,11 @@ function CsActionRow({
             rel="noreferrer"
             className="inline-flex h-8 items-center rounded-md bg-[#16a34a] px-3 text-[11px] font-black text-white transition hover:bg-[#15803d]"
           >
-            Open WhatsApp
+            開啟 WhatsApp
           </a>
         ) : (
           <span className="inline-flex h-8 items-center rounded-md bg-[#e5e7eb] px-3 text-[11px] font-black text-[#94a3b8]">
-            No WhatsApp
+            無 WhatsApp
           </span>
         )}
         {actions.map((action) => (
@@ -655,32 +610,29 @@ function WhatsAppConnectionPanel({
             WhatsApp messages
           </h2>
           <p className="mt-1 text-[12px] font-semibold leading-5 text-[#64748b]">
-            Synced WhatsApp messages appear here after the Meta Cloud API
-            connection and SQL migration are active.
+            完成 WhatsApp 連接後，訊息會同步顯示喺呢度。
           </p>
         </div>
         <Link
           href="/crm/settings/whatsapp"
           className="rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-2.5 py-1.5 text-[11px] font-black text-[#111827]"
         >
-          Open WhatsApp Settings
+          WhatsApp 設定
         </Link>
       </div>
       <div className="grid gap-3 p-3.5">
         <div className="grid gap-2 rounded-lg border border-[#eef2f6] bg-[#f8fafc] px-3 py-2 text-[12px] font-semibold text-[#475569] sm:grid-cols-3">
-          <InfoLine label="Customer phone" value={phone || "-"} />
-          <InfoLine label="Connection" value={connectionView.statusLabel} />
+          <InfoLine label="客人電話" value={phone || "-"} />
+          <InfoLine label="連接狀態" value={connectionView.statusLabel} />
           <InfoLine
-            label="Message table"
-            value={messagesTableReady ? "Ready" : "SQL required"}
+            label="訊息紀錄"
+            value={messagesTableReady ? "正常" : "尚未就緒"}
           />
         </div>
 
         {!connected && (
           <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-900">
-            WhatsApp is not ready yet. Apply the SQL migration, set
-            `WHATSAPP_CREDENTIAL_ENCRYPTION_KEY`, then save the Ineffable
-            connection in settings.
+            WhatsApp 尚未完成設定，請聯絡系統管理員。
           </div>
         )}
 
@@ -761,7 +713,7 @@ function ActionPanel({
               : "bg-[#fef3c7] text-[#92400e]"
           }`}
         >
-          {enabled ? "Enabled" : "Disabled"}
+          {enabled ? "可操作" : "只讀"}
         </span>
       </div>
       <form action={action} className="mt-3 grid gap-2">
@@ -801,35 +753,35 @@ function MarketingTrackingPanel({
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <h2 className="text-[13px] font-bold text-[#111827]">
-              Marketing / Tracking 資料（內部分析用）
+              營銷及追蹤資料
             </h2>
             <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
               預設收合。這些資料只供報表及 Marketing 分析，不應用來判斷是否已預約。
             </p>
           </div>
           <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
-            Analysis only
+            只供分析
           </span>
         </div>
       </summary>
       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold text-[#64748b]">
-            展開後只供內部分析排查；CS booking workflow 不需要依賴這些欄位。
+            呢啲欄位只供營銷分析，預約狀態以已確認預約為準。
           </p>
         </div>
       </div>
 
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
-        <Panel title="Source">
-          <InfoLine label="CRM source" value={leadCase.sourceLabel} />
-          <InfoLine label="Raw source type" value={leadCase.sourceTypeRaw} />
-          <InfoLine label="Landing page" value={leadCase.landingPageSlug || "-"} />
-          <InfoLine label="Form token" value={formToken} />
-          <InfoLine label="Page URL" value={leadCase.pageUrl || "-"} />
+        <Panel title="來源">
+          <InfoLine label="CRM 來源" value={leadCase.sourceLabel} />
+          <InfoLine label="來源類型" value={leadCase.sourceTypeRaw} />
+          <InfoLine label="登記頁" value={leadCase.landingPageSlug || "-"} />
+          <InfoLine label="表格識別" value={formToken} />
+          <InfoLine label="頁面網址" value={leadCase.pageUrl || "-"} />
           <InfoLine label="Campaign" value={leadCase.campaignLabel} />
-          <InfoLine label="Ad / Content" value={leadCase.adLabel} />
-          <InfoLine label="Lost reason" value={lostReason} />
+          <InfoLine label="廣告內容" value={leadCase.adLabel} />
+          <InfoLine label="流失原因" value={lostReason} />
         </Panel>
 
         <Panel title="CTWA / WhatsApp Ad">
@@ -846,7 +798,7 @@ function MarketingTrackingPanel({
             </>
           ) : (
             <p className="text-[12px] leading-5 text-[#64748b]">
-              No WhatsApp ad referral data yet. Future connection can enrich this block later.
+              暫未有 WhatsApp 廣告來源資料。
             </p>
           )}
         </Panel>
@@ -1012,9 +964,9 @@ function TimelinePanel({ interactions }: { interactions: CrmInteractionRecord[] 
   return (
     <section className="rounded-lg border border-[#e5e7eb] bg-white p-3.5 xl:col-span-3">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[13px] font-bold text-[#111827]">Timeline</h2>
+        <h2 className="text-[13px] font-bold text-[#111827]">活動紀錄</h2>
         <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
-          Internal log
+          內部紀錄
         </span>
       </div>
       {interactions.length > 0 ? (
@@ -1043,30 +995,9 @@ function TimelinePanel({ interactions }: { interactions: CrmInteractionRecord[] 
         </ol>
       ) : (
         <p className="mt-3 rounded-md bg-[#f8fafc] px-3 py-3 text-[12px] font-semibold text-[#64748b]">
-          No CRM interactions yet.
+          暫未有活動紀錄。
         </p>
       )}
-    </section>
-  );
-}
-
-function Placeholder({ title, body }: { title: string; body: string }) {
-  return (
-    <section className="rounded-lg border border-dashed border-[#cbd5e1] bg-white p-3.5">
-      <div className="flex items-center justify-between gap-3">
-        <h2 className="text-[13px] font-bold text-[#111827]">{title}</h2>
-        <span className="rounded-md bg-[#f1f5f9] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
-          Later
-        </span>
-      </div>
-      <p className="mt-2 text-[12px] leading-5 text-[#64748b]">{body}</p>
-      <button
-        type="button"
-        disabled
-        className="mt-3 h-7 whitespace-nowrap rounded-md bg-[#e5e7eb] px-2.5 text-[10px] font-bold text-[#94a3b8]"
-      >
-        Coming soon
-      </button>
     </section>
   );
 }

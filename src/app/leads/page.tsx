@@ -120,7 +120,7 @@ export default async function LeadsPage({
             <div className="flex min-w-0 flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0">
                 <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-                  Enquiry Records
+                  查詢紀錄
                 </p>
                 <h1 className="mt-2 text-3xl font-bold text-[#321428]">
                   登記查詢紀錄

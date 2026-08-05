@@ -37,7 +37,7 @@ export async function archiveLandingPageAction(formData: FormData) {
   );
 
   if (!confirmed) {
-    redirectWithMessage(returnTo, "Archive not applied. Tick the confirmation checkbox first.");
+    redirectWithMessage(returnTo, "尚未封存；請先勾選封存確認。");
   }
 
   const result = await archiveLandingPage(pageId);
@@ -59,7 +59,7 @@ export async function deleteLandingPageAction(formData: FormData) {
   if (!confirmed) {
     redirectWithMessage(
       returnTo,
-      "Delete not applied. Tick the permanent delete confirmation first."
+      "尚未刪除；請先勾選永久刪除確認。"
     );
   }
 

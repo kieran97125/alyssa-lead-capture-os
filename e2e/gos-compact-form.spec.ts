@@ -460,6 +460,17 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
   });
 
   await page.goto("/login", { waitUntil: "domcontentloaded" });
+  const formDocumentResponse = page.waitForResponse(
+    (response) => {
+      const responseUrl = new URL(response.url());
+      return (
+        responseUrl.pathname === `/embed/${formToken}` &&
+        response.status() === 200
+      );
+    },
+    { timeout: 45_000 }
+  );
+
   await page.evaluate(
     ({ targetId, token, id }) => {
       const target = document.createElement("div");
@@ -482,8 +493,10 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
     }
   );
 
+  await formDocumentResponse;
+
   const form = page.frameLocator('iframe[title="Campaign registration form"]');
-  await expect(form.getByLabel("姓名")).toBeVisible();
+  await expect(form.getByLabel("姓名")).toBeVisible({ timeout: 15_000 });
   await form.getByLabel("姓名").fill("GOS Redirect");
   await form.getByLabel("聯絡電話").fill("93456789");
   await form.getByLabel("預約日期").fill("2026-08-12");

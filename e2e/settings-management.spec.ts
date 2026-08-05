@@ -19,11 +19,11 @@ test("Growth OS keeps grouped navigation and settings overview compact", async (
   const primaryNavLinks = page
     .getByRole("navigation", { name: "主要功能" })
     .getByRole("link");
-  await expect(primaryNavLinks).toHaveCount(11);
+  await expect(primaryNavLinks).toHaveCount(12);
   await expect(
     page
       .getByRole("navigation", { name: "主要功能" })
-      .getByRole("link", { name: "每日 Overview" })
+      .getByRole("link", { name: "每日總覽" })
   ).toBeVisible();
   await expect(
     page

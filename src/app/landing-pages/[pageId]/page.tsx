@@ -62,9 +62,6 @@ export default async function LandingPageConfigPage({
     latestDraftVersionNumber,
     publishedVersionNumber,
     loadedFrom,
-    pageRecordId,
-    versionId,
-    versionCreatedAt,
   } = editorData;
   const context = getLandingPageContext(page);
   const connectedForm =
@@ -128,17 +125,6 @@ export default async function LandingPageConfigPage({
   const canSaveDraftAction = true;
   const canPublishAction = true;
   const contentSections = getResolvedLandingPageContentSections(page);
-  const editorDebugItems = [
-    `loadedFrom=${loadedFrom}`,
-    `pageId=${pageRecordId ?? page.id}`,
-    `slug=${page.slug}`,
-    `versionId=${versionId ?? "none"}`,
-    `versionCreatedAt=${versionCreatedAt ?? "none"}`,
-    `updatedAt=${page.updatedAt ?? "none"}`,
-    `publishedAt=${page.publishedAt ?? "none"}`,
-    `contentSections=${contentSections.length}`,
-  ];
-
   return (
     <main className="alyssa-shell">
       <AppNav />
@@ -217,7 +203,7 @@ export default async function LandingPageConfigPage({
               </button>
               {!canPublishAction && (
                 <p className="max-w-[260px] rounded-2xl bg-[#fff6f0] px-4 py-3 text-sm font-bold leading-6 text-[#5a2348]">
-                  只有 Owner 可以發布公開頁。
+                  只有系統擁有人可以發布公開頁。
                 </p>
               )}
             </div>
@@ -236,9 +222,6 @@ export default async function LandingPageConfigPage({
             <InfoPill label="發布時間" value={formatDate(page.publishedAt)} />
             <InfoPill label="公開頁" value={publicDisplay} />
           </div>
-          <p className="mt-3 rounded-2xl bg-[#3b2433] px-4 py-3 font-mono text-xs leading-6 text-white/80">
-            {editorDebugItems.join(" · ")}
-          </p>
         </section>
 
         <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_390px]">

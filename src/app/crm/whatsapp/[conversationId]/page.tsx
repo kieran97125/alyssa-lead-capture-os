@@ -35,9 +35,9 @@ export default async function WhatsAppConversationPage({
       <CrmShell active="whatsapp">
         <div className="p-6">
           <div className="rounded-xl border border-red-200 bg-red-50 p-5 text-red-900">
-            <h1 className="text-lg font-black">Phase 2B SQL 尚未套用</h1>
+            <h1 className="text-lg font-black">WhatsApp 對話暫時未能使用</h1>
             <p className="mt-2 text-sm font-semibold">
-              請先 review 並套用 docs/CRM_WHATSAPP_PHASE2B_APPLY.sql。
+              功能尚未完成設定，請聯絡系統管理員。
             </p>
           </div>
         </div>
@@ -265,8 +265,8 @@ function ServiceWindowBadge({
 }) {
   const content = {
     open: ["可自由回覆", "border-emerald-200 bg-emerald-50 text-emerald-700"],
-    template_required: ["客服視窗已關閉 · Template required", "border-amber-200 bg-amber-50 text-amber-800"],
-    unknown: ["首次聯絡 · Template required", "border-slate-200 bg-slate-50 text-slate-700"],
+    template_required: ["客服視窗已關閉 · 請使用已批准範本", "border-amber-200 bg-amber-50 text-amber-800"],
+    unknown: ["首次聯絡 · 請使用已批准範本", "border-slate-200 bg-slate-50 text-slate-700"],
   } as const;
   const [label, className] = content[state];
   return (

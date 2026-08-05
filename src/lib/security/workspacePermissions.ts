@@ -9,6 +9,7 @@ export const workspaceModuleKeys = [
   "data_sources",
   "settings",
   "system_audit",
+  "lead_audit",
 ] as const;
 
 export type WorkspaceModuleKey = (typeof workspaceModuleKeys)[number];
@@ -123,6 +124,7 @@ export function getWorkspaceModuleForPath(
   if (pathname.startsWith("/calendar")) return "calendar";
   if (pathname.startsWith("/data-sources")) return "data_sources";
   if (pathname.startsWith("/leads")) return "leads";
+  if (pathname.startsWith("/lead-audit")) return "lead_audit";
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/performance")) return "performance";
   if (pathname.startsWith("/settings/planning")) return "kpis";

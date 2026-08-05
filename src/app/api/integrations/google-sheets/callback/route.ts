@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
 
   if (!session.ok || session.access.accessLevel !== "master") {
     return clearStateCookie(
-      resultRedirect(request, false, "Google 授權只限 Master Account 完成。")
+      resultRedirect(request, false, "Google 授權只限系統擁有人完成。")
     );
   }
   if (

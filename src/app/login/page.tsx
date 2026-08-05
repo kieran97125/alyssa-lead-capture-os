@@ -7,7 +7,6 @@ import {
 } from "@/lib/security/internalAccess";
 import {
   isBreakGlassPasswordEnabled,
-  isWorkspaceEmailAuthRequired,
   safeInternalNextPath,
 } from "@/lib/supabase/authConfig";
 
@@ -31,7 +30,6 @@ export default async function LoginPage({
   const error = Array.isArray(query?.error) ? query?.error[0] : query?.error;
   const warning = getAdminPasswordGateWarning();
   const gateEnabled = isAdminPasswordGateEnabled();
-  const emailAuthRequired = isWorkspaceEmailAuthRequired();
   const showPasswordFallback =
     gateEnabled && isBreakGlassPasswordEnabled();
 
@@ -50,8 +48,7 @@ export default async function LoginPage({
               受邀帳戶登入
             </h1>
             <p className="mt-4 text-sm font-semibold leading-6 text-[#6d4a5c]">
-              安全登入連結只會由 Master 喺「成員及權限」頁寄出。
-              請直接使用收到嘅電郵連結；登入頁唔會自行寄信。
+              請使用電郵內嘅安全登入連結進入系統。
             </p>
           </div>
 
@@ -66,13 +63,13 @@ export default async function LoginPage({
               {error === "invalid_password"
                 ? "Password 不正確，請再試一次。"
                 : error === "master_required"
-                  ? "呢個頁面只限 Master Account。請使用 Master 身份重新登入。"
+                  ? "呢個頁面只限系統擁有人使用。"
                   : error === "permission_denied"
                     ? "你目前角色未獲授權使用呢個模組。"
                     : error === "not_invited"
                       ? "此公司電郵未受邀、已停用，或者邀請尚未完成。"
                       : error === "email_send_failed"
-                        ? "暫時未能寄出登入電郵，請稍後重試或請 Owner 重發邀請。"
+                        ? "暫時未能寄出登入電郵，請聯絡系統管理員重發。"
                         : error === "email_required"
                           ? "系統已轉用受邀公司電郵登入。"
                           : "電郵登入設定尚未完成。"}
@@ -84,7 +81,7 @@ export default async function LoginPage({
             <div>
               <strong className="text-sm">未收到或者需要新連結？</strong>
               <p className="mt-1 text-xs font-semibold leading-5 text-[#7a596a]">
-                請聯絡 Master，由佢喺帳戶列表核對你嘅狀態及權限，再按「重發邀請」或「寄出新登入連結」。
+                請聯絡系統管理員重新發送登入連結。
               </p>
             </div>
           </div>
@@ -93,7 +90,7 @@ export default async function LoginPage({
             <details className="mt-6 rounded-2xl border border-[#ead9cf] bg-[#fff9f3]">
               <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-bold text-[#5a2348]">
                 <ShieldCheck size={16} />
-                {emailAuthRequired ? "緊急管理員登入" : "切換期間管理員登入"}
+                緊急管理員登入
               </summary>
               <form
                 action={loginAction}

@@ -38,14 +38,14 @@ export default async function PlanningSettingsPage({
         <div className="command-page-inner">
           <header className="command-page-header">
             <div>
-              <p className="command-page-kicker">Planning Control</p>
+              <p className="command-page-kicker">月度目標</p>
               <h1 className="command-page-title">月度 Budget／KPI 設定</h1>
               <p className="command-page-subtitle">
                 設定 {snapshot.month.label}各品牌預算、Lead、Book、Show
                 及內容產量。儲存後主頁同 KPI 頁會立即使用同一口徑。
               </p>
               <p className="planning-access-note">
-                Manager 可修改全部品牌 KPI；Team、資料來源及其它系統設定權限不受影響。
+                獲授權經理可修改全部品牌 KPI，其它系統權限不受影響。
               </p>
             </div>
             <span className="planning-month-chip">
@@ -65,7 +65,7 @@ export default async function PlanningSettingsPage({
           ) : null}
           {!snapshot.schemaReady ? (
             <p className="command-status-message">
-              Migration 尚未套用；可先檢視表格，正式上線時先會寫入設定。
+              目標設定暫時只供查看，請聯絡系統管理員完成設定。
             </p>
           ) : null}
 

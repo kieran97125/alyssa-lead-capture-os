@@ -85,9 +85,9 @@ export default async function BrandWorkspacePage({
         <header className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="alyssa-kicker">Brand Workspace</p>
+              <p className="alyssa-kicker">品牌營運</p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                {selectedBrand?.name || "Brand Workspace"}
+                {selectedBrand?.name || "品牌營運"}
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
                 以品牌為中心管理表格、療程、分店、Landing Page、Leads 同 Wix 上線資料，避免 Alyssa 同 Ineffable 設定混用。
@@ -112,48 +112,48 @@ export default async function BrandWorkspacePage({
         </header>
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <WorkspaceStat label="Forms" value={forms.length} />
+          <WorkspaceStat label="表格" value={forms.length} />
           <WorkspaceStat
-            label="Published LP"
+            label="已發布廣告頁"
             value={pages.filter((page) => page.status === "published").length}
           />
-          <WorkspaceStat label="Leads 本月" value={leads.length} />
-          <WorkspaceStat label="Branches" value={branches.length} />
-          <WorkspaceStat label="Treatments" value={treatments.length} />
+          <WorkspaceStat label="本月 Lead" value={leads.length} />
+          <WorkspaceStat label="分店" value={branches.length} />
+          <WorkspaceStat label="療程" value={treatments.length} />
         </section>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <MotionReveal>
             <section className="alyssa-premium-card p-5">
-              <p className="alyssa-kicker">Quick Actions</p>
+              <p className="alyssa-kicker">快速操作</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                {selectedBrand?.name} Launch 工作區
+                {selectedBrand?.name} 工作區
               </h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <ActionCard
                   href={`/forms/new?brand=${selectedBrand?.slug || ""}`}
-                  title="Create Wix Form"
+                  title="建立 Wix 表格"
                   body="選療程、優惠、分店，生成可貼入 Wix 的表格。"
                 />
                 <ActionCard
                   href={`/campaigns/new?brand=${selectedBrand?.slug || ""}`}
-                  title="Create Landing Page"
+                  title="建立廣告頁"
                   body="建立一頁廣告 Landing Page，連接同一套 lead capture。"
                 />
                 <ActionCard
                   href={`/settings/treatments?brand=${selectedBrand?.slug || ""}`}
-                  title="Treatment Library"
+                  title="療程管理"
                   body="查看此品牌可用療程及可建立表格的項目。"
                 />
                 <ActionCard
                   href={`/settings/branches?brand=${selectedBrand?.slug || ""}`}
-                  title="Branch Library"
+                  title="分店管理"
                   body="查看此品牌分店資料，確保表格只顯示正確分店。"
                 />
                 <ActionCard
                   href="/crm"
                   title="CRM 工作台"
-                  body="跟進客人、確認預約、記錄 CS 對話及追蹤 Show / No-show。"
+                  body="跟進客人、確認預約、記錄對話及到店結果。"
                 />
               </div>
             </section>
@@ -161,7 +161,7 @@ export default async function BrandWorkspacePage({
 
           <MotionReveal delay={0.08}>
             <section className="alyssa-premium-card p-5">
-              <p className="alyssa-kicker">Setup Status</p>
+              <p className="alyssa-kicker">設定狀態</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
                 上線前檢查
               </h2>
@@ -170,30 +170,30 @@ export default async function BrandWorkspacePage({
                   label="Meta Pixel"
                   value={
                     brandDefaults.conversionMode === "thank_you_redirect"
-                      ? `${brandDefaults.pixelIdReference || pixelId || "Not set"} · Wix thank-you owns CompleteRegistration`
+                      ? `${brandDefaults.pixelIdReference || pixelId || "未設定"} · 由 Wix 成功頁記錄轉化`
                       : pixelId
                         ? `已設定：${pixelId}`
-                        : "未設定，embed 會省略 data-pixel-id"
+                        : "未設定，嵌入碼不會加入 Pixel"
                   }
                   good={Boolean(pixelId)}
                 />
                 <SetupRow
-                  label="Allowed domains"
+                  label="允許網域"
                   value={suggestedDomains.join(", ")}
                   good
                 />
                 <SetupRow
-                  label="Website / thank-you"
-                  value={`${brandDefaults.websiteDomain || suggestedDomains[0] || "未設定"} → ${brandDefaults.thankYouUrl || "Default brand flow"}`}
+                  label="網站／成功頁"
+                  value={`${brandDefaults.websiteDomain || suggestedDomains[0] || "未設定"} → ${brandDefaults.thankYouUrl || "品牌預設流程"}`}
                   good={Boolean(suggestedDomains[0])}
                 />
                 <SetupRow
-                  label="Default conversion mode"
+                  label="轉化方式"
                   value={brandDefaults.conversionMode}
                   good
                 />
                 <SetupRow
-                  label="Google Sheet Sync"
+                  label="Google Sheet 同步"
                   value={
                     process.env.GOOGLE_SHEETS_SYNC_ENABLED === "true"
                       ? "已啟用"
@@ -210,7 +210,7 @@ export default async function BrandWorkspacePage({
           <section className="alyssa-premium-card min-w-0 p-5">
             <div className="flex items-center justify-between gap-3">
               <div>
-                <p className="alyssa-kicker">Recent Forms</p>
+                <p className="alyssa-kicker">最近表格</p>
                 <h2 className="mt-2 text-xl font-bold text-[#321428]">
                   此品牌表格
                 </h2>
@@ -219,7 +219,7 @@ export default async function BrandWorkspacePage({
                 href={`/forms?brand=${selectedBrand?.slug || ""}`}
                 className="rounded-full border border-[#ead9cf] bg-white px-4 py-2 text-sm font-bold text-[#5a2348]"
               >
-                View all
+                查看全部
               </Link>
             </div>
             <div className="mt-4 grid gap-3">
@@ -241,12 +241,12 @@ export default async function BrandWorkspacePage({
                         </p>
                       </div>
                       <div className="flex shrink-0 flex-wrap gap-2">
-                        <CopyButton value={ops.embedCode} label="Copy Embed" />
+                        <CopyButton value={ops.embedCode} label="複製嵌入碼" />
                         <Link
                           href={`/forms/${form.id}`}
                           className="rounded-full bg-[#5a2348] px-3 py-1.5 text-xs font-bold text-white"
                         >
-                          Edit
+                          編輯
                         </Link>
                       </div>
                     </div>
@@ -267,10 +267,10 @@ export default async function BrandWorkspacePage({
               廣告 URL 參數
             </h2>
             <p className="mt-2 text-sm leading-6 text-[#6d4a5c]">
-              貼到 Meta Ads 的 URL Parameters。正式廣告不要加入 pixel_debug 或 attribution_debug。
+              貼到 Meta Ads 的 URL Parameters；正式廣告請使用不含測試參數嘅連結。
             </p>
             <div className="mt-4">
-              <CopyButton value={META_URL_PARAMETER_GUIDE} label="Copy URL Parameters" />
+              <CopyButton value={META_URL_PARAMETER_GUIDE} label="複製 URL 參數" />
             </div>
             <pre className="mt-4 max-h-48 overflow-auto rounded-2xl bg-[#321428] p-4 text-xs leading-6 text-[#fff9f3]">
               {META_URL_PARAMETER_GUIDE}

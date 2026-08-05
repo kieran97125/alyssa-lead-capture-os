@@ -114,10 +114,10 @@ export default async function DataSourcesPage({
         <div className="command-page-inner">
           <header className="command-page-header">
             <div>
-              <p className="command-page-kicker">Connections</p>
+              <p className="command-page-kicker">資料連接</p>
               <h1 className="command-page-title">資料來源</h1>
               <p className="command-page-subtitle">
-                CS Lead Sheet 繼續提供 Lead／Book／Show；廣告費改由系統 Daily Ledger 管理。舊月份 Overview Link 只保留作歷史對數，唔再同步或參與 KPI。
+                管理 Lead Sheet、廣告費資料同各來源嘅同步狀態。
               </p>
             </div>
             <a href="/performance/daily" className="command-primary-button">
@@ -137,7 +137,7 @@ export default async function DataSourcesPage({
           ) : null}
           {!snapshot.schemaReady ? (
             <p className="command-status-message">
-              Migration 尚未套用；資料來源表目前只供檢視，未能儲存。
+              資料連接暫時只供查看，請聯絡系統管理員完成設定。
             </p>
           ) : null}
 
@@ -164,14 +164,14 @@ export default async function DataSourcesPage({
               </strong>
               <p>
                 {!canManageGoogleConnection
-                  ? "你目前以一般 Admin 登入；Google 帳戶授權只限 Master。請先重新登入 Master，避免撳掣後原地返回。"
+                  ? "你目前未有 Google 連接權限，請由系統擁有人處理。"
                   : googleLeadWriteReady
                   ? "公司 Google 帳戶已連接；只會同步 CS Lead Sheet 嘅 Lead／Book／Show 及寫入 Lead。廣告費唔再經 Google Sheet。"
                   : googleConnectionStatus.connected
-                    ? "現有連接只具唯讀權限；請重新授權一次，升級後先可直接寫入 CS Lead Sheet。"
+                    ? "現有連接只具唯讀權限；重新連接後先可直接寫入 CS Lead Sheet。"
                   : googleConnectionStatus.ready
-                    ? "以擁有相關 Sheet 編輯權限嘅公司 Gmail 授權一次，毋須 Service Account、JSON Key 或 Apps Script Web App。"
-                    : "OAuth Client 部署設定未完成；以下會列出真正欠缺項目，系統未曾驗證任何 Google 帳戶。"}
+                    ? "請使用擁有相關 Sheet 編輯權限嘅公司 Google 帳戶連接。"
+                    : "Google 連接尚未完成設定。"}
               </p>
               {canManageGoogleConnection &&
               missingGoogleOAuthConfiguration.length > 0 ? (
@@ -220,8 +220,7 @@ export default async function DataSourcesPage({
                 {missingGoogleOAuthConfiguration.length > 0 ||
                 !googleConnectionStatus.tableReady ? (
                   <small id="google-oauth-readiness-note">
-                    撳後會檢查連接設定並顯示實際欠缺項目；未準備好之前唔會開啟
-                    Google。
+                    系統會先檢查連接狀態，設定完整後先會開啟 Google 授權。
                   </small>
                 ) : null}
               </form>
@@ -229,10 +228,10 @@ export default async function DataSourcesPage({
               <a
                 href="/logout"
                 className="command-primary-button"
-                aria-label="登出並以 Master 重新登入"
+                aria-label="登出並以系統擁有人身份重新登入"
               >
                 <Link2 size={15} />
-                以 Master 重新登入
+                以系統擁有人身份登入
               </a>
             )}
           </section>
@@ -243,10 +242,10 @@ export default async function DataSourcesPage({
           >
             <header className="monthly-workbook-header">
               <div>
-                <p>Retired spend lineage</p>
+                <p>歷史對數</p>
                 <h2>舊月份廣告費數據表</h2>
                 <span>
-                  月份 Sheet 接駁已退役；所有原始 Link、最後同步及品牌對應保留作核數。新 Spend 請到「每日 Overview」按類型直接填寫。
+                  舊月份 Sheet 只保留作對數；新廣告費請到「每日總覽」按類型填寫。
                 </span>
               </div>
               <History size={24} />
@@ -258,7 +257,7 @@ export default async function DataSourcesPage({
                   <History size={17} />
                   <div>
                     <strong>歷史數據表</strong>
-                    <span>只讀原始 Link、品牌對應及最後成功時間</span>
+                    <span>只供開啟數據表、核對品牌及查看最後成功時間</span>
                   </div>
                 </div>
                 <span>{workbookHistory.length} 個記錄</span>
@@ -316,7 +315,6 @@ export default async function DataSourcesPage({
           <section className="command-surface source-registry">
             <header className="source-registry-header">
               <div>
-                <p>Registry</p>
                 <h2>正式資料來源</h2>
               </div>
               <span>{standaloneSources.length} 個來源</span>
@@ -343,7 +341,7 @@ export default async function DataSourcesPage({
                         brandName={
                           snapshot.brands.find(
                             (brand) => brand.id === source.brandId
-                          )?.name ?? "全 Workspace"
+                          )?.name ?? "全部品牌"
                         }
                       />
                     ))
@@ -354,7 +352,7 @@ export default async function DataSourcesPage({
                           <DatabaseZap size={22} />
                           <strong>未有正式資料來源</strong>
                           <span>
-                            請先完成 CS Lead Sheet 連接；Spend 帳簿會由 migration 自動建立。
+                            請先完成 CS Lead Sheet 連接；廣告費會直接保存在系統帳簿。
                           </span>
                         </div>
                       </td>
@@ -371,7 +369,7 @@ export default async function DataSourcesPage({
           >
             <header>
               <div>
-                <p>New connection</p>
+                <p>新增連接</p>
                 <h2>CS Lead Sheet 進階設定</h2>
                 <span>
                   呢區只用作管理 Lead／Book／Show 嘅 CS Lead Sheet。廣告費唔接受再新增 Google Sheet 來源。
@@ -384,7 +382,7 @@ export default async function DataSourcesPage({
               <label>
                 <span>品牌</span>
                 <select name="brandId" defaultValue="">
-                  <option value="">全 Workspace（多品牌）</option>
+                  <option value="">全部品牌（跨品牌）</option>
                   {snapshot.brands.map((brand) => (
                     <option key={brand.id} value={brand.id}>
                       {brand.name}
@@ -405,7 +403,7 @@ export default async function DataSourcesPage({
                 </select>
               </label>
               <label>
-                <span>Dataset Profile</span>
+                <span>資料格式</span>
                 <select name="dataset" defaultValue="lead_funnel">
                   <option value="lead_funnel">
                     Lead Funnel（Lead／Book／Show／療程成效）
@@ -446,7 +444,7 @@ export default async function DataSourcesPage({
                 <summary>進階欄位 Mapping</summary>
                 <div className="source-mapping-grid">
                   <label>
-                    <span>Header Row</span>
+                    <span>標題列</span>
                     <input
                       name="headerRow"
                       type="number"

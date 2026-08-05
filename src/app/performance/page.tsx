@@ -157,12 +157,10 @@ export default async function TreatmentPerformancePage({
         <div className="command-page-inner">
           <header className="command-page-header treatment-performance-header">
             <div>
-              <p className="command-page-kicker">Growth Intelligence</p>
+              <p className="command-page-kicker">成效分析</p>
               <h1 className="command-page-title">療程成效</h1>
               <p className="command-page-subtitle">
-                由 Lead 到預約及到店，睇清邊個療程真正帶來成果，再落到來源同
-                Campaign 找出下一步優化位置；品牌層同步顯示廣告費同 CPL、
-                CPBook、CPShow。
+                按品牌、療程、來源同 Campaign 比較 Lead、預約、到店、廣告費及成本效率。
               </p>
               <div className="treatment-source-line">
                 <span
@@ -173,7 +171,7 @@ export default async function TreatmentPerformancePage({
                 </span>
                 <span>
                   <DatabaseZap size={14} />
-                  {snapshot.sourceName} · <code>lead</code> 分頁
+                  Lead Sheet
                 </span>
                 <span>
                   <Clock3 size={14} />
@@ -194,7 +192,7 @@ export default async function TreatmentPerformancePage({
                     value={performanceHref(snapshot.filters, {})}
                   />
                   <DashboardRefreshButton disabled={refreshDisabled} />
-                  <small>只同步來源，唔會改動 Lead 表內容</small>
+                  <small>同步後會更新本頁數據</small>
                 </form>
               ) : null}
               {access.accessLevel === "master" ? (
@@ -535,9 +533,9 @@ export default async function TreatmentPerformancePage({
               </p>
               <p>
                 呢頁只保存品牌、療程、來源、Campaign、分店及每日數量彙總；唔保存姓名、電話、Email、Lead
-                Key 或 CS Remark。廣告費只讀品牌級 Daily Spend Ledger；如篩選到
+                Key 或 CS Remark。廣告費只讀品牌級系統廣告費帳簿；如篩選到
                 單一療程、來源或 Campaign，成本會顯示未分配，唔會用 Lead 比例估算。
-                亦唔讀 <code>mkt_dashboard</code> 分頁。
+                亦唔會重複讀取舊報表數據。
               </p>
             </div>
           </section>

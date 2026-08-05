@@ -32,7 +32,7 @@ export default async function BrandSettingsPage({
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-            Settings
+            系統設定
           </p>
           <h1 className="mt-2 text-3xl font-bold text-[#321428]">品牌資料</h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">

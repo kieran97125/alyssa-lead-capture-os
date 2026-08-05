@@ -48,15 +48,15 @@ function formMatchesSearch(form: FormSetting, search: string) {
 }
 
 function archiveViewLabel(view: ArchiveView) {
-  if (view === "archived") return "Archived / legacy";
-  if (view === "all") return "All";
-  return "Active";
+  if (view === "archived") return "已封存／舊版本";
+  if (view === "all") return "全部";
+  return "使用中";
 }
 
 function formStatusLabel(status: string, isLegacy: boolean) {
-  if (isArchivedStatus(status)) return "Archived";
-  if (isLegacy) return "Legacy cleanup";
-  return status || "Active";
+  if (isArchivedStatus(status)) return "已封存";
+  if (isLegacy) return "待整理舊版本";
+  return status || "使用中";
 }
 
 function buildFormsHref(
@@ -137,7 +137,7 @@ export default async function FormsPage({
         <header className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="alyssa-kicker">Forms</p>
+              <p className="alyssa-kicker">表格管理</p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
                 Wix 登記表格
               </h1>
@@ -166,10 +166,10 @@ export default async function FormsPage({
           <div className="mb-4">
             <div>
               <p className="text-sm font-bold text-[#321428]">
-                View: {archiveViewLabel(selectedArchive)}
+                顯示：{archiveViewLabel(selectedArchive)}
               </p>
               <p className="mt-1 text-xs font-semibold text-[#7b5a6a]">
-                {activeCount} active · {archivedCount} archived / legacy
+                {activeCount} 使用中 · {archivedCount} 已封存／舊版本
               </p>
             </div>
           </div>
@@ -178,21 +178,21 @@ export default async function FormsPage({
             method="get"
           >
             <FilterSelect
-              label="View"
+              label="顯示"
               name="archive"
               value={selectedArchive}
               options={[
-                { value: "active", label: `Active (${activeCount})` },
+                { value: "active", label: `使用中 (${activeCount})` },
                 {
                   value: "archived",
-                  label: `Archived / legacy (${archivedCount})`,
+                  label: `已封存／舊版本 (${archivedCount})`,
                 },
-                { value: "all", label: `All (${config.forms.length})` },
+                { value: "all", label: `全部 (${config.forms.length})` },
               ]}
               includeAll={false}
             />
             <FilterSelect
-              label="Brand"
+              label="品牌"
               name="brand"
               value={brand?.slug || ""}
               options={config.brands.map((item) => ({
@@ -201,7 +201,7 @@ export default async function FormsPage({
               }))}
             />
             <FilterSelect
-              label="Treatment"
+              label="療程"
               name="treatment"
               value={selectedTreatment}
               options={config.treatments
@@ -209,7 +209,7 @@ export default async function FormsPage({
                 .map((item) => ({ value: item.id, label: item.name }))}
             />
             <FilterSelect
-              label="Branch"
+              label="分店"
               name="branch"
               value={selectedBranch}
               options={config.branches
@@ -217,7 +217,7 @@ export default async function FormsPage({
                 .map((item) => ({ value: item.id, label: item.name }))}
             />
             <FilterSelect
-              label="Status"
+              label="狀態"
               name="status"
               value={selectedStatus}
               options={Array.from(new Set(config.forms.map((form) => form.status))).map(
@@ -231,7 +231,7 @@ export default async function FormsPage({
               <input
                 name="q"
                 defaultValue={search}
-                placeholder="Form name / token / ID"
+                placeholder="表格名稱／識別碼"
                 className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none focus:border-[#e46f64] focus:bg-white"
               />
             </label>
@@ -250,12 +250,12 @@ export default async function FormsPage({
               <thead className="bg-[#fff6f0] text-xs font-bold uppercase tracking-[0.12em] text-[#9a5d76]">
                 <tr>
                   {[
-                    "Form name",
-                    "Brand",
-                    "Treatment / Campaign Offer",
-                    "Branch",
-                    "Status / Updated",
-                    "Actions",
+                    "表格名稱",
+                    "品牌",
+                    "療程／Campaign 優惠",
+                    "分店",
+                    "狀態／更新時間",
+                    "操作",
                   ].map((heading) => (
                     <th key={heading} className="px-4 py-3">
                       {heading}
@@ -330,19 +330,19 @@ export default async function FormsPage({
                             <div className="mt-2 grid w-72 gap-2 rounded-2xl border border-[#ead9cf] bg-white p-3 shadow-[0_18px_42px_rgba(90,35,72,0.12)]">
                               <CopyButton
                                 value={ops.embedCode}
-                                label="Copy Wix Embed"
+                                label="複製 Wix 嵌入碼"
                               />
                               <Link
                                 href={`/embed/${form.publicFormToken}`}
                                 className="rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-center text-xs font-bold text-[#5a2348]"
                               >
-                                Open Test Form
+                                預覽表格
                               </Link>
                               <Link
                                 href={`/leads?form=${form.publicFormToken}`}
                                 className="rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-center text-xs font-bold text-[#5a2348]"
                               >
-                                View Leads
+                                查看 Leads
                               </Link>
                               <form action={duplicateFormAction}>
                                 <input
@@ -354,11 +354,11 @@ export default async function FormsPage({
                                   className="w-full rounded-full border border-[#ead9cf] bg-white px-3 py-1.5 text-xs font-bold text-[#5a2348]"
                                   pendingLabel="複製中…"
                                 >
-                                  Duplicate
+                                  複製表格
                                 </SubmitButton>
                               </form>
                               <p className="text-xs font-semibold leading-5 text-[#7b5a6a]">
-                                Archive hides this form from active lists. Safe delete only works when no linked leads or landing pages are found.
+                                封存後會移出使用中列表；只有冇連接 Leads 或廣告頁嘅表格先可以永久刪除。
                               </p>
                               <form action={archiveFormAction} className="mt-3 grid gap-2">
                                 <input type="hidden" name="formId" value={form.id} />
@@ -370,13 +370,13 @@ export default async function FormsPage({
                                     value="yes"
                                     className="h-4 w-4"
                                   />
-                                  Confirm archive
+                                  確認封存
                                 </label>
                                 <SubmitButton
                                   className="rounded-full bg-[#5a2348] px-3 py-1.5 text-xs font-bold text-white"
                                   pendingLabel="封存中…"
                                 >
-                                  Archive
+                                  封存
                                 </SubmitButton>
                               </form>
                               <form
@@ -392,13 +392,13 @@ export default async function FormsPage({
                                     value="yes"
                                     className="h-4 w-4"
                                   />
-                                  Confirm permanent delete
+                                  確認永久刪除
                                 </label>
                                 <SubmitButton
                                   className="rounded-full border border-[#e7b8b8] bg-[#fff5f5] px-3 py-1.5 text-xs font-bold text-[#8a2732]"
                                   pendingLabel="刪除中…"
                                 >
-                                  Safe delete
+                                  永久刪除
                                 </SubmitButton>
                               </form>
                             </div>
@@ -447,7 +447,7 @@ function FilterSelect({
         defaultValue={value}
         className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none focus:border-[#e46f64] focus:bg-white"
       >
-        {includeAll && <option value="">All</option>}
+        {includeAll && <option value="">全部</option>}
         {options.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}

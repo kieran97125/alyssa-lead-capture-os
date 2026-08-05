@@ -4,6 +4,7 @@ import {
   DatabaseZap,
   Target,
   TriangleAlert,
+  ShieldAlert,
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
@@ -22,7 +23,12 @@ import {
   type MetricProgress,
 } from "@/lib/marketing/commandCenter";
 import { getLeadDashboardSnapshot } from "@/lib/marketing/leadDashboard";
+import { getLeadAuditNavigationSummary } from "@/lib/marketing/leadSheetAuditView";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
+import {
+  hasWorkspaceModulePermission,
+  normalizeWorkspaceRole,
+} from "@/lib/security/workspacePermissions";
 
 export const dynamic = "force-dynamic";
 
@@ -75,10 +81,26 @@ export default async function DashboardPage({
       access
     )
   );
-  const [snapshot, access, leadDashboard] = await Promise.all([
+  const leadAuditAlertPromise = accessPromise.then((access) => {
+    const isMaster = access.accessLevel === "master";
+    const canSee =
+      isMaster ||
+      (access.source === "supabase_auth" &&
+        hasWorkspaceModulePermission(
+          {
+            isMaster,
+            workspaceRole: normalizeWorkspaceRole(access.workspaceRole),
+            modulePermissions: access.modulePermissions ?? {},
+          },
+          "lead_audit"
+        ));
+    return canSee ? getLeadAuditNavigationSummary(access) : 0;
+  });
+  const [snapshot, access, leadDashboard, leadAuditAlertCount] = await Promise.all([
     commandSnapshotPromise,
     accessPromise,
     leadDashboardPromise,
+    leadAuditAlertPromise,
   ]);
   const isMaster = access.accessLevel === "master";
   const greetingName =
@@ -116,7 +138,7 @@ export default async function DashboardPage({
 
   return (
     <main className="alyssa-shell">
-      <AppNav />
+      <AppNav access={access} leadAuditAlertCount={leadAuditAlertCount} />
       <div className="command-page">
         <div className="command-page-inner">
           <header className="command-page-header">
@@ -124,8 +146,7 @@ export default async function DashboardPage({
               <p className="command-page-kicker">早晨，{greetingName}</p>
               <h1 className="command-page-title">Dashboard</h1>
               <p className="command-page-subtitle">
-                直接由 Lead 表計算 Lead、Book、Show、No Show 同待到店；下方再集中睇
-                Budget、KPI、資料健康及下一步營銷工作。
+                集中查看 Lead、預約、到店、廣告成本、目標進度同需要處理嘅異常。
               </p>
             </div>
             <div className="command-header-actions">
@@ -137,16 +158,16 @@ export default async function DashboardPage({
                   <input type="hidden" name="returnPath" value="/dashboard" />
                   <DashboardRefreshButton
                     disabled={refreshDisabled}
-                    idleLabel="同步其它報表"
-                    pendingLabel="同步其它報表中…"
+                    idleLabel="同步最新數據"
+                    pendingLabel="同步數據中…"
                   />
                   <small>
-                    其它報表彙總：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
+                    上次同步：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
                   </small>
                 </form>
               ) : (
                 <small>
-                  其它報表彙總：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
+                  上次同步：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
                 </small>
               )}
               {isMaster ? (
@@ -188,6 +209,19 @@ export default async function DashboardPage({
               {warning}
             </p>
           ))}
+
+          {leadAuditAlertCount > 0 ? (
+            <a href="/lead-audit?review=open" className="lead-audit-alert-banner">
+              <ShieldAlert size={22} />
+              <div>
+                <strong>{leadAuditAlertCount} 項 Lead 資料異常待核對</strong>
+                <p>系統偵測到舊紀錄被刪除或出現關鍵變動。</p>
+              </div>
+              <span>
+                立即檢查 <ArrowUpRight size={14} />
+              </span>
+            </a>
+          ) : null}
 
           <LeadDashboardPanel snapshot={leadDashboard} />
 
