@@ -460,6 +460,17 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
   });
 
   await page.goto("/login", { waitUntil: "domcontentloaded" });
+  const formDocumentResponse = page.waitForResponse(
+    (response) => {
+      const responseUrl = new URL(response.url());
+      return (
+        responseUrl.pathname === `/embed/${formToken}` &&
+        response.status() === 200
+      );
+    },
+    { timeout: 45_000 }
+  );
+
   await page.evaluate(
     ({ targetId, token, id }) => {
       const target = document.createElement("div");
@@ -481,6 +492,8 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
       id: formId,
     }
   );
+
+  await formDocumentResponse;
 
   const form = page.frameLocator('iframe[title="Campaign registration form"]');
   await expect(form.getByLabel("姓名")).toBeVisible({ timeout: 15_000 });
