@@ -4,11 +4,12 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && next build",
+    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && next build",
     "start": "next start",
     "lint": "eslint",
     "verify:public-lead-contract": "node scripts/verify-public-lead-contract.mjs",
     "verify:auth-email-contract": "node scripts/verify-auth-email-contract.mjs",
+    "verify:reporting-trend-contract": "node scripts/verify-reporting-trend-contract.mjs",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots"
   },

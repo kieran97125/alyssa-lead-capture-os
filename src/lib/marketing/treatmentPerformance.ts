@@ -5,6 +5,13 @@ import {
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
+import { getOperationalAnnotations } from "@/lib/marketing/operationalAnnotationStore";
+import type { OperationalAnnotation } from "@/lib/marketing/operationalAnnotations";
+import {
+  buildDailyTreatmentTrend,
+  type PerformanceTrendSeries,
+  type TreatmentTrendFact,
+} from "@/lib/marketing/performanceTrend";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export type TreatmentPerformanceSort =
@@ -68,6 +75,9 @@ export type TreatmentPerformanceSnapshot = {
   campaignOptions: TreatmentPerformanceOption[];
   brandColors: Record<string, string>;
   insights: TreatmentPerformanceInsight[];
+  trendSeries: PerformanceTrendSeries[];
+  trendSeriesCount: number;
+  trendSeriesShown: number;
   sourceStatus: string;
   sourceName: string;
   lastSuccessAt: string | null;
@@ -522,6 +532,7 @@ function buildSnapshot(input: {
   schemaReady: boolean;
   analysisReady?: boolean;
   warnings?: string[];
+  annotations?: OperationalAnnotation[];
 }): TreatmentPerformanceSnapshot {
   const brandOptions = uniqueOptions(
     input.brands.map((brand) => ({
@@ -572,6 +583,28 @@ function buildSnapshot(input: {
       right.bookings - left.bookings ||
       right.shows - left.shows
   );
+  const trend = buildDailyTreatmentTrend({
+    facts: filteredFacts.map(
+      (fact): TreatmentTrendFact => ({
+        brandId: fact.brand_id,
+        brandName: fact.brand_label,
+        metricDate: fact.metric_date,
+        metricKind: fact.metric_kind,
+        treatmentLabel: fact.treatment_label,
+        metricCount: numeric(fact.metric_count),
+      })
+    ),
+    annotations: input.annotations ?? [],
+    startDate: input.filters.startDate,
+    endDate: input.filters.endDate,
+    brandColors: Object.fromEntries(
+      input.brands.map((brand) => [
+        brand.id,
+        brand.primary_color || "#5a2348",
+      ])
+    ),
+    maxSeries: input.filters.treatment ? 1 : 6,
+  });
 
   return {
     filters: input.filters,
@@ -589,6 +622,9 @@ function buildSnapshot(input: {
       ])
     ),
     insights: buildInsights(totals, treatmentRows, filteredFacts),
+    trendSeries: trend.series,
+    trendSeriesCount: trend.totalSeriesCount,
+    trendSeriesShown: trend.shownSeriesCount,
     sourceStatus:
       input.source?.status === "connected" && input.analysisReady === false
         ? "warning"
@@ -613,17 +649,27 @@ export async function getTreatmentPerformanceSnapshot(
   if (!hasSupabaseAdminEnv()) {
     const facts =
       process.env.ALYSSA_E2E_FIXTURES === "1" ? fixtureFacts(filters) : [];
+    const fixtureBrands: BrandColorRow[] = [
+      { id: "alyssa-brand", name: "Alyssa", primary_color: "#5a2348" },
+      {
+        id: "ib-brand",
+        name: "Ineffable Beauty",
+        primary_color: "#69C7E8",
+      },
+    ];
+    const annotations = await getOperationalAnnotations({
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      brands: fixtureBrands.map((brand) => ({
+        id: brand.id,
+        name: brand.name,
+        color: brand.primary_color || "#5a2348",
+      })),
+    });
     return buildSnapshot({
       filters,
       facts,
-      brands: [
-        { id: "alyssa-brand", name: "Alyssa", primary_color: "#5a2348" },
-        {
-          id: "ib-brand",
-          name: "Ineffable Beauty",
-          primary_color: "#69C7E8",
-        },
-      ],
+      brands: fixtureBrands,
       source: {
         id: "lead-funnel-fixture",
         display_name: "Alyssa Workspace Lead Funnel",
@@ -633,6 +679,7 @@ export async function getTreatmentPerformanceSnapshot(
       },
       schemaReady: facts.length > 0,
       analysisReady: facts.length > 0,
+      annotations,
       warnings:
         facts.length > 0
           ? []
@@ -676,7 +723,8 @@ export async function getTreatmentPerformanceSnapshot(
     if (brandsResult.error) throw brandsResult.error;
     const source =
       (sourceResult.data as TreatmentDataSource | null) ?? null;
-    const [facts, analysisPresenceResult] = source
+    const brandRows = (brandsResult.data ?? []) as BrandColorRow[];
+    const [facts, analysisPresenceResult, annotations] = source
       ? await Promise.all([
           fetchFacts({
             dataSourceId: source.id,
@@ -690,18 +738,32 @@ export async function getTreatmentPerformanceSnapshot(
             .eq("data_source_id", source.id)
             .limit(1)
             .maybeSingle(),
+          getOperationalAnnotations({
+            startDate: filters.startDate,
+            endDate: filters.endDate,
+            brands: brandRows.map((brand) => ({
+              id: brand.id,
+              name: brand.name,
+              color: brand.primary_color || "#5a2348",
+            })),
+          }),
         ])
-      : [[], { data: null, error: null }];
+      : [
+          [],
+          { data: null, error: null },
+          [] as OperationalAnnotation[],
+        ];
     if (analysisPresenceResult.error) throw analysisPresenceResult.error;
     const analysisReady = Boolean(analysisPresenceResult.data);
 
     return buildSnapshot({
       filters,
       facts,
-      brands: (brandsResult.data ?? []) as BrandColorRow[],
+      brands: brandRows,
       source,
       schemaReady: true,
       analysisReady,
+      annotations,
       warnings:
         !source
           ? ["未找到指定 Lead Sheet 資料來源；療程成效未有可顯示數據。"]

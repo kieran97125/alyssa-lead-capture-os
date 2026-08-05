@@ -1,3 +1,11 @@
+import type { OperationalAnnotation } from "@/lib/marketing/operationalAnnotations";
+import {
+  calculatePerformanceTrendPoint,
+  emptyPerformanceTrendBase,
+  type PerformanceTrendPoint,
+  type TreatmentTrendFact,
+} from "@/lib/marketing/performanceTrend";
+
 export type ComparisonMetricKey =
   | "spend"
   | "leads"
@@ -38,18 +46,6 @@ export type ComparisonPeriod = {
 export type CanonicalComparisonMetricRow = ComparisonBaseMetrics & {
   brandId: string;
   metricDate: string;
-};
-
-export type ComparisonTrendPoint = ComparisonKpis & {
-  day: number;
-  date: string;
-};
-
-export type PeriodComparisonTrendSeries = {
-  monthStart: string;
-  label: string;
-  color: string;
-  points: ComparisonTrendPoint[];
 };
 
 const monthPattern = /^(\d{4})-(\d{2})(?:-01)?$/;
@@ -172,7 +168,9 @@ export function buildCumulativeComparisonTrend(input: {
   period: ComparisonPeriod;
   rows: CanonicalComparisonMetricRow[];
   brandIds?: Set<string>;
-}): ComparisonTrendPoint[] {
+  annotations?: OperationalAnnotation[];
+  treatmentFacts?: TreatmentTrendFact[];
+}): PerformanceTrendPoint[] {
   const byDate = new Map<string, ComparisonBaseMetrics>();
   for (const row of input.rows) {
     if (input.brandIds && !input.brandIds.has(row.brandId)) continue;
@@ -189,13 +187,29 @@ export function buildCumulativeComparisonTrend(input: {
     byDate.set(row.metricDate, existing);
   }
 
-  const cumulative: ComparisonBaseMetrics = {
-    spend: 0,
-    leads: 0,
-    bookings: 0,
-    shows: 0,
-  };
-  const points: ComparisonTrendPoint[] = [];
+  const treatmentByDate = new Map<
+    string,
+    { noShows: number; pendingShows: number }
+  >();
+  for (const fact of input.treatmentFacts ?? []) {
+    if (input.brandIds && !input.brandIds.has(fact.brandId)) continue;
+    if (fact.metricKind !== "no_show" && fact.metricKind !== "pending_show") {
+      continue;
+    }
+    const existing = treatmentByDate.get(fact.metricDate) ?? {
+      noShows: 0,
+      pendingShows: 0,
+    };
+    if (fact.metricKind === "no_show") {
+      existing.noShows += finiteNonNegative(fact.metricCount);
+    } else {
+      existing.pendingShows += finiteNonNegative(fact.metricCount);
+    }
+    treatmentByDate.set(fact.metricDate, existing);
+  }
+
+  const cumulative = emptyPerformanceTrendBase();
+  const points: PerformanceTrendPoint[] = [];
   const prefix = input.period.monthStart.slice(0, 8);
   for (let day = input.period.startDay; day <= input.period.endDay; day += 1) {
     const date = `${prefix}${String(day).padStart(2, "0")}`;
@@ -206,11 +220,25 @@ export function buildCumulativeComparisonTrend(input: {
       cumulative.bookings += metric.bookings;
       cumulative.shows += metric.shows;
     }
-    points.push({
-      day,
-      date,
-      ...calculateComparisonKpis(cumulative),
-    });
+    const treatmentMetric = treatmentByDate.get(date);
+    if (treatmentMetric) {
+      cumulative.noShows += treatmentMetric.noShows;
+      cumulative.pendingShows += treatmentMetric.pendingShows;
+    }
+    points.push(
+      calculatePerformanceTrendPoint(cumulative, {
+        day,
+        date,
+        annotations: (input.annotations ?? []).filter(
+          (annotation) => annotation.date === date
+        ),
+      })
+    );
   }
   return points;
 }
+export type {
+  PerformanceTrendPoint as ComparisonTrendPoint,
+  PerformanceTrendScope as PeriodComparisonTrendScope,
+  PerformanceTrendSeries as PeriodComparisonTrendSeries,
+} from "@/lib/marketing/performanceTrend";

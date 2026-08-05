@@ -29,7 +29,10 @@ import {
   type WorkspaceMemberAccess,
   type WorkspaceModuleKey,
 } from "@/lib/security/workspaceAuth";
-import { hasWorkspaceBrandPermission } from "@/lib/security/workspacePermissions";
+import {
+  canManageMonthlyKpis,
+  hasWorkspaceBrandPermission,
+} from "@/lib/security/workspacePermissions";
 
 function openAccessContext(): InternalAccessContext {
   return {
@@ -224,7 +227,6 @@ function internalModuleToWorkspaceModule(
 export async function requireActionAccess(action: InternalAction) {
   const access = await getCurrentInternalAccess();
   const masterOnlyActions = new Set<InternalAction>([
-    "edit_monthly_plan",
     "edit_data_sources",
     "edit_workspace_members",
     "edit_brand_settings",
@@ -234,6 +236,7 @@ export async function requireActionAccess(action: InternalAction) {
     access,
     allowed:
       access.source !== "unauthenticated" &&
+      (action !== "edit_monthly_plan" || canManageMonthlyKpis(access)) &&
       (!masterOnlyActions.has(action) || access.accessLevel === "master"),
   };
 }

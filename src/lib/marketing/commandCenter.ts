@@ -84,6 +84,8 @@ export type MarketingReportingWorkbook = {
 export type CalendarItem = {
   id: string;
   brandId: string;
+  treatmentId: string | null;
+  treatmentLabel: string | null;
   title: string;
   itemType: "post" | "ad" | "landing_page" | "email" | "meeting" | "task";
   channel: string | null;
@@ -269,6 +271,31 @@ function progressMetric(
   };
 }
 
+async function fetchCommandCenterCalendar(month: HkMonthContext) {
+  const supabase = createSupabaseAdminClient();
+  const extended = await supabase
+    .from("marketing_calendar_items")
+    .select(
+      "id,brand_id,treatment_id,treatment_label,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+    )
+    .gte("scheduled_date", month.monthStart)
+    .lte("scheduled_date", month.monthEnd)
+    .order("scheduled_date", { ascending: true })
+    .order("sort_order", { ascending: true });
+  if (!extended.error || !extended.error.message.includes("treatment_")) {
+    return extended;
+  }
+  return supabase
+    .from("marketing_calendar_items")
+    .select(
+      "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+    )
+    .gte("scheduled_date", month.monthStart)
+    .lte("scheduled_date", month.monthEnd)
+    .order("scheduled_date", { ascending: true })
+    .order("sort_order", { ascending: true });
+}
+
 async function getPlanningRecords(month: HkMonthContext) {
   if (!hasSupabaseAdminEnv()) {
     const e2eFixturesEnabled = process.env.ALYSSA_E2E_FIXTURES === "1";
@@ -278,6 +305,8 @@ async function getPlanningRecords(month: HkMonthContext) {
             {
               id: "10000000-0000-4000-8000-000000000001",
               brandId: alyssaBrand.id,
+              treatmentId: null,
+              treatmentLabel: null,
               title: "DEP Reels 上線",
               itemType: "post",
               channel: "IG",
@@ -525,15 +554,7 @@ async function getPlanningRecords(month: HkMonthContext) {
         )
         .order("reporting_month", { ascending: false })
         .order("created_at", { ascending: false }),
-      supabase
-        .from("marketing_calendar_items")
-        .select(
-          "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
-        )
-        .gte("scheduled_date", month.monthStart)
-        .lte("scheduled_date", month.monthEnd)
-        .order("scheduled_date", { ascending: true })
-        .order("sort_order", { ascending: true }),
+      fetchCommandCenterCalendar(month),
       supabase
         .from("workspace_members")
         .select(
@@ -694,6 +715,8 @@ async function getPlanningRecords(month: HkMonthContext) {
     >).map((row) => ({
       id: String(row.id ?? ""),
       brandId: String(row.brand_id ?? ""),
+      treatmentId: textValue(row.treatment_id),
+      treatmentLabel: textValue(row.treatment_label),
       title: String(row.title ?? "未命名事項"),
       itemType: String(row.item_type ?? "task") as CalendarItem["itemType"],
       channel: textValue(row.channel),
@@ -736,10 +759,12 @@ async function getPlanningRecords(month: HkMonthContext) {
   };
 }
 
-export async function getCommandCenterSnapshot(): Promise<CommandCenterSnapshot> {
+export async function getCommandCenterSnapshot(
+  options: { unscoped?: boolean } = {}
+): Promise<CommandCenterSnapshot> {
   const month = getHkMonthContext();
   const [config, planning] = await Promise.all([
-    getConfigurationData(),
+    getConfigurationData({ unscoped: options.unscoped }),
     getPlanningRecords(month),
   ]);
   const visibleBrandIds = new Set(config.brands.map((brand) => brand.id));

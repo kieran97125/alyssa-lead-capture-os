@@ -20,6 +20,7 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import { DashboardRefreshButton } from "@/components/command-center/DashboardRefreshButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
+import { TreatmentPerformanceTrendChartLazy } from "@/components/command-center/TreatmentPerformanceTrendChartLazy";
 import {
   getTreatmentPerformanceSnapshot,
   normalizeTreatmentPerformanceFilters,
@@ -398,6 +399,21 @@ export default async function TreatmentPerformancePage({
               icon={Clock3}
               tone="blue"
             />
+          </section>
+
+          <section className="command-surface treatment-trend-card">
+            <SectionHeading
+              eyebrow="Daily movement"
+              title="療程成效走勢"
+              description="每日數字會跟上方品牌、療程、來源及 Campaign 篩選；橙色圓點代表當日日曆操作。"
+              icon={Activity}
+            />
+            <TreatmentPerformanceTrendChartLazy series={snapshot.trendSeries} />
+            {snapshot.trendSeriesCount > snapshot.trendSeriesShown ? (
+              <p className="treatment-trend-note">
+                目前先顯示 Lead 數最高 {snapshot.trendSeriesShown} 個療程；用上方療程篩選可查看其餘走勢。
+              </p>
+            ) : null}
           </section>
 
           <section className="treatment-decision-grid">

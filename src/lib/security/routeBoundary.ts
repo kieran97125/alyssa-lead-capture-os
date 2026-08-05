@@ -47,7 +47,6 @@ export function isInternalRoute(pathname: string) {
 
 const masterOnlyRoutePrefixes = [
   "/data-sources",
-  "/settings/planning",
   "/settings/team",
   "/system-audit",
 ] as const;
@@ -67,6 +66,7 @@ export function getInternalRouteModule(pathname: string): InternalModule | null 
   if (pathname.startsWith("/leads")) return "leads";
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/performance")) return "performance";
+  if (pathname.startsWith("/settings/planning")) return "kpis";
   if (pathname.startsWith("/brands")) return "brands";
   if (pathname.startsWith("/campaigns")) return "campaigns";
   if (pathname.startsWith("/forms") || pathname.startsWith("/embed-preview")) {

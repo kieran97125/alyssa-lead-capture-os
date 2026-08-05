@@ -107,6 +107,9 @@ function CalendarTaskCard({
         ) : null}
       </div>
       <strong>{item.title}</strong>
+      {item.treatmentLabel ? (
+        <small className="calendar-task-treatment">{item.treatmentLabel}</small>
+      ) : null}
       <footer>
         <span
           className="calendar-task-brand-dot"

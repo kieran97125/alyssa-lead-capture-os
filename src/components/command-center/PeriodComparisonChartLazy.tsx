@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import type { PeriodComparisonTrendSeries } from "@/lib/marketing/periodComparisonMath";
+import type { PerformanceTrendScope } from "@/lib/marketing/performanceTrend";
 
 const LazyPeriodComparisonChart = dynamic(
   () =>
@@ -19,9 +19,9 @@ const LazyPeriodComparisonChart = dynamic(
 );
 
 export function PeriodComparisonChartLazy({
-  series,
+  scopes,
 }: {
-  series: PeriodComparisonTrendSeries[];
+  scopes: PerformanceTrendScope[];
 }) {
-  return <LazyPeriodComparisonChart series={series} />;
+  return <LazyPeriodComparisonChart scopes={scopes} />;
 }
