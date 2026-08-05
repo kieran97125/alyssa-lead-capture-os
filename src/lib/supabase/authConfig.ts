@@ -24,11 +24,32 @@ export function isBreakGlassPasswordEnabled() {
   );
 }
 
+export const PRODUCTION_ADMIN_ORIGIN = "https://app.beautytrialhk.com";
+
+export function resolveCanonicalAdminOrigin(
+  configured: string | undefined,
+  runtime: string | undefined
+) {
+  const normalized = configured?.trim().replace(/\/+$/, "") || "";
+
+  if (runtime === "production") {
+    if (normalized && normalized !== PRODUCTION_ADMIN_ORIGIN) {
+      console.warn("production_admin_origin_mismatch", {
+        configuredOrigin: normalized,
+        canonicalOrigin: PRODUCTION_ADMIN_ORIGIN,
+      });
+    }
+    return PRODUCTION_ADMIN_ORIGIN;
+  }
+
+  return normalized || "http://localhost:3000";
+}
+
 export function getCanonicalAdminOrigin() {
-  const configured = process.env.NEXT_PUBLIC_ADMIN_BASE_URL?.trim();
-  if (configured) return configured.replace(/\/+$/, "");
-  if (process.env.NODE_ENV === "production") return "https://app.beautytrialhk.com";
-  return "http://localhost:3000";
+  return resolveCanonicalAdminOrigin(
+    process.env.NEXT_PUBLIC_ADMIN_BASE_URL,
+    process.env.NODE_ENV
+  );
 }
 
 export function safeInternalNextPath(value: string | null | undefined) {

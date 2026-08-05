@@ -933,6 +933,7 @@ export async function createWorkspaceMemberAction(formData: FormData) {
   const invite = await sendWorkspaceAccessEmail({
     email,
     fullName,
+    workspaceRole: role,
     existingAuthUserId: null,
   });
   if (!invite.ok) {
@@ -1075,7 +1076,7 @@ export async function resendWorkspaceInviteAction(formData: FormData) {
   const supabase = createSupabaseAdminClient();
   const { data: member } = await supabase
     .from("workspace_members")
-    .select("id,email,full_name,auth_user_id,status")
+    .select("id,email,full_name,workspace_role,auth_user_id,status")
     .eq("id", memberId)
     .in("status", ["invited", "active"])
     .maybeSingle();
@@ -1098,6 +1099,7 @@ export async function resendWorkspaceInviteAction(formData: FormData) {
   const result = await sendWorkspaceAccessEmail({
     email: String(member.email),
     fullName: String(member.full_name || ""),
+    workspaceRole: String(member.workspace_role || "viewer"),
     existingAuthUserId:
       typeof member.auth_user_id === "string" ? member.auth_user_id : null,
   });
@@ -1268,10 +1270,12 @@ export async function revokeWorkspaceMemberAction(formData: FormData) {
 async function sendWorkspaceAccessEmail({
   email,
   fullName,
+  workspaceRole,
   existingAuthUserId,
 }: {
   email: string;
   fullName: string;
+  workspaceRole: string;
   existingAuthUserId: string | null;
 }): Promise<
   | { ok: true; authUserId: string }
@@ -1288,14 +1292,16 @@ async function sendWorkspaceAccessEmail({
 
   const admin = createSupabaseAdminClient();
   let authUserId = existingAuthUserId;
+  const invitationMetadata = {
+    full_name: fullName || undefined,
+    workspace: "alyssa-growth-os",
+    workspace_role: workspaceRole,
+  };
 
   if (!authUserId) {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
       redirectTo: getAuthConfirmUrl(),
-      data: {
-        full_name: fullName || undefined,
-        workspace: "alyssa-growth-os",
-      },
+      data: invitationMetadata,
     });
     if (!error && data.user?.id) {
       return { ok: true, authUserId: data.user.id };
@@ -1320,6 +1326,17 @@ async function sendWorkspaceAccessEmail({
         code: safeAuthEmailErrorCode(error),
       };
     }
+  }
+
+  const { error: metadataError } = await admin.auth.admin.updateUserById(
+    authUserId,
+    { user_metadata: invitationMetadata }
+  );
+  if (metadataError) {
+    console.warn("workspace_invite_metadata_update_failed", {
+      code: metadataError.code,
+      status: metadataError.status,
+    });
   }
 
   const auth = createClient(config.url, config.key, {
