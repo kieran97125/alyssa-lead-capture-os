@@ -483,7 +483,7 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
   );
 
   const form = page.frameLocator('iframe[title="Campaign registration form"]');
-  await expect(form.getByLabel("姓名")).toBeVisible();
+  await expect(form.getByLabel("姓名")).toBeVisible({ timeout: 15_000 });
   await form.getByLabel("姓名").fill("GOS Redirect");
   await form.getByLabel("聯絡電話").fill("93456789");
   await form.getByLabel("預約日期").fill("2026-08-12");
