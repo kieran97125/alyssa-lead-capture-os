@@ -122,14 +122,14 @@ async function ensureCommandCenterAction(
     return {
       ok: false as const,
       reason: "master_required" as const,
-      message: "呢項設定只限 Master Account。",
+      message: "呢項設定只限系統擁有人。",
     };
   }
   if (!hasSupabaseAdminEnv()) {
     return {
       ok: false as const,
       reason: "supabase_unavailable" as const,
-      message: "Supabase 尚未連接，未能儲存 Command Center 設定。",
+      message: "資料服務尚未連接，暫時未能儲存設定。",
     };
   }
   return {
@@ -558,7 +558,9 @@ export async function syncDataSourceAction(formData: FormData) {
     });
   }
 
-  const result = await syncMarketingDataSource(dataSourceId);
+  const result = await syncMarketingDataSource(dataSourceId, {
+    actorIdentifier: access.actorIdentifier,
+  });
   revalidateCommandCenter(
     "/data-sources",
     "/dashboard",
@@ -986,7 +988,7 @@ export async function createWorkspaceMemberAction(formData: FormData) {
     role
   );
   const { data: memberIdValue, error: createError } = await supabase.rpc(
-    "create_workspace_member_invitation",
+    "create_workspace_member_invitation_with_audit_access",
     {
       p_email: email,
       p_full_name: fullName,
@@ -1116,17 +1118,20 @@ export async function updateWorkspaceMemberAccessAction(formData: FormData) {
   if (memberError || !member || member.is_master) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "Master Account 不可更改，或帳戶已不存在。",
+      message: "系統擁有人帳戶不可更改，或帳戶已不存在。",
     });
   }
 
-  const { error } = await supabase.rpc("update_workspace_member_access", {
+  const { error } = await supabase.rpc(
+    "update_workspace_member_access_with_audit_access",
+    {
     p_member_id: memberId,
     p_full_name: fullName,
     p_workspace_role: role,
     p_brand_ids: brandIds,
     p_module_keys: moduleKeys,
-  });
+    }
+  );
   if (error) {
     console.warn("workspace_member_access_update_failed", {
       code: error.code,
@@ -1271,7 +1276,7 @@ export async function setWorkspaceMemberStatusAction(formData: FormData) {
   if (!member || member.is_master || member.status === "removed") {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "Master Account 不可暫停，或帳戶已不存在。",
+      message: "系統擁有人帳戶不可暫停，或帳戶已不存在。",
     });
   }
 
@@ -1329,7 +1334,7 @@ export async function revokeWorkspaceMemberAction(formData: FormData) {
   if (!member || member.is_master) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "Owner／Master Account 唔可以喺呢度撤回。",
+      message: "系統擁有人帳戶不可移除。",
     });
   }
 

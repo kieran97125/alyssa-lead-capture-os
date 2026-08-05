@@ -202,12 +202,19 @@ export async function requireModuleAccess(module: InternalModule) {
       ? (access as WorkspaceMemberAccess)
       : null;
   const masterOnly = module === "data_sources" || module === "system_audit";
+  const masterOrExplicitAudit = module === "lead_audit";
   const workspaceModule = internalModuleToWorkspaceModule(module);
   return {
     access,
     allowed:
       access.source !== "unauthenticated" &&
       (!masterOnly || access.accessLevel === "master") &&
+      (!masterOrExplicitAudit ||
+        access.accessLevel === "master" ||
+        Boolean(
+          emailAccess &&
+            emailAccess.modulePermissions.lead_audit === true
+        )) &&
       (!emailAccess ||
         !workspaceModule ||
         canAccessWorkspaceModule(emailAccess, workspaceModule)),

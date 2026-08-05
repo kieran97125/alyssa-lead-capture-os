@@ -48,15 +48,15 @@ function formMatchesSearch(form: FormSetting, search: string) {
 }
 
 function archiveViewLabel(view: ArchiveView) {
-  if (view === "archived") return "Archived / legacy";
-  if (view === "all") return "All";
-  return "Active";
+  if (view === "archived") return "已封存／舊版本";
+  if (view === "all") return "全部";
+  return "使用中";
 }
 
 function formStatusLabel(status: string, isLegacy: boolean) {
-  if (isArchivedStatus(status)) return "Archived";
-  if (isLegacy) return "Legacy cleanup";
-  return status || "Active";
+  if (isArchivedStatus(status)) return "已封存";
+  if (isLegacy) return "待整理舊版本";
+  return status || "使用中";
 }
 
 function buildFormsHref(

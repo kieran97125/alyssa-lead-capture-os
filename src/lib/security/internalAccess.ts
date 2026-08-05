@@ -4,6 +4,7 @@ export type InternalModule =
   | "calendar"
   | "data_sources"
   | "leads"
+  | "lead_audit"
   | "crm"
   | "performance"
   | "campaigns"

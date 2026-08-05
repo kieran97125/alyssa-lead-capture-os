@@ -171,15 +171,14 @@ export function LeadDashboardPanel({
               <span />
               {statusLabel(snapshot.sourceStatus, snapshot.live)}
             </span>
-            <strong>{snapshot.sourceName} · <code>lead</code> 分頁</strong>
+            <strong>Lead Sheet</strong>
             <small>
               <DatabaseZap size={13} />
-              直接讀取 Lead 表 · {formatHkDateTime(snapshot.loadedAt)}
+              更新於 {formatHkDateTime(snapshot.loadedAt)}
             </small>
           </div>
           <p>
-            內建 Apps Script 口徑：按品牌＋電話最後 8 位去重；電話空白先用
-            Lead Key。Lead／Book 歸入 First Touch。
+            同一品牌及電話只計一次；Lead 同 Book 歸入首次查詢日期。
           </p>
         </header>
 
@@ -245,7 +244,7 @@ export function LeadDashboardPanel({
         <SummaryMetric
           label="Lead"
           value={snapshot.totals.leads}
-          meta="First Touch Created At"
+          meta="按首次查詢日期"
           tone="plum"
           icon={UsersRound}
         />
@@ -283,7 +282,7 @@ export function LeadDashboardPanel({
 
       <section className="command-surface treatment-ranking-section">
         <div className="lead-dashboard-section-heading">
-          <div><UsersRound size={17} /><div><p>Brand summary</p><h2>品牌總結</h2></div></div>
+          <div><UsersRound size={17} /><div><h2>品牌總結</h2></div></div>
           <span>{snapshot.filters.startDate} 至 {snapshot.filters.endDate}</span>
         </div>
         <PerformanceTable rows={snapshot.brandRows} firstColumn="brand" snapshot={snapshot} />
@@ -291,7 +290,7 @@ export function LeadDashboardPanel({
 
       <section className="command-surface treatment-ranking-section">
         <div className="lead-dashboard-section-heading">
-          <div><Activity size={17} /><div><p>Treatment performance</p><h2>療程表現</h2></div></div>
+          <div><Activity size={17} /><div><h2>療程表現</h2></div></div>
           <span>{snapshot.treatmentRows.length} 個療程</span>
         </div>
         <PerformanceTable rows={snapshot.treatmentRows} firstColumn="treatment" snapshot={snapshot} />
@@ -299,8 +298,8 @@ export function LeadDashboardPanel({
 
       <section className="command-surface treatment-ranking-section">
         <div className="lead-dashboard-section-heading">
-          <div><Activity size={17} /><div><p>Source diagnostics</p><h2>來源／Campaign 表現</h2></div></div>
-          <span>按 First Touch 來源歸因</span>
+          <div><Activity size={17} /><div><h2>來源／Campaign 表現</h2></div></div>
+          <span>按首次查詢來源歸因</span>
         </div>
         <div className="treatment-table-wrap">
           <table className="treatment-performance-table source-diagnostic-table lead-dashboard-table">
@@ -336,7 +335,7 @@ export function LeadDashboardPanel({
 
       <section className="command-surface treatment-ranking-section">
         <div className="lead-dashboard-section-heading">
-          <div><Clock3 size={17} /><div><p>Outstanding appointments</p><h2>本月未 Show 明細</h2></div></div>
+          <div><Clock3 size={17} /><div><h2>本月待到店明細</h2></div></div>
           <span>{snapshot.outstandingRows.length} 個待到店預約</span>
         </div>
         <div className="treatment-table-wrap">
@@ -371,14 +370,12 @@ export function LeadDashboardPanel({
         <div>
           <strong>計算及資料來源</strong>
           <p>
-            Lead／Book 按同品牌同電話尾 8 位嘅最早 Created At；Show 按確認到店日期；
+            Lead／Book 按同品牌同電話尾 8 位嘅首次查詢日期；Show 按確認到店日期；
             No Show 同本月未 Show 按預約日期。Book 包括已預約、已到店及 No Show。
           </p>
           <p>
-            呢個 Dashboard 由系統直接讀取 <code>lead</code> 分頁再即時計算；
-            廣告費只讀系統 Daily Spend Ledger，CPL／CPBook／CPShow 會先加總
-            Spend、Lead、Book、Show 再計算。不讀 <code>mkt_dashboard</code>、每日
-            Overview 或任何外部報表頁。
+            廣告費、CPL、CPBook 同 CPShow 會按所選範圍先加總再計算；
+            未有療程成本歸屬時會清楚標示為未分配。
           </p>
         </div>
       </section>

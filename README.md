@@ -1173,9 +1173,9 @@ outbound Lead Sync webhook above.
 
 - `daily_spend` reads a brand-scoped date column and spend column into
   `marketing_daily_metrics`.
-- `lead_funnel` reads only Created At, follow-up status, brand, booking date,
-  and confirmed show date. Customer names, phone numbers, email addresses, and
-  notes are not imported.
+- `lead_funnel` reads the governed CS range once. Funnel aggregation still
+  imports only approved non-PII metrics, while Lead Data Audit encrypts the
+  customer-level snapshot before it is stored in server-only audit tables.
 - Lead and Book are attributed to the Lead Created At date. Book includes
   `已預約`, `已到店`, and `no show`. Show is attributed to the confirmed show
   date when the follow-up status is `已到店`.
@@ -1193,9 +1193,13 @@ outbound Lead Sync webhook above.
   per-file sharing to a bot account is required. The encrypted refresh token
   remains server-only and is never written into a source mapping, audit entry,
   browser response, or Git.
-- Automatic scheduling is intentionally disabled for this rollout. The
-  protected `/api/cron/marketing-data-sources` route can be re-enabled later
-  with a reviewed Vercel Cron schedule and `Authorization: Bearer $CRON_SECRET`.
+- Vercel invokes the protected `/api/cron/marketing-data-sources` route every
+  day at 00:30 Hong Kong time (`30 16 * * *` UTC). Manual and scheduled syncs
+  use the same importer, encrypted snapshot, anomaly policy and audit path.
+- `CRON_SECRET` must be present in Production so Vercel sends the matching
+  `Authorization: Bearer ...` header. `LEAD_AUDIT_ENCRYPTION_KEY` must be an
+  independent 32-byte Base64 or 64-character hex key; the audit pipeline stops
+  safely instead of persisting plaintext when the key is missing.
 
 The sync runs after the Supabase lead, source snapshot, and booking records are created. Invalid submissions, honeypot submissions, missing consent, rate-limited duplicates, and duplicate lead rows do not trigger the webhook. Lead event logging warnings do not prevent the Sheet sync attempt. If Google Sheets append fails, public lead submission still returns success and CS can continue using LaunchHub/Supabase as the source of truth.
 

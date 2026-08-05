@@ -136,11 +136,11 @@ export function WhatsAppBroadcastsPanel({
                 : "border-[#fde68a] bg-[#fffbeb] text-[#92400e]"
             }`}
           >
-            {liveSendEnabled ? "Live send 已啟用" : "安全模式：Live send 未啟用"}
+            {liveSendEnabled ? "真實發送已啟用" : "安全模式：不會真實發送"}
             <p className="mt-1 text-[11px] font-semibold opacity-80">
               {liveSendEnabled
-                ? "只會處理已 Dry Run 及已批准的 Broadcast。"
-                : "目前可建立、Dry Run 及批准，但不會真正發送。"}
+                ? "只會處理已完成安全檢查及批准嘅群發工作。"
+                : "目前可建立、安全檢查及批准，但不會向客人發送。"}
             </p>
           </div>
         </div>
@@ -159,10 +159,10 @@ export function WhatsAppBroadcastsPanel({
       ) : null}
 
       <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricCard label="Valid consent" value={consentCount} note="可進入資格檢查" />
-        <MetricCard label="Suppressed / Opt-out" value={suppressionCount} note="強制排除" />
-        <MetricCard label="Approved templates" value={templates.length} note="只顯示 Meta Marketing Template" />
-        <MetricCard label="Broadcast records" value={broadcasts.length} note="操作紀錄，不作行銷分析" />
+        <MetricCard label="有效同意" value={consentCount} note="可進入資格檢查" />
+        <MetricCard label="退訂／排除" value={suppressionCount} note="不會發送" />
+        <MetricCard label="已批准範本" value={templates.length} note="Meta 營銷訊息範本" />
+        <MetricCard label="群發工作" value={broadcasts.length} note="操作紀錄" />
       </section>
 
       <section className="mt-4 grid gap-4 xl:grid-cols-[1.2fr_0.8fr]">
@@ -171,7 +171,7 @@ export function WhatsAppBroadcastsPanel({
           className="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-sm"
         >
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--crm-accent)]">
-            Broadcast Builder
+            群發設定
           </p>
           <h2 className="mt-1 text-lg font-black text-[#111827]">
             建立批量發送工作
@@ -186,7 +186,7 @@ export function WhatsAppBroadcastsPanel({
                 className={inputClass}
               />
             </Field>
-            <Field label="Approved Template">
+            <Field label="已批准訊息範本">
               <select
                 name="template_id"
                 required
@@ -194,7 +194,7 @@ export function WhatsAppBroadcastsPanel({
                 defaultValue=""
               >
                 <option value="" disabled>
-                  選擇 Template
+                  選擇範本
                 </option>
                 {templates.map((template) => (
                   <option key={template.id} value={template.id}>
@@ -216,14 +216,14 @@ export function WhatsAppBroadcastsPanel({
               </select>
             </Field>
             <div className="rounded-xl border border-[var(--crm-accent-border)] bg-[var(--crm-accent-soft)] px-3 py-3 text-xs leading-5 text-[#123a4a]">
-              第一版由 CRM 品牌客戶資料中去重，再檢查 consent、suppression、電話、template variables 及冷卻期。GrowthRadar 日後可輸出已批准名單交由此處執行。
+              系統會先去重，再檢查發送同意、退訂狀態、電話格式、訊息變數同冷卻期。
             </div>
           </div>
           <button
             disabled={busyKey === "create" || templates.length === 0}
             className={primaryButtonClass}
           >
-            {busyKey === "create" ? "建立中…" : "建立 Draft"}
+            {busyKey === "create" ? "建立中…" : "建立草稿"}
           </button>
         </form>
 
@@ -232,13 +232,13 @@ export function WhatsAppBroadcastsPanel({
           className="rounded-2xl border border-[#e5e7eb] bg-white p-5 shadow-sm"
         >
           <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[#0f766e]">
-            Consent Ledger
+            發送同意
           </p>
           <h2 className="mt-1 text-lg font-black text-[#111827]">
             記錄 WhatsApp 發送同意
           </h2>
           <p className="mt-2 text-xs leading-5 text-[#64748b]">
-            只可記錄真實、可追溯的同意證據。已有退訂 suppression 不會自動解除。
+            只可記錄真實、可追溯嘅同意證據；已退訂客人不會自動解除排除。
           </p>
           <div className="mt-4 space-y-3">
             <Field label="客戶電話">
@@ -259,7 +259,7 @@ export function WhatsAppBroadcastsPanel({
                 <option value="" disabled>
                   選擇來源
                 </option>
-                <option value="website_checkbox">Website checkbox</option>
+                <option value="website_checkbox">網站同意選項</option>
                 <option value="whatsapp_reply">WhatsApp 主動確認</option>
                 <option value="store_membership_form">分店會員表格</option>
                 <option value="signed_customer_form">已簽署客戶表格</option>
@@ -277,7 +277,7 @@ export function WhatsAppBroadcastsPanel({
             </Field>
           </div>
           <button disabled={busyKey === "consent"} className={secondaryButtonClass}>
-            {busyKey === "consent" ? "記錄中…" : "記錄 Consent"}
+            {busyKey === "consent" ? "記錄中…" : "記錄同意"}
           </button>
         </form>
       </section>
@@ -286,12 +286,12 @@ export function WhatsAppBroadcastsPanel({
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[var(--crm-accent)]">
-              Broadcast Control
+              群發管理
             </p>
             <h2 className="mt-1 text-lg font-black text-[#111827]">發送工作</h2>
           </div>
           <p className="text-xs font-semibold text-[#64748b]">
-            Draft → Dry Run → Approval → Queue → Sending
+            草稿 → 安全檢查 → 批准 → 排隊 → 發送
           </p>
         </div>
 
@@ -303,7 +303,7 @@ export function WhatsAppBroadcastsPanel({
                 broadcast={broadcast}
                 templateName={
                   templates.find((template) => template.id === broadcast.template_id)
-                    ?.template_name || "Template"
+                    ?.template_name || "訊息範本"
                 }
                 liveSendEnabled={liveSendEnabled}
                 busyKey={busyKey}
@@ -313,7 +313,7 @@ export function WhatsAppBroadcastsPanel({
           </div>
         ) : (
           <div className="mt-4 rounded-xl border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-5 py-10 text-center text-sm font-semibold text-[#64748b]">
-            未有 Broadcast。先建立 Draft，再執行 Dry Run。
+            暫時未有群發工作。請先建立草稿，再進行安全檢查。
           </div>
         )}
       </section>
@@ -376,7 +376,7 @@ function BroadcastRow({
               })
             }
           >
-            Dry Run
+            安全檢查
           </ActionButton>
         ) : null}
         {broadcast.status === "dry_run_ready" ? (
@@ -389,7 +389,7 @@ function BroadcastRow({
               })
             }
           >
-            Approve
+            批准
           </ActionButton>
         ) : null}
         {broadcast.status === "approved" ? (
@@ -402,7 +402,7 @@ function BroadcastRow({
               })
             }
           >
-            {liveSendEnabled ? "Queue Send" : "Live Send Locked"}
+            {liveSendEnabled ? "加入發送隊列" : "安全模式"}
           </ActionButton>
         ) : null}
         {["queued", "sending"].includes(broadcast.status) ? (
@@ -417,7 +417,7 @@ function BroadcastRow({
                 })
               }
             >
-              Process 10
+              處理 10 個
             </ActionButton>
             <ActionButton
               tone="warning"
@@ -430,7 +430,7 @@ function BroadcastRow({
                 })
               }
             >
-              Pause
+              暫停
             </ActionButton>
           </>
         ) : null}
@@ -445,7 +445,7 @@ function BroadcastRow({
               })
             }
           >
-            Cancel
+            取消
           </ActionButton>
         ) : null}
       </div>
@@ -486,9 +486,20 @@ function StatusPill({ status }: { status: string }) {
     cancelled: "bg-[#f1f5f9] text-[#64748b]",
     failed: "bg-[#fee2e2] text-[#991b1b]",
   };
+  const labels: Record<string, string> = {
+    draft: "草稿",
+    dry_run_ready: "已完成安全檢查",
+    approved: "已批准",
+    queued: "排隊中",
+    sending: "發送中",
+    paused: "已暫停",
+    completed: "已完成",
+    cancelled: "已取消",
+    failed: "失敗",
+  };
   return (
     <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ${styles[status] || styles.draft}`}>
-      {status.replaceAll("_", " ")}
+      {labels[status] || status}
     </span>
   );
 }
@@ -543,20 +554,20 @@ function formatDate(value: string) {
 
 function humanMessage(message: string, detail?: unknown) {
   const labels: Record<string, string> = {
-    campaign_created: "Broadcast Draft 已建立。",
-    consent_recorded: "Consent 已記錄。",
-    consent_recorded_but_still_suppressed: "Consent 已記錄，但此電話仍在 suppression list，系統不會發送。",
-    dry_run_completed: "Dry Run 已完成，請先檢查合資格與排除數量。",
-    campaign_approved: "Broadcast 已批准。",
-    campaign_queued: "Broadcast 已進入安全發送隊列。",
+    campaign_created: "群發草稿已建立。",
+    consent_recorded: "發送同意已記錄。",
+    consent_recorded_but_still_suppressed: "發送同意已記錄，但此電話仍在退訂名單，系統不會發送。",
+    dry_run_completed: "安全檢查已完成，請先核對合資格與排除數量。",
+    campaign_approved: "群發工作已批准。",
+    campaign_queued: "群發工作已進入安全發送隊列。",
     campaign_batch_processed: "本批次已處理。",
-    campaign_paused: "Broadcast 已暫停。",
-    campaign_cancelled: "Broadcast 已取消。",
-    live_send_disabled: "Live send 尚未啟用，系統仍保持安全模式。",
-    migration_not_applied: "WhatsApp Broadcast SQL migration 尚未套用。",
-    approved_template_required: "必須使用 Meta 已批准而且未過期的 Template。",
-    marketing_template_required: "此功能只容許 Meta Marketing 類別 Template。",
-    dry_run_required_before_approval: "必須先完成 Dry Run。",
+    campaign_paused: "群發工作已暫停。",
+    campaign_cancelled: "群發工作已取消。",
+    live_send_disabled: "真實發送尚未啟用，系統保持安全模式。",
+    migration_not_applied: "WhatsApp 群發功能尚未完成設定。",
+    approved_template_required: "必須使用 Meta 已批准而且未過期嘅訊息範本。",
+    marketing_template_required: "此功能只容許 Meta 營銷類別訊息範本。",
+    dry_run_required_before_approval: "必須先完成安全檢查。",
     no_eligible_recipients: "目前沒有合資格收件人。",
     valid_phone_required: "請輸入有效電話號碼。",
     consent_evidence_required: "必須填寫同意來源及證據備註。",

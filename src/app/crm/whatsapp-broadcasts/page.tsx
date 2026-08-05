@@ -20,8 +20,8 @@ export default async function WhatsAppBroadcastsPage() {
         <div className="p-6">
           <div className="rounded-2xl border border-[#fecaca] bg-[#fef2f2] p-5 text-sm font-bold text-[#991b1b]">
             {dashboard.error === "migration_not_applied"
-              ? "WhatsApp Broadcast SQL migration 尚未套用。請先套用 docs/CRM_WHATSAPP_CAMPAIGNS_SAFE_APPLY.sql。"
-              : `WhatsApp Broadcast 暫時未能載入：${dashboard.error || "unknown_error"}`}
+              ? "WhatsApp 群發功能尚未完成設定，請聯絡系統管理員。"
+              : "WhatsApp 群發功能暫時未能載入，請稍後再試。"}
           </div>
         </div>
       ) : (

@@ -85,9 +85,9 @@ export default async function BrandWorkspacePage({
         <header className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="alyssa-kicker">Brand Workspace</p>
+              <p className="alyssa-kicker">品牌營運</p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-                {selectedBrand?.name || "Brand Workspace"}
+                {selectedBrand?.name || "品牌營運"}
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
                 以品牌為中心管理表格、療程、分店、Landing Page、Leads 同 Wix 上線資料，避免 Alyssa 同 Ineffable 設定混用。
@@ -112,48 +112,48 @@ export default async function BrandWorkspacePage({
         </header>
 
         <section className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-          <WorkspaceStat label="Forms" value={forms.length} />
+          <WorkspaceStat label="表格" value={forms.length} />
           <WorkspaceStat
-            label="Published LP"
+            label="已發布廣告頁"
             value={pages.filter((page) => page.status === "published").length}
           />
-          <WorkspaceStat label="Leads 本月" value={leads.length} />
-          <WorkspaceStat label="Branches" value={branches.length} />
-          <WorkspaceStat label="Treatments" value={treatments.length} />
+          <WorkspaceStat label="本月 Lead" value={leads.length} />
+          <WorkspaceStat label="分店" value={branches.length} />
+          <WorkspaceStat label="療程" value={treatments.length} />
         </section>
 
         <section className="mt-6 grid gap-5 lg:grid-cols-[1.05fr_0.95fr]">
           <MotionReveal>
             <section className="alyssa-premium-card p-5">
-              <p className="alyssa-kicker">Quick Actions</p>
+              <p className="alyssa-kicker">快速操作</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
-                {selectedBrand?.name} Launch 工作區
+                {selectedBrand?.name} 工作區
               </h2>
               <div className="mt-5 grid gap-3 sm:grid-cols-2">
                 <ActionCard
                   href={`/forms/new?brand=${selectedBrand?.slug || ""}`}
-                  title="Create Wix Form"
+                  title="建立 Wix 表格"
                   body="選療程、優惠、分店，生成可貼入 Wix 的表格。"
                 />
                 <ActionCard
                   href={`/campaigns/new?brand=${selectedBrand?.slug || ""}`}
-                  title="Create Landing Page"
+                  title="建立廣告頁"
                   body="建立一頁廣告 Landing Page，連接同一套 lead capture。"
                 />
                 <ActionCard
                   href={`/settings/treatments?brand=${selectedBrand?.slug || ""}`}
-                  title="Treatment Library"
+                  title="療程管理"
                   body="查看此品牌可用療程及可建立表格的項目。"
                 />
                 <ActionCard
                   href={`/settings/branches?brand=${selectedBrand?.slug || ""}`}
-                  title="Branch Library"
+                  title="分店管理"
                   body="查看此品牌分店資料，確保表格只顯示正確分店。"
                 />
                 <ActionCard
                   href="/crm"
                   title="CRM 工作台"
-                  body="跟進客人、確認預約、記錄 CS 對話及追蹤 Show / No-show。"
+                  body="跟進客人、確認預約、記錄對話及到店結果。"
                 />
               </div>
             </section>
@@ -161,7 +161,7 @@ export default async function BrandWorkspacePage({
 
           <MotionReveal delay={0.08}>
             <section className="alyssa-premium-card p-5">
-              <p className="alyssa-kicker">Setup Status</p>
+              <p className="alyssa-kicker">設定狀態</p>
               <h2 className="mt-2 text-xl font-bold text-[#321428]">
                 上線前檢查
               </h2>

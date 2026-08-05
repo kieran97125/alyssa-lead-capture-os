@@ -232,7 +232,7 @@ export default async function PeriodComparisonPage({
         <div className="command-page-inner">
           <header className="command-page-header period-comparison-header">
             <div>
-              <p className="command-page-kicker">Cross-period intelligence</p>
+              <p className="command-page-kicker">同期成效</p>
               <h1 className="command-page-title">品牌同期對比</h1>
               <p className="command-page-subtitle">
                 用相同日數公平比較不同月份，將廣告費、Lead、Book、Show、CPL
@@ -288,7 +288,7 @@ export default async function PeriodComparisonPage({
                   <Filter size={17} />
                 </span>
                 <div>
-                  <p>Comparison scope</p>
+                  <p>比較範圍</p>
                   <h2>同期範圍</h2>
                   <small>預設由每月 1 號比較至香港時間昨日。</small>
                 </div>
@@ -393,7 +393,7 @@ export default async function PeriodComparisonPage({
                   <GitCompareArrows size={17} />
                 </span>
                 <div>
-                  <p>Cumulative pace</p>
+                  <p>累計進度</p>
                   <h2>同期累積走勢</h2>
                   <small>每條線都由同一日開始，避免完整月份壓住未完月份。</small>
                 </div>
@@ -407,7 +407,7 @@ export default async function PeriodComparisonPage({
                   <UserRoundCheck size={17} />
                 </span>
                 <div>
-                  <p>Operational ratios</p>
+                  <p>營運比率</p>
                   <h2>轉換效率</h2>
                   <small>以本期同一日期範圍內嘅營運量計算。</small>
                 </div>
@@ -450,7 +450,7 @@ export default async function PeriodComparisonPage({
                 <CalendarRange size={17} />
               </span>
               <div>
-                <p>Month matrix</p>
+                <p>月份對照</p>
                 <h2>月份比較</h2>
                 <small>所有成本由同期總 Spend 除以同期總成果重新計算。</small>
               </div>
@@ -528,7 +528,7 @@ export default async function PeriodComparisonPage({
                 <UsersRound size={17} />
               </span>
               <div>
-                <p>Brand breakdown</p>
+                <p>品牌明細</p>
                 <h2>品牌拆解</h2>
                 <small>Alyssa、AM、IB、GOS 各自按同一口徑計算，權限亦沿用品牌設定。</small>
               </div>
@@ -602,7 +602,7 @@ export default async function PeriodComparisonPage({
                 <DatabaseZap size={17} />
               </span>
               <div>
-                <p>Lineage & quality</p>
+                <p>資料來源及完整度</p>
                 <h2>口徑與數據狀態</h2>
                 <small>保留資料血緣，缺來源時唔會用其他月份或重複表補數。</small>
               </div>

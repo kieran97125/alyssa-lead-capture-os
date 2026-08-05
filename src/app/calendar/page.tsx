@@ -44,11 +44,10 @@ export default async function MarketingCalendarPage({
         <div className="command-page-inner">
           <header className="command-page-header">
             <div>
-              <p className="command-page-kicker">Campaign Operations</p>
+              <p className="command-page-kicker">營銷規劃</p>
               <h1 className="command-page-title">營銷日曆</h1>
               <p className="command-page-subtitle">
-                {snapshot.month.label} · 用品牌色分辨 Post、廣告、Landing Page
-                同營運事項。可用滑鼠或鍵盤拖放到其他日期。
+                {snapshot.month.label} · 集中安排各品牌、療程、內容同廣告事項；可直接拖放更改日期。
               </p>
             </div>
             <div className="calendar-header-actions">
@@ -94,7 +93,7 @@ export default async function MarketingCalendarPage({
           ))}
           {!snapshot.schemaReady ? (
             <p className="command-status-message">
-              Migration 尚未套用；拖放及新增功能會喺正式套用後啟用。
+              日曆暫時只供查看，請聯絡系統管理員完成設定。
             </p>
           ) : null}
 
@@ -109,7 +108,7 @@ export default async function MarketingCalendarPage({
             </div>
             <p>
               <Info size={14} />
-              拖放後會立即寫入日期及 Audit Log
+              拖放後會自動保存新日期
             </p>
           </section>
 
@@ -133,7 +132,6 @@ export default async function MarketingCalendarPage({
             className="command-surface calendar-create-section"
           >
             <header>
-              <p>New item</p>
               <h2>新增營銷事項</h2>
             </header>
             <form action={createCalendarItemAction}>

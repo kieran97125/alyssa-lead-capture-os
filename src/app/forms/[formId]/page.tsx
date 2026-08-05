@@ -74,7 +74,7 @@ export default async function FormConfigPage({
         <header className="rounded-[28px] border border-[#ead9cf] bg-white/86 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <div className="grid gap-5 lg:grid-cols-[1fr_auto] lg:items-end">
             <div>
-              <p className="alyssa-kicker">Form Settings</p>
+              <p className="alyssa-kicker">表格設定</p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
                 {form.formName}
               </h1>
@@ -87,7 +87,7 @@ export default async function FormConfigPage({
                 href={`/brands?brand=${ops.brand?.slug || ""}`}
                 className="rounded-full border border-[#ead9cf] bg-white px-5 py-3 text-sm font-bold text-[#5a2348]"
               >
-                Brand Workspace
+                品牌工作區
               </Link>
               <Link
                 href={`/embed/${form.publicFormToken}`}
@@ -167,7 +167,7 @@ export default async function FormConfigPage({
 
             <label className="block min-w-0">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-[#9a5d76]">
-                Allowed domains
+                允許網域
               </span>
               <textarea
                 name="allowedDomains"
@@ -182,15 +182,15 @@ export default async function FormConfigPage({
 
             <div className="rounded-2xl bg-[#fff6f0] p-4">
               <dl className="grid gap-3 sm:grid-cols-2">
-                <InfoCell label="Form token" value={form.publicFormToken} mono />
-                <InfoCell label="Status" value="可使用" />
-                <InfoCell label="Updated" value={formatDate(form.updatedAt)} />
-                <InfoCell label="Branch" value={ops.branchLabel} />
-                <InfoCell label="Preview URL" value={ops.previewUrl} mono />
-                <InfoCell label="Conversion mode" value={ops.conversionMode} />
+                <InfoCell label="表格識別" value={form.publicFormToken} mono />
+                <InfoCell label="狀態" value="可使用" />
+                <InfoCell label="更新時間" value={formatDate(form.updatedAt)} />
+                <InfoCell label="分店" value={ops.branchLabel} />
+                <InfoCell label="預覽網址" value={ops.previewUrl} mono />
+                <InfoCell label="轉化方式" value={ops.conversionMode} />
                 <InfoCell
-                  label="Success redirect"
-                  value={ops.successRedirectUrl || "Not configured"}
+                  label="成功後轉址"
+                  value={ops.successRedirectUrl || "未設定"}
                   mono
                 />
                 <InfoCell

@@ -78,7 +78,7 @@ export function AuthConfirmClient({
       } catch {
         if (!cancelled) {
           setError(
-            "邀請連結已過期、已使用，或者呢個電郵未獲授權。請聯絡 Master 喺「成員及權限」頁重發安全連結。"
+            "邀請連結已過期、已使用，或者呢個電郵未獲授權。請聯絡系統管理員重發安全連結。"
           );
         }
       }

@@ -59,8 +59,8 @@ export function WhatsAppSendBox({
         disabled={disabled}
         placeholder={
           disabled
-            ? "Connect WhatsApp before sending."
-            : "Type WhatsApp message. CS must review before sending."
+            ? "請先連接 WhatsApp。"
+            : "輸入訊息；傳送前請再次核對內容。"
         }
         className="min-h-20 rounded-md border border-[#d1d5db] px-3 py-2 text-sm"
       />
@@ -71,14 +71,7 @@ export function WhatsAppSendBox({
           disabled={disabled || sending || !body.trim()}
           className="h-9 rounded-md bg-[#111827] px-3 text-xs font-black text-white disabled:cursor-not-allowed disabled:bg-[#d1d5db]"
         >
-          {sending ? "Sending..." : "Send via WhatsApp"}
-        </button>
-        <button
-          type="button"
-          disabled
-          className="h-9 rounded-md border border-[#e5e7eb] px-3 text-xs font-black text-[#94a3b8]"
-        >
-          Send template (Phase 2B)
+          {sending ? "傳送中…" : "透過 WhatsApp 傳送"}
         </button>
         {status && (
           <span className="text-xs font-bold text-[#64748b]">{status}</span>

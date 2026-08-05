@@ -1,0 +1,8 @@
+{
+  "crons": [
+    {
+      "path": "/api/cron/marketing-data-sources",
+      "schedule": "30 16 * * *"
+    }
+  ]
+}

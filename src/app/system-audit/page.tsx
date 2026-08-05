@@ -47,7 +47,7 @@ function statusLabel(tone: CheckTone) {
 async function getAuditSummary() {
   if (!hasSupabaseAdminEnv()) {
     return {
-      status: "Supabase 未完整設定",
+      status: "資料服務尚未完成設定",
       latestLeadAt: null,
       sourceSnapshots: 0,
       leadEvents: 0,
@@ -77,7 +77,7 @@ async function getAuditSummary() {
     if (latestLead.error) throw latestLead.error;
 
     return {
-      status: "Supabase 查詢正常",
+      status: "資料服務運作正常",
       latestLeadAt: latestLead.data?.[0]?.created_at ?? null,
       sourceSnapshots: snapshots.count ?? 0,
       leadEvents: events.count ?? 0,
@@ -86,7 +86,7 @@ async function getAuditSummary() {
     };
   } catch (error) {
     return {
-      status: "Supabase 已設定，但查詢失敗",
+      status: "資料服務暫時未能讀取",
       latestLeadAt: null,
       sourceSnapshots: 0,
       leadEvents: 0,
@@ -108,49 +108,49 @@ async function getReadinessChecks() {
 
   return [
     {
-      label: "Supabase URL",
-      detail: "NEXT_PUBLIC_SUPABASE_URL",
+      label: "資料庫連接",
+      detail: envPresent("NEXT_PUBLIC_SUPABASE_URL") ? "已連接" : "尚未連接",
       tone: envPresent("NEXT_PUBLIC_SUPABASE_URL") ? "ready" : "missing",
     },
     {
-      label: "Supabase browser auth key",
-      detail: "publishable / anon key",
+      label: "成員登入",
+      detail: emailAuthReady ? "已連接" : "尚未連接",
       tone: emailAuthReady ? "ready" : "missing",
     },
     {
-      label: "Supabase service role key",
-      detail: "server-side only",
+      label: "伺服器資料權限",
+      detail: envPresent("SUPABASE_SERVICE_ROLE_KEY") ? "已設定" : "尚未設定",
       tone: envPresent("SUPABASE_SERVICE_ROLE_KEY") ? "ready" : "missing",
     },
     {
-      label: "App URL",
-      detail: "NEXT_PUBLIC_APP_URL",
+      label: "系統網址",
+      detail: envPresent("NEXT_PUBLIC_APP_URL") ? "已設定" : "需要檢查",
       tone: envPresent("NEXT_PUBLIC_APP_URL") ? "ready" : "attention",
     },
     {
-      label: "Public base URL",
+      label: "公開表格網址",
       detail: getPublicBaseUrl(),
       tone: "ready",
     },
     {
-      label: "Admin base URL",
+      label: "內部系統網址",
       detail: getAdminBaseUrl(),
       tone: "ready",
     },
     {
-      label: "Invite-only email access",
+      label: "邀請制登入",
       detail: emailAuthRequired
-        ? "email-only enforcement enabled"
-        : "safe transition mode",
+        ? "已啟用"
+        : "需要檢查",
       tone: emailAuthRequired ? "ready" : "attention",
     },
     {
-      label: "Production auth email",
+      label: "登入電郵",
       detail: authEmailDelivery.detail,
       tone: authEmailDelivery.tone,
     },
     {
-      label: "Google Sheets lead sync",
+      label: "Lead Sheet 同步",
       detail: sheetsStatus.label,
       tone:
         sheetsStatus.status === "enabled"
@@ -160,17 +160,17 @@ async function getReadinessChecks() {
             : "missing",
     },
     {
-      label: "Main form token",
-      detail: alyssaDefaultForm.publicFormToken,
+      label: "主表格",
+      detail: mainForm.form ? "可正常讀取" : "未能讀取",
       tone: mainForm.form ? "ready" : "missing",
     },
     {
-      label: "Public form lookup",
-      detail: mainForm.form ? "lookup ok" : "lookup failed",
+      label: "公開表格",
+      detail: mainForm.form ? "運作正常" : "未能讀取",
       tone: mainForm.form ? "ready" : "missing",
     },
     {
-      label: "Landing page route",
+      label: "公開廣告頁",
       detail: getPublicLandingPageUrl("alyssa-main-trial-offer"),
       tone: publicLp ? "ready" : "missing",
     },
@@ -182,7 +182,7 @@ async function getAuthEmailDeliveryReadiness(): Promise<{
   tone: CheckTone;
 }> {
   if (!hasSupabaseAdminEnv()) {
-    return { detail: "Supabase 尚未連接", tone: "missing" };
+    return { detail: "資料服務尚未連接", tone: "missing" };
   }
 
   const supabase = createSupabaseAdminClient();
@@ -225,7 +225,7 @@ async function getAuthEmailDeliveryReadiness(): Promise<{
       tone: "attention",
     };
   }
-  return { detail: "尚未由 Master 實際寄出邀請", tone: "attention" };
+  return { detail: "尚未寄出成員邀請", tone: "attention" };
 }
 
 export default async function SystemAuditPage() {
@@ -240,13 +240,13 @@ export default async function SystemAuditPage() {
       <div className="mx-auto max-w-7xl px-5 py-8">
         <section className="rounded-[28px] border border-[#ead9cf] bg-white/82 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.1)]">
           <p className="text-sm font-semibold uppercase tracking-[0.2em] text-[#9a5d76]">
-            System audit
+            系統管理
           </p>
           <h1 className="mt-2 text-3xl font-bold text-[#321428]">
-            系統稽核
+            系統狀態
           </h1>
           <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-            技術檢查、來源追蹤分佈和 production trial readiness。
+            檢查關鍵服務、資料同步同追蹤狀態。
           </p>
           <p className="mt-4 rounded-2xl bg-[#fff6f0] px-4 py-3 text-sm font-bold text-[#5a2348]">
             {summary.status}
@@ -260,7 +260,7 @@ export default async function SystemAuditPage() {
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
           <h2 className="text-xl font-bold text-[#321428]">
-            Production readiness
+            服務狀態
           </h2>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
             {readinessChecks.map((item) => (
@@ -270,17 +270,17 @@ export default async function SystemAuditPage() {
         </section>
 
         <section className="mt-6 grid gap-3 md:grid-cols-3">
-          <AuditCard label="Source snapshots" value={summary.sourceSnapshots} />
-          <AuditCard label="Lead events" value={summary.leadEvents} />
+          <AuditCard label="追蹤紀錄" value={summary.sourceSnapshots} />
+          <AuditCard label="Lead 事件" value={summary.leadEvents} />
           <AuditCard
-            label="Latest lead"
+            label="最近 Lead"
             value={formatDateTime(summary.latestLeadAt)}
           />
         </section>
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
           <h2 className="text-xl font-bold text-[#321428]">
-            tracking_status distribution
+            追蹤狀態分佈
           </h2>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {summary.trackingStatus.length > 0 ? (
@@ -296,7 +296,7 @@ export default async function SystemAuditPage() {
               ))
             ) : (
               <p className="text-sm font-semibold text-[#7b5a6a]">
-                暫時未有 tracking_status 資料。
+                暫時未有追蹤狀態資料。
               </p>
             )}
           </div>
@@ -304,7 +304,7 @@ export default async function SystemAuditPage() {
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
           <h2 className="text-xl font-bold text-[#321428]">
-            CRM outcome events pending
+            CRM 結果事件
           </h2>
           <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
             {crmFeedback.map((eventName) => (

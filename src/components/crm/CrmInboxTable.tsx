@@ -12,41 +12,41 @@ export const crmInboxPresets: Array<{
 }> = [
   {
     key: "cs_booking",
-    label: "CS Booking View",
+    label: "CS 預約跟進",
     description: "日常跟進、預約及到店結果",
   },
   {
     key: "marketing",
-    label: "Marketing View",
+    label: "營銷分析",
     description: "來源、Campaign、廣告內容",
   },
   {
     key: "technical",
-    label: "Technical Audit View",
+    label: "追蹤檢查",
     description: "CTWA、表格、頁面及追蹤欄位",
   },
 ];
 
 const defaultHeadings = [
   "",
-  "Last contact",
-  "Assigned to",
-  "Customer",
+  "最近聯絡",
+  "負責人",
+  "客人",
   "WhatsApp",
-  "Status",
-  "Phone",
-  "Treatment / offer",
-  "Preferred appointment",
-  "Confirmed booking",
-  "Follow-up",
-  "Outcome",
-  "Actions",
+  "狀態",
+  "電話",
+  "療程／優惠",
+  "偏好時間",
+  "已確認預約",
+  "跟進",
+  "結果",
+  "操作",
 ];
 
 const marketingHeadings = [
-  "Source",
+  "來源",
   "Campaign",
-  "Content",
+  "廣告內容",
   "Meta campaign ID",
   "Meta adset ID",
   "Meta ad ID",
@@ -54,11 +54,11 @@ const marketingHeadings = [
 
 const technicalHeadings = [
   "Email",
-  "Contact created",
+  "建立時間",
   "CTWA Source ID",
   "CTWA Source URL",
-  "Landing page",
-  "Form / page URL",
+  "登記頁",
+  "表格／頁面網址",
   "fbclid / fbp / fbc",
 ];
 
@@ -167,7 +167,7 @@ export function CrmInboxTable({
                       {item.lastActivityLabel}
                     </span>
                     <span className="block whitespace-nowrap text-[10px] text-[#64748b]">
-                      Created {item.createdLabel}
+                      建立於 {item.createdLabel}
                     </span>
                   </Cell>
                   <Cell>
@@ -202,7 +202,7 @@ export function CrmInboxTable({
                       </a>
                     ) : (
                       <span className="text-[10px] font-semibold text-[#94a3b8]">
-                        No WA
+                        無 WhatsApp
                       </span>
                     )}
                   </Cell>
@@ -243,10 +243,10 @@ export function CrmInboxTable({
                     <div className="flex items-center gap-1.5 whitespace-nowrap">
                       <IntentPrefetchLink
                         href={`/crm/leads/${item.id}`}
-                        title="Open lead"
+                        title="開啟 Lead"
                         className="inline-flex h-7 min-w-7 items-center justify-center rounded-md border border-[#dbeafe] bg-[#eff6ff] px-2 text-[10px] font-bold text-[#1d4ed8] transition hover:bg-[#dbeafe]"
                       >
-                        Open
+                        開啟
                       </IntentPrefetchLink>
                       {item.whatsappUrl ? (
                         <a
@@ -269,7 +269,7 @@ export function CrmInboxTable({
             ) : (
               <tr>
                 <td colSpan={colSpan} className="px-4 py-10 text-center text-[#64748b]">
-                  目前沒有符合條件的 CRM inbox records。
+                  目前沒有符合條件嘅 Lead。
                 </td>
               </tr>
             )}
@@ -321,7 +321,7 @@ function TechnicalCells({ item }: { item: CrmLeadCase }) {
             rel="noreferrer"
             className="font-bold text-[#2563eb] hover:underline"
           >
-            Source URL
+            來源網址
           </a>
         ) : (
           "-"
@@ -336,7 +336,7 @@ function TechnicalCells({ item }: { item: CrmLeadCase }) {
             rel="noreferrer"
             className="font-bold text-[#2563eb] hover:underline"
           >
-            Page URL
+            頁面網址
           </a>
         ) : (
           "-"
@@ -344,7 +344,7 @@ function TechnicalCells({ item }: { item: CrmLeadCase }) {
       </Cell>
       <Cell>
         <span className="text-[10px] font-semibold text-[#94a3b8]">
-          Detailed fbclid / fbp / fbc coverage is in Reports.
+          詳細追蹤欄位覆蓋可於報表查看。
         </span>
       </Cell>
     </>
@@ -389,13 +389,13 @@ function BookingOutcomeCell({ item }: { item: CrmLeadCase }) {
     return <OutcomeBadge tone="emerald">已到店</OutcomeBadge>;
   }
   if (item.status === "no_show") {
-    return <OutcomeBadge tone="red">No-show</OutcomeBadge>;
+    return <OutcomeBadge tone="red">未到店</OutcomeBadge>;
   }
   if (item.status === "lost") {
-    return <OutcomeBadge tone="slate">Lost</OutcomeBadge>;
+    return <OutcomeBadge tone="slate">已流失</OutcomeBadge>;
   }
   if (item.status === "invalid") {
-    return <OutcomeBadge tone="slate">Invalid</OutcomeBadge>;
+    return <OutcomeBadge tone="slate">無效</OutcomeBadge>;
   }
   if (item.status === "booked") {
     return <OutcomeBadge tone="sky">已預約</OutcomeBadge>;
@@ -456,15 +456,15 @@ function statusLabel(status: CrmStatus) {
     contacted: "已聯絡",
     booked: "已預約",
     showed: "已到店",
-    no_show: "No-show",
+    no_show: "未到店",
     cancelled: "已取消",
     no_reply: "未回覆",
-    lost: "Lost",
+    lost: "已流失",
     new: "待跟進",
     contacting: "已聯絡",
     confirmed: "已確認",
     paid: "已付款",
-    invalid: "Invalid",
+    invalid: "無效",
   };
   return labels[status] ?? status;
 }

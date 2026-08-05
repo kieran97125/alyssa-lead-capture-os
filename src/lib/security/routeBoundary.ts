@@ -18,6 +18,7 @@ export const internalRoutePrefixes = [
   "/calendar",
   "/data-sources",
   "/leads",
+  "/lead-audit",
   "/crm",
   "/performance",
   "/brands",
@@ -57,6 +58,10 @@ export function requiresMasterAccess(pathname: string) {
   );
 }
 
+export function requiresMasterOrExplicitLeadAuditAccess(pathname: string) {
+  return pathname === "/lead-audit" || pathname.startsWith("/lead-audit/");
+}
+
 export function getInternalRouteModule(pathname: string): InternalModule | null {
   if (!isInternalRoute(pathname)) return null;
   if (pathname === "/" || pathname.startsWith("/dashboard")) return "dashboard";
@@ -64,6 +69,7 @@ export function getInternalRouteModule(pathname: string): InternalModule | null 
   if (pathname.startsWith("/calendar")) return "calendar";
   if (pathname.startsWith("/data-sources")) return "data_sources";
   if (pathname.startsWith("/leads")) return "leads";
+  if (pathname.startsWith("/lead-audit")) return "lead_audit";
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/performance")) return "performance";
   if (pathname.startsWith("/settings/planning")) return "kpis";

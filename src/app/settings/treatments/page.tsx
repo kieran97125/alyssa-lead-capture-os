@@ -54,7 +54,7 @@ export default async function TreatmentSettingsPage({
         <header className="rounded-[28px] border border-[#ead9cf] bg-white/88 p-6 shadow-[0_24px_70px_rgba(90,35,72,0.08)]">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
             <div>
-              <p className="alyssa-kicker">Settings</p>
+              <p className="alyssa-kicker">系統設定</p>
               <h1 className="mt-2 text-3xl font-bold text-[#321428]">
                 療程管理
               </h1>

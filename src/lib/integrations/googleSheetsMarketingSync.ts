@@ -4,6 +4,11 @@ import { createHash, randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
 import { readLiveLeadTable } from "@/lib/integrations/googleSheetsLeadTable";
+import {
+  captureLeadSheetAuditSnapshot,
+  recordLeadSheetAuditFailure,
+  type LeadAuditCaptureResult,
+} from "@/lib/marketing/leadSheetAudit";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
 import {
   aggregateDailySpendRows,
@@ -84,8 +89,18 @@ export type MarketingSyncResult = {
   dataset: string;
   metricRows: number;
   analysisRows: number;
+  auditRunId?: string | null;
+  auditStatus?: string | null;
+  auditOpenAlerts?: number;
   message: string;
 };
+
+class LeadAuditQuarantineError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "LeadAuditQuarantineError";
+  }
+}
 
 async function getGoogleAccessToken() {
   return getGoogleSheetsOAuthAccessToken();
@@ -318,9 +333,20 @@ async function collectLeadFunnelMetrics(
   source: DataSourceRow,
   configuration: Record<string, unknown>,
   brands: BrandRow[],
-  throughDate: string
+  throughDate: string,
+  options: { actorIdentifier?: string; startedAt: string }
 ) {
-  const { headers, rows } = await readLiveLeadTable(configuration);
+  const { headers, rows, headerRow } = await readLiveLeadTable(configuration);
+  const audit = await captureLeadSheetAuditSnapshot({
+    dataSourceId: source.id,
+    actorIdentifier: options.actorIdentifier,
+    headers,
+    rows,
+    headerRow,
+    brands,
+    brandAliases: stringRecord(configuration.brandAliases),
+    startedAt: options.startedAt,
+  });
   const timestamp = new Date().toISOString();
   const month = getHkMonthContext();
   const parsed = aggregateLeadSheetPerformance({
@@ -378,6 +404,7 @@ async function collectLeadFunnelMetrics(
     dailyMetrics,
     treatmentMetrics,
     diagnostics: parsed.diagnostics,
+    audit,
   };
 }
 
@@ -494,6 +521,8 @@ export async function syncMarketingDataSource(
   const configuration = source.configuration ?? {};
   let dataset = "unknown";
   const startedAt = new Date().toISOString();
+  let audit: LeadAuditCaptureResult | null = null;
+  let auditSnapshotAttempted = false;
   const staleBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const { data: claimedSource, error: claimError } = await supabase
     .from("marketing_data_sources")
@@ -566,8 +595,20 @@ export async function syncMarketingDataSource(
         source,
         configuration,
         brands,
-        throughDate
+        throughDate,
+        {
+          actorIdentifier: options.actorIdentifier,
+          startedAt,
+        }
       );
+      auditSnapshotAttempted = true;
+      audit = leadFunnel.audit;
+      if (audit.quarantined) {
+        throw new LeadAuditQuarantineError(
+          audit.quarantineReason ||
+            "Lead Sheet 新版本已隔離，報表未被覆寫。"
+        );
+      }
       metrics = leadFunnel.dailyMetrics;
       treatmentMetrics = leadFunnel.treatmentMetrics;
       diagnostics = leadFunnel.diagnostics;
@@ -578,10 +619,11 @@ export async function syncMarketingDataSource(
     }
 
     const completedAt = new Date().toISOString();
+    const sourceStatus = audit && audit.openAlerts > 0 ? "warning" : "connected";
     const { error: sourceUpdateError } = await supabase
       .from("marketing_data_sources")
       .update({
-        status: "connected",
+        status: sourceStatus,
         last_sync_at: completedAt,
         last_success_at: completedAt,
         last_error_summary: null,
@@ -601,6 +643,9 @@ export async function syncMarketingDataSource(
         treatmentMetricRows: treatmentMetrics.length,
         throughDate,
         diagnostics,
+        auditRunId: audit?.runId ?? null,
+        auditStatus: audit?.status ?? null,
+        auditOpenAlerts: audit?.openAlerts ?? 0,
       },
     });
 
@@ -611,18 +656,34 @@ export async function syncMarketingDataSource(
       dataset,
       metricRows: metrics.length,
       analysisRows: treatmentMetrics.length,
+      auditRunId: audit?.runId ?? null,
+      auditStatus: audit?.status ?? null,
+      auditOpenAlerts: audit?.openAlerts ?? 0,
       message:
         dataset === "lead_funnel"
-          ? `同步完成，共更新 ${metrics.length} 個每日指標及 ${treatmentMetrics.length} 個療程成效組合。`
+          ? `同步完成，共更新 ${metrics.length} 個每日指標及 ${treatmentMetrics.length} 個療程成效組合；Lead Audit 已保存版本${
+              audit?.openAlerts
+                ? `，有 ${audit.openAlerts} 項待核對警報`
+                : "，未發現需警報異常"
+            }。`
           : `同步完成，共更新 ${metrics.length} 個每日指標。`,
     };
   } catch (syncError) {
     const message = safeErrorMessage(syncError);
     const failedAt = new Date().toISOString();
+    if (dataset === "lead_funnel" && !auditSnapshotAttempted) {
+      await recordLeadSheetAuditFailure({
+        dataSourceId: source.id,
+        actorIdentifier: options.actorIdentifier,
+        startedAt,
+        error: syncError,
+      });
+    }
     await supabase
       .from("marketing_data_sources")
       .update({
-        status: "error",
+        status:
+          syncError instanceof LeadAuditQuarantineError ? "warning" : "error",
         last_sync_at: failedAt,
         last_error_summary: message,
         updated_at: failedAt,
@@ -635,6 +696,9 @@ export async function syncMarketingDataSource(
       dataset,
       metricRows: 0,
       analysisRows: 0,
+      auditRunId: audit?.runId ?? null,
+      auditStatus: audit?.status ?? null,
+      auditOpenAlerts: audit?.openAlerts ?? 0,
       message,
     };
   }

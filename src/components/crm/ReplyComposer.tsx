@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { CrmReplyTemplate } from "@/lib/crm/settingsConfig";
 
-type AiDraft = {
+type ContextDraft = {
   key: string;
   title: string;
   body: string;
@@ -26,12 +26,12 @@ export function ReplyComposer({
   context,
 }: {
   quickReplies: CrmReplyTemplate[];
-  aiDrafts: AiDraft[];
+  aiDrafts: ContextDraft[];
   context: ReplyContext;
 }) {
   const [message, setMessage] = useState("");
   const [selectedQuickReplyKey, setSelectedQuickReplyKey] = useState<string | null>(null);
-  const [aiSuggestion, setAiSuggestion] = useState("");
+  const [draftSuggestion, setDraftSuggestion] = useState("");
   const [generationCount, setGenerationCount] = useState(0);
 
   const recommendedReplies = useMemo(
@@ -48,11 +48,11 @@ export function ReplyComposer({
     setMessage(reply.body);
   }
 
-  function generateAiReply() {
+  function generateContextDraft() {
     const nextCount = generationCount + 1;
     setGenerationCount(nextCount);
-    setAiSuggestion(
-      buildLocalAiSuggestion({
+    setDraftSuggestion(
+      buildContextDraft({
         context,
         selectedQuickReply,
         aiDrafts,
@@ -66,19 +66,19 @@ export function ReplyComposer({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-[13px] font-bold text-[#111827]">
-            Reply Composer / 回覆編輯器
+            回覆草稿
           </h2>
           <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
-            CS 可以直接揀 Quick Reply，或者用 AI Assist 產生較自然的回覆草稿，再人手檢查及修改。
+            選擇預設回覆，或按客人狀態及預約資料組合草稿；發送前必須由同事核對。
           </p>
         </div>
         <span className="rounded-md bg-[#f8fafc] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.1em] text-[#64748b]">
-          Manual review required
+          發送前核對
         </span>
       </div>
 
       <div className="mt-3 rounded-md border border-dashed border-[#cbd5e1] bg-[#f8fafc] px-3 py-2">
-        <p className="text-[11px] font-black text-[#334155]">Conversation context</p>
+        <p className="text-[11px] font-black text-[#334155]">客人資料</p>
         <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
           完成 WhatsApp 連接後，對話紀錄會自動顯示。暫時請 CS 以手動 WhatsApp 內容、最新跟進紀錄及下方客人資料作判斷。
         </p>
@@ -95,9 +95,9 @@ export function ReplyComposer({
         <div className="grid gap-3">
           <div className="rounded-lg border border-[#eef2f6] bg-[#fbfdff] p-3">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-[12px] font-black text-[#111827]">Quick Replies</h3>
+              <h3 className="text-[12px] font-black text-[#111827]">預設回覆</h3>
               <span className="rounded-md bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-[#64748b]">
-                Preset
+                範本
               </span>
             </div>
             <p className="mt-1 text-[11px] font-semibold leading-5 text-[#64748b]">
@@ -128,53 +128,53 @@ export function ReplyComposer({
 
           <div className="rounded-lg border border-[#dbeafe] bg-[#eff6ff] p-3">
             <div className="flex items-center justify-between gap-2">
-              <h3 className="text-[12px] font-black text-[#111827]">AI Assist</h3>
+              <h3 className="text-[12px] font-black text-[#111827]">情境草稿</h3>
               <span className="rounded-md bg-white px-2 py-0.5 text-[9px] font-black uppercase tracking-[0.1em] text-[#1d4ed8]">
-                Local draft
+                即時組合
               </span>
             </div>
             <p className="mt-1 text-[11px] font-semibold leading-5 text-[#475569]">
-              目前只會根據客人狀態、療程及預約資料產生草稿，智能回覆只會填入草稿，需同事確認。
+              根據客人狀態、療程及預約資料組合回覆內容，不會自動發送。
             </p>
             <button
               type="button"
-              onClick={generateAiReply}
+              onClick={generateContextDraft}
               className="mt-2 h-8 rounded-md bg-[#1d4ed8] px-3 text-[11px] font-black text-white transition hover:bg-[#1e40af]"
             >
-              Generate reply
+              產生草稿
             </button>
           </div>
         </div>
 
         <div className="grid gap-3">
-          {aiSuggestion ? (
+          {draftSuggestion ? (
             <div className="rounded-lg border border-[#bfdbfe] bg-[#eff6ff] p-3">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <h3 className="text-[12px] font-black text-[#111827]">
-                  AI generated suggestion
+                  建議草稿
                 </h3>
                 <button
                   type="button"
-                  onClick={() => setMessage(aiSuggestion)}
+                  onClick={() => setMessage(draftSuggestion)}
                   className="h-7 rounded-md bg-white px-2.5 text-[10px] font-black text-[#1d4ed8] transition hover:bg-[#dbeafe]"
                 >
-                  Use this reply
+                  使用草稿
                 </button>
               </div>
               <p className="mt-2 whitespace-pre-line text-[12px] font-semibold leading-5 text-[#334155]">
-                {aiSuggestion}
+                {draftSuggestion}
               </p>
             </div>
           ) : null}
 
           <label className="block">
             <span className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#64748b]">
-              Message to review
+              待核對訊息
             </span>
             <textarea
               value={message}
               onChange={(event) => setMessage(event.target.value)}
-              placeholder="選擇 Quick Reply 或按 Generate reply 產生草稿，然後在這裡修改。"
+              placeholder="選擇預設回覆或產生情境草稿，然後在這裡修改。"
               rows={8}
               className="mt-1.5 min-h-40 w-full resize-y rounded-md border border-[#e5e7eb] bg-[#f8fafc] px-3 py-2 text-[13px] font-semibold leading-6 text-[#111827] outline-none focus:border-[#D85BA3] focus:bg-white focus:ring-2 focus:ring-[#F9D7EA]"
             />
@@ -182,7 +182,7 @@ export function ReplyComposer({
 
           <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[#fef3c7] bg-[#fffbeb] px-3 py-2">
             <p className="text-[11px] font-semibold leading-5 text-[#92400e]">
-              完成 WhatsApp 連接後可直接發送；目前仍需人手開啟 WhatsApp，再由同事確認及發送。
+              系統會開啟 WhatsApp 對話；同事核對內容後再發送。
             </p>
             <div className="flex flex-wrap items-center gap-2">
               {context.whatsappUrl ? (
@@ -192,16 +192,9 @@ export function ReplyComposer({
                   rel="noreferrer"
                   className="inline-flex h-8 items-center justify-center rounded-md border border-[#bbf7d0] bg-white px-3 text-[11px] font-black text-[#15803d] transition hover:bg-[#dcfce7]"
                 >
-                  Open WhatsApp
+                  開啟 WhatsApp
                 </a>
               ) : null}
-              <button
-                type="button"
-                disabled
-                className="h-8 rounded-md bg-[#e5e7eb] px-3 text-[11px] font-black text-[#94a3b8]"
-              >
-                Send via WhatsApp 尚未啟用
-              </button>
             </div>
           </div>
         </div>
@@ -210,7 +203,7 @@ export function ReplyComposer({
   );
 }
 
-function buildLocalAiSuggestion({
+function buildContextDraft({
   context,
   selectedQuickReply,
   aiDrafts,
@@ -218,7 +211,7 @@ function buildLocalAiSuggestion({
 }: {
   context: ReplyContext;
   selectedQuickReply?: CrmReplyTemplate;
-  aiDrafts: AiDraft[];
+  aiDrafts: ContextDraft[];
   seed: number;
 }) {
   const greetings = [

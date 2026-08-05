@@ -239,19 +239,19 @@ export default async function DailyOverviewPage({
         <div className="command-page-inner">
           <header className="command-page-header daily-overview-header">
             <div>
-              <p className="command-page-kicker">Daily performance control</p>
-              <h1 className="command-page-title">每日 Overview</h1>
+              <p className="command-page-kicker">每日成效</p>
+              <h1 className="command-page-title">每日總覽</h1>
               <p className="command-page-subtitle">
                 CS Lead Sheet 提供 Lead／Book／Show；廣告費直接喺系統記錄。每個日期同時睇單日及累計表現，毋須再接駁每月 Spending Sheet。
               </p>
               <div className="daily-overview-source-line">
                 <span>
                   <DatabaseZap size={14} />
-                  CS Lead Sheet · Funnel
+                  Lead Sheet · 轉化
                 </span>
                 <span>
                   <WalletCards size={14} />
-                  Internal Daily Spend · Spend
+                  每日廣告費
                 </span>
                 <span>
                   <Clock3 size={14} />
@@ -266,7 +266,7 @@ export default async function DailyOverviewPage({
                 value={snapshot.selectedSpendType}
               />
               <label>
-                <span>Overview 月份</span>
+                <span>月份</span>
                 <select name="month" defaultValue={snapshot.monthStart}>
                   {snapshot.monthOptions.map((option) => (
                     <option key={option.value} value={option.value}>

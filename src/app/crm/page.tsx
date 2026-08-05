@@ -48,8 +48,8 @@ const queueOptions = [
   ["follow_up_overdue", "過期未跟"],
   ["contacting", "已聯絡"],
   ["booked", "已預約"],
-  ["lost", "Lost"],
-  ["invalid", "Invalid"],
+  ["lost", "已流失"],
+  ["invalid", "無效"],
 ];
 
 const bookingQueueOptions = [
@@ -57,7 +57,7 @@ const bookingQueueOptions = [
   ["today_bookings", "今日預約"],
   ["pending_show_outcome", "待標記到店結果"],
   ["booked", "已預約"],
-  ["no_show", "No-show"],
+  ["no_show", "未到店"],
 ];
 
 const inboxSubTabs = [
@@ -72,7 +72,7 @@ const bookingSubTabs = [
   { label: "今日預約", queue: "today_bookings" },
   { label: "待標記結果", queue: "pending_show_outcome" },
   { label: "已預約", queue: "booked" },
-  { label: "No-show", queue: "no_show" },
+  { label: "未到店", queue: "no_show" },
   { label: "全部", queue: "" },
 ];
 
@@ -161,14 +161,14 @@ export default async function CrmPage({
   const activeSubTabs = activeTab === "bookings" ? bookingSubTabs : inboxSubTabs;
   const activeQueueOptions = activeTab === "bookings" ? bookingQueueOptions : queueOptions;
   const dashboardCards = [
-    { label: "Today leads", value: countTodayCreated(baseFilteredCases), href: "/crm?tab=leads" },
-    { label: "Pending follow-up", value: summary.newLeads, href: "/crm?tab=leads&queue=new" },
-    { label: "Today follow-up", value: summary.todayFollowUp, href: "/crm?tab=leads&queue=follow_up_today" },
-    { label: "Overdue follow-up", value: summary.overdueFollowUp, href: "/crm?tab=leads&queue=follow_up_overdue" },
-    { label: "Today bookings", value: summary.todayBookings, href: "/crm?tab=bookings&queue=today_bookings" },
-    { label: "Pending show outcome", value: summary.pendingShowOutcome, href: "/crm?tab=bookings&queue=pending_show_outcome" },
-    { label: "Booked", value: summary.booked, href: "/crm?tab=bookings&queue=booked" },
-    { label: "Showed / No-show", value: conversion.showed + conversion.noShow, href: "/crm?tab=reports" },
+    { label: "今日新 Lead", value: countTodayCreated(baseFilteredCases), href: "/crm?tab=leads" },
+    { label: "待跟進", value: summary.newLeads, href: "/crm?tab=leads&queue=new" },
+    { label: "今日跟進", value: summary.todayFollowUp, href: "/crm?tab=leads&queue=follow_up_today" },
+    { label: "過期未跟", value: summary.overdueFollowUp, href: "/crm?tab=leads&queue=follow_up_overdue" },
+    { label: "今日預約", value: summary.todayBookings, href: "/crm?tab=bookings&queue=today_bookings" },
+    { label: "待標記到店", value: summary.pendingShowOutcome, href: "/crm?tab=bookings&queue=pending_show_outcome" },
+    { label: "已預約", value: summary.booked, href: "/crm?tab=bookings&queue=booked" },
+    { label: "到店結果", value: conversion.showed + conversion.noShow, href: "/crm?tab=reports" },
   ];
   const whatsappConnectionView =
     await getWhatsAppConnectionByBrandSlug("ineffable");
@@ -196,22 +196,22 @@ export default async function CrmPage({
                 <div className="flex items-center gap-2.5">
                   <h1 className="text-[17px] font-black text-[#111827]">
                     {activeTab === "reports"
-                      ? "Marketing Reports / 報表"
+                      ? "營銷報表"
                       : activeTab === "dashboard"
-                        ? "Dashboard / 首頁"
+                        ? "CRM 總覽"
                       : activeTab === "bookings"
-                        ? "Bookings / 預約"
+                        ? "預約"
                         : "對話"}
                   </h1>
                   <span className="rounded-full bg-[#ecfdf5] px-2 py-0.5 text-[10px] font-black text-[#047857]">
-                    {runtime.actionsEnabled ? "Actions on" : "Read-only"}
+                    {runtime.actionsEnabled ? "可操作" : "只讀"}
                   </span>
                 </div>
                 <p className="mt-1 text-[11px] font-semibold text-[#64748b]">
                   {activeTab === "reports"
-                    ? "管理層及 Marketing 用報表；CS 日常工作只需要使用工作台及預約。"
+                    ? "查看 Lead 來源、轉化及事件追蹤質素。"
                     : activeTab === "dashboard"
-                      ? "CRM 首頁總覽：今日 lead、跟進、預約及需要處理的 booking outcome。"
+                      ? "集中查看今日 Lead、跟進、預約及到店結果。"
                     : activeTab === "bookings"
                       ? "今日預約、待標記到店結果及已確認預約的操作隊列。"
                       : "CS 每日跟進 Lead、手動開 WhatsApp、確認預約及更新狀態。"}
@@ -258,7 +258,7 @@ export default async function CrmPage({
                   <button
                     type="submit"
                     className="grid h-8 w-8 place-items-center rounded-md border border-[#dbe2ea] bg-white text-[12px] font-black text-[#475569]"
-                    title="Filter"
+                    title="篩選"
                   >
                     ≡
                   </button>
@@ -285,12 +285,12 @@ export default async function CrmPage({
                     ))}
                   </select>
                   <label className="w-[220px] lg:w-[280px]">
-                    <span className="sr-only">Search CRM inbox</span>
+                    <span className="sr-only">搜尋 Lead</span>
                     <input
                       name="search"
                       type="search"
                       defaultValue={search}
-                      placeholder="Search name, phone, treatment..."
+                      placeholder="搜尋姓名、電話、療程…"
                       className="h-8 w-full rounded-md border border-[#dbe2ea] bg-[#f8fafc] px-2.5 text-[12px] font-semibold text-[#111827] outline-none transition placeholder:text-[#94a3b8] focus:border-[var(--crm-accent)] focus:bg-white"
                     />
                   </label>
@@ -298,7 +298,7 @@ export default async function CrmPage({
                     name="view"
                     defaultValue={viewPreset}
                     className="h-8 rounded-md border border-[#dbe2ea] bg-white px-2 text-[12px] font-semibold text-[#334155]"
-                    title="Column preset"
+                    title="欄位顯示"
                   >
                     {crmSettings.inboxColumnPresets.map((item) => (
                       <option key={item.key} value={item.key}>
@@ -314,7 +314,7 @@ export default async function CrmPage({
                   </button>
                   {(queue || search || viewPreset !== "cs_booking") ? (
                     <span className="inline-flex h-8 items-center rounded-full bg-[#fef3c7] px-2.5 text-[11px] font-bold text-[#92400e]">
-                      Filter applied
+                      已套用篩選
                     </span>
                   ) : null}
                 </form>
@@ -323,18 +323,19 @@ export default async function CrmPage({
 
             {!whatsappConnectionView.connection ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-900">
-                Ineffable WhatsApp is not connected yet.{" "}
+                Ineffable WhatsApp 尚未連接。{" "}
                 <a
                   href="/crm/settings/whatsapp"
                   className="font-black underline underline-offset-2"
                 >
-                  Open WhatsApp Connection
+                  前往連接
                 </a>
               </div>
             ) : null}
           </div>
 
-          {activeTab === "reports" && (            <>
+          {activeTab === "reports" && (
+            <>
           <section className="border-t border-[#f1f5f9] px-4 py-3">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
@@ -342,11 +343,11 @@ export default async function CrmPage({
                   CRM 轉化概覽
                 </h2>
                 <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                  以 Lead created_at 計算；已預約只計 CS 確認預約，不包括客人偏好日期時間。
+                  按 Lead 建立時間計算；已預約只計同事確認嘅預約，不包括客人偏好時間。
                 </p>
               </div>
               <p className="text-[10px] font-bold uppercase tracking-[0.08em] text-[#94a3b8]">
-                {baseFilteredCases.length} cases in current view
+                目前顯示 {baseFilteredCases.length} 個紀錄
               </p>
             </div>
 
@@ -355,8 +356,8 @@ export default async function CrmPage({
               <ConversionMetric label="已聯絡" value={conversion.contacting} tone="blue" />
               <ConversionMetric label="已預約" value={conversion.booked} tone="emerald" />
               <ConversionMetric label="已到店" value={conversion.showed} tone="sky" />
-              <ConversionMetric label="No-show" value={conversion.noShow} />
-              <ConversionMetric label="Lost" value={conversion.lost} tone="red" />
+              <ConversionMetric label="未到店" value={conversion.noShow} />
+              <ConversionMetric label="已流失" value={conversion.lost} tone="red" />
             </div>
 
             <div className="mt-2 grid gap-2 sm:grid-cols-3">
@@ -369,8 +370,8 @@ export default async function CrmPage({
               <table className="min-w-full text-left text-[11px]">
                 <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
                   <tr>
-                    <th className="px-3 py-2">Brand</th>
-                    <th className="px-3 py-2">Treatment / offer</th>
+                    <th className="px-3 py-2">品牌</th>
+                    <th className="px-3 py-2">療程／優惠</th>
                     <th className="px-3 py-2">Lead</th>
                     <th className="px-3 py-2">已預約</th>
                     <th className="px-3 py-2">已到店</th>
@@ -400,7 +401,7 @@ export default async function CrmPage({
                   ) : (
                     <tr>
                       <td colSpan={7} className="px-3 py-6 text-center text-[#64748b]">
-                        No CRM conversion rows in this range.
+                        所選日期範圍未有 CRM 轉化紀錄。
                       </td>
                     </tr>
                   )}
@@ -413,7 +414,7 @@ export default async function CrmPage({
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-[13px] font-black text-[#111827]">
-                  Source Ranking
+                  來源排名
                 </h2>
                 <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
                   用最簡單方式睇來源帶來幾多 Leads、已預約及已到店。
@@ -429,14 +430,14 @@ export default async function CrmPage({
               <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
                   <h2 className="text-[13px] font-black text-[#111827]">
-                    Technical Audit / 技術審核
+                    追蹤質素
                   </h2>
                   <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                    只供 Marketing / Admin 檢查追蹤與回傳準備，CS 不需要使用。
+                    按來源同 Campaign 檢查追蹤覆蓋同回傳準備度。
                   </p>
                 </div>
                 <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#94a3b8]">
-                  Advanced
+                  詳細資料
                 </p>
               </div>
             </summary>
@@ -450,40 +451,41 @@ export default async function CrmPage({
               <SourceQualityTable rows={sourceQualityRows} />
               <CampaignQualityTable rows={campaignQualityRows} />
             </div>
+          </details>
 
           <section className="border-t border-[#f1f5f9] px-4 py-3">
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-[13px] font-black text-[#111827]">
-                  Tracking Capture Audit / 追蹤欄位覆蓋
+                  追蹤欄位覆蓋
                 </h2>
                 <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                  內部檢查現有 Lead / source snapshot 是否足夠支援未來 Meta CAPI 或 offline conversion feedback；此區不會改變追蹤或送出任何事件。
+                  檢查現有 Lead 追蹤資料能否支援廣告平台事件回傳。
                 </p>
               </div>
               <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#94a3b8]">
-                Audit only
+                只讀分析
               </p>
             </div>
 
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-11">
-              <ConversionMetric label="Total leads" value={trackingCaptureAudit.summary.totalLeads} />
-              <ConversionMetric label="Leads with UTM" value={trackingCaptureAudit.summary.withUtm} tone="blue" />
-              <ConversionMetric label="Leads with fbclid" value={trackingCaptureAudit.summary.withFbclid} tone="emerald" />
-              <ConversionMetric label="Leads with fbp" value={trackingCaptureAudit.summary.withFbp} />
-              <ConversionMetric label="Leads with fbc" value={trackingCaptureAudit.summary.withFbc} />
+              <ConversionMetric label="Lead 總數" value={trackingCaptureAudit.summary.totalLeads} />
+              <ConversionMetric label="有 UTM" value={trackingCaptureAudit.summary.withUtm} tone="blue" />
+              <ConversionMetric label="有 fbclid" value={trackingCaptureAudit.summary.withFbclid} tone="emerald" />
+              <ConversionMetric label="有 fbp" value={trackingCaptureAudit.summary.withFbp} />
+              <ConversionMetric label="有 fbc" value={trackingCaptureAudit.summary.withFbc} />
               <ConversionMetric label="Meta campaign ID" value={trackingCaptureAudit.summary.withMetaCampaignId} />
               <ConversionMetric label="Meta adset ID" value={trackingCaptureAudit.summary.withMetaAdsetId} />
               <ConversionMetric label="Meta ad ID" value={trackingCaptureAudit.summary.withMetaAdId} />
-              <ConversionMetric label="Direct / no tracking" value={trackingCaptureAudit.summary.directNoTracking} tone="red" />
-              <ConversionMetric label="Strong tracking %" value={formatPercent(trackingCaptureAudit.summary.strongTrackingRate)} tone="emerald" />
-              <ConversionMetric label="Missing tracking %" value={formatPercent(trackingCaptureAudit.summary.missingTrackingRate)} tone="red" />
+              <ConversionMetric label="直接／無追蹤" value={trackingCaptureAudit.summary.directNoTracking} tone="red" />
+              <ConversionMetric label="完整追蹤率" value={formatPercent(trackingCaptureAudit.summary.strongTrackingRate)} tone="emerald" />
+              <ConversionMetric label="缺少追蹤率" value={formatPercent(trackingCaptureAudit.summary.missingTrackingRate)} tone="red" />
             </div>
 
             <div className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-[12px] font-semibold leading-5 text-blue-950">
-              <p className="font-black">Source capture diagnosis</p>
+              <p className="font-black">追蹤診斷</p>
               <p className="mt-1">
-                UTM 對報表分析有用；但未來如要做 Meta CAPI / offline matching，fbclid、fbc、fbp 會更重要。Direct / no tracking Leads 暫時不能可靠配對回 Meta。此區只作 audit，不會改變 capture 行為，亦不會發送任何事件。
+                UTM 用於報表分析；如要進行廣告平台事件配對，fbclid、fbc 同 fbp 需要完整。直接／無追蹤 Lead 暫時不能可靠配對。
               </p>
             </div>
 
@@ -494,62 +496,61 @@ export default async function CrmPage({
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-[13px] font-black text-[#111827]">
-                  Outcome Feedback Preview / 事件回傳預覽
+                  事件回傳準備度
                 </h2>
                 <p className="mt-0.5 text-[11px] font-semibold text-[#64748b]">
-                  內部審核用，尚未回傳 Meta 或任何外部平台。
+                  評估現有 CRM 結果同追蹤資料能否支援廣告平台事件回傳。
                 </p>
               </div>
               <p className="text-[10px] font-black uppercase tracking-[0.08em] text-[#94a3b8]">
-                Preview only
+                只讀分析
               </p>
             </div>
 
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-9">
-              <ConversionMetric label="Outcome 總數" value={outcomeSummary.total} />
+              <ConversionMetric label="結果總數" value={outcomeSummary.total} />
               <ConversionMetric label="已預約" value={outcomeSummary.booked} tone="emerald" />
               <ConversionMetric label="已到店" value={outcomeSummary.showed} tone="sky" />
-              <ConversionMetric label="No-show" value={outcomeSummary.noShow} tone="red" />
+              <ConversionMetric label="未到店" value={outcomeSummary.noShow} tone="red" />
               <ConversionMetric label="已流失" value={outcomeSummary.lost} tone="red" />
               <ConversionMetric label="無效" value={outcomeSummary.invalid} />
-              <ConversionMetric label="Tracking 強" value={outcomeSummary.strong} tone="emerald" />
-              <ConversionMetric label="Tracking 不完整" value={outcomeSummary.partial} tone="blue" />
+              <ConversionMetric label="追蹤完整" value={outcomeSummary.strong} tone="emerald" />
+              <ConversionMetric label="追蹤不完整" value={outcomeSummary.partial} tone="blue" />
               <ConversionMetric label="直接 / 無追蹤" value={outcomeSummary.direct} tone="red" />
             </div>
 
             <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
-              <ConversionMetric label="Total outcome records" value={readinessSummary.total} />
-              <ConversionMetric label="Ready for Meta feedback" value={readinessSummary.ready} tone="emerald" />
-              <ConversionMetric label="Needs stronger tracking" value={readinessSummary.needsStrongerTracking} tone="blue" />
-              <ConversionMetric label="CRM reporting only" value={readinessSummary.crmOnly} />
-              <ConversionMetric label="Missing fbclid / fbc / fbp" value={readinessSummary.missingClickIds} tone="red" />
-              <ConversionMetric label="Direct / no tracking" value={readinessSummary.directNoTracking} tone="red" />
-              <ConversionMetric label="Strong tracking %" value={formatPercent(readinessSummary.strongTrackingRate)} tone="emerald" />
+              <ConversionMetric label="結果總數" value={readinessSummary.total} />
+              <ConversionMetric label="可供事件配對" value={readinessSummary.ready} tone="emerald" />
+              <ConversionMetric label="需補強追蹤" value={readinessSummary.needsStrongerTracking} tone="blue" />
+              <ConversionMetric label="只供 CRM 報表" value={readinessSummary.crmOnly} />
+              <ConversionMetric label="缺少點擊識別" value={readinessSummary.missingClickIds} tone="red" />
+              <ConversionMetric label="直接／無追蹤" value={readinessSummary.directNoTracking} tone="red" />
+              <ConversionMetric label="完整追蹤率" value={formatPercent(readinessSummary.strongTrackingRate)} tone="emerald" />
             </div>
 
             <div className="mt-3 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-[12px] font-semibold leading-5 text-amber-900">
-              <p className="font-black">Outcome readiness audit</p>
+              <p className="font-black">準備度說明</p>
               <p className="mt-1">
-                這頁只作內部預覽及審核，現階段不會向 Meta 或任何外部平台回傳事件。Booked、showed、no_show、lost、invalid 均為 CRM 營運結果；客人在表格填寫的偏好日期時間不等於已預約。直接 / 無追蹤 Leads 暫時不能可靠配對回 Meta，除非之後改善 fbclid / fbc / fbp 或其他可用識別。
+                本頁只作分析，不會自動向外部平台傳送資料。預約、到店、未到店、流失同無效均以 CRM 已確認結果為準；客人偏好時間不等於已預約。
               </p>
             </div>
 
             <OutcomeFeedbackPreviewTable rows={outcomeRows} />
           </section>
-          </details>
             </>
           )}
 
 
           {!runtime.actionsEnabled && (
             <p className="border-t border-amber-100 bg-amber-50 px-4 py-2 text-[12px] font-semibold text-amber-800">
-              {runtime.disabledReason}
+              CRM 目前只供查看；資料服務恢復後即可更新紀錄。
             </p>
           )}
 
           {error && (
             <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-[12px] font-semibold text-red-700">
-              CRM inbox cannot read the latest records right now. Please try again later.
+              CRM 暫時未能讀取最新紀錄，請稍後再試。
             </p>
           )}
         </header>
@@ -579,7 +580,7 @@ function SourceQualityTable({ rows }: { rows: SourceQualityRow[] }) {
               <th className="px-3 py-2">已聯絡</th>
               <th className="px-3 py-2">已預約</th>
               <th className="px-3 py-2">已到店</th>
-              <th className="px-3 py-2">No-show</th>
+              <th className="px-3 py-2">未到店</th>
               <th className="px-3 py-2">已流失</th>
               <th className="px-3 py-2">無效</th>
               <th className="px-3 py-2">聯絡率</th>
@@ -642,14 +643,14 @@ function CampaignQualityTable({ rows }: { rows: CampaignQualityRow[] }) {
   return (
     <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
       <div className="border-b border-[#eef2f6] px-3 py-2">
-        <h3 className="text-[12px] font-black text-[#111827]">Campaign 質素</h3>
+        <h3 className="text-[12px] font-black text-[#111827]">Campaign 成效</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[880px] text-left text-[11px]">
           <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
             <tr>
               <th className="px-3 py-2">Campaign</th>
-              <th className="px-3 py-2">來源 / Medium</th>
+              <th className="px-3 py-2">來源／媒介</th>
               <th className="px-3 py-2">Lead</th>
               <th className="px-3 py-2">已預約</th>
               <th className="px-3 py-2">已到店</th>
@@ -690,17 +691,17 @@ function TrackingCoverageTable({ rows }: { rows: TrackingCoverageRow[] }) {
   return (
     <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
       <div className="border-b border-[#eef2f6] px-3 py-2">
-        <h3 className="text-[12px] font-black text-[#111827]">追蹤欄位 coverage</h3>
+        <h3 className="text-[12px] font-black text-[#111827]">追蹤欄位覆蓋</h3>
       </div>
       <div className="overflow-x-auto">
         <table className="min-w-[760px] text-left text-[11px]">
           <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
             <tr>
-              <th className="px-3 py-2">Field</th>
-              <th className="px-3 py-2">Available count</th>
-              <th className="px-3 py-2">Missing count</th>
-              <th className="px-3 py-2">Coverage %</th>
-              <th className="px-3 py-2">Notes</th>
+              <th className="px-3 py-2">欄位</th>
+              <th className="px-3 py-2">已有</th>
+              <th className="px-3 py-2">缺少</th>
+              <th className="px-3 py-2">覆蓋率</th>
+              <th className="px-3 py-2">說明</th>
             </tr>
           </thead>
           <tbody>
@@ -727,7 +728,7 @@ function SimpleSourceRankingTable({ rows }: { rows: SourceQualityRow[] }) {
         <table className="min-w-[760px] text-left text-[11px]">
           <thead className="bg-[#f8fafc] text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
             <tr>
-              <th className="px-3 py-2">Source / medium</th>
+              <th className="px-3 py-2">來源／媒介</th>
               <th className="px-3 py-2">Lead</th>
               <th className="px-3 py-2">已預約</th>
               <th className="px-3 py-2">已到店</th>
@@ -774,9 +775,9 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
   return (
     <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
       <div className="flex items-center justify-between border-b border-[#eef2f6] px-3 py-2">
-        <h3 className="text-[12px] font-black text-[#111827]">尚未回傳事件預覽</h3>
+        <h3 className="text-[12px] font-black text-[#111827]">事件資料明細</h3>
         <span className="rounded bg-amber-50 px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-amber-700">
-          Preview only
+          只讀
         </span>
       </div>
       <div className="overflow-x-auto">
@@ -786,12 +787,12 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
               <th className="px-3 py-2">客人</th>
               <th className="px-3 py-2">電話</th>
               <th className="px-3 py-2">品牌</th>
-              <th className="px-3 py-2">療程 / 優惠</th>
+              <th className="px-3 py-2">療程／優惠</th>
               <th className="px-3 py-2">CRM 狀態</th>
-              <th className="px-3 py-2">Outcome</th>
-              <th className="px-3 py-2">Outcome 時間</th>
-              <th className="px-3 py-2">Created At</th>
-              <th className="px-3 py-2">來源 / Medium</th>
+              <th className="px-3 py-2">結果</th>
+              <th className="px-3 py-2">結果時間</th>
+              <th className="px-3 py-2">建立時間</th>
+              <th className="px-3 py-2">來源／媒介</th>
               <th className="px-3 py-2">Campaign</th>
               <th className="px-3 py-2">Meta Campaign ID</th>
               <th className="px-3 py-2">Meta Ad Set ID</th>
@@ -799,8 +800,8 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
               <th className="px-3 py-2">fbclid</th>
               <th className="px-3 py-2">fbp</th>
               <th className="px-3 py-2">fbc</th>
-              <th className="px-3 py-2">Tracking</th>
-              <th className="px-3 py-2">Readiness</th>
+              <th className="px-3 py-2">追蹤質素</th>
+              <th className="px-3 py-2">回傳準備度</th>
               <th className="px-3 py-2">狀態</th>
             </tr>
           </thead>
@@ -852,7 +853,7 @@ function OutcomeFeedbackPreviewTable({ rows }: { rows: OutcomeFeedbackRow[] }) {
             ) : (
               <tr>
                 <td colSpan={19} className="px-3 py-6 text-center text-[#64748b]">
-                  這個範圍未有可預覽嘅 CRM outcome 記錄。
+                  呢個範圍未有已確認結果。
                 </td>
               </tr>
             )}
@@ -939,7 +940,7 @@ function CrmDashboardOverview({
               </p>
             </div>
             <span className="w-fit rounded-md bg-[var(--crm-accent-soft)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.08em] text-[var(--crm-accent)]">
-              CRM Home
+              CRM 總覽
             </span>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -962,12 +963,12 @@ function CrmDashboardOverview({
 
         <section className="grid gap-3 lg:grid-cols-2">
           <QuickLinkCard
-            title="Inbox / 工作台"
-            body="處理新 leads、今日要跟及過期未跟。"
+            title="Lead 工作台"
+            body="處理新 Lead、今日跟進及過期未跟進項目。"
             href="/crm?tab=leads"
           />
           <QuickLinkCard
-            title="Bookings / 預約"
+            title="預約管理"
             body="查看今日預約、已確認預約及待標記到店結果。"
             href="/crm?tab=bookings"
           />
@@ -1297,7 +1298,7 @@ function getOutcomeReadiness({
   if (hasFbclid || hasFbc) {
     return {
       key: "ready" as const,
-      label: "Ready for Meta feedback",
+      label: "可供事件配對",
       className: "bg-emerald-50 text-emerald-700",
     };
   }
@@ -1305,7 +1306,7 @@ function getOutcomeReadiness({
   if (trackingQualityKey === "direct") {
     return {
       key: "crm_only" as const,
-      label: "CRM reporting only",
+      label: "只供 CRM 報表",
       className: "bg-slate-100 text-slate-700",
     };
   }
@@ -1313,14 +1314,14 @@ function getOutcomeReadiness({
   if (trackingQualityKey === "partial" || hasFbp) {
     return {
       key: "needs_stronger_tracking" as const,
-      label: "Needs stronger tracking",
+      label: "需補強追蹤",
       className: "bg-blue-50 text-blue-700",
     };
   }
 
   return {
     key: "missing_identifiers" as const,
-    label: "Missing identifiers",
+    label: "缺少識別資料",
     className: "bg-amber-50 text-amber-700",
   };
 }
@@ -1333,7 +1334,7 @@ function outcomeLabel(status: string) {
   const labels: Record<string, string> = {
     booked: "已預約",
     showed: "已到店",
-    no_show: "No-show",
+    no_show: "未到店",
     lost: "已流失",
     invalid: "無效",
   };
@@ -1374,7 +1375,7 @@ function getTrackingQuality(item: CrmLeadCase, lead: LeadRow | null) {
   if ((hasFbclid || hasFbc) && (hasMetaIds || cleanLabel(item.campaignLabel))) {
     return {
       key: "strong" as const,
-      label: "Tracking 強",
+      label: "追蹤完整",
       className: "bg-emerald-50 text-emerald-700",
     };
   }
@@ -1387,7 +1388,7 @@ function getTrackingQuality(item: CrmLeadCase, lead: LeadRow | null) {
   ) {
     return {
       key: "partial" as const,
-      label: "Tracking 不完整",
+      label: "追蹤不完整",
       className: "bg-blue-50 text-blue-700",
     };
   }
@@ -1586,12 +1587,12 @@ function getTrackingCaptureAudit(cases: CrmLeadCase[], leadById: Map<string, Lea
       coverageRow("utm_campaign", total, rows.filter(({ lead }) => Boolean(cleanAttributionText(lead?.sourceSnapshot?.utm_campaign))).length, "Campaign 報表與廣告組合分析。"),
       coverageRow("utm_content", total, rows.filter(({ lead }) => Boolean(cleanAttributionText(lead?.sourceSnapshot?.utm_content))).length, "廣告內容 / hook / creative。"),
       coverageRow("fbclid", total, withFbclid, "Meta click ID，對未來 matching 較重要。"),
-      coverageRow("fbp", total, withFbp, "目前未見固定 typed source snapshot 欄位；建議未來安全保存。"),
-      coverageRow("fbc", total, withFbc, "目前未見固定 typed source snapshot 欄位；可由 fbclid 建立。"),
+      coverageRow("fbp", total, withFbp, "暫時未有固定欄位，建議納入標準追蹤資料。"),
+      coverageRow("fbc", total, withFbc, "暫時未有固定欄位，可由 fbclid 建立。"),
       coverageRow("meta_campaign_id", total, withMetaCampaignId, "Meta campaign ID，如廣告平台或 URL 有提供。"),
       coverageRow("meta_adset_id", total, withMetaAdsetId, "Meta ad set ID，如廣告平台或 URL 有提供。"),
       coverageRow("meta_ad_id", total, withMetaAdId, "Meta ad ID，如廣告平台或 URL 有提供。"),
-      coverageRow("parent_url", total, rows.filter(({ lead }) => Boolean(sourceSnapshotExtra(lead, "parent_url"))).length, "Wix parent URL 目前不是固定 typed 欄位；current_page_url / landing_page_url 只能部分輔助。"),
+      coverageRow("parent_url", total, rows.filter(({ lead }) => Boolean(sourceSnapshotExtra(lead, "parent_url"))).length, "Wix 上層網址暫未列為標準欄位，其它頁面網址只可作輔助。"),
       coverageRow("landing_page_slug / slug", total, rows.filter(({ item }) => Boolean(item.landingPageSlug)).length, "由 landing page URL 或 CRM case landing_page_slug 推斷。"),
       coverageRow("form_id / form_token", total, rows.filter(({ lead }) => Boolean(lead?.form_id || lead?.form?.public_form_token)).length, "表格來源定位，可協助回查 campaign setup。"),
     ],

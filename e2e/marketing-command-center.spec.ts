@@ -40,6 +40,12 @@ import {
 import { deriveDailyMetrics } from "../src/lib/marketing/dailyOverviewMath";
 import { calculatePerformanceCostSummary } from "../src/lib/marketing/performanceCostMath";
 import {
+  buildLeadAuditDiff,
+  prepareLeadAuditRecords,
+  type LeadAuditCanonicalRecord,
+  type LeadAuditComparableRecord,
+} from "../src/lib/marketing/leadSheetAuditContract";
+import {
   createSignedAdminSession,
   hasAdminPasswordGateConfig,
   verifyAdminPassword,
@@ -106,12 +112,115 @@ test("Manager can always enter KPI planning without receiving system settings ac
   expect(hasWorkspaceModulePermission(access, "kpis")).toBe(true);
   expect(hasWorkspaceModulePermission(access, "settings")).toBe(false);
   expect(hasWorkspaceModulePermission(access, "data_sources")).toBe(false);
+  expect(hasWorkspaceModulePermission(access, "lead_audit")).toBe(false);
   expect(
     canManageMonthlyKpis({
       source: "supabase_auth",
       accessLevel: "admin",
       workspaceRole: "manager",
     })
+  ).toBe(true);
+});
+
+test("Lead Audit stays explicit-only and canonical row identity survives row movement", () => {
+  const headers = [
+    "Created At",
+    "跟進狀態",
+    "品牌",
+    "電話",
+    "預約日期",
+    "確認到店日期",
+    "lead_key",
+  ];
+  const hashIdentity = (value: string) =>
+    Buffer.from(value).toString("hex").slice(0, 64).padEnd(64, "0");
+  const first = prepareLeadAuditRecords({
+    headers,
+    rows: [["2026/8/1", "待跟進", "Alyssa", "9123 4567", "", "", "lead-1"]],
+    hashIdentity,
+    firstDataRowNumber: 4,
+  }).records[0];
+  const moved = prepareLeadAuditRecords({
+    headers,
+    rows: [["2026/8/1", "待跟進", "Alyssa", "91234567", "", "", "lead-1"]],
+    hashIdentity,
+    firstDataRowNumber: 18,
+  }).records[0];
+
+  expect(first.recordKey).toBe(moved.recordKey);
+  expect(first.rowNumber).toBe(4);
+  expect(moved.rowNumber).toBe(18);
+  expect(
+    hasWorkspaceModulePermission(
+      {
+        isMaster: false,
+        workspaceRole: "manager",
+        modulePermissions: { lead_audit: true },
+      },
+      "lead_audit"
+    )
+  ).toBe(true);
+});
+
+test("Lead Audit flags state regression and quarantines a large source shrink", () => {
+  const canonical = (
+    overrides: Partial<LeadAuditCanonicalRecord> = {}
+  ): LeadAuditCanonicalRecord => ({
+    createdAt: "2026-08-01 09:00:00",
+    followUpStatus: "已到店",
+    brand: "Alyssa",
+    branch: "CWB",
+    customerName: "Test",
+    phone: "91234567",
+    email: "",
+    treatmentOffer: "Trial",
+    treatmentItem: "Trial",
+    appointmentDate: "2026-08-02",
+    appointmentTime: "12:00:00",
+    confirmedShowDate: "2026-08-02",
+    source: "meta",
+    campaignAd: "campaign",
+    pageUrl: "",
+    lastFollowUpAt: "",
+    leadKey: "lead-1",
+    csRemark: "",
+    assignedTo: "",
+    followUpRemark: "",
+    status: "",
+    showUp: "",
+    ...overrides,
+  });
+  const record = (
+    index: number,
+    overrides: Partial<LeadAuditCanonicalRecord> = {}
+  ): LeadAuditComparableRecord => ({
+    recordKey: String(index).padStart(64, "0"),
+    rowNumber: index + 2,
+    subjectLabel: `Lead · ${index}`,
+    brandId: "brand-1",
+    canonical: canonical({ leadKey: `lead-${index}`, ...overrides }),
+    contentHash: `hash-${index}-${JSON.stringify(overrides)}`,
+  });
+  const previous = Array.from({ length: 50 }, (_, index) => record(index));
+  const regressed = record(0, {
+    followUpStatus: "已預約",
+    confirmedShowDate: "",
+  });
+  const current = [regressed, ...previous.slice(1, 35)];
+  const diff = buildLeadAuditDiff({ previous, current });
+
+  expect(diff.quarantined).toBe(true);
+  expect(diff.deletedCount).toBe(15);
+  expect(diff.changes[0]).toMatchObject({
+    riskCode: "source_truncation",
+    severity: "critical",
+  });
+  expect(
+    diff.changes.some(
+      (change) =>
+        change.recordKey === regressed.recordKey &&
+        change.riskCode === "status_regression"
+    )
   ).toBe(true);
 });
 

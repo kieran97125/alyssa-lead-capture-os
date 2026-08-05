@@ -7,6 +7,7 @@ import {
 } from "@/lib/attribution/publicAttributionCookie";
 import {
   isInternalRoute,
+  requiresMasterOrExplicitLeadAuditAccess,
   requiresMasterAccess,
 } from "@/lib/security/routeBoundary";
 import {
@@ -246,6 +247,12 @@ export async function proxy(request: NextRequest) {
     }
     if (
       requiresMasterAccess(request.nextUrl.pathname) &&
+      session.accessLevel !== "master"
+    ) {
+      return redirectToLogin(request, "master_required");
+    }
+    if (
+      requiresMasterOrExplicitLeadAuditAccess(request.nextUrl.pathname) &&
       session.accessLevel !== "master"
     ) {
       return redirectToLogin(request, "master_required");
