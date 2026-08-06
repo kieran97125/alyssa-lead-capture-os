@@ -13,7 +13,7 @@ import {
   type LeadDashboardFilters,
   type LeadDashboardModel,
 } from "@/lib/marketing/leadDashboardMath";
-import { getHkMonthContext } from "@/lib/marketing/pacing";
+import { normalizeLeadDashboardFilters } from "@/lib/marketing/leadDashboardFilters";
 import {
   calculatePerformanceCostSummary,
   type DailySpendFact,
@@ -75,31 +75,6 @@ function costSummaryForModel(input: {
 
 function firstString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function isIsoDate(value: string) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(value) &&
-    !Number.isNaN(new Date(`${value}T00:00:00.000Z`).getTime());
-}
-
-export function normalizeLeadDashboardFilters(input: {
-  startDate?: unknown;
-  endDate?: unknown;
-  brandId?: unknown;
-  treatment?: unknown;
-}): LeadDashboardFilters {
-  const month = getHkMonthContext();
-  let startDate = firstString(input.startDate);
-  let endDate = firstString(input.endDate);
-  if (!isIsoDate(startDate)) startDate = month.monthStart;
-  if (!isIsoDate(endDate)) endDate = month.monthEnd;
-  if (startDate > endDate) [startDate, endDate] = [endDate, startDate];
-  return {
-    startDate,
-    endDate,
-    brandId: firstString(input.brandId),
-    treatment: firstString(input.treatment),
-  };
 }
 
 function stringRecord(value: unknown) {
