@@ -23,6 +23,7 @@ import {
   type MetricProgress,
 } from "@/lib/marketing/commandCenter";
 import { getLeadDashboardSnapshot } from "@/lib/marketing/leadDashboard";
+import { buildLeadDashboardReturnPath } from "@/lib/marketing/leadDashboardFilters";
 import { getLeadAuditNavigationSummary } from "@/lib/marketing/leadSheetAuditView";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 import {
@@ -135,6 +136,9 @@ export default async function DashboardPage({
       .sort((left, right) => right.localeCompare(left))[0] ?? null;
   const refreshDisabled =
     !isMaster || !snapshot.schemaReady || leadSheetSources.length === 0;
+  const dashboardReturnPath = buildLeadDashboardReturnPath(
+    leadDashboard.filters
+  );
 
   return (
     <main className="alyssa-shell">
@@ -155,7 +159,11 @@ export default async function DashboardPage({
                   action={refreshDashboardDataAction}
                   className="command-refresh-form"
                 >
-                  <input type="hidden" name="returnPath" value="/dashboard" />
+                  <input
+                    type="hidden"
+                    name="returnPath"
+                    value={dashboardReturnPath}
+                  />
                   <DashboardRefreshButton
                     disabled={refreshDisabled}
                     idleLabel="同步最新數據"
