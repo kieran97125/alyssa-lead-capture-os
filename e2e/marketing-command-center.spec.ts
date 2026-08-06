@@ -16,6 +16,10 @@ import {
 } from "../src/lib/marketing/googleSheetsMetricParser";
 import { buildLeadDashboardModel } from "../src/lib/marketing/leadDashboardMath";
 import {
+  buildLeadDashboardReturnPath,
+  normalizeLeadDashboardFilters,
+} from "../src/lib/marketing/leadDashboardFilters";
+import {
   isMetricFromActiveReportingVersion,
   matchReportingWorkbookTabs,
   normalizeReportingMonth,
@@ -1049,6 +1053,48 @@ test("Lead Dashboard copies brand-phone dedupe and First Touch rules from the op
     brandLabel: "AM",
     appointmentDate: "2026-07-20",
     csRemark: "待確認",
+  });
+});
+
+test("Lead Dashboard defaults to completed HKT days and preserves active filters", () => {
+  const filters = normalizeLeadDashboardFilters(
+    {
+      brandId: "alyssa-brand",
+      treatment: "$988 Facelift",
+    },
+    new Date("2026-08-06T02:00:00.000Z")
+  );
+
+  expect(filters).toEqual({
+    startDate: "2026-08-01",
+    endDate: "2026-08-05",
+    brandId: "alyssa-brand",
+    treatment: "$988 Facelift",
+  });
+
+  const returnUrl = new URL(
+    buildLeadDashboardReturnPath(filters),
+    "https://app.beautytrialhk.com"
+  );
+  expect(returnUrl.pathname).toBe("/dashboard");
+  expect(Object.fromEntries(returnUrl.searchParams)).toEqual({
+    startDate: "2026-08-01",
+    endDate: "2026-08-05",
+    brandId: "alyssa-brand",
+    treatment: "$988 Facelift",
+  });
+
+  expect(
+    normalizeLeadDashboardFilters(
+      {
+        startDate: "2026-08-03",
+        endDate: "2026-08-12",
+      },
+      new Date("2026-08-06T02:00:00.000Z")
+    )
+  ).toMatchObject({
+    startDate: "2026-08-03",
+    endDate: "2026-08-12",
   });
 });
 
