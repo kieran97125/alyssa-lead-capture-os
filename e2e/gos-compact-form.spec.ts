@@ -485,31 +485,28 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
   });
 
   await page.goto("/login", { waitUntil: "domcontentloaded" });
-  const formDocumentResponse = page.waitForResponse(
-    (response) => {
-      const responseUrl = new URL(response.url());
-      return (
-        responseUrl.pathname === `/embed/${formToken}` &&
-        response.status() === 200
-      );
-    },
-    { timeout: 45_000 }
-  );
-
   await page.evaluate(
-    ({ targetId, token, id }) => {
-      const target = document.createElement("div");
-      target.id = targetId;
-      const script = document.createElement("script");
-      script.src = `/embed/alyssa-form.js?redirect-test=${Date.now()}`;
-      script.dataset.formToken = token;
-      script.dataset.brand = "gos-beauty";
-      script.dataset.formId = id;
-      script.dataset.conversionMode = "thank_you_redirect";
-      script.dataset.successRedirectUrl =
-        "https://go.beautytrialhk.com/thank-you";
-      script.dataset.target = `#${targetId}`;
-      document.body.replaceChildren(target, script);
+    async ({ targetId, token, id }) => {
+      await new Promise<void>((resolve, reject) => {
+        const target = document.createElement("div");
+        target.id = targetId;
+        const script = document.createElement("script");
+        script.src = `/embed/alyssa-form.js?redirect-test=${Date.now()}`;
+        script.dataset.formToken = token;
+        script.dataset.brand = "gos-beauty";
+        script.dataset.formId = id;
+        script.dataset.conversionMode = "thank_you_redirect";
+        script.dataset.successRedirectUrl =
+          "https://go.beautytrialhk.com/thank-you";
+        script.dataset.target = `#${targetId}`;
+        script.addEventListener("load", () => resolve(), { once: true });
+        script.addEventListener(
+          "error",
+          () => reject(new Error("Failed to load the embed helper")),
+          { once: true }
+        );
+        document.body.replaceChildren(target, script);
+      });
     },
     {
       targetId: "gos-redirect-test-target",
@@ -518,7 +515,9 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
     }
   );
 
-  await formDocumentResponse;
+  const iframe = page.locator('iframe[title="Campaign registration form"]');
+  await expect(iframe).toBeVisible({ timeout: 15_000 });
+  expect(await iframe.getAttribute("src")).toContain(`/embed/${formToken}`);
 
   const form = page.frameLocator('iframe[title="Campaign registration form"]');
   await expect(form.getByLabel("姓名")).toBeVisible({ timeout: 15_000 });
