@@ -66,7 +66,10 @@ function publicFormRecord(form: PublicRecord): PublicRecord {
 async function loadPublicFormConfig(
   token: string
 ): Promise<PublicFormConfigResult> {
-  if (!hasSupabaseAdminEnv()) {
+  if (
+    process.env.ALYSSA_E2E_FIXTURES === "1" ||
+    !hasSupabaseAdminEnv()
+  ) {
     if (token !== alyssaDefaultForm.publicFormToken) {
       return {
         body: { ok: false, error: "invalid_form" },
