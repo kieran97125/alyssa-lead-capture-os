@@ -9,10 +9,13 @@ import {
   type SheetBrandReference,
 } from "@/lib/marketing/googleSheetsMetricParser";
 import {
+  buildLeadDashboardTrend,
   buildLeadDashboardModel,
   type LeadDashboardFilters,
   type LeadDashboardModel,
 } from "@/lib/marketing/leadDashboardMath";
+import { getOperationalAnnotations } from "@/lib/marketing/operationalAnnotationStore";
+import type { PerformanceTrendSeries } from "@/lib/marketing/performanceTrend";
 import { normalizeLeadDashboardFilters } from "@/lib/marketing/leadDashboardFilters";
 import {
   calculatePerformanceCostSummary,
@@ -50,6 +53,7 @@ export type LeadDashboardSnapshot = LeadDashboardModel & {
   diagnostics: LeadSheetPerformanceDiagnostics;
   warnings: string[];
   live: boolean;
+  trendSeries: PerformanceTrendSeries[];
 };
 
 function costSummaryForModel(input: {
@@ -220,6 +224,25 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
     { brandId: "alyssa-brand", spendDate: filters.startDate, amount: 1_200 },
     { brandId: "ib-brand", spendDate: filters.startDate, amount: 600 },
   ];
+  const brandColors = Object.fromEntries(
+    brands.map((brand) => [brand.id, brand.primary_color || "#5a2348"])
+  );
+  const annotations = [
+    {
+      id: "dashboard-fixture-annotation",
+      date: filters.startDate,
+      title: "DEP Reels 上線",
+      itemType: "post",
+      channel: "IG",
+      status: "published",
+      brandId: "alyssa-brand",
+      brandName: "Alyssa",
+      brandColor: "#5a2348",
+      treatmentId: null,
+      treatmentLabel: null,
+      notes: "素材及投放同日上線",
+    },
+  ];
   return {
     ...model,
     filters,
@@ -228,9 +251,14 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
     sourceStatus: "connected",
     lastSuccessAt: new Date().toISOString(),
     loadedAt: new Date().toISOString(),
-    brandColors: Object.fromEntries(
-      brands.map((brand) => [brand.id, brand.primary_color || "#5a2348"])
-    ),
+    brandColors,
+    trendSeries: buildLeadDashboardTrend({
+      groups: parsed.groups,
+      filters,
+      brands,
+      brandColors,
+      annotations,
+    }),
     diagnostics: parsed.diagnostics,
     warnings: [],
     live: true,
@@ -264,6 +292,7 @@ function emptySnapshot(
     diagnostics: emptyDiagnostics(),
     warnings: [warning],
     live: false,
+    trendSeries: [],
   };
 }
 
@@ -348,6 +377,18 @@ export async function getLeadDashboardSnapshot(
         )
         .map((alias) => alias.label),
     });
+    const brandColors = Object.fromEntries(
+      visibleBrands.map((brand) => [brand.id, brand.primary_color || "#5a2348"])
+    );
+    const annotations = await getOperationalAnnotations({
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      brands: visibleBrands.map((brand) => ({
+        id: brand.id,
+        name: brand.name,
+        color: brand.primary_color || "#5a2348",
+      })),
+    });
     const warnings: string[] = [];
     if (source.status !== "connected") {
       warnings.push("Lead Funnel 連接狀態需要檢查；以下仍為今次即時讀取結果。");
@@ -376,12 +417,14 @@ export async function getLeadDashboardSnapshot(
       sourceStatus: source.status,
       lastSuccessAt: source.last_success_at,
       loadedAt: new Date().toISOString(),
-      brandColors: Object.fromEntries(
-        visibleBrands.map((brand) => [
-          brand.id,
-          brand.primary_color || "#5a2348",
-        ])
-      ),
+      brandColors,
+      trendSeries: buildLeadDashboardTrend({
+        groups: parsed.groups,
+        filters,
+        brands: visibleBrands,
+        brandColors,
+        annotations,
+      }),
       diagnostics: parsed.diagnostics,
       warnings,
       live: true,

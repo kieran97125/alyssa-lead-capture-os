@@ -3,6 +3,15 @@ import type {
   LeadSheetGroupRow,
   SheetBrandReference,
 } from "@/lib/marketing/googleSheetsMetricParser";
+import {
+  annotationMatchesTreatment,
+  type OperationalAnnotation,
+} from "@/lib/marketing/operationalAnnotations";
+import {
+  calculatePerformanceTrendPoint,
+  emptyPerformanceTrendBase,
+  type PerformanceTrendSeries,
+} from "@/lib/marketing/performanceTrend";
 
 export type LeadDashboardFilters = {
   startDate: string;
@@ -58,6 +67,85 @@ export type LeadDashboardModel = {
   outstandingMonthStart: string;
   outstandingMonthEnd: string;
 };
+
+function dashboardDates(startDate: string, endDate: string) {
+  const dates: string[] = [];
+  const current = new Date(`${startDate}T00:00:00.000Z`);
+  const end = new Date(`${endDate}T00:00:00.000Z`);
+  while (current <= end && dates.length <= 366) {
+    dates.push(current.toISOString().slice(0, 10));
+    current.setUTCDate(current.getUTCDate() + 1);
+  }
+  return dates;
+}
+
+export function buildLeadDashboardTrend(input: {
+  groups: LeadSheetLeadGroup[];
+  filters: LeadDashboardFilters;
+  brands: SheetBrandReference[];
+  brandColors: Record<string, string>;
+  annotations: OperationalAnnotation[];
+}): PerformanceTrendSeries[] {
+  const groups = input.groups.filter((group) => {
+    if (input.filters.brandId && group.brandId !== input.filters.brandId) return false;
+    if (input.filters.treatment && group.treatmentLabel !== input.filters.treatment) return false;
+    return true;
+  });
+  const seriesBrands = input.brands.filter(
+    (brand) => !input.filters.brandId || brand.id === input.filters.brandId
+  );
+  const dates = dashboardDates(input.filters.startDate, input.filters.endDate);
+
+  return seriesBrands.map((brand) => {
+    const brandGroups = groups.filter((group) => group.brandId === brand.id);
+    return {
+      key: brand.id,
+      label: brand.name,
+      color: input.brandColors[brand.id] || "#5a2348",
+      brandId: brand.id,
+      treatmentLabel: input.filters.treatment || undefined,
+      points: dates.map((date, index) => {
+        const base = emptyPerformanceTrendBase();
+        brandGroups.forEach((group) => {
+          if (group.firstTouchDate === date) {
+            base.leads += 1;
+            if (group.rows.some((row) => row.status !== "lead")) base.bookings += 1;
+          }
+          if (
+            group.rows.some(
+              (row) => row.status === "show" && row.confirmationDate === date
+            )
+          ) base.shows += 1;
+          if (
+            group.rows.some(
+              (row) => row.status === "no_show" && row.appointmentDate === date
+            )
+          ) base.noShows += 1;
+          if (
+            group.rows.some(
+              (row) => row.status === "booked" && row.appointmentDate === date
+            )
+          ) base.pendingShows += 1;
+        });
+        return calculatePerformanceTrendPoint(base, {
+          day: index + 1,
+          date,
+          annotations: input.annotations.filter(
+            (annotation) =>
+              annotation.date === date &&
+              annotation.brandId === brand.id &&
+              (!input.filters.treatment ||
+                annotationMatchesTreatment(
+                  annotation,
+                  brand.id,
+                  input.filters.treatment
+                ))
+          ),
+        });
+      }),
+    };
+  });
+}
 
 function ratio(numerator: number, denominator: number) {
   return denominator > 0 ? numerator / denominator : null;
