@@ -12,6 +12,7 @@ import {
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import { PerformanceCostSummary } from "@/components/command-center/PerformanceCostSummary";
+import { LeadDashboardTrendChartLazy } from "@/components/command-center/LeadDashboardTrendChartLazy";
 import type {
   LeadDashboardDimensionRow,
   LeadDashboardStats,
@@ -279,6 +280,20 @@ export function LeadDashboardPanel({
       </section>
 
       <PerformanceCostSummary costs={snapshot.costs} />
+
+      <section className="command-surface lead-dashboard-trend-card">
+        <div className="lead-dashboard-section-heading">
+          <div>
+            <Activity size={17} />
+            <div>
+              <p>每日變化</p>
+              <h2>Lead Funnel 走勢</h2>
+            </div>
+          </div>
+          <span>橙色波點代表當日日曆活動；移上去可查看內容</span>
+        </div>
+        <LeadDashboardTrendChartLazy series={snapshot.trendSeries} />
+      </section>
 
       <section className="command-surface treatment-ranking-section">
         <div className="lead-dashboard-section-heading">

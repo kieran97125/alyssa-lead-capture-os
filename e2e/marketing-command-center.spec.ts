@@ -14,7 +14,10 @@ import {
   parseGoogleSheetDate,
   resolveLeadSheetColumns,
 } from "../src/lib/marketing/googleSheetsMetricParser";
-import { buildLeadDashboardModel } from "../src/lib/marketing/leadDashboardMath";
+import {
+  buildLeadDashboardModel,
+  buildLeadDashboardTrend,
+} from "../src/lib/marketing/leadDashboardMath";
 import {
   buildLeadDashboardReturnPath,
   normalizeLeadDashboardFilters,
@@ -1054,6 +1057,38 @@ test("Lead Dashboard copies brand-phone dedupe and First Touch rules from the op
     appointmentDate: "2026-07-20",
     csRemark: "待確認",
   });
+  const trend = buildLeadDashboardTrend({
+    groups: parsed.groups,
+    brands,
+    filters: {
+      startDate: "2026-07-01",
+      endDate: "2026-07-31",
+      brandId: "alyssa-brand",
+      treatment: "$988 Facelift",
+    },
+    brandColors: { "alyssa-brand": "#5a2348" },
+    annotations: [
+      {
+        id: "launch-day",
+        date: "2026-07-03",
+        title: "Facelift 廣告上線",
+        itemType: "ad",
+        channel: "Meta",
+        status: "published",
+        brandId: "alyssa-brand",
+        brandName: "Alyssa",
+        brandColor: "#5a2348",
+        treatmentId: null,
+        treatmentLabel: "$988 Facelift",
+        notes: null,
+      },
+    ],
+  });
+  expect(trend).toHaveLength(1);
+  expect(trend[0].points.find((point) => point.date === "2026-07-01"))
+    .toMatchObject({ leads: 1, bookings: 1 });
+  expect(trend[0].points.find((point) => point.date === "2026-07-03"))
+    .toMatchObject({ shows: 1, annotations: [{ id: "launch-day" }] });
 });
 
 test("Lead Dashboard defaults to completed HKT days and preserves active filters", () => {
@@ -1163,6 +1198,10 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
     dashboardCosts.getByText("CPShow", { exact: true })
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "療程表現" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Lead Funnel 走勢" })).toBeVisible();
+  await expect(
+    page.getByRole("img", { name: /每日 Lead走勢；橙色圓點代表日曆操作/ })
+  ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "來源／Campaign 表現" })
   ).toBeVisible();
