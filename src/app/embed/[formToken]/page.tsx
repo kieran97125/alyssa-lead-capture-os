@@ -1,12 +1,15 @@
-"use client";
-
-import { useEffect } from "react";
-import { useParams, useSearchParams } from "next/navigation";
-import { PublicLeadForm } from "@/components/alyssa/PublicLeadForm";
+import { Suspense } from "react";
+import { EmbedFormClient } from "@/app/embed/[formToken]/EmbedFormClient";
+import { getPublicFormConfig } from "@/lib/data/publicFormConfig";
 
 type ConversionMode = "form_submit_pixel" | "thank_you_redirect";
+type SearchParams = Record<string, string | string[] | undefined>;
 
-function normalizeOrigin(value: string | null) {
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] || "" : value || "";
+}
+
+function normalizeOrigin(value: string) {
   if (!value) return "";
 
   try {
@@ -16,115 +19,85 @@ function normalizeOrigin(value: string | null) {
   }
 }
 
-function normalizeConversionMode(value: string | null): ConversionMode | undefined {
+function normalizeConversionMode(value: string): ConversionMode | undefined {
   return value === "thank_you_redirect" ? "thank_you_redirect" : undefined;
 }
 
-export default function EmbedFormPage() {
-  const params = useParams<{ formToken: string }>();
-  const searchParams = useSearchParams();
-  const formToken = params.formToken;
-
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    let resizeFrame = 0;
-    let lastHeight = 0;
-    const previousHtmlOverflowX = document.documentElement.style.overflowX;
-    const previousBodyOverflowX = document.body.style.overflowX;
-    const previousBodyWidth = document.body.style.width;
-    const previousBodyMaxWidth = document.body.style.maxWidth;
-    const previousBodyMargin = document.body.style.margin;
-
-    document.documentElement.style.overflowX = "hidden";
-    document.body.style.overflowX = "hidden";
-    document.body.style.width = "100%";
-    document.body.style.maxWidth = "100vw";
-    document.body.style.margin = "0";
-
-    const measureHeight = () => {
-      const formRoot = document.querySelector<HTMLElement>(
-        "[data-launchhub-form-root]"
-      );
-      const body = document.body;
-      const root = document.documentElement;
-      const formRootHeight = formRoot?.getBoundingClientRect().height ?? 0;
-      const bodyRectHeight = body?.getBoundingClientRect().height ?? 0;
-      const contentHeight =
-        formRootHeight ||
-        bodyRectHeight ||
-        body?.offsetHeight ||
-        body?.scrollHeight ||
-        0;
-      const fallbackHeight = Math.max(
-        root?.scrollHeight ?? 0,
-        root?.offsetHeight ?? 0
-      );
-      const height = contentHeight || fallbackHeight;
-
-      return Math.ceil(Math.max(height, 420) + 20);
-    };
-
-    const postHeight = () => {
-      resizeFrame = 0;
-      const height = measureHeight();
-
-      if (Math.abs(height - lastHeight) < 4) return;
-      lastHeight = height;
-
-      window.parent?.postMessage(
-        {
-          type: "launchhub:resize",
-          source: "launchhub-form",
-          formToken,
-          height,
-        },
-        "*"
-      );
-    };
-
-    const scheduleResize = () => {
-      if (resizeFrame) return;
-      resizeFrame = window.requestAnimationFrame(postHeight);
-    };
-
-    scheduleResize();
-    const timers = [60, 160, 400, 900, 1600, 2400].map((delay) =>
-      window.setTimeout(scheduleResize, delay)
-    );
-    const observer = new MutationObserver(scheduleResize);
-    observer.observe(document.body, {
-      attributes: true,
-      childList: true,
-      subtree: true,
-      characterData: true,
-    });
-    window.addEventListener("resize", scheduleResize);
-
-    return () => {
-      if (resizeFrame) window.cancelAnimationFrame(resizeFrame);
-      timers.forEach((timer) => window.clearTimeout(timer));
-      observer.disconnect();
-      window.removeEventListener("resize", scheduleResize);
-      document.documentElement.style.overflowX = previousHtmlOverflowX;
-      document.body.style.overflowX = previousBodyOverflowX;
-      document.body.style.width = previousBodyWidth;
-      document.body.style.maxWidth = previousBodyMaxWidth;
-      document.body.style.margin = previousBodyMargin;
-    };
-  }, [formToken]);
+export default async function EmbedFormPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ formToken: string }>;
+  searchParams: Promise<SearchParams>;
+}) {
+  const [{ formToken }, query] = await Promise.all([params, searchParams]);
+  const embedProps = {
+    formToken,
+    formId: firstParam(query.form_id) || undefined,
+    brandSlug: firstParam(query.brand) || undefined,
+    conversionMode: normalizeConversionMode(firstParam(query.conversion_mode)),
+    successRedirectUrl: firstParam(query.success_redirect_url) || undefined,
+    expectedParentOrigin: normalizeOrigin(firstParam(query.parent_origin)),
+  };
 
   return (
-    <main className="box-border w-full max-w-[100vw] overflow-x-hidden bg-transparent">
-      <PublicLeadForm
-        mode="embed"
-        formToken={formToken}
-        formId={searchParams.get("form_id") || undefined}
-        brandSlug={searchParams.get("brand") || undefined}
-        conversionMode={normalizeConversionMode(searchParams.get("conversion_mode"))}
-        successRedirectUrl={searchParams.get("success_redirect_url") || undefined}
-        expectedParentOrigin={normalizeOrigin(searchParams.get("parent_origin"))}
-      />
+    <Suspense fallback={<EmbedFormFallback />}>
+      <EmbedFormWithConfig {...embedProps} />
+    </Suspense>
+  );
+}
+
+async function EmbedFormWithConfig({
+  formToken,
+  formId,
+  brandSlug,
+  conversionMode,
+  successRedirectUrl,
+  expectedParentOrigin,
+}: {
+  formToken: string;
+  formId?: string;
+  brandSlug?: string;
+  conversionMode?: ConversionMode;
+  successRedirectUrl?: string;
+  expectedParentOrigin?: string;
+}) {
+  const initialResult = await getPublicFormConfig(formToken);
+  const initialConfig = initialResult.body.ok
+    ? initialResult.body
+    : undefined;
+
+  return (
+    <EmbedFormClient
+      formToken={formToken}
+      formId={formId}
+      brandSlug={brandSlug}
+      conversionMode={conversionMode}
+      successRedirectUrl={successRedirectUrl}
+      expectedParentOrigin={expectedParentOrigin}
+      initialConfig={initialConfig}
+    />
+  );
+}
+
+function EmbedFormFallback() {
+  return (
+    <main className="box-border w-full max-w-[100vw] overflow-x-hidden bg-transparent px-3 py-4 sm:px-5 sm:py-6">
+      <section
+        aria-label="正在準備預約表格"
+        className="mx-auto box-border w-full max-w-3xl rounded-[24px] border border-[#ead9cf] bg-white px-4 py-5 shadow-[0_18px_56px_rgba(93,55,30,0.08)] sm:rounded-[30px] sm:px-8 sm:py-7"
+      >
+        <div className="h-3 w-28 animate-pulse rounded-full bg-[#f3e8e2]" />
+        <div className="mt-3 h-8 w-64 max-w-[78%] animate-pulse rounded-xl bg-[#f6ece6]" />
+        <div className="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
+          {[0, 1, 2, 3].map((item) => (
+            <div
+              key={item}
+              className="h-12 animate-pulse rounded-[13px] bg-[#faf3ee]"
+            />
+          ))}
+        </div>
+      </section>
     </main>
   );
 }

@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   createBranch,
@@ -22,6 +22,7 @@ import {
   type TreatmentInput,
 } from "@/lib/data/settingsEditor";
 import { getConfigurationData } from "@/lib/data/configuration";
+import { PUBLIC_FORM_CONFIG_CACHE_TAG } from "@/lib/data/publicFormConfig";
 import {
   canAccessInternalBrand,
   requireModuleAccess,
@@ -61,6 +62,7 @@ function readReturnPath(formData: FormData, fallback: string) {
 
 function revalidateSettings(...paths: string[]) {
   new Set(["/settings", ...paths]).forEach((path) => revalidatePath(path));
+  revalidateTag(PUBLIC_FORM_CONFIG_CACHE_TAG, { expire: 0 });
 }
 
 async function ensureSettingsAction(

@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import {
   FormEvent,
   useEffect,
@@ -11,9 +12,6 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
-import { DayPicker } from "@daypicker/react";
-import { zhTW } from "@daypicker/react/locale";
-import "@daypicker/react/style.css";
 import {
   publicThemeStyle,
   resolvePublicBrandTheme,
@@ -43,6 +41,7 @@ import {
   alyssaPackages,
   alyssaTreatments,
 } from "@/lib/data/alyssaConfig";
+import type { PublicFormConfigSuccess } from "@/lib/data/publicFormConfig";
 import {
   IMAGE_REFERENCE_FOOTER_NOTE,
   getBrandLegalProfile,
@@ -92,6 +91,21 @@ const GOS_BOOKING_TIMES = [
   "19:00",
   "19:30",
 ] as const;
+
+const GosBookingCalendar = dynamic(
+  () =>
+    import("@/components/alyssa/GosBookingCalendar").then(
+      (module) => module.GosBookingCalendar
+    ),
+  {
+    ssr: false,
+    loading: () => (
+      <div className="grid min-h-64 place-items-center text-sm font-semibold text-[var(--public-muted)]">
+        正在開啟日曆...
+      </div>
+    ),
+  }
+);
 
 type AttributionDebugResponse = {
   attribution_debug: true;
@@ -186,6 +200,7 @@ type PublicLeadFormProps = {
   formToken: string;
   formId?: string;
   brandSlug?: string;
+  initialConfig?: PublicFormConfigSuccess;
   initialQueryString?: string;
   serverInitialAttribution?: Record<string, unknown> | null;
   expectedParentOrigin?: string;
@@ -959,6 +974,75 @@ function getPrimaryPackage(
   return packageOptions.find(isDisplayPackage) || packageOptions[0];
 }
 
+type NormalizedPublicFormConfig = {
+  form: PublicFormConfig;
+  brand: BrandOption;
+  treatments: TreatmentOption[];
+  packages: PackageOption[];
+  branches: BranchOption[];
+  isCompact: boolean;
+};
+
+function normalizePublicFormConfigPayload(
+  result: PublicFormConfigSuccess,
+  {
+    formToken,
+    formId,
+    brandSlug,
+  }: {
+    formToken: string;
+    formId?: string;
+    brandSlug?: string;
+  }
+): NormalizedPublicFormConfig {
+  const nextForm = normalizeForm(result.form ?? {});
+  if (nextForm.publicFormToken && nextForm.publicFormToken !== formToken) {
+    throw new Error("form_token_mismatch");
+  }
+  if (formId && nextForm.id && nextForm.id !== formId) {
+    throw new Error("form_id_mismatch");
+  }
+
+  const apiBrand = normalizeBrand(result.brand ?? {});
+  if (!isCompatibleBrandSlug(brandSlug, apiBrand.slug)) {
+    throw new Error("brand_slug_mismatch");
+  }
+  const displayOverride = getBrandDisplayOverride(brandSlug);
+  const nextBrand = displayOverride
+    ? {
+        ...apiBrand,
+        id: displayOverride.id,
+        name: displayOverride.name,
+        slug: displayOverride.slug,
+      }
+    : apiBrand;
+  const nextTreatments = (result.treatments ?? [])
+    .map(normalizeTreatment)
+    .filter((item) => item.id && item.name);
+  const nextPackages = (result.packages ?? [])
+    .map(normalizePackage)
+    .filter((item) => item.id && item.name);
+  const nextBranches = (result.branches ?? [])
+    .map(normalizeBranch)
+    .filter((item) => item.id && item.name);
+  if (nextTreatments.length === 0 || nextPackages.length === 0) {
+    throw new Error("form_config_incomplete");
+  }
+  const nextPublicTheme = resolvePublicBrandTheme({
+    brandSlug: nextBrand.slug,
+    brandName: nextBrand.name,
+  });
+
+  return {
+    form: nextForm,
+    brand: nextBrand,
+    treatments: nextTreatments,
+    packages: nextPackages,
+    branches: nextBranches,
+    isCompact: nextPublicTheme.formLayout === "compact",
+  };
+}
+
 function getImmediateParentTargetOrigin(
   expectedParentOrigin: string | undefined
 ) {
@@ -1028,37 +1112,11 @@ function formatSelectedDate(value: string) {
   return `${match[1]}年${Number(match[2])}月${Number(match[3])}日`;
 }
 
-function parseDateInputValue(value: string) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
-  if (!match) return undefined;
-
-  const year = Number(match[1]);
-  const month = Number(match[2]);
-  const day = Number(match[3]);
-  const parsed = new Date(year, month - 1, day, 12);
-
-  if (
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
-  ) {
-    return undefined;
-  }
-
-  return parsed;
-}
-
-function toDateInputValue(value: Date) {
-  const year = value.getFullYear();
-  const month = String(value.getMonth() + 1).padStart(2, "0");
-  const day = String(value.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 export function PublicLeadForm({
   formToken,
   formId,
   brandSlug,
+  initialConfig,
   initialQueryString = "",
   serverInitialAttribution,
   expectedParentOrigin,
@@ -1067,6 +1125,24 @@ export function PublicLeadForm({
   successRedirectUrl,
   className = "",
 }: PublicLeadFormProps) {
+  const normalizedInitialConfig = useMemo(() => {
+    if (!initialConfig?.ok) return null;
+
+    try {
+      return normalizePublicFormConfigPayload(initialConfig, {
+        formToken,
+        formId,
+        brandSlug,
+      });
+    } catch (error) {
+      console.warn("[LaunchHub] initial_public_form_config_invalid", {
+        formToken,
+        formId,
+        reason: error instanceof Error ? error.message : "unknown_error",
+      });
+      return null;
+    }
+  }, [brandSlug, formId, formToken, initialConfig]);
   // LAUNCHHUB_ATTRIBUTION_BRIDGE_V2
   const conversionEventSentRef = useRef(false);
   const attributionRef = useRef<AttributionEnvelope>({});
@@ -1079,38 +1155,58 @@ export function PublicLeadForm({
   const [message, setMessage] = useState("");
   const [redirectFallbackUrl, setRedirectFallbackUrl] = useState("");
   const [configMessage, setConfigMessage] = useState("");
-  const [configStatus, setConfigStatus] = useState<ConfigStatus>("loading");
+  const [configStatus, setConfigStatus] = useState<ConfigStatus>(() =>
+    normalizedInitialConfig ? "ready" : "loading"
+  );
   const [formStarted, setFormStarted] = useState(false);
   const [attributionDebug, setAttributionDebug] =
     useState<AttributionDebugResponse | null>(null);
   const [publicForm, setPublicForm] = useState<PublicFormConfig>(() =>
-    normalizeForm(alyssaDefaultForm)
+    normalizedInitialConfig?.form ?? normalizeForm(alyssaDefaultForm)
   );
   const [treatments, setTreatments] = useState<TreatmentOption[]>(() =>
-    alyssaTreatments.map(normalizeTreatment)
+    normalizedInitialConfig?.treatments ?? alyssaTreatments.map(normalizeTreatment)
   );
   const [packages, setPackages] = useState<PackageOption[]>(() =>
-    alyssaPackages.map(normalizePackage)
+    normalizedInitialConfig?.packages ?? alyssaPackages.map(normalizePackage)
   );
   const [branches, setBranches] = useState<BranchOption[]>(() =>
-    alyssaBranches.map(normalizeBranch)
+    normalizedInitialConfig?.branches ?? alyssaBranches.map(normalizeBranch)
   );
   const [brand, setBrand] = useState<BrandOption>(() =>
+    normalizedInitialConfig?.brand ??
     getBrandDisplayOverride(brandSlug) ??
     normalizeBrand({ id: "alyssa-brand-seed", name: "Alyssa", slug: "alyssa" })
   );
-  const [formData, setFormData] = useState({
-    honeypot: "",
-    customer_name: "",
-    phone: "",
-    email: "",
-    treatment_id: alyssaDefaultForm.defaultTreatmentId,
-    package_id: alyssaDefaultForm.defaultPackageId,
-    branch_id: alyssaDefaultForm.defaultBranchId,
-    appointment_date: "",
-    appointment_time: "12:00",
-    payment_option: "booking_only",
-    legalConsentAccepted: false,
+  const [formData, setFormData] = useState(() => {
+    const initialForm = normalizedInitialConfig?.form;
+    const initialPackages = normalizedInitialConfig?.packages ?? [];
+    const initialBranches = normalizedInitialConfig?.branches ?? [];
+    const primaryPackage = initialForm
+      ? getPrimaryPackage(initialForm, initialPackages)
+      : undefined;
+
+    return {
+      honeypot: "",
+      customer_name: "",
+      phone: "",
+      email: "",
+      treatment_id:
+        primaryPackage?.treatmentId ||
+        initialForm?.defaultTreatmentId ||
+        alyssaDefaultForm.defaultTreatmentId,
+      package_id:
+        primaryPackage?.id ||
+        initialForm?.defaultPackageId ||
+        alyssaDefaultForm.defaultPackageId,
+      branch_id: initialForm
+        ? resolveDefaultBranchId(initialForm, initialBranches)
+        : alyssaDefaultForm.defaultBranchId,
+      appointment_date: "",
+      appointment_time: normalizedInitialConfig?.isCompact ? "" : "12:00",
+      payment_option: "booking_only",
+      legalConsentAccepted: false,
+    };
   });
 
   const selectedTreatment = useMemo(
@@ -1475,6 +1571,8 @@ export function PublicLeadForm({
   ]);
 
   useEffect(() => {
+    if (normalizedInitialConfig) return;
+
     async function loadConfig() {
       setConfigStatus("loading");
       setConfigMessage("");
@@ -1495,61 +1593,34 @@ export function PublicLeadForm({
 
         setConfigMessage("");
 
-        const nextForm = normalizeForm(result.form ?? {});
-        if (nextForm.publicFormToken && nextForm.publicFormToken !== formToken) {
-          throw new Error("form_token_mismatch");
-        }
-        if (formId && nextForm.id && nextForm.id !== formId) {
-          throw new Error("form_id_mismatch");
-        }
+        const nextConfig = normalizePublicFormConfigPayload(
+          result as PublicFormConfigSuccess,
+          { formToken, formId, brandSlug }
+        );
 
-        const apiBrand = normalizeBrand(result.brand ?? {});
-        if (!isCompatibleBrandSlug(brandSlug, apiBrand.slug)) {
-          throw new Error("brand_slug_mismatch");
-        }
-        const displayOverride = getBrandDisplayOverride(brandSlug);
-        const nextBrand = displayOverride
-          ? {
-              ...apiBrand,
-              id: displayOverride.id,
-              name: displayOverride.name,
-              slug: displayOverride.slug,
-            }
-          : apiBrand;
-        const nextTreatments = (result.treatments ?? [])
-          .map(normalizeTreatment)
-          .filter((item: TreatmentOption) => item.id && item.name);
-        const nextPackages = (result.packages ?? [])
-          .map(normalizePackage)
-          .filter((item: PackageOption) => item.id && item.name);
-        const nextBranches = (result.branches ?? [])
-          .map(normalizeBranch)
-          .filter((item: BranchOption) => item.id && item.name);
-        if (nextTreatments.length === 0 || nextPackages.length === 0) {
-          throw new Error("form_config_incomplete");
-        }
+        setPublicForm(nextConfig.form);
+        setBrand(nextConfig.brand);
+        setTreatments(nextConfig.treatments);
+        setPackages(nextConfig.packages);
+        setBranches(nextConfig.branches);
 
-        setPublicForm(nextForm);
-        setBrand(nextBrand);
-        setTreatments(nextTreatments);
-        setPackages(nextPackages);
-        setBranches(nextBranches);
-
-        const primaryPackage = getPrimaryPackage(nextForm, nextPackages);
-        const nextPublicTheme = resolvePublicBrandTheme({
-          brandSlug: nextBrand.slug,
-          brandName: nextBrand.name,
-        });
+        const primaryPackage = getPrimaryPackage(
+          nextConfig.form,
+          nextConfig.packages
+        );
 
         setFormData((current) => ({
           ...current,
-          treatment_id: primaryPackage?.treatmentId || nextForm.defaultTreatmentId,
-          package_id: primaryPackage?.id || nextForm.defaultPackageId,
-          branch_id: resolveDefaultBranchId(nextForm, nextBranches),
-          appointment_time:
-            nextPublicTheme.formLayout === "compact"
-              ? ""
-              : current.appointment_time,
+          treatment_id:
+            primaryPackage?.treatmentId || nextConfig.form.defaultTreatmentId,
+          package_id: primaryPackage?.id || nextConfig.form.defaultPackageId,
+          branch_id: resolveDefaultBranchId(
+            nextConfig.form,
+            nextConfig.branches
+          ),
+          appointment_time: nextConfig.isCompact
+            ? ""
+            : current.appointment_time,
         }));
         setConfigStatus("ready");
       } catch (error) {
@@ -1565,7 +1636,7 @@ export function PublicLeadForm({
     }
 
     void loadConfig();
-  }, [brandSlug, formId, formToken]);
+  }, [brandSlug, formId, formToken, normalizedInitialConfig]);
 
   useEffect(() => {
     if (configStatus !== "ready") return;
@@ -2547,7 +2618,6 @@ function GosDateField({
   const calendarLabelId = useId();
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
-  const selectedDay = parseDateInputValue(value);
   const displayValue = formatSelectedDate(value);
 
   useEffect(() => {
@@ -2573,9 +2643,8 @@ function GosDateField({
     };
   }, [isOpen]);
 
-  const selectDay = (day: Date | undefined) => {
-    if (!day) return;
-    onChange(toDateInputValue(day));
+  const selectDay = (nextValue: string) => {
+    onChange(nextValue);
     setIsOpen(false);
     window.requestAnimationFrame(() => triggerRef.current?.focus());
   };
@@ -2614,38 +2683,7 @@ function GosDateField({
           >
             選擇預約日期
           </p>
-          <DayPicker
-            mode="single"
-            selected={selectedDay}
-            defaultMonth={selectedDay}
-            onSelect={selectDay}
-            locale={zhTW}
-            navLayout="around"
-            showOutsideDays
-            className="mx-auto text-sm"
-            style={
-              {
-                "--rdp-accent-color": "var(--public-cta)",
-                "--rdp-accent-background-color": "var(--public-accent-soft)",
-                "--rdp-day-height": "36px",
-                "--rdp-day-width": "36px",
-                "--rdp-day_button-height": "34px",
-                "--rdp-day_button-width": "34px",
-                "--rdp-nav_button-height": "34px",
-                "--rdp-nav_button-width": "34px",
-              } as CSSProperties
-            }
-            formatters={{
-              formatCaption: (month) =>
-                `${month.getFullYear()}年${month.getMonth() + 1}月`,
-              formatWeekdayName: (day) =>
-                ["日", "一", "二", "三", "四", "五", "六"][day.getDay()],
-            }}
-            labels={{
-              labelPrevious: () => "上一個月",
-              labelNext: () => "下一個月",
-            }}
-          />
+          <GosBookingCalendar value={value} onSelect={selectDay} />
         </div>
       )}
     </div>
