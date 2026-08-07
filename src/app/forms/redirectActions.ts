@@ -1,9 +1,10 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import { getFormOperations } from "@/lib/data/brandOperations";
 import { getFormByIdOrSlug } from "@/lib/data/formManagement";
+import { PUBLIC_FORM_CONFIG_CACHE_TAG } from "@/lib/data/publicFormConfig";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -69,6 +70,7 @@ export async function syncGeneratedSuccessRedirectAction(formData: FormData) {
 
   revalidatePath("/forms");
   revalidatePath(path);
+  revalidateTag(PUBLIC_FORM_CONFIG_CACHE_TAG, { expire: 0 });
   redirectWithMessage(
     path,
     "Success Redirect 已按目前 Treatment Slug 重新生成。已貼到 Wix 的舊 Embed Code 不會自動更新，請重新複製 Embed。"

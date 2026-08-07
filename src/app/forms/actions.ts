@@ -1,6 +1,6 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
 import {
   archiveForm,
@@ -11,6 +11,7 @@ import {
   updateForm,
   type ManagedFormInput,
 } from "@/lib/data/formManagement";
+import { PUBLIC_FORM_CONFIG_CACHE_TAG } from "@/lib/data/publicFormConfig";
 import {
   requireModuleAccess,
   verifyCurrentInternalAccess,
@@ -48,6 +49,10 @@ async function requireAdmin(path: string) {
   if (!moduleAccess.allowed) {
     redirect(`/login?next=${encodeURIComponent(path)}&error=permission_denied`);
   }
+}
+
+function revalidatePublicFormConfig() {
+  revalidateTag(PUBLIC_FORM_CONFIG_CACHE_TAG, { expire: 0 });
 }
 
 function parseFormInput(formData: FormData) {
@@ -90,6 +95,7 @@ export async function createFormAction(formData: FormData) {
     redirectWithMessage("/forms/new", result.message);
   }
 
+  revalidatePublicFormConfig();
   redirectWithMessage(`/forms/${result.form.id}`, result.message);
 }
 
@@ -107,6 +113,8 @@ export async function updateFormAction(formData: FormData) {
   revalidatePath("/forms");
   revalidatePath(path);
 
+  if (result.ok) revalidatePublicFormConfig();
+
   redirectWithMessage(path, result.message);
 }
 
@@ -120,6 +128,7 @@ export async function duplicateFormAction(formData: FormData) {
     redirectWithMessage(`/forms/${formId}`, result.message);
   }
 
+  revalidatePublicFormConfig();
   redirectWithMessage(`/forms/${result.form.id}`, result.message);
 }
 
@@ -136,6 +145,7 @@ export async function archiveFormAction(formData: FormData) {
   const result = await archiveForm(formId);
   revalidatePath("/forms");
   revalidatePath(`/forms/${formId}`);
+  if (result.ok) revalidatePublicFormConfig();
   redirectWithMessage(returnTo, result.message);
 }
 
@@ -151,5 +161,6 @@ export async function deleteFormAction(formData: FormData) {
 
   const result = await deleteFormSafely(formId);
   revalidatePath("/forms");
+  if (result.ok) revalidatePublicFormConfig();
   redirectWithMessage(returnTo, result.message);
 }
