@@ -3,6 +3,7 @@
 import {
   FormEvent,
   useEffect,
+  useId,
   useLayoutEffect,
   useMemo,
   useRef,
@@ -10,6 +11,9 @@ import {
   type CSSProperties,
   type ReactNode,
 } from "react";
+import { DayPicker } from "@daypicker/react";
+import { zhTW } from "@daypicker/react/locale";
+import "@daypicker/react/style.css";
 import {
   publicThemeStyle,
   resolvePublicBrandTheme,
@@ -67,6 +71,27 @@ type AttributionEnvelope = {
 type SubmitState = "idle" | "loading" | "success" | "error";
 type ConfigStatus = "loading" | "ready" | "error";
 type ConversionMode = "form_submit_pixel" | "thank_you_redirect";
+
+const GOS_BOOKING_TIMES = [
+  "11:00",
+  "11:30",
+  "12:00",
+  "12:30",
+  "13:00",
+  "13:30",
+  "14:00",
+  "14:30",
+  "15:00",
+  "15:30",
+  "16:00",
+  "16:30",
+  "17:00",
+  "17:30",
+  "18:00",
+  "18:30",
+  "19:00",
+  "19:30",
+] as const;
 
 type AttributionDebugResponse = {
   attribution_debug: true;
@@ -1001,6 +1026,33 @@ function formatSelectedDate(value: string) {
   if (!match) return "";
 
   return `${match[1]}年${Number(match[2])}月${Number(match[3])}日`;
+}
+
+function parseDateInputValue(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return undefined;
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const parsed = new Date(year, month - 1, day, 12);
+
+  if (
+    parsed.getFullYear() !== year ||
+    parsed.getMonth() !== month - 1 ||
+    parsed.getDate() !== day
+  ) {
+    return undefined;
+  }
+
+  return parsed;
+}
+
+function toDateInputValue(value: Date) {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 export function PublicLeadForm({
@@ -1979,41 +2031,25 @@ export function PublicLeadForm({
                     />
                   </Field>
 
-                  <Field label="預約日期">
-                    <MobileDateField
-                      compact
+                  <div className="block min-w-0 text-[13px] font-semibold text-[var(--public-heading)] sm:text-[13px] sm:font-bold">
+                    <span>預約日期</span>
+                    <GosDateField
                       value={formData.appointment_date}
                       onChange={(value) =>
                         updateField("appointment_date", value)
                       }
                     />
-                  </Field>
+                  </div>
 
-                  <Field label="預約時間">
-                    <select
-                      required
-                      aria-label="預約時間"
-                      className="mt-1.5 block h-12 w-full min-w-0 rounded-[13px] border border-[var(--public-border)] bg-white px-3.5 text-base outline-none transition focus:border-[var(--public-accent)] focus:ring-3 focus:ring-[var(--public-accent-soft)] sm:text-sm"
+                  <div className="block min-w-0 text-[13px] font-semibold text-[var(--public-heading)] sm:text-[13px] sm:font-bold">
+                    <span>預約時間</span>
+                    <GosTimeField
                       value={formData.appointment_time}
-                      onChange={(event) =>
-                        updateField("appointment_time", event.target.value)
+                      onChange={(value) =>
+                        updateField("appointment_time", value)
                       }
-                    >
-                      <option value="">選擇時間</option>
-                      {[
-                        "11:00",
-                        "12:00",
-                        "14:00",
-                        "16:00",
-                        "18:00",
-                        "19:30",
-                      ].map((time) => (
-                        <option key={time} value={time}>
-                          {time}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
+                    />
+                  </div>
                 </div>
 
                 <label className="mt-4 flex items-start gap-2.5 text-[13px] font-semibold leading-5 text-[var(--public-heading)]">
@@ -2496,6 +2532,159 @@ function FormLoadingSkeleton() {
         ))}
       </div>
     </section>
+  );
+}
+
+function GosDateField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  const calendarId = useId();
+  const calendarLabelId = useId();
+  const containerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const selectedDay = parseDateInputValue(value);
+  const displayValue = formatSelectedDate(value);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (!containerRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+      }
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsOpen(false);
+        triggerRef.current?.focus();
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isOpen]);
+
+  const selectDay = (day: Date | undefined) => {
+    if (!day) return;
+    onChange(toDateInputValue(day));
+    setIsOpen(false);
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  };
+
+  return (
+    <div ref={containerRef} className="mt-1.5 min-w-0">
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label="預約日期"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={calendarId}
+        className="flex h-12 min-h-12 w-full items-center justify-between rounded-[13px] border border-[var(--public-border)] bg-white px-3.5 text-left text-base font-semibold text-[var(--public-heading)] outline-none transition hover:border-[var(--public-accent)] focus-visible:border-[var(--public-accent)] focus-visible:ring-3 focus-visible:ring-[var(--public-accent-soft)] sm:text-sm"
+        onClick={() => setIsOpen((current) => !current)}
+      >
+        <span className={displayValue ? "" : "text-[var(--public-muted)]"}>
+          {displayValue || "選擇預約日期"}
+        </span>
+        <span aria-hidden="true" className="text-[var(--public-accent)]">
+          {isOpen ? "收起" : "日曆"}
+        </span>
+      </button>
+
+      {isOpen && (
+        <div
+          id={calendarId}
+          role="dialog"
+          aria-modal="false"
+          aria-labelledby={calendarLabelId}
+          className="mt-2 rounded-[16px] border border-[var(--public-border)] bg-white p-3 shadow-[0_16px_38px_rgba(103,57,32,0.12)]"
+        >
+          <p
+            id={calendarLabelId}
+            className="mb-1 text-center text-xs font-bold text-[var(--public-heading)]"
+          >
+            選擇預約日期
+          </p>
+          <DayPicker
+            mode="single"
+            selected={selectedDay}
+            defaultMonth={selectedDay}
+            onSelect={selectDay}
+            locale={zhTW}
+            navLayout="around"
+            showOutsideDays
+            className="mx-auto text-sm"
+            style={
+              {
+                "--rdp-accent-color": "var(--public-cta)",
+                "--rdp-accent-background-color": "var(--public-accent-soft)",
+                "--rdp-day-height": "36px",
+                "--rdp-day-width": "36px",
+                "--rdp-day_button-height": "34px",
+                "--rdp-day_button-width": "34px",
+                "--rdp-nav_button-height": "34px",
+                "--rdp-nav_button-width": "34px",
+              } as CSSProperties
+            }
+            formatters={{
+              formatCaption: (month) =>
+                `${month.getFullYear()}年${month.getMonth() + 1}月`,
+              formatWeekdayName: (day) =>
+                ["日", "一", "二", "三", "四", "五", "六"][day.getDay()],
+            }}
+            labels={{
+              labelPrevious: () => "上一個月",
+              labelNext: () => "下一個月",
+            }}
+          />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function GosTimeField({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <div
+      role="radiogroup"
+      aria-label="預約時間"
+      className="mt-1.5 grid grid-cols-4 gap-1.5 rounded-[13px] border border-[var(--public-border)] bg-white p-2"
+    >
+      {GOS_BOOKING_TIMES.map((time) => {
+        const isSelected = time === value;
+        return (
+          <button
+            key={time}
+            type="button"
+            role="radio"
+            aria-checked={isSelected}
+            className={`min-h-10 rounded-[10px] border px-1.5 py-2 text-sm font-bold outline-none transition focus-visible:ring-3 focus-visible:ring-[var(--public-accent-soft)] ${
+              isSelected
+                ? "border-[var(--public-cta)] bg-[var(--public-cta)] text-[var(--public-cta-text)] shadow-sm"
+                : "border-[var(--public-border)] bg-[var(--public-soft-bg)] text-[var(--public-heading)] hover:border-[var(--public-accent)]"
+            }`}
+            onClick={() => onChange(time)}
+          >
+            {time}
+          </button>
+        );
+      })}
+    </div>
   );
 }
 

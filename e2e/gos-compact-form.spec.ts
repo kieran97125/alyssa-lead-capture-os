@@ -8,6 +8,16 @@ const packageId = "gos-package-id";
 const branchId = "gos-branch-id";
 const gosThankYouUrl = "https://www.gosbeauty.com/thank-you";
 
+function futureBookingDate(offsetDays: number) {
+  const date = new Date();
+  date.setHours(12, 0, 0, 0);
+  date.setDate(date.getDate() + offsetDays);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function publicFormConfig() {
   return {
     ok: true,
@@ -126,6 +136,7 @@ test("GOS compact form shows the configured item and submits the short booking f
   page,
 }) => {
   let submittedPayload: Record<string, unknown> | null = null;
+  const bookingDate = futureBookingDate(7);
 
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
     await route.fulfill({
@@ -175,6 +186,8 @@ test("GOS compact form shows the configured item and submits the short booking f
   await expect(page.getByLabel("聯絡電話")).toBeVisible();
   await expect(page.getByLabel("預約日期")).toBeVisible();
   await expect(page.getByLabel("預約時間")).toBeVisible();
+  await expect(page.getByRole("radio")).toHaveCount(18);
+  await expect(page.getByRole("radio", { name: "11:30" })).toBeVisible();
   await expect(page.getByLabel("Email")).toHaveCount(0);
   await expect(page.getByLabel("療程")).toHaveCount(0);
   await expect(page.getByLabel("套餐")).toHaveCount(0);
@@ -195,8 +208,15 @@ test("GOS compact form shows the configured item and submits the short booking f
 
   await page.getByLabel("姓名").fill("GOS Test");
   await page.getByLabel("聯絡電話").fill("91234567");
-  await page.getByLabel("預約日期").fill("2026-08-01");
-  await page.getByLabel("預約時間").selectOption("16:00");
+  await page.getByLabel("預約日期").click();
+  await expect(
+    page.getByRole("dialog", { name: "選擇預約日期" })
+  ).toBeVisible();
+  await page.locator(`[data-day="${bookingDate}"] button`).first().click();
+  await expect(
+    page.getByRole("dialog", { name: "選擇預約日期" })
+  ).toHaveCount(0);
+  await page.getByRole("radio", { name: "16:00" }).click();
   await page
     .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
     .check();
@@ -210,7 +230,7 @@ test("GOS compact form shows the configured item and submits the short booking f
     form_id: formId,
     customer_name: "GOS Test",
     phone: "91234567",
-    appointment_date: "2026-08-01",
+    appointment_date: bookingDate,
     appointment_time: "16:00",
     treatment_id: treatmentId,
     package_id: packageId,
@@ -273,6 +293,7 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
   page,
 }) => {
   let submittedPayload: Record<string, unknown> | null = null;
+  const bookingDate = futureBookingDate(8);
   const customerChoiceBase = customerChoiceConfig();
   const customerChoiceRedirectConfig = {
     ...customerChoiceBase,
@@ -339,8 +360,9 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
 
   await page.getByLabel("姓名").fill("GOS Choice");
   await page.getByLabel("聯絡電話").fill("98765432");
-  await page.getByLabel("預約日期").fill("2026-08-08");
-  await page.getByLabel("預約時間").selectOption("18:00");
+  await page.getByLabel("預約日期").click();
+  await page.locator(`[data-day="${bookingDate}"] button`).first().click();
+  await page.getByRole("radio", { name: "18:00" }).click();
   await page
     .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
     .check();
@@ -358,6 +380,7 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
 test("GOS form uses the brand Pixel from LaunchHub after a successful lead", async ({
   page,
 }) => {
+  const bookingDate = futureBookingDate(9);
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -388,8 +411,9 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
   );
   await page.getByLabel("姓名").fill("GOS Pixel");
   await page.getByLabel("聯絡電話").fill("92345678");
-  await page.getByLabel("預約日期").fill("2026-08-09");
-  await page.getByLabel("預約時間").selectOption("16:00");
+  await page.getByLabel("預約日期").click();
+  await page.locator(`[data-day="${bookingDate}"] button`).first().click();
+  await page.getByRole("radio", { name: "16:00" }).click();
   await page
     .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
     .check();
@@ -424,6 +448,7 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
 test("GOS form overrides a legacy LaunchHub redirect with the official thank-you page", async ({
   page,
 }) => {
+  const bookingDate = futureBookingDate(12);
   const officialFinalRedirect = `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=688&lead_id=gos-redirect-lead&event_id=gos-redirect-event&form_id=${formId}`;
 
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
@@ -499,8 +524,9 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
   await expect(form.getByLabel("姓名")).toBeVisible({ timeout: 15_000 });
   await form.getByLabel("姓名").fill("GOS Redirect");
   await form.getByLabel("聯絡電話").fill("93456789");
-  await form.getByLabel("預約日期").fill("2026-08-12");
-  await form.getByLabel("預約時間").selectOption("18:00");
+  await form.getByLabel("預約日期").click();
+  await form.locator(`[data-day="${bookingDate}"] button`).first().click();
+  await form.getByRole("radio", { name: "18:00" }).click();
   await form
     .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
     .check();
