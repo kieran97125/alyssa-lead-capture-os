@@ -11,6 +11,8 @@ const paths = [
   "src/app/performance/page.tsx",
   "src/app/performance/compare/page.tsx",
   "src/app/performance/daily/page.tsx",
+  "src/app/reports/page.tsx",
+  "src/components/reports/ReportGeneratorForm.tsx",
   "src/app/system-audit/page.tsx",
   "src/app/forms/page.tsx",
   "src/app/forms/new/page.tsx",

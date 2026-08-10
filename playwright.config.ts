@@ -36,7 +36,7 @@ export default defineConfig({
   webServer: externalBaseUrl
     ? undefined
     : {
-        command: "npm run build && npm run start",
+        command: "npm run build && npm run start -- --hostname 127.0.0.1",
         url: `${baseURL}/login`,
         reuseExistingServer: !process.env.CI,
         timeout: 120_000,

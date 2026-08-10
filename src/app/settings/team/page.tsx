@@ -144,7 +144,7 @@ export default async function TeamSettingsPage({
             <div>
               <strong>安全登入連結由呢一頁寄出</strong>
               <p>
-                成員完成首次身份確認後，帳戶會自動轉為「已啟用」。
+                收件人會直接開啟 app.beautytrialhk.com；完成首次身份確認後，帳戶會自動轉為「已啟用」。
               </p>
             </div>
           </div>
