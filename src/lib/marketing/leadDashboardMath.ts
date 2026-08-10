@@ -12,6 +12,11 @@ import {
   emptyPerformanceTrendBase,
   type PerformanceTrendSeries,
 } from "@/lib/marketing/performanceTrend";
+import {
+  brandIdsForScope,
+  brandScopeOptions,
+  brandsForScope,
+} from "@/lib/marketing/brandScope";
 
 export type LeadDashboardFilters = {
   startDate: string;
@@ -86,14 +91,15 @@ export function buildLeadDashboardTrend(input: {
   brandColors: Record<string, string>;
   annotations: OperationalAnnotation[];
 }): PerformanceTrendSeries[] {
+  const selectedBrandIds = new Set(
+    brandIdsForScope(input.brands, input.filters.brandId)
+  );
   const groups = input.groups.filter((group) => {
-    if (input.filters.brandId && group.brandId !== input.filters.brandId) return false;
+    if (!selectedBrandIds.has(group.brandId)) return false;
     if (input.filters.treatment && group.treatmentLabel !== input.filters.treatment) return false;
     return true;
   });
-  const seriesBrands = input.brands.filter(
-    (brand) => !input.filters.brandId || brand.id === input.filters.brandId
-  );
+  const seriesBrands = brandsForScope(input.brands, input.filters.brandId);
   const dates = dashboardDates(input.filters.startDate, input.filters.endDate);
 
   return seriesBrands.map((brand) => {
@@ -313,10 +319,15 @@ export function buildLeadDashboardModel(input: {
   const allowedGroups = input.groups.filter(
     (group) => !allowedBrandIds || allowedBrandIds.has(group.brandId)
   );
-  const visibleGroups = allowedGroups.filter((group) => {
-    if (input.filters.brandId && group.brandId !== input.filters.brandId) {
-      return false;
-    }
+  const visibleBrands = input.brands.filter(
+    (brand) => !allowedBrandIds || allowedBrandIds.has(brand.id)
+  );
+  const scopedBrands = brandsForScope(visibleBrands, input.filters.brandId);
+  const scopedBrandIds = new Set(scopedBrands.map((brand) => brand.id));
+  const scopedGroups = allowedGroups.filter((group) =>
+    scopedBrandIds.has(group.brandId)
+  );
+  const visibleGroups = scopedGroups.filter((group) => {
     if (
       input.filters.treatment &&
       group.treatmentLabel !== input.filters.treatment
@@ -326,10 +337,7 @@ export function buildLeadDashboardModel(input: {
     return true;
   });
   const outstandingMonth = monthRange(input.filters.startDate);
-  const visibleBrands = input.brands.filter(
-    (brand) => !allowedBrandIds || allowedBrandIds.has(brand.id)
-  );
-  const brandRows = visibleBrands.map((brand) =>
+  const brandRows = scopedBrands.map((brand) =>
     dimensionRow({
       key: brand.id,
       groups: visibleGroups.filter((group) => group.brandId === brand.id),
@@ -343,7 +351,7 @@ export function buildLeadDashboardModel(input: {
   const treatmentLabels = Array.from(
     new Set([
       ...(input.treatmentLabels ?? []),
-      ...allowedGroups.map((group) => group.treatmentLabel),
+      ...scopedGroups.map((group) => group.treatmentLabel),
     ])
   ).filter(Boolean);
   const treatmentRows = [
@@ -438,10 +446,7 @@ export function buildLeadDashboardModel(input: {
     treatmentRows,
     campaignRows,
     outstandingRows,
-    brandOptions: visibleBrands.map((brand) => ({
-      value: brand.id,
-      label: brand.name,
-    })),
+    brandOptions: brandScopeOptions(visibleBrands),
     treatmentOptions: treatmentLabels.map((label) => ({
       value: label,
       label,

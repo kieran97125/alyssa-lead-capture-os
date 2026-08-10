@@ -11,6 +11,7 @@ import {
 } from "lucide-react";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { PerformanceCostSummary } from "@/components/command-center/PerformanceCostSummary";
 import { LeadDashboardTrendChartLazy } from "@/components/command-center/LeadDashboardTrendChartLazy";
 import type {
@@ -225,10 +226,13 @@ export function LeadDashboardPanel({
             </select>
           </label>
           <div className="lead-dashboard-filter-actions">
-            <button type="submit" className="command-primary-button">
+            <SubmitButton
+              className="command-primary-button"
+              pendingLabel="篩選中…"
+            >
               <Filter size={15} />
               套用篩選
-            </button>
+            </SubmitButton>
             {hasFilters ? (
               <IntentPrefetchLink
                 href={`/dashboard?startDate=${snapshot.filters.startDate}&endDate=${snapshot.filters.endDate}`}
@@ -295,7 +299,10 @@ export function LeadDashboardPanel({
         <LeadDashboardTrendChartLazy series={snapshot.trendSeries} />
       </section>
 
-      <section className="command-surface treatment-ranking-section">
+      <section
+        className="command-surface treatment-ranking-section"
+        aria-label="品牌總結"
+      >
         <div className="lead-dashboard-section-heading">
           <div><UsersRound size={17} /><div><h2>品牌總結</h2></div></div>
           <span>{snapshot.filters.startDate} 至 {snapshot.filters.endDate}</span>

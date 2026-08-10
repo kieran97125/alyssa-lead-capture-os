@@ -75,7 +75,7 @@ export default async function TeamSettingsPage({
   }>;
 }) {
   const [snapshot, query] = await Promise.all([
-    getCommandCenterSnapshot(),
+    getCommandCenterSnapshot({ includeMembers: true }),
     searchParams,
   ]);
   const message = firstParam(query?.message);

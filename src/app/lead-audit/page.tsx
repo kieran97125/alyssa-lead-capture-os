@@ -245,7 +245,7 @@ export default async function LeadAuditPage({
                     <option value="informational">一般更新</option>
                   </select>
                 </label>
-                <button type="submit">套用篩選</button>
+                <SubmitButton pendingLabel="篩選中…">套用篩選</SubmitButton>
               </form>
 
               <section className="lead-audit-change-list" aria-label="版本異動">

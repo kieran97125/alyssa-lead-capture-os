@@ -432,6 +432,70 @@ function fallbackFormPackages(forms: FormSetting[]): FormPackageSetting[] {
     }));
 }
 
+function mapBrandSetting(item: unknown): BrandSetting {
+  const row = item as Record<string, unknown>;
+  return {
+    id: typeof row.id === "string" ? row.id : "",
+    name: typeof row.name === "string" ? row.name : "未命名品牌",
+    slug: typeof row.slug === "string" ? row.slug : "",
+    logoUrl: typeof row.logo_url === "string" ? row.logo_url : null,
+    primaryColor:
+      typeof row.primary_color === "string" ? row.primary_color : null,
+    secondaryColor:
+      typeof row.secondary_color === "string" ? row.secondary_color : null,
+    whatsappNumber:
+      typeof row.whatsapp_number === "string" ? row.whatsapp_number : null,
+    defaultThankYouUrl:
+      typeof row.default_thank_you_url === "string"
+        ? row.default_thank_you_url
+        : null,
+    legalPageUrl:
+      typeof row.legal_page_url === "string" ? row.legal_page_url : null,
+    legalLinkLabel:
+      typeof row.legal_link_label === "string" ? row.legal_link_label : null,
+    privacyUrl: typeof row.privacy_url === "string" ? row.privacy_url : null,
+    disclaimerUrl:
+      typeof row.disclaimer_url === "string" ? row.disclaimer_url : null,
+    operatorName:
+      typeof row.operator_name === "string" ? row.operator_name : null,
+    metaPixelId:
+      typeof row.meta_pixel_id === "string" ? row.meta_pixel_id : null,
+    metaPixelPageViewOnEmbed: row.meta_pixel_pageview_on_embed === true,
+  };
+}
+
+function scopeBrands(brands: BrandSetting[], allowedBrandIds: string[] | null) {
+  if (allowedBrandIds === null) return brands;
+  const allowed = new Set(allowedBrandIds);
+  return brands.filter((brand) => allowed.has(brand.id));
+}
+
+/**
+ * Lightweight reporting catalog. Analytics pages only need brands, so they
+ * must not pay for treatments, packages, branches, forms and form relations.
+ */
+export async function getConfiguredBrands(
+  options: ConfigurationScopeOptions = {}
+): Promise<BrandSetting[]> {
+  const allowedBrandIds = await getAllowedBrandIds(options);
+  const fallback = fallbackSystemBrands.map((brand) => ({ ...brand }));
+  if (!hasSupabaseAdminEnv()) return scopeBrands(fallback, allowedBrandIds);
+
+  try {
+    const { data, error } = await createSupabaseAdminClient()
+      .from("brands")
+      .select("id,name,slug,primary_color,secondary_color")
+      .order("name", { ascending: true });
+    if (error) throw error;
+    return scopeBrands((data ?? []).map(mapBrandSetting), allowedBrandIds);
+  } catch (error) {
+    console.warn("brand_catalog_read_failed", {
+      message: error instanceof Error ? error.message : "unknown",
+    });
+    return scopeBrands(fallback, allowedBrandIds);
+  }
+}
+
 export function getLinkedForms(data: ConfigurationData, predicate: (form: FormSetting) => boolean) {
   return data.forms.filter(predicate);
 }
@@ -564,48 +628,7 @@ export async function getConfigurationData(
 
     return scopeConfiguration({
       sourceLabel: "正式設定",
-      brands: ((brands.data ?? []) as unknown[]).map((item) => {
-        const row = item as Record<string, unknown>;
-        return {
-          id: typeof row.id === "string" ? row.id : "",
-          name:
-            typeof row.name === "string" ? row.name : "未命名品牌",
-          slug: typeof row.slug === "string" ? row.slug : "",
-          logoUrl: typeof row.logo_url === "string" ? row.logo_url : null,
-          primaryColor:
-            typeof row.primary_color === "string" ? row.primary_color : null,
-          secondaryColor:
-            typeof row.secondary_color === "string"
-              ? row.secondary_color
-              : null,
-          whatsappNumber:
-            typeof row.whatsapp_number === "string"
-              ? row.whatsapp_number
-              : null,
-          defaultThankYouUrl:
-            typeof row.default_thank_you_url === "string"
-              ? row.default_thank_you_url
-              : null,
-          legalPageUrl:
-            typeof row.legal_page_url === "string" ? row.legal_page_url : null,
-          legalLinkLabel:
-            typeof row.legal_link_label === "string"
-              ? row.legal_link_label
-              : null,
-          privacyUrl:
-            typeof row.privacy_url === "string" ? row.privacy_url : null,
-          disclaimerUrl:
-            typeof row.disclaimer_url === "string"
-              ? row.disclaimer_url
-              : null,
-          operatorName:
-            typeof row.operator_name === "string" ? row.operator_name : null,
-          metaPixelId:
-            typeof row.meta_pixel_id === "string" ? row.meta_pixel_id : null,
-          metaPixelPageViewOnEmbed:
-            row.meta_pixel_pageview_on_embed === true,
-        };
-      }),
+      brands: ((brands.data ?? []) as unknown[]).map(mapBrandSetting),
       treatments: ((treatments.data ?? []) as unknown[]).map((item) => {
         const row = item as Record<string, string | null>;
         return {

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { notFound } from "next/navigation";
 import { CrmShell } from "@/components/crm/CrmShell";
 import { getWhatsAppConnectionByBrandSlug } from "@/lib/crm/whatsapp";
@@ -110,9 +111,12 @@ export default async function WhatsAppInboxPage({
                 placeholder="搜尋電話、名稱、訊息…"
                 className="h-9 min-w-0 flex-1 rounded-lg border border-[#dbe2ea] px-3 text-sm xl:w-[320px]"
               />
-              <button className="h-9 rounded-lg border border-[#111827] px-3 text-xs font-black text-[#111827]">
+              <SubmitButton
+                pendingLabel="搜尋中…"
+                className="h-9 rounded-lg border border-[#111827] px-3 text-xs font-black text-[#111827]"
+              >
                 搜尋
-              </button>
+              </SubmitButton>
             </form>
           </div>
         </section>

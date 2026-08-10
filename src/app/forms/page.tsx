@@ -235,9 +235,12 @@ export default async function FormsPage({
                 className="mt-2 w-full rounded-2xl border border-[#ead9cf] bg-[#fff6f0] px-4 py-3 text-sm font-semibold text-[#5a2348] outline-none focus:border-[#e46f64] focus:bg-white"
               />
             </label>
-            <button className="self-end rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
+            <SubmitButton
+              pendingLabel="篩選中…"
+              className="self-end rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+            >
               Filter
-            </button>
+            </SubmitButton>
           </form>
         </section>
 
