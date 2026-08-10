@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:lead-audit-contract && npm run verify:product-ui-contract && next build",
+    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:lead-audit-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && next build",
     "start": "next start",
     "lint": "eslint",
     "verify:public-lead-contract": "node scripts/verify-public-lead-contract.mjs",
@@ -12,6 +12,7 @@
     "verify:reporting-trend-contract": "node scripts/verify-reporting-trend-contract.mjs",
     "verify:lead-audit-contract": "node scripts/verify-lead-audit-contract.mjs",
     "verify:product-ui-contract": "node scripts/verify-product-ui-contract.mjs",
+    "verify:app-icon-contract": "node scripts/verify-app-icon-contract.mjs",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots"
   },

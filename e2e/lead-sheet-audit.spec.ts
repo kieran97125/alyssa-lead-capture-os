@@ -10,8 +10,15 @@ test("Master can inspect Lead Sheet versions, alerts and before-after evidence",
   await expect(page.getByText("同步紀錄")).toBeVisible();
   await expect(page.getByRole("heading", { name: "本次更新有咩改動" })).toBeVisible();
   await expect(page.getByText("上一版本存在嘅 Lead 紀錄已消失。")).toBeVisible();
-  await expect(page.getByText("2026-08-10")).toBeVisible();
-  await expect(page.getByText("2026-08-12")).toBeVisible();
+  const appointmentDateChange = page
+    .getByText("預約日期", { exact: true })
+    .locator("..");
+  await expect(
+    appointmentDateChange.getByText("2026-08-10", { exact: true })
+  ).toBeVisible();
+  await expect(
+    appointmentDateChange.getByText("2026-08-12", { exact: true })
+  ).toBeVisible();
   await expect(page.getByRole("link", { name: /Lead 變更監察 2/ })).toBeVisible();
   await expect(page.getByText("Version diff")).toHaveCount(0);
   await expect(page.getByText(/LEAD_AUDIT_ENCRYPTION_KEY/)).toHaveCount(0);

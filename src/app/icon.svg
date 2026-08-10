@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Growth OS">
+  <defs>
+    <linearGradient id="growth-os-surface" x1="78" y1="44" x2="446" y2="474" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#c9828e" />
+      <stop offset="0.48" stop-color="#8f4f70" />
+      <stop offset="1" stop-color="#5a2348" />
+    </linearGradient>
+    <radialGradient id="growth-os-glow" cx="0" cy="0" r="1" gradientTransform="translate(132 86) rotate(46) scale(332 322)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#fff6f0" stop-opacity="0.3" />
+      <stop offset="1" stop-color="#fff6f0" stop-opacity="0" />
+    </radialGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#growth-os-surface)" />
+  <rect width="512" height="512" fill="url(#growth-os-glow)" />
+  <rect x="30" y="30" width="452" height="452" rx="112" fill="none" stroke="#fff9f3" stroke-opacity="0.16" stroke-width="6" />
+  <text
+    x="250"
+    y="321"
+    fill="#ffffff"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="190"
+    font-weight="900"
+    letter-spacing="-20"
+    text-anchor="middle"
+  >GO</text>
+  <rect x="180" y="371" width="152" height="14" rx="7" fill="#d9b66f" />
+</svg>
