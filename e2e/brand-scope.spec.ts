@@ -90,7 +90,9 @@ test("reporting pages render Alyssa All totals without GOS rows", async ({
     name: "品牌每日及累計",
   });
   await expect(dailyBrands).toBeVisible();
-  await expect(dailyBrands.getByText("Alyssa All", { exact: true })).toBeVisible();
+  await expect(
+    dailyBrands.getByLabel("Alyssa All 品牌色", { exact: true })
+  ).toBeVisible();
   await expect(
     dailyBrands.getByText("GOS Beauty", { exact: true })
   ).toHaveCount(0);
