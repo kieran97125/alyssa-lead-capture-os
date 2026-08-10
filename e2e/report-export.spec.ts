@@ -33,21 +33,40 @@ test.describe("Growth report exports", () => {
       breakdowns: ["brand", "treatment"],
     };
 
-    const pdf = await page.request.post("/api/internal/reports/export", {
-      data: { ...baseRequest, format: "pdf" },
-    });
-    expect(pdf.ok()).toBe(true);
-    expect(pdf.headers()["content-type"]).toContain("application/pdf");
-    expect(pdf.headers()["content-disposition"]).toContain(".pdf");
-    expect(pdf.headers()["x-report-snapshot-id"]).toBeTruthy();
-    expect((await pdf.body()).subarray(0, 4).toString()).toBe("%PDF");
+    const exportReport = async (format: "pdf" | "pptx") =>
+      page.evaluate(
+        async (request) => {
+          const response = await fetch("/api/internal/reports/export", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify(request),
+          });
+          const bytes = new Uint8Array(await response.arrayBuffer());
 
-    const pptx = await page.request.post("/api/internal/reports/export", {
-      data: { ...baseRequest, format: "pptx" },
-    });
-    expect(pptx.ok()).toBe(true);
-    expect(pptx.headers()["content-type"]).toContain("presentationml.presentation");
-    expect(pptx.headers()["content-disposition"]).toContain(".pptx");
-    expect((await pptx.body()).subarray(0, 2).toString()).toBe("PK");
+          return {
+            ok: response.ok,
+            status: response.status,
+            contentType: response.headers.get("content-type") ?? "",
+            contentDisposition:
+              response.headers.get("content-disposition") ?? "",
+            snapshotId: response.headers.get("x-report-snapshot-id") ?? "",
+            prefix: Array.from(bytes.slice(0, 4)),
+          };
+        },
+        { ...baseRequest, format }
+      );
+
+    const pdf = await exportReport("pdf");
+    expect(pdf.ok, `PDF export returned ${pdf.status}`).toBe(true);
+    expect(pdf.contentType).toContain("application/pdf");
+    expect(pdf.contentDisposition).toContain(".pdf");
+    expect(pdf.snapshotId).toBeTruthy();
+    expect(pdf.prefix).toEqual([37, 80, 68, 70]);
+
+    const pptx = await exportReport("pptx");
+    expect(pptx.ok, `PPTX export returned ${pptx.status}`).toBe(true);
+    expect(pptx.contentType).toContain("presentationml.presentation");
+    expect(pptx.contentDisposition).toContain(".pptx");
+    expect(pptx.prefix.slice(0, 2)).toEqual([80, 75]);
   });
 });

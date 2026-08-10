@@ -19,7 +19,7 @@ test("Growth OS keeps grouped navigation and settings overview compact", async (
   const primaryNavLinks = page
     .getByRole("navigation", { name: "主要功能" })
     .getByRole("link");
-  await expect(primaryNavLinks).toHaveCount(12);
+  await expect(primaryNavLinks).toHaveCount(13);
   await expect(
     page
       .getByRole("navigation", { name: "主要功能" })
@@ -29,6 +29,11 @@ test("Growth OS keeps grouped navigation and settings overview compact", async (
     page
       .getByRole("navigation", { name: "主要功能" })
       .getByRole("link", { name: "同期對比" })
+  ).toBeVisible();
+  await expect(
+    page
+      .getByRole("navigation", { name: "主要功能" })
+      .getByRole("link", { name: "報告生成" })
   ).toBeVisible();
   await expect(page.getByLabel("管理品牌")).toBeVisible();
   await expect(page.getByLabel("Meta Pixel ID")).toBeVisible();
