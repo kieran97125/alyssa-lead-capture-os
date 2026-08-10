@@ -14,6 +14,7 @@ import {
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
 import {
+  assertSystemDomainAuthLink,
   getAuthConfirmUrl,
   getSupabasePublicAuthConfig,
 } from "@/lib/supabase/authConfig";
@@ -1387,6 +1388,7 @@ async function sendWorkspaceAccessEmail({
   }
 
   const admin = createSupabaseAdminClient();
+  const systemDomainConfirmUrl = assertSystemDomainAuthLink(getAuthConfirmUrl());
   let authUserId = existingAuthUserId;
   const invitationMetadata = {
     full_name: fullName || undefined,
@@ -1396,7 +1398,7 @@ async function sendWorkspaceAccessEmail({
 
   if (!authUserId) {
     const { data, error } = await admin.auth.admin.inviteUserByEmail(email, {
-      redirectTo: getAuthConfirmUrl(),
+      redirectTo: systemDomainConfirmUrl,
       data: invitationMetadata,
     });
     if (!error && data.user?.id) {
@@ -1446,7 +1448,7 @@ async function sendWorkspaceAccessEmail({
     email,
     options: {
       shouldCreateUser: false,
-      emailRedirectTo: getAuthConfirmUrl(),
+      emailRedirectTo: systemDomainConfirmUrl,
     },
   });
   if (error) {

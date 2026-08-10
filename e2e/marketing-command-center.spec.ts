@@ -1217,7 +1217,7 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
     page.getByRole("button", { name: "同步最新數據" })
   ).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "主要功能" });
-  await expect(navigation.getByRole("link")).toHaveCount(12);
+  await expect(navigation.getByRole("link")).toHaveCount(13);
   await expect(
     navigation.getByRole("link", { name: "Dashboard" })
   ).toBeVisible();
@@ -1240,6 +1240,9 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
   await expect(
     navigation.getByRole("link", { name: "同期對比" })
   ).toBeVisible();
+  await expect(
+    navigation.getByRole("link", { name: "報告生成" })
+  ).toBeVisible();
   await expect(page.getByTestId("login-screen")).toHaveCount(0);
 });
 
@@ -1252,6 +1255,7 @@ test("Command Center feature pages render without migration-dependent crashes", 
     ["/data-sources", "資料來源"],
     ["/performance", "療程成效"],
     ["/performance/compare", "品牌同期對比"],
+    ["/reports", "報告生成"],
     ["/settings/planning", "月度 Budget／KPI 設定"],
     ["/settings/team", "成員及權限"],
   ]) {

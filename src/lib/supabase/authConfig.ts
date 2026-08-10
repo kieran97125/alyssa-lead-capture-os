@@ -25,6 +25,7 @@ export function isBreakGlassPasswordEnabled() {
 }
 
 export const PRODUCTION_ADMIN_ORIGIN = "https://app.beautytrialhk.com";
+export const PRODUCTION_AUTH_LINK_HOST = "app.beautytrialhk.com";
 
 export function resolveCanonicalAdminOrigin(
   configured: string | undefined,
@@ -69,5 +70,23 @@ export function safeInternalNextPath(value: string | null | undefined) {
 export function getAuthConfirmUrl(next = "/dashboard") {
   const url = new URL("/auth/confirm", getCanonicalAdminOrigin());
   url.searchParams.set("next", safeInternalNextPath(next));
+  return url.toString();
+}
+
+/**
+ * Recipient-facing invite and magic-link URLs must open on the Growth OS
+ * system domain. Supabase remains the verifier behind /auth/confirm, but its
+ * project hostname must never be the first URL shown to a recipient.
+ */
+export function assertSystemDomainAuthLink(value: string) {
+  const url = new URL(value);
+  const expected = new URL(getCanonicalAdminOrigin());
+  if (
+    url.origin !== expected.origin ||
+    url.hostname.endsWith(".supabase.co") ||
+    url.pathname !== "/auth/confirm"
+  ) {
+    throw new Error("Auth email link must use the canonical Growth OS domain.");
+  }
   return url.toString();
 }

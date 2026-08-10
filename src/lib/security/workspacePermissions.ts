@@ -127,6 +127,8 @@ export function getWorkspaceModuleForPath(
   if (pathname.startsWith("/lead-audit")) return "lead_audit";
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/performance")) return "performance";
+  if (pathname.startsWith("/reports")) return "performance";
+  if (pathname.startsWith("/api/internal/reports")) return "performance";
   if (pathname.startsWith("/settings/planning")) return "kpis";
   if (
     pathname.startsWith("/brands") ||
