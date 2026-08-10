@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getConfigurationData, type BrandSetting } from "@/lib/data/configuration";
+import { getConfiguredBrands, type BrandSetting } from "@/lib/data/configuration";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -33,6 +33,13 @@ import {
   type ComparisonMetricKey,
   type ComparisonPeriod,
 } from "@/lib/marketing/periodComparisonMath";
+import {
+  brandScopeLabel,
+  brandScopeOptions,
+  brandsForScope,
+  normalizeBrandScope,
+  type BrandScopeOption,
+} from "@/lib/marketing/brandScope";
 
 export type { PeriodComparisonTrendScope } from "@/lib/marketing/periodComparisonMath";
 
@@ -88,6 +95,7 @@ export type PeriodComparisonSnapshot = {
     color: string;
     secondaryColor: string;
   }>;
+  brandOptions: BrandScopeOption[];
   selectedBrandLabel: string;
   monthOptions: Array<{ value: string; label: string }>;
   periods: ComparisonPeriod[];
@@ -465,16 +473,14 @@ function comparisonFilters(
     ? Math.max(1, Math.min(endDay, requestedStart))
     : 1;
   const brandParam = firstParam(query?.brand);
-  const selectedBrand = brands.find(
-    (brand) => brand.id === brandParam || brand.slug === brandParam
-  );
+  const selectedBrandScope = normalizeBrandScope(brandParam, brands);
 
   return {
     anchorMonth,
     monthCount,
     startDay,
     endDay,
-    brandId: selectedBrand?.id ?? null,
+    brandId: selectedBrandScope || null,
   };
 }
 
@@ -697,6 +703,7 @@ function buildTrendScopes(input: {
   periods: ComparisonPeriod[];
   canonicalData: PeriodCanonicalData[];
   selectedBrands: BrandSetting[];
+  selectedBrandLabel: string;
   annotations: OperationalAnnotation[];
 }) {
   const scopes: PerformanceTrendScope[] = [];
@@ -724,10 +731,7 @@ function buildTrendScopes(input: {
   scopes.push({
     key: "overall",
     type: "overall",
-    label:
-      input.selectedBrands.length === 1
-        ? input.selectedBrands[0].name
-        : "全部品牌",
+    label: input.selectedBrandLabel,
     description: "品牌整體成本、成效、No Show 及待到店同期累積；橙點係該範圍日曆操作。",
     availableMetrics: brandTrendMetricKeys,
     series: makeBrandSeries(allBrandIds, "overall"),
@@ -804,9 +808,11 @@ function buildSnapshot(input: {
   warnings: string[];
   annotations?: OperationalAnnotation[];
 }): PeriodComparisonSnapshot {
-  const selectedBrands = input.filters.brandId
-    ? input.brands.filter((brand) => brand.id === input.filters.brandId)
-    : input.brands;
+  const selectedBrands = brandsForScope(input.brands, input.filters.brandId);
+  const selectedBrandLabel = brandScopeLabel(
+    input.brands,
+    input.filters.brandId
+  );
   const selectedBrandIds = new Set(selectedBrands.map((brand) => brand.id));
   const totalMetrics = input.canonicalData.map((data) =>
     aggregateComparisonRows(data.rows, selectedBrandIds)
@@ -863,6 +869,7 @@ function buildSnapshot(input: {
     periods: input.periods,
     canonicalData: input.canonicalData,
     selectedBrands,
+    selectedBrandLabel,
     annotations: input.annotations ?? [],
   });
   const dataWarnings = Array.from(
@@ -881,8 +888,8 @@ function buildSnapshot(input: {
       color: brand.primaryColor || "#5A2348",
       secondaryColor: brand.secondaryColor || "#F8E8E2",
     })),
-    selectedBrandLabel:
-      selectedBrands.length === 1 ? selectedBrands[0].name : "全部品牌",
+    brandOptions: brandScopeOptions(input.brands),
+    selectedBrandLabel,
     monthOptions: monthOptions(getHkMonthContext().monthStart),
     periods: input.periods,
     totals,
@@ -899,8 +906,7 @@ function buildSnapshot(input: {
 export async function getPeriodComparisonSnapshot(
   query?: PeriodComparisonQuery
 ): Promise<PeriodComparisonSnapshot> {
-  const config = await getConfigurationData();
-  const brands = config.brands;
+  const brands = await getConfiguredBrands();
   const filters = comparisonFilters(query, brands);
   const periods = createComparisonPeriods({
     anchorMonth: filters.anchorMonth,
@@ -908,9 +914,7 @@ export async function getPeriodComparisonSnapshot(
     startDay: filters.startDay,
     endDay: filters.endDay,
   });
-  const selectedBrands = filters.brandId
-    ? brands.filter((brand) => brand.id === filters.brandId)
-    : brands;
+  const selectedBrands = brandsForScope(brands, filters.brandId);
 
   if (!hasSupabaseAdminEnv()) {
     const annotations = await getOperationalAnnotations({

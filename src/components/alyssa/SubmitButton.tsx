@@ -29,7 +29,9 @@ export function SubmitButton({
       className={`inline-flex items-center justify-center gap-2 ${className ?? ""}`}
       disabled={unavailable}
       aria-disabled={unavailable}
+      aria-busy={pending}
       aria-live="polite"
+      data-pending={pending ? "true" : undefined}
     >
       {pending ? (
         <>

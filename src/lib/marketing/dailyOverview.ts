@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getConfigurationData, type BrandSetting } from "@/lib/data/configuration";
+import { getConfiguredBrands, type BrandSetting } from "@/lib/data/configuration";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
@@ -28,6 +28,13 @@ import {
   type SpendTypeOption,
 } from "@/lib/marketing/spendTypes";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
+import {
+  brandScopeLabel,
+  brandScopeOptions,
+  brandsForScope,
+  normalizeBrandScope,
+  type BrandScopeOption,
+} from "@/lib/marketing/brandScope";
 
 export type DailySpendEntry = {
   id: string;
@@ -83,11 +90,14 @@ export type DailyOverviewSnapshot = {
   throughDate: string;
   selectedEntryDate: string;
   selectedSpendType: EditableSpendType;
+  selectedBrandScope: string;
   maxEntryDate: string;
   dates: string[];
   monthOptions: Array<{ value: string; label: string }>;
   brands: DailyOverviewBrandRow[];
+  reportBrands: DailyOverviewBrandRow[];
   allBrands: DailyOverviewBrandRow;
+  brandOptions: BrandScopeOption[];
   selectedEntries: Record<string, DailySpendEntry | null>;
   spendTypeOptions: SpendTypeOption[];
   hasLegacySpend: boolean;
@@ -101,6 +111,7 @@ export type DailyOverviewQuery = {
   month?: string | string[];
   entry_date?: string | string[];
   spend_type?: string | string[];
+  brand?: string | string[];
 };
 
 type SourceRow = {
@@ -399,7 +410,12 @@ function buildBrandRow(input: {
 function buildAllBrandsRow(
   brands: DailyOverviewBrandRow[],
   dates: string[],
-  daysInMonth: number
+  daysInMonth: number,
+  identity: { id: string; name: string; slug: string } = {
+    id: "all-brands",
+    name: "全部品牌",
+    slug: "all-brands",
+  }
 ): DailyOverviewBrandRow {
   const leadTarget = brands.reduce((sum, brand) => sum + brand.leadTarget, 0);
   const bookingTarget = brands.reduce(
@@ -457,9 +473,9 @@ function buildAllBrandsRow(
     };
   });
   return {
-    id: "all-brands",
-    name: "全部品牌",
-    slug: "all-brands",
+    id: identity.id,
+    name: identity.name,
+    slug: identity.slug,
     color: "#253A57",
     secondaryColor: "#EAF0E8",
     leadTarget,
@@ -636,18 +652,22 @@ export async function getDailyOverviewSnapshot(
   const selectedSpendType = normalizeEditableSpendType(
     firstParam(query?.spend_type)
   );
+  const requestedBrandScope = firstParam(query?.brand);
   const selectedEntryDate =
     /^\d{4}-\d{2}-\d{2}$/.test(requestedEntryDate) &&
     requestedEntryDate >= monthStart &&
     requestedEntryDate <= current.today
       ? requestedEntryDate
       : throughDate;
-  const [config, access] = await Promise.all([
-    getConfigurationData(),
+  const [brands, access] = await Promise.all([
+    getConfiguredBrands(),
     getCurrentInternalAccess(),
   ]);
-  const brands = config.brands;
   const brandIds = brands.map((brand) => brand.id);
+  const selectedBrandScope = normalizeBrandScope(
+    requestedBrandScope,
+    brands
+  );
   const monthOptions = Array.from({ length: 18 }, (_, index) => {
     const value = shiftMonth(current.monthStart, -index);
     return { value, label: monthFormatter.format(dateAtUtc(value)) };
@@ -741,7 +761,17 @@ export async function getDailyOverviewSnapshot(
       spendEntries,
     })
   );
-  const allBrands = buildAllBrandsRow(brandRows, dates, daysInMonth);
+  const reportBrandIds = new Set(
+    brandsForScope(brands, selectedBrandScope).map((brand) => brand.id)
+  );
+  const reportBrands = brandRows.filter((brand) =>
+    reportBrandIds.has(brand.id)
+  );
+  const allBrands = buildAllBrandsRow(reportBrands, dates, daysInMonth, {
+    id: selectedBrandScope || "all-brands",
+    name: brandScopeLabel(brands, selectedBrandScope),
+    slug: selectedBrandScope || "all-brands",
+  });
   const selectedEntries = Object.fromEntries(
     brands.map((brand) => [
       brand.id,
@@ -754,7 +784,7 @@ export async function getDailyOverviewSnapshot(
     ])
   );
   const rowWarnings = Array.from(
-    new Set(brandRows.flatMap((brand) => brand.warnings))
+    new Set(reportBrands.flatMap((brand) => brand.warnings))
   );
 
   return {
@@ -764,11 +794,14 @@ export async function getDailyOverviewSnapshot(
     throughDate,
     selectedEntryDate,
     selectedSpendType,
+    selectedBrandScope,
     maxEntryDate: current.today < endOfMonth ? current.today : endOfMonth,
     dates,
     monthOptions,
     brands: brandRows,
+    reportBrands,
     allBrands,
+    brandOptions: brandScopeOptions(brands),
     selectedEntries,
     spendTypeOptions: SPEND_TYPE_OPTIONS,
     hasLegacySpend: spendEntries.some(

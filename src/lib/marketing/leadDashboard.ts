@@ -23,6 +23,10 @@ import {
   type PerformanceCostSummary,
 } from "@/lib/marketing/performanceCostMath";
 import { fetchDailySpendFacts } from "@/lib/marketing/performanceCosts";
+import {
+  brandIdsForScope,
+  brandsForScope,
+} from "@/lib/marketing/brandScope";
 import type { InternalAccessContext } from "@/lib/security/internalAccess";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 import {
@@ -62,11 +66,10 @@ function costSummaryForModel(input: {
   brands: BrandRow[];
   spendFacts: DailySpendFact[];
 }) {
-  const selectedBrandIds = input.filters.brandId
-    ? input.brands
-        .filter((brand) => brand.id === input.filters.brandId)
-        .map((brand) => brand.id)
-    : input.brands.map((brand) => brand.id);
+  const selectedBrandIds = brandIdsForScope(
+    input.brands,
+    input.filters.brandId
+  );
   return calculatePerformanceCostSummary({
     spendFacts: input.spendFacts,
     selectedBrandIds,
@@ -358,8 +361,9 @@ export async function getLeadDashboardSnapshot(
       appsScriptContract: true,
       dedupeByIdentity: true,
     });
+    const reportingBrands = brandsForScope(visibleBrands, filters.brandId);
     const visibleBrandKeys = new Set(
-      visibleBrands.flatMap((brand) => [
+      reportingBrands.flatMap((brand) => [
         normalizeGoogleSheetBrandKey(brand.name),
         normalizeGoogleSheetBrandKey(brand.slug),
       ])
@@ -383,7 +387,7 @@ export async function getLeadDashboardSnapshot(
     const annotations = await getOperationalAnnotations({
       startDate: filters.startDate,
       endDate: filters.endDate,
-      brands: visibleBrands.map((brand) => ({
+      brands: reportingBrands.map((brand) => ({
         id: brand.id,
         name: brand.name,
         color: brand.primary_color || "#5a2348",

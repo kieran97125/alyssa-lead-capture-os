@@ -28,6 +28,7 @@ import {
   SPEND_TYPE_LABELS,
   type SpendType,
 } from "@/lib/marketing/spendTypes";
+import { ALYSSA_ALL_BRAND_SCOPE } from "@/lib/marketing/brandScope";
 
 export const dynamic = "force-dynamic";
 
@@ -230,7 +231,20 @@ export default async function DailyOverviewPage({
   const visibleMetricRows = snapshot.hasLegacySpend
     ? metricRows
     : metricRows.filter((metric) => metric.key !== "spend:legacy_unclassified");
-  const returnPath = `/performance/daily?month=${snapshot.monthStart}&entry_date=${snapshot.selectedEntryDate}&spend_type=${snapshot.selectedSpendType}`;
+  const returnParams = new URLSearchParams({
+    month: snapshot.monthStart,
+    entry_date: snapshot.selectedEntryDate,
+    spend_type: snapshot.selectedSpendType,
+  });
+  if (snapshot.selectedBrandScope) {
+    returnParams.set("brand", snapshot.selectedBrandScope);
+  }
+  const returnPath = `/performance/daily?${returnParams.toString()}`;
+  const tableBrands =
+    !snapshot.selectedBrandScope ||
+    snapshot.selectedBrandScope === ALYSSA_ALL_BRAND_SCOPE
+      ? [snapshot.allBrands, ...snapshot.reportBrands]
+      : snapshot.reportBrands;
 
   return (
     <main className="alyssa-shell">
@@ -275,10 +289,24 @@ export default async function DailyOverviewPage({
                   ))}
                 </select>
               </label>
-              <button type="submit" className="command-secondary-button">
+              <label>
+                <span>品牌</span>
+                <select name="brand" defaultValue={snapshot.selectedBrandScope}>
+                  <option value="">全部品牌</option>
+                  {snapshot.brandOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <SubmitButton
+                className="command-secondary-button"
+                pendingLabel="載入中…"
+              >
                 <CalendarDays size={15} />
-                查看月份
-              </button>
+                查看數據
+              </SubmitButton>
             </form>
           </header>
 
@@ -302,7 +330,7 @@ export default async function DailyOverviewPage({
               icon={<WalletCards size={18} />}
               label="廣告費"
               value={money(snapshot.allBrands.total.spend)}
-              note={`截至 ${formatHkDate(snapshot.throughDate)}`}
+              note={`${snapshot.allBrands.name} · 截至 ${formatHkDate(snapshot.throughDate)}`}
             />
             <OverviewKpi
               icon={<UsersRound size={18} />}
@@ -338,6 +366,13 @@ export default async function DailyOverviewPage({
 
             <form className="daily-spend-date-picker" method="get">
               <input type="hidden" name="month" value={snapshot.monthStart} />
+              {snapshot.selectedBrandScope ? (
+                <input
+                  type="hidden"
+                  name="brand"
+                  value={snapshot.selectedBrandScope}
+                />
+              ) : null}
               <label>
                 <span>輸入日期</span>
                 <input
@@ -361,9 +396,12 @@ export default async function DailyOverviewPage({
                   ))}
                 </select>
               </label>
-              <button type="submit" className="command-secondary-button">
+              <SubmitButton
+                className="command-secondary-button"
+                pendingLabel="載入中…"
+              >
                 載入日期及類型
-              </button>
+              </SubmitButton>
             </form>
 
             <form action={saveDailySpendAction} className="daily-spend-form">
@@ -473,11 +511,16 @@ export default async function DailyOverviewPage({
             </form>
           </section>
 
-          <section className="command-surface daily-overview-surface">
+          <section
+            className="command-surface daily-overview-surface"
+            aria-label="品牌每日及累計"
+          >
             <header className="daily-overview-table-header">
               <div>
                 <p>每日／累計</p>
-                <h2>{snapshot.monthLabel} 每日數據</h2>
+                <h2>
+                  {snapshot.monthLabel} 每日數據 · {snapshot.allBrands.name}
+                </h2>
                 <span>
                   每格左邊係單日、右邊係截至該日累計；橫向捲動可查閱整個月份。
                 </span>
@@ -507,7 +550,7 @@ export default async function DailyOverviewPage({
                   </tr>
                 </thead>
                 <tbody>
-                  {[snapshot.allBrands, ...snapshot.brands].map((brand) => (
+                  {tableBrands.map((brand) => (
                     <BrandMetricRows
                       key={brand.id}
                       brand={brand}

@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useRouter } from "next/navigation";
 import {
   useRef,
@@ -16,12 +16,24 @@ type IntentPrefetchLinkProps = Omit<
   href: string;
 };
 
+function LinkPendingIndicator() {
+  const { pending } = useLinkStatus();
+
+  return (
+    <span
+      className={`intent-link-status ${pending ? "is-pending" : ""}`}
+      aria-hidden="true"
+    />
+  );
+}
+
 /**
  * Dynamic admin routes read live Supabase data, so eager viewport prefetching
  * can fan out into dozens of background requests. Keep navigation instant by
  * prefetching only after the user shows intent through hover or keyboard focus.
  */
 export function IntentPrefetchLink({
+  children,
   href,
   onFocus,
   onMouseEnter,
@@ -49,6 +61,9 @@ export function IntentPrefetchLink({
         onMouseEnter?.(event);
         if (!event.defaultPrevented) prefetchOnIntent();
       }}
-    />
+    >
+      {children}
+      <LinkPendingIndicator />
+    </Link>
   );
 }

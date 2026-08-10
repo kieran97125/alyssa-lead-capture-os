@@ -1,6 +1,6 @@
 import "server-only";
 
-import { getConfigurationData, type BrandSetting } from "@/lib/data/configuration";
+import { getConfiguredBrands, type BrandSetting } from "@/lib/data/configuration";
 import { alyssaBrand } from "@/lib/data/alyssaConfig";
 import { fallbackSystemBrands } from "@/lib/data/systemBrands";
 import {
@@ -296,7 +296,10 @@ async function fetchCommandCenterCalendar(month: HkMonthContext) {
     .order("sort_order", { ascending: true });
 }
 
-async function getPlanningRecords(month: HkMonthContext) {
+async function getPlanningRecords(
+  month: HkMonthContext,
+  options: { includeMembers?: boolean } = {}
+) {
   if (!hasSupabaseAdminEnv()) {
     const e2eFixturesEnabled = process.env.ALYSSA_E2E_FIXTURES === "1";
     const fixtureCalendarItems: CalendarItem[] =
@@ -555,14 +558,16 @@ async function getPlanningRecords(month: HkMonthContext) {
         .order("reporting_month", { ascending: false })
         .order("created_at", { ascending: false }),
       fetchCommandCenterCalendar(month),
-      supabase
-        .from("workspace_members")
-        .select(
-          "id,auth_user_id,email,full_name,workspace_role,status,is_master,invite_sent_at,invite_accepted_at,last_sign_in_at,invite_attempted_at,invite_delivery_status,invite_last_error_code,permissions_updated_at"
-        )
-        .neq("status", "removed")
-        .order("is_master", { ascending: false })
-        .order("email", { ascending: true }),
+      options.includeMembers
+        ? supabase
+            .from("workspace_members")
+            .select(
+              "id,auth_user_id,email,full_name,workspace_role,status,is_master,invite_sent_at,invite_accepted_at,last_sign_in_at,invite_attempted_at,invite_delivery_status,invite_last_error_code,permissions_updated_at"
+            )
+            .neq("status", "removed")
+            .order("is_master", { ascending: false })
+            .order("email", { ascending: true })
+        : Promise.resolve({ data: [], error: null }),
     ]);
 
   const coreResults = [
@@ -760,14 +765,14 @@ async function getPlanningRecords(month: HkMonthContext) {
 }
 
 export async function getCommandCenterSnapshot(
-  options: { unscoped?: boolean } = {}
+  options: { unscoped?: boolean; includeMembers?: boolean } = {}
 ): Promise<CommandCenterSnapshot> {
   const month = getHkMonthContext();
-  const [config, planning] = await Promise.all([
-    getConfigurationData({ unscoped: options.unscoped }),
-    getPlanningRecords(month),
+  const [brands, planning] = await Promise.all([
+    getConfiguredBrands({ unscoped: options.unscoped }),
+    getPlanningRecords(month, { includeMembers: options.includeMembers }),
   ]);
-  const visibleBrandIds = new Set(config.brands.map((brand) => brand.id));
+  const visibleBrandIds = new Set(brands.map((brand) => brand.id));
   const visibleDataSources = planning.dataSources.filter(
     (item) => item.brandId === null || visibleBrandIds.has(item.brandId)
   );
@@ -860,7 +865,7 @@ export async function getCommandCenterSnapshot(
     funnelByBrand.set(row.brandId, funnel);
   }
 
-  const rows = config.brands.map((brand) => {
+  const rows = brands.map((brand) => {
     const brandLeads = leads.filter((lead) => lead.brand_id === brand.id);
     const plan =
       planByBrand.get(brand.id) ?? emptyPlan(brand, month.monthStart);
@@ -938,8 +943,9 @@ export async function getCommandCenterSnapshot(
     dataSources: scopedPlanning.dataSources,
     reportingWorkbooks: scopedPlanning.reportingWorkbooks,
     calendarItems: scopedPlanning.calendarItems,
-    members:
-      planning.members.length > 0
+    members: !options.includeMembers
+      ? []
+      : planning.members.length > 0
         ? planning.members
         : [
             {
@@ -957,7 +963,7 @@ export async function getCommandCenterSnapshot(
               inviteDeliveryStatus: "not_sent",
               inviteLastErrorCode: null,
               permissionsUpdatedAt: null,
-              brandIds: config.brands.map((brand) => brand.id),
+              brandIds: brands.map((brand) => brand.id),
               modulePermissions: {},
             },
           ],

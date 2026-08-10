@@ -138,6 +138,7 @@ export type LeadRowsResult = {
 
 export type LeadRowsOptions = {
   brandId?: string;
+  brandIds?: string[];
   source?: string;
   campaign?: string;
   treatmentId?: string;
@@ -542,12 +543,21 @@ export async function getLeadRows(
     access.source === "supabase_auth" && access.accessLevel !== "master"
       ? access.brandIds ?? []
       : null;
+  const requestedBrandIds =
+    options.brandIds !== undefined
+      ? Array.from(new Set(options.brandIds.filter(Boolean)))
+      : options.brandId
+        ? [options.brandId]
+        : null;
+  const effectiveBrandIds = requestedBrandIds
+    ? allowedBrandIds === null
+      ? requestedBrandIds
+      : requestedBrandIds.filter((brandId) =>
+          allowedBrandIds.includes(brandId)
+        )
+    : allowedBrandIds;
 
-  if (
-    allowedBrandIds !== null &&
-    (allowedBrandIds.length === 0 ||
-      (options.brandId && !allowedBrandIds.includes(options.brandId)))
-  ) {
+  if (effectiveBrandIds !== null && effectiveBrandIds.length === 0) {
     return { range, leads: [], error: null };
   }
 
@@ -587,10 +597,10 @@ export async function getLeadRows(
       .gte("created_at", range.start)
       .lt("created_at", range.end);
 
-    if (options.brandId) {
-      query = query.eq("brand_id", options.brandId);
-    } else if (allowedBrandIds !== null) {
-      query = query.in("brand_id", allowedBrandIds);
+    if (effectiveBrandIds?.length === 1) {
+      query = query.eq("brand_id", effectiveBrandIds[0]);
+    } else if (effectiveBrandIds !== null) {
+      query = query.in("brand_id", effectiveBrandIds);
     }
     if (options.treatmentId) query = query.eq("treatment_id", options.treatmentId);
     if (options.branchId) query = query.eq("branch_id", options.branchId);

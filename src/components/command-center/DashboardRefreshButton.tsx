@@ -21,6 +21,8 @@ export function DashboardRefreshButton({
       className="command-primary-button command-refresh-button"
       disabled={isDisabled}
       aria-disabled={isDisabled}
+      aria-busy={pending}
+      data-pending={pending ? "true" : undefined}
     >
       <RefreshCw
         size={16}

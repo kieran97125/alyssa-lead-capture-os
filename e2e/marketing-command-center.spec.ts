@@ -1482,7 +1482,12 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
   await expect(page.getByText(/同期營運比率/)).toBeVisible();
   await expect(page.getByText(/系統廣告費帳簿/)).toBeVisible();
   await expect(page.getByText(/Meta WhatsApp／Lead Form／Website Form、Google Ads/)).toBeVisible();
-  await expect(page.getByText(/Alyssa、AM、IB、GOS/)).toBeVisible();
+  const brandBreakdown = page.getByRole("region", { name: "品牌拆解" });
+  await expect(
+    brandBreakdown.getByText(
+      /Alyssa、AM、Ineffable Beauty、GOS Beauty 各自按同一口徑計算/
+    )
+  ).toBeVisible();
   await expect(page.locator("[data-nextjs-dialog]")).toHaveCount(0);
   expect(pageErrors).toEqual([]);
 });

@@ -18,6 +18,7 @@ import {
 import { refreshDashboardDataAction } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { DashboardRefreshButton } from "@/components/command-center/DashboardRefreshButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { PerformanceCostSummary } from "@/components/command-center/PerformanceCostSummary";
@@ -338,10 +339,13 @@ export default async function TreatmentPerformancePage({
                 </select>
               </label>
               <div className="treatment-filter-actions">
-                <button type="submit" className="command-primary-button">
+                <SubmitButton
+                  className="command-primary-button"
+                  pendingLabel="篩選中…"
+                >
                   <Filter size={15} />
                   套用篩選
-                </button>
+                </SubmitButton>
                 {hasActiveDimensionFilter ? (
                   <IntentPrefetchLink
                     href={performanceHref(

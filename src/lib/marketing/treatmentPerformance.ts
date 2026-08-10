@@ -18,6 +18,11 @@ import {
   type PerformanceCostSummary,
 } from "@/lib/marketing/performanceCostMath";
 import { fetchDailySpendFacts } from "@/lib/marketing/performanceCosts";
+import {
+  brandIdsForScope,
+  brandScopeOptions,
+  brandsForScope,
+} from "@/lib/marketing/brandScope";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export type TreatmentPerformanceSort =
@@ -115,6 +120,7 @@ type TreatmentDataSource = {
 type BrandColorRow = {
   id: string;
   name: string;
+  slug: string;
   primary_color: string | null;
 };
 
@@ -503,8 +509,9 @@ async function fetchFacts(input: {
   dataSourceId: string;
   startDate: string;
   endDate: string;
-  allowedBrandIds: string[] | null;
+  brandIds: string[];
 }) {
+  if (input.brandIds.length === 0) return [];
   const supabase = createSupabaseAdminClient();
   const pageSize = 1000;
   const rows: TreatmentMetricFact[] = [];
@@ -519,9 +526,7 @@ async function fetchFacts(input: {
       .lte("metric_date", input.endDate)
       .order("metric_date", { ascending: true })
       .range(offset, offset + pageSize - 1);
-    if (input.allowedBrandIds !== null) {
-      query = query.in("brand_id", input.allowedBrandIds);
-    }
+    query = query.in("brand_id", input.brandIds);
     const { data, error } = await query;
     if (error) throw error;
     const page = (data ?? []) as TreatmentMetricFact[];
@@ -542,25 +547,25 @@ function buildSnapshot(input: {
   annotations?: OperationalAnnotation[];
   spendFacts?: DailySpendFact[];
 }): TreatmentPerformanceSnapshot {
-  const brandOptions = uniqueOptions(
-    input.brands.map((brand) => ({
-      value: brand.id,
-      label: brand.name,
-    }))
+  const brandOptions = brandScopeOptions(input.brands);
+  const selectedBrandIds = brandIdsForScope(
+    input.brands,
+    input.filters.brandId
+  );
+  const selectedBrandIdSet = new Set(selectedBrandIds);
+  const brandScopedFacts = input.facts.filter((fact) =>
+    selectedBrandIdSet.has(fact.brand_id)
   );
   const treatmentOptions = uniqueOptions(
-    input.facts.map((fact) => ({ value: fact.treatment_label }))
+    brandScopedFacts.map((fact) => ({ value: fact.treatment_label }))
   );
   const sourceOptions = uniqueOptions(
-    input.facts.map((fact) => ({ value: fact.source_label }))
+    brandScopedFacts.map((fact) => ({ value: fact.source_label }))
   );
   const campaignOptions = uniqueOptions(
-    input.facts.map((fact) => ({ value: fact.campaign_label }))
+    brandScopedFacts.map((fact) => ({ value: fact.campaign_label }))
   );
-  const filteredFacts = input.facts.filter((fact) => {
-    if (input.filters.brandId && fact.brand_id !== input.filters.brandId) {
-      return false;
-    }
+  const filteredFacts = brandScopedFacts.filter((fact) => {
     if (
       input.filters.treatment &&
       fact.treatment_label !== input.filters.treatment
@@ -581,11 +586,6 @@ function buildSnapshot(input: {
   const totalCounts = emptyCounts();
   filteredFacts.forEach((fact) => addFact(totalCounts, fact));
   const totals = withRates(totalCounts);
-  const selectedBrandIds = input.filters.brandId
-    ? input.brands
-        .filter((brand) => brand.id === input.filters.brandId)
-        .map((brand) => brand.id)
-    : input.brands.map((brand) => brand.id);
   const costs = calculatePerformanceCostSummary({
     spendFacts: input.spendFacts ?? [],
     selectedBrandIds,
@@ -676,11 +676,24 @@ export async function getTreatmentPerformanceSnapshot(
     const facts =
       process.env.ALYSSA_E2E_FIXTURES === "1" ? fixtureFacts(filters) : [];
     const fixtureBrands: BrandColorRow[] = [
-      { id: "alyssa-brand", name: "Alyssa", primary_color: "#5a2348" },
+      {
+        id: "alyssa-brand",
+        name: "Alyssa",
+        slug: "alyssa",
+        primary_color: "#5a2348",
+      },
+      { id: "am-brand", name: "AM", slug: "am", primary_color: "#9f617d" },
       {
         id: "ib-brand",
         name: "Ineffable Beauty",
+        slug: "ineffable",
         primary_color: "#69C7E8",
+      },
+      {
+        id: "gos-brand",
+        name: "GOS Beauty",
+        slug: "gos-beauty",
+        primary_color: "#e79245",
       },
     ];
     const annotations = await getOperationalAnnotations({
@@ -746,7 +759,7 @@ export async function getTreatmentPerformanceSnapshot(
       (() => {
         let query = supabase
           .from("brands")
-          .select("id,name,primary_color")
+          .select("id,name,slug,primary_color")
           .order("name", { ascending: true });
         if (allowedBrandIds !== null) {
           query = query.in("id", allowedBrandIds);
@@ -759,13 +772,15 @@ export async function getTreatmentPerformanceSnapshot(
     const source =
       (sourceResult.data as TreatmentDataSource | null) ?? null;
     const brandRows = (brandsResult.data ?? []) as BrandColorRow[];
+    const reportingBrands = brandsForScope(brandRows, filters.brandId);
+    const reportingBrandIds = reportingBrands.map((brand) => brand.id);
     const [facts, analysisPresenceResult, annotations, spendFacts] = source
       ? await Promise.all([
           fetchFacts({
             dataSourceId: source.id,
             startDate: filters.startDate,
             endDate: filters.endDate,
-            allowedBrandIds,
+            brandIds: reportingBrandIds,
           }),
           supabase
             .from("marketing_treatment_performance_daily")
@@ -776,7 +791,7 @@ export async function getTreatmentPerformanceSnapshot(
           getOperationalAnnotations({
             startDate: filters.startDate,
             endDate: filters.endDate,
-            brands: brandRows.map((brand) => ({
+            brands: reportingBrands.map((brand) => ({
               id: brand.id,
               name: brand.name,
               color: brand.primary_color || "#5a2348",
@@ -785,7 +800,7 @@ export async function getTreatmentPerformanceSnapshot(
           fetchDailySpendFacts({
             startDate: filters.startDate,
             endDate: filters.endDate,
-            allowedBrandIds,
+            allowedBrandIds: reportingBrandIds,
           }),
         ])
       : [
@@ -795,7 +810,7 @@ export async function getTreatmentPerformanceSnapshot(
           await fetchDailySpendFacts({
             startDate: filters.startDate,
             endDate: filters.endDate,
-            allowedBrandIds,
+            allowedBrandIds: reportingBrandIds,
           }),
         ];
     if (analysisPresenceResult.error) throw analysisPresenceResult.error;

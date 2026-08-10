@@ -62,7 +62,7 @@ export default async function MarketingCalendarPage({
                   <span>顯示月份</span>
                   <input type="month" name="month" defaultValue={monthValue} />
                 </label>
-                <button type="submit">前往</button>
+                <SubmitButton pendingLabel="載入中…">前往</SubmitButton>
                 <IntentPrefetchLink
                   href={`/calendar?month=${nextMonth.slice(0, 7)}`}
                   aria-label="下一個月"

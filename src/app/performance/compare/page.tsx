@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { PeriodComparisonChartLazy } from "@/components/command-center/PeriodComparisonChartLazy";
 import {
@@ -224,6 +225,9 @@ export default async function PeriodComparisonPage({
     getCurrentInternalAccess(),
   ]);
   const current = snapshot.totals[0];
+  const breakdownBrandNames = Array.from(
+    new Set(snapshot.brandRows.map((row) => row.brandName))
+  );
 
   return (
     <main className="alyssa-shell">
@@ -344,17 +348,20 @@ export default async function PeriodComparisonPage({
                 <span>品牌</span>
                 <select name="brand" defaultValue={snapshot.filters.brandId ?? ""}>
                   <option value="">全部品牌</option>
-                  {snapshot.brands.map((brand) => (
-                    <option key={brand.id} value={brand.id}>
-                      {brand.name}
+                  {snapshot.brandOptions.map((brand) => (
+                    <option key={brand.value} value={brand.value}>
+                      {brand.label}
                     </option>
                   ))}
                 </select>
               </label>
-              <button type="submit" className="command-primary-button">
+              <SubmitButton
+                className="command-primary-button"
+                pendingLabel="比較中…"
+              >
                 <GitCompareArrows size={16} />
                 套用比較
-              </button>
+              </SubmitButton>
             </form>
           </section>
 
@@ -444,7 +451,10 @@ export default async function PeriodComparisonPage({
             </article>
           </section>
 
-          <section className="command-surface period-table-section">
+          <section
+            className="command-surface period-table-section"
+            aria-label="月份比較"
+          >
             <div className="period-section-heading">
               <span>
                 <CalendarRange size={17} />
@@ -522,7 +532,10 @@ export default async function PeriodComparisonPage({
             </div>
           </section>
 
-          <section className="command-surface period-table-section">
+          <section
+            className="command-surface period-table-section"
+            aria-label="品牌拆解"
+          >
             <div className="period-section-heading">
               <span>
                 <UsersRound size={17} />
@@ -530,7 +543,11 @@ export default async function PeriodComparisonPage({
               <div>
                 <p>品牌明細</p>
                 <h2>品牌拆解</h2>
-                <small>Alyssa、AM、IB、GOS 各自按同一口徑計算，權限亦沿用品牌設定。</small>
+                <small>
+                  {breakdownBrandNames.length > 0
+                    ? `${breakdownBrandNames.join("、")} 各自按同一口徑計算，權限亦沿用品牌設定。`
+                    : "所選範圍暫未有可顯示品牌。"}
+                </small>
               </div>
             </div>
             <div className="period-table-wrap">

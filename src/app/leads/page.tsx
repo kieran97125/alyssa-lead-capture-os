@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { MotionReveal } from "@/components/alyssa/MotionReveal";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   asNumber,
   campaignLabel,
@@ -20,6 +21,11 @@ import {
   sourcePageUrl,
 } from "@/lib/data/businessMetrics";
 import { getConfigurationData } from "@/lib/data/configuration";
+import {
+  brandScopeOptions,
+  brandsForScope,
+  normalizeBrandScope,
+} from "@/lib/marketing/brandScope";
 
 export const dynamic = "force-dynamic";
 
@@ -74,7 +80,7 @@ export default async function LeadsPage({
 }) {
   const params = await searchParams;
   const activeRange = parseRange(params?.range);
-  const selectedBrandId = firstParam(params?.brand);
+  const requestedBrandScope = firstParam(params?.brand);
   const selectedSource = firstParam(params?.source);
   const campaignSearch = firstParam(params?.campaign).trim();
   const selectedTreatmentId = firstParam(params?.treatment);
@@ -82,15 +88,23 @@ export default async function LeadsPage({
   const query = firstParam(params?.q).trim();
   const includeTests = firstParam(params?.include_tests) === "1";
   const config = await getConfigurationData();
-  const selectedBrand = config.brands.find((brand) => brand.id === selectedBrandId);
+  const selectedBrandScope = normalizeBrandScope(
+    requestedBrandScope,
+    config.brands
+  );
+  const selectedBrands = brandsForScope(
+    config.brands,
+    selectedBrandScope
+  );
+  const selectedBrandIds = new Set(selectedBrands.map((brand) => brand.id));
   const brandTreatments = config.treatments.filter(
-    (treatment) => !selectedBrand || treatment.brandId === selectedBrand.id
+    (treatment) => selectedBrandIds.has(treatment.brandId)
   );
   const brandBranches = config.branches.filter(
-    (branch) => !selectedBrand || branch.brandId === selectedBrand.id
+    (branch) => selectedBrandIds.has(branch.brandId)
   );
   const { range, leads, error } = await getLeadRows(activeRange, 250, {
-    brandId: selectedBrandId,
+    brandIds: selectedBrands.map((brand) => brand.id),
     source: selectedSource,
     campaign: campaignSearch,
     treatmentId: selectedTreatmentId,
@@ -102,7 +116,7 @@ export default async function LeadsPage({
   const trackedCount = realLeads.filter(isTrackable).length;
   const brandCount = new Set(realLeads.map((lead) => lead.brand_id).filter(Boolean)).size;
   const currentFilters = {
-    brandId: selectedBrandId,
+    brandId: selectedBrandScope,
     source: selectedSource,
     campaign: campaignSearch,
     treatmentId: selectedTreatmentId,
@@ -175,11 +189,8 @@ export default async function LeadsPage({
               <FilterSelect
                 label="品牌"
                 name="brand"
-                value={selectedBrandId}
-                options={config.brands.map((brand) => ({
-                  value: brand.id,
-                  label: brand.name,
-                }))}
+                value={selectedBrandScope}
+                options={brandScopeOptions(config.brands)}
               />
               <FilterSelect
                 label="來源"
@@ -222,9 +233,12 @@ export default async function LeadsPage({
                 value={query}
                 placeholder="姓名 / 電話"
               />
-              <button className="self-end rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white">
+              <SubmitButton
+                className="self-end rounded-full bg-[#5a2348] px-5 py-3 text-sm font-bold text-white"
+                pendingLabel="篩選中…"
+              >
                 篩選
-              </button>
+              </SubmitButton>
               <label className="lg:col-span-7 flex items-center gap-2 text-xs font-bold text-[#7b5a6a]">
                 <input
                   type="checkbox"
@@ -341,7 +355,7 @@ export default async function LeadsPage({
                         {error
                           ? "登記紀錄暫時未能讀取，請稍後再試。"
                           : query ||
-                              selectedBrandId ||
+                              selectedBrandScope ||
                               selectedSource ||
                               campaignSearch ||
                               selectedTreatmentId ||

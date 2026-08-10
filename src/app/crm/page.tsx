@@ -4,6 +4,7 @@ import {
   type CrmInboxPreset,
 } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
+import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { getCrmSettings } from "@/lib/crm/settingsLoader";
 import { getWhatsAppConnectionByBrandSlug } from "@/lib/crm/whatsapp";
 import { cleanAttributionText } from "@/lib/attribution/display";
@@ -27,6 +28,13 @@ import {
   parseRange,
   type LeadRow,
 } from "@/lib/data/businessMetrics";
+import { getConfiguredBrands } from "@/lib/data/configuration";
+import {
+  brandMatchesScope,
+  brandScopeOptions,
+  brandsForScope,
+  normalizeBrandScope,
+} from "@/lib/marketing/brandScope";
 
 export const dynamic = "force-dynamic";
 
@@ -85,7 +93,7 @@ export default async function CrmPage({
   const activeTab = normalizeCrmTab(firstQueryValue(query?.tab));
   const range = parseRange(query?.range);
   const search = firstQueryValue(query?.search)?.trim() || "";
-  const brand = firstQueryValue(query?.brand)?.trim().toLowerCase() || "";
+  const requestedBrandScope = firstQueryValue(query?.brand)?.trim() || "";
   const treatment = firstQueryValue(query?.treatment)?.trim().toLowerCase() || "";
   const queue = firstQueryValue(query?.queue)?.trim() || "";
   const viewPreset = normalizeInboxPreset(firstQueryValue(query?.view));
@@ -96,8 +104,32 @@ export default async function CrmPage({
   const outcome = firstQueryValue(query?.outcome)?.trim() || "";
   const tracking = firstQueryValue(query?.tracking)?.trim() || "";
   const leadLimit = range === "all" ? 5000 : 500;
-  const { leads, error } = await getLeadRows(range, leadLimit, { query: search });
+  const configuredBrandsPromise = getConfiguredBrands();
+  const configuredBrands = requestedBrandScope
+    ? await configuredBrandsPromise
+    : null;
+  const selectedBrandScope = normalizeBrandScope(
+    requestedBrandScope,
+    configuredBrands ?? []
+  );
+  const leadResultPromise = getLeadRows(range, leadLimit, {
+    query: search,
+    brandIds: selectedBrandScope
+      ? brandsForScope(configuredBrands ?? [], selectedBrandScope).map(
+          (brand) => brand.id
+        )
+      : undefined,
+  });
+  const [{ leads, error }, resolvedBrands] = await Promise.all([
+    leadResultPromise,
+    configuredBrands ? Promise.resolve(configuredBrands) : configuredBrandsPromise,
+  ]);
   const leadById = new Map(leads.map((lead) => [lead.id, lead]));
+  const crmBrands = resolvedBrands.map((item) => ({
+    id: item.id,
+    name: item.name,
+    slug: item.slug,
+  }));
   const [runtime, crmCasesByLeadId, crmSettings] = await Promise.all([
     getCrmRuntimeStatus(),
     getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id)),
@@ -116,7 +148,19 @@ export default async function CrmPage({
   });
 
   const baseFilteredCases = enrichedCases.filter((item) => {
-    if (brand && !item.brandName.toLowerCase().includes(brand)) return false;
+    if (
+      selectedBrandScope &&
+      !brandMatchesScope(
+        {
+          id: leadById.get(item.id)?.brand_id ?? item.brandSlug,
+          name: item.brandName,
+          slug: item.brandSlug,
+        },
+        selectedBrandScope
+      )
+    ) {
+      return false;
+    }
     if (treatment && !item.treatmentOffer.toLowerCase().includes(treatment)) return false;
     if (
       source &&
@@ -231,11 +275,13 @@ export default async function CrmPage({
               <div className="mt-3 grid gap-2">
                 <nav className="grid grid-cols-2 gap-1 sm:grid-cols-3 lg:grid-cols-5">
                   {activeSubTabs.map((item) => {
-                    const href = item.queue
-                      ? `/crm?tab=${activeTab}&queue=${item.queue}`
-                      : activeTab === "bookings"
-                        ? "/crm?tab=bookings"
-                        : "/crm?tab=leads";
+                    const hrefParams = new URLSearchParams({ tab: activeTab });
+                    if (item.queue) hrefParams.set("queue", item.queue);
+                    hrefParams.set("range", range);
+                    if (selectedBrandScope) {
+                      hrefParams.set("brand", selectedBrandScope);
+                    }
+                    const href = `/crm?${hrefParams.toString()}`;
                     const active = queue === item.queue || (!queue && item.queue === "");
                     return (
                       <a
@@ -253,15 +299,8 @@ export default async function CrmPage({
                   })}
                 </nav>
 
-                <form className="grid min-w-0 grid-cols-[36px_minmax(92px,120px)_minmax(100px,140px)_minmax(180px,1fr)_minmax(130px,180px)_64px] gap-1.5">
+                <form className="grid min-w-0 gap-1.5 sm:grid-cols-2 xl:grid-cols-[minmax(92px,120px)_minmax(110px,150px)_minmax(100px,140px)_minmax(180px,1fr)_minmax(130px,180px)_76px]">
                   <input type="hidden" name="tab" value={activeTab} />
-                  <button
-                    type="submit"
-                    className="grid h-8 w-8 place-items-center rounded-md border border-[#dbe2ea] bg-white text-[12px] font-black text-[#475569]"
-                    title="篩選"
-                  >
-                    ≡
-                  </button>
                   <select
                     name="range"
                     defaultValue={range}
@@ -269,6 +308,19 @@ export default async function CrmPage({
                   >
                     {dateRangeOptions.map((item) => (
                       <option key={item.key} value={item.key}>
+                        {item.label}
+                      </option>
+                    ))}
+                  </select>
+                  <select
+                    name="brand"
+                    defaultValue={selectedBrandScope}
+                    aria-label="品牌"
+                    className="h-8 rounded-md border border-[#dbe2ea] bg-white px-2 text-[12px] font-semibold text-[#334155]"
+                  >
+                    <option value="">全部品牌</option>
+                    {brandScopeOptions(crmBrands).map((item) => (
+                      <option key={item.value} value={item.value}>
                         {item.label}
                       </option>
                     ))}
@@ -284,7 +336,7 @@ export default async function CrmPage({
                       </option>
                     ))}
                   </select>
-                  <label className="w-[220px] lg:w-[280px]">
+                  <label className="min-w-0">
                     <span className="sr-only">搜尋 Lead</span>
                     <input
                       name="search"
@@ -306,17 +358,12 @@ export default async function CrmPage({
                       </option>
                     ))}
                   </select>
-                  <button
-                    type="submit"
+                  <SubmitButton
+                    pendingLabel="篩選中…"
                     className="h-8 rounded-md bg-[#111827] px-3 text-[11px] font-black text-white"
                   >
                     套用
-                  </button>
-                  {(queue || search || viewPreset !== "cs_booking") ? (
-                    <span className="inline-flex h-8 items-center rounded-full bg-[#fef3c7] px-2.5 text-[11px] font-bold text-[#92400e]">
-                      已套用篩選
-                    </span>
-                  ) : null}
+                  </SubmitButton>
                 </form>
               </div>
             ) : null}
@@ -337,6 +384,47 @@ export default async function CrmPage({
           {activeTab === "reports" && (
             <>
           <section className="border-t border-[#f1f5f9] px-4 py-3">
+            <form
+              method="get"
+              className="mb-3 grid gap-2 rounded-lg border border-[#e5e7eb] bg-[#f8fafc] p-3 sm:grid-cols-[minmax(120px,170px)_minmax(140px,200px)_auto]"
+            >
+              <input type="hidden" name="tab" value="reports" />
+              <label className="grid gap-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                日期
+                <select
+                  name="range"
+                  defaultValue={range}
+                  className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2 text-[12px] font-semibold normal-case tracking-normal text-[#334155]"
+                >
+                  {dateRangeOptions.map((item) => (
+                    <option key={item.key} value={item.key}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="grid gap-1 text-[10px] font-black uppercase tracking-[0.08em] text-[#64748b]">
+                品牌
+                <select
+                  name="brand"
+                  defaultValue={selectedBrandScope}
+                  className="h-9 rounded-md border border-[#dbe2ea] bg-white px-2 text-[12px] font-semibold normal-case tracking-normal text-[#334155]"
+                >
+                  <option value="">全部品牌</option>
+                  {brandScopeOptions(crmBrands).map((item) => (
+                    <option key={item.value} value={item.value}>
+                      {item.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <SubmitButton
+                pendingLabel="更新中…"
+                className="self-end rounded-md bg-[#111827] px-4 py-2 text-[12px] font-black text-white"
+              >
+                更新報表
+              </SubmitButton>
+            </form>
             <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-[13px] font-black text-[#111827]">
