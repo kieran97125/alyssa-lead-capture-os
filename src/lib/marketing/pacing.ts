@@ -23,6 +23,11 @@ export type HkMonthContext = {
   throughLabel: string;
 };
 
+export type CompletedHkReportRange = {
+  startDate: string;
+  endDate: string;
+};
+
 const HK_OFFSET_MS = 8 * 60 * 60 * 1000;
 const MONTH_PATTERN = /^(\d{4})-(\d{2})(?:-\d{2})?$/;
 
@@ -67,6 +72,28 @@ export function getHkMonthContext(now = new Date()): HkMonthContext {
     paceRatio: daysInMonth > 0 ? elapsedDays / daysInMonth : 0,
     label,
     throughLabel,
+  };
+}
+
+/**
+ * Report defaults only include completed Hong Kong days. On the first day of
+ * a month there are no completed days in the new month, so use the complete
+ * previous month instead of returning an inverted range.
+ */
+export function getCompletedHkReportRange(
+  now = new Date()
+): CompletedHkReportRange {
+  const month = getHkMonthContext(now);
+  if (month.elapsedDays > 0) {
+    return {
+      startDate: month.monthStart,
+      endDate: month.throughDate,
+    };
+  }
+
+  return {
+    startDate: `${month.throughDate.slice(0, 7)}-01`,
+    endDate: month.throughDate,
   };
 }
 

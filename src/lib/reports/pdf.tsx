@@ -390,8 +390,14 @@ function ReportPdfDocument({ snapshot }: { snapshot: ReportSnapshot }) {
       </ReportPage>
 
       <ReportPage snapshot={snapshot} theme={theme} kicker="Media mix" title="廣告費渠道組合" subtitle="只採用 Daily Spend Ledger；舊資料未分類會獨立顯示。">
-        <View style={{ gap: 13, marginTop: 4 }}>
-          {snapshot.spendMix.map((row) => (
+        {snapshot.spendMix.length === 0 ? (
+          <View style={{ marginTop: 28, padding: 24, borderRadius: 10, backgroundColor: theme.accentSoft }}>
+            <Text style={{ fontSize: 15, fontWeight: 700, color: theme.dark }}>未有廣告費資料</Text>
+            <Text style={{ marginTop: 9, fontSize: 9, lineHeight: 1.6, color: theme.muted }}>揀選日期內未有 Daily Spend Ledger 記錄，因此本頁不顯示渠道金額或比例。</Text>
+          </View>
+        ) : (
+          <View style={{ gap: 13, marginTop: 4 }}>
+            {snapshot.spendMix.map((row) => (
             <View key={row.key}>
               <View style={{ display: "flex", flexDirection: "row", justifyContent: "space-between", marginBottom: 5 }}>
                 <Text style={{ fontSize: 9, fontWeight: 700 }}>{row.label}</Text>
@@ -401,8 +407,9 @@ function ReportPdfDocument({ snapshot }: { snapshot: ReportSnapshot }) {
                 <View style={{ height: 18, width: `${Math.max(row.amount > 0 ? 2 : 0, (row.share ?? 0) * 100)}%`, borderRadius: 6, backgroundColor: row.key === "legacy_unclassified" ? theme.warning : theme.accent }} />
               </View>
             </View>
-          ))}
-        </View>
+            ))}
+          </View>
+        )}
       </ReportPage>
 
       {brandPages.map((rows, index) => (
