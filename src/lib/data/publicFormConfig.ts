@@ -140,7 +140,7 @@ async function loadPublicFormConfig(
         .order("created_at", { ascending: true }),
       supabase
         .from("branches")
-        .select("id,name")
+        .select("id,name,opening_hours")
         .eq("brand_id", form.brand_id)
         .eq("status", "active")
         .order("created_at", { ascending: true }),
@@ -253,7 +253,7 @@ async function loadPublicFormConfig(
 
 const getCachedPublicFormConfig = unstable_cache(
   loadPublicFormConfig,
-  ["public-form-config-v1"],
+  ["public-form-config-v2"],
   {
     revalidate: 60,
     tags: [PUBLIC_FORM_CONFIG_CACHE_TAG],
