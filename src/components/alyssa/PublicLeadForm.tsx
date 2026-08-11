@@ -43,6 +43,10 @@ import {
 } from "@/lib/data/alyssaConfig";
 import type { PublicFormConfigSuccess } from "@/lib/data/publicFormConfig";
 import {
+  getPublicBookingTimeOptions,
+  type PublicBranchOpeningHours,
+} from "@/lib/booking/publicBookingTimes";
+import {
   IMAGE_REFERENCE_FOOTER_NOTE,
   getBrandLegalProfile,
   getLegalFooterLinks,
@@ -172,6 +176,7 @@ type PackageOption = FormOption & {
 
 type BranchOption = FormOption & {
   isDefault: boolean;
+  openingHours?: PublicBranchOpeningHours;
 };
 
 type BrandOption = FormOption & {
@@ -896,6 +901,7 @@ function normalizeBranch(raw: Record<string, unknown>): BranchOption {
     id: getString(raw.id),
     name: getString(raw.name),
     isDefault: Boolean(raw.isDefault ?? raw.is_default),
+    openingHours: (raw.openingHours ?? raw.opening_hours) as PublicBranchOpeningHours,
   };
 }
 
@@ -1203,7 +1209,7 @@ export function PublicLeadForm({
         ? resolveDefaultBranchId(initialForm, initialBranches)
         : alyssaDefaultForm.defaultBranchId,
       appointment_date: "",
-      appointment_time: normalizedInitialConfig?.isCompact ? "" : "12:00",
+      appointment_time: "",
       payment_option: "booking_only",
       legalConsentAccepted: false,
     };
@@ -1239,6 +1245,25 @@ export function PublicLeadForm({
         }, new Map<string, PackageOption[]>())
       ),
     [availablePackages]
+  );
+  const selectedBranch = useMemo(
+    () =>
+      branches.find((item) => item.id === formData.branch_id) || branches[0],
+    [branches, formData.branch_id]
+  );
+  const standardBookingTimes = useMemo(
+    () =>
+      getPublicBookingTimeOptions({
+        openingHours: selectedBranch?.openingHours,
+        appointmentDate: formData.appointment_date,
+        brandSlug: brand.slug || brandSlug,
+      }),
+    [
+      brand.slug,
+      brandSlug,
+      formData.appointment_date,
+      selectedBranch?.openingHours,
+    ]
   );
   const legalProfile = useMemo(() => {
     const resolvedSlug = brand.slug || brandSlug || "alyssa";
@@ -1283,6 +1308,25 @@ export function PublicLeadForm({
     conversionMode ?? publicForm.conversionMode ?? "form_submit_pixel";
   const effectiveSuccessRedirectUrl =
     successRedirectUrl || publicForm.successRedirectUrl || "";
+
+  useEffect(() => {
+    if (
+      isCompactPublicForm ||
+      !formData.appointment_time ||
+      standardBookingTimes.includes(formData.appointment_time)
+    ) {
+      return;
+    }
+
+    setFormData((current) => ({
+      ...current,
+      appointment_time: "",
+    }));
+  }, [
+    formData.appointment_time,
+    isCompactPublicForm,
+    standardBookingTimes,
+  ]);
 
   async function waitForParentAttribution(
     selfAttribution: AttributionEnvelope
@@ -1806,7 +1850,7 @@ export function PublicLeadForm({
       return;
     }
 
-    if (isCompactPublicForm && !formData.appointment_time) {
+    if (!formData.appointment_time) {
       setState("error");
       setMessage("請選擇預約時間。");
       await logPublicEvent(
@@ -2415,17 +2459,20 @@ export function PublicLeadForm({
                     </Field>
                     <Field label="預約時間">
                       <select
+                        required
+                        aria-label="預約時間"
                         className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] bg-white px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
                         value={formData.appointment_time}
                         onChange={(event) =>
                           updateField("appointment_time", event.target.value)
                         }
                       >
-                        {["11:00", "12:00", "14:00", "16:00", "18:00", "19:30"].map(
-                          (time) => (
-                            <option key={time}>{time}</option>
-                          )
-                        )}
+                        <option value="">請選擇時間</option>
+                        {standardBookingTimes.map((time) => (
+                          <option key={time} value={time}>
+                            {time}
+                          </option>
+                        ))}
                       </select>
                     </Field>
                   </div>
