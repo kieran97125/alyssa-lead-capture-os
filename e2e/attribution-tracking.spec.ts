@@ -12,6 +12,7 @@ async function fillAndSubmitForm(scope: Page | FrameLocator) {
   await scope.getByPlaceholder("你的姓名").fill("UTM TEST CUSTOMER");
   await scope.getByPlaceholder("9123 4567").fill("91234588");
   await scope.getByLabel("預約日期").fill("2026-08-15");
+  await scope.getByLabel("預約時間").selectOption("16:00");
   await scope.getByRole("checkbox").check();
   await scope.getByRole("button", { name: "提交預約資料" }).click();
 }
