@@ -11,7 +11,10 @@ import {
   isAlyssaAllScope,
   normalizeBrandScope,
 } from "@/lib/marketing/brandScope";
-import { getHkMonthContext } from "@/lib/marketing/pacing";
+import {
+  getCompletedHkReportRange,
+  getHkMonthContext,
+} from "@/lib/marketing/pacing";
 import {
   ALL_SPEND_TYPES,
   EDITABLE_SPEND_TYPES,
@@ -40,6 +43,10 @@ import {
   type ReportSnapshot,
   type ReportSpendMixRow,
 } from "@/lib/reports/types";
+import {
+  reportMetrics,
+  reportSpendTotal,
+} from "@/lib/reports/metrics";
 
 type MetricKind = "lead" | "book" | "show" | "no_show" | "pending_show";
 
@@ -138,9 +145,10 @@ function normalizeBreakdowns(value: unknown): ReportBreakdownDimension[] {
 export function normalizeReportExportRequest(input: unknown): ReportExportRequest {
   const body = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
   const month = getHkMonthContext();
+  const defaultRange = getCompletedHkReportRange();
   const latestCompletedDate = month.throughDate;
-  let startDate = isIsoDate(body.startDate) ? body.startDate : month.monthStart;
-  let endDate = isIsoDate(body.endDate) ? body.endDate : latestCompletedDate;
+  let startDate = isIsoDate(body.startDate) ? body.startDate : defaultRange.startDate;
+  let endDate = isIsoDate(body.endDate) ? body.endDate : defaultRange.endDate;
 
   if (endDate > latestCompletedDate) endDate = latestCompletedDate;
   if (startDate > latestCompletedDate) startDate = latestCompletedDate;
@@ -179,13 +187,13 @@ function reportBrand(brand: BrandSetting): ReportBrand {
 }
 
 export async function getReportGeneratorOptions(): Promise<ReportGeneratorOptions> {
-  const [brands, month] = await Promise.all([
+  const [brands, defaultRange] = await Promise.all([
     getConfiguredBrands(),
-    Promise.resolve(getHkMonthContext()),
+    Promise.resolve(getCompletedHkReportRange()),
   ]);
   return {
-    defaultStartDate: month.monthStart,
-    defaultEndDate: month.throughDate,
+    defaultStartDate: defaultRange.startDate,
+    defaultEndDate: defaultRange.endDate,
     brandOptions: [
       { value: "", label: "全部品牌" },
       ...brandScopeOptions(brands),
@@ -222,30 +230,14 @@ function addFact(counts: BaseCounts, fact: MetricFact) {
   if (fact.metricKind === "pending_show") counts.pendingShows += value;
 }
 
-function ratio(numerator: number, denominator: number) {
-  return denominator > 0 ? numerator / denominator : null;
-}
-
-function metrics(counts: BaseCounts, spend: number | null): ReportMetrics {
-  return {
-    spend,
-    ...counts,
-    bookRate: ratio(counts.bookings, counts.leads),
-    showUpRate: ratio(counts.shows, counts.bookings),
-    leadToShowRate: ratio(counts.shows, counts.leads),
-    cpl: spend === null ? null : ratio(spend, counts.leads),
-    costPerBooking: spend === null ? null : ratio(spend, counts.bookings),
-    costPerShow: spend === null ? null : ratio(spend, counts.shows),
-  };
-}
-
 function aggregateMetrics(facts: MetricFact[], spends: SpendFact[], attributable = true) {
   const counts = emptyCounts();
   facts.forEach((fact) => addFact(counts, fact));
-  const spend = attributable
-    ? spends.reduce((sum, fact) => sum + Math.max(0, fact.amount), 0)
-    : null;
-  return metrics(counts, spend);
+  const spend = reportSpendTotal(
+    spends.map((fact) => fact.amount),
+    attributable
+  );
+  return reportMetrics(counts, spend);
 }
 
 function rangeFacts<T extends { metricDate?: string; spendDate?: string }>(
@@ -310,6 +302,7 @@ function buildTreatmentRows(facts: MetricFact[]): ReportBreakdownRow[] {
 }
 
 function buildSpendMix(spends: SpendFact[]): ReportSpendMixRow[] {
+  if (spends.length === 0) return [];
   const total = spends.reduce((sum, fact) => sum + fact.amount, 0);
   return ALL_SPEND_TYPES.map((spendType) => {
     const amount = spends
@@ -319,7 +312,7 @@ function buildSpendMix(spends: SpendFact[]): ReportSpendMixRow[] {
       key: spendType,
       label: SPEND_TYPE_LABELS[spendType],
       amount,
-      share: ratio(amount, total),
+      share: total > 0 ? amount / total : null,
     };
   }).sort((left, right) => right.amount - left.amount);
 }

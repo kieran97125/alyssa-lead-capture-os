@@ -652,7 +652,11 @@ export async function renderReportPptx(snapshot: ReportSnapshot) {
   {
     const slide = pptx.addSlide();
     addHeader(slide, snapshot, theme, pageNumber++, "Media mix", "廣告費渠道組合", "只採用 Daily Spend Ledger；舊資料未分類會獨立顯示。 ");
-    snapshot.spendMix.forEach((row, index) => {
+    if (snapshot.spendMix.length === 0) {
+      slide.addShape(pptx.ShapeType.roundRect, { x: 0.75, y: 2.05, w: 11.75, h: 2.2, rectRadius: 0.08, fill: { color: hex(theme.accentSoft) }, line: { color: hex(theme.line), width: 0.7 } });
+      slide.addText("未有廣告費資料", { x: 1.08, y: 2.58, w: 10.9, h: 0.42, fontFace: FONT, fontSize: 25, bold: true, color: hex(theme.dark), margin: 0 });
+      slide.addText("揀選日期內未有 Daily Spend Ledger 記錄，因此本頁不顯示渠道金額或比例。", { x: 1.08, y: 3.2, w: 10.9, h: 0.34, fontFace: FONT, fontSize: 14, color: hex(theme.muted), margin: 0 });
+    } else snapshot.spendMix.forEach((row, index) => {
       const y = 2.02 + index * 0.88;
       slide.addText(row.label, { x: 0.75, y, w: 3.4, h: 0.24, fontFace: FONT, fontSize: 16, bold: true, color: hex(theme.dark), margin: 0 });
       slide.addText(`${money(row.amount, 2)} · ${percentage(row.share)}`, { x: 9.3, y, w: 3.2, h: 0.24, fontFace: FONT, fontSize: 14, color: hex(theme.text), align: "right", margin: 0 });

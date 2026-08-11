@@ -2,9 +2,14 @@ import { expect, test } from "@playwright/test";
 import {
   budgetPaceStatus,
   expectedAtPace,
+  getCompletedHkReportRange,
   getHkMonthContext,
   kpiPaceStatus,
 } from "../src/lib/marketing/pacing";
+import {
+  reportMetrics,
+  reportSpendTotal,
+} from "../src/lib/reports/metrics";
 import {
   aggregateDailySpendRows,
   aggregateLeadSheetPerformance,
@@ -261,6 +266,40 @@ test("Hong Kong month pacing uses completed days through yesterday", () => {
   expect(context.elapsedDays).toBe(27);
   expect(context.daysInMonth).toBe(31);
   expect(expectedAtPace(310, context.paceRatio)).toBe(270);
+});
+
+test("report defaults use the complete previous month on the first Hong Kong day", () => {
+  expect(
+    getCompletedHkReportRange(new Date("2026-07-31T16:30:00.000Z"))
+  ).toEqual({
+    startDate: "2026-07-01",
+    endDate: "2026-07-31",
+  });
+  expect(
+    getCompletedHkReportRange(new Date("2026-08-10T16:30:00.000Z"))
+  ).toEqual({
+    startDate: "2026-08-01",
+    endDate: "2026-08-10",
+  });
+});
+
+test("report cost metrics distinguish missing Spend from a recorded zero", () => {
+  const counts = {
+    leads: 10,
+    bookings: 4,
+    shows: 2,
+    noShows: 1,
+    pendingShows: 1,
+  };
+  const missingSpend = reportMetrics(counts, reportSpendTotal([]));
+  const recordedZero = reportMetrics(counts, reportSpendTotal([0]));
+
+  expect(missingSpend.spend).toBeNull();
+  expect(missingSpend.cpl).toBeNull();
+  expect(missingSpend.costPerBooking).toBeNull();
+  expect(missingSpend.costPerShow).toBeNull();
+  expect(recordedZero.spend).toBe(0);
+  expect(recordedZero.cpl).toBe(0);
 });
 
 test("daily Spend input requires one explicit platform and acquisition type", () => {
