@@ -38,4 +38,21 @@ assert.match(inviteActions, /systemDomainConfirmUrl/);
 assert.match(inviteActions, /redirectTo: systemDomainConfirmUrl/);
 assert.match(inviteActions, /emailRedirectTo: systemDomainConfirmUrl/);
 
+const syncScript = await readFile(
+  `${root}scripts/sync-supabase-auth-email-templates.mjs`,
+  "utf8"
+);
+const syncWorkflow = await readFile(
+  `${root}.github/workflows/sync-auth-email-templates.yml`,
+  "utf8"
+);
+assert.match(syncScript, /api\.supabase\.com\/v1\/projects\/\$\{projectRef\}\/config\/auth/);
+assert.match(syncScript, /mailer_templates_invite_content/);
+assert.match(syncScript, /mailer_templates_magic_link_content/);
+assert.match(syncScript, /method: "PATCH"/);
+assert.match(syncScript, /Hosted Auth config mismatch/);
+assert.match(syncWorkflow, /workflow_dispatch/);
+assert.match(syncWorkflow, /secrets\.SUPABASE_ACCESS_TOKEN/);
+assert.match(syncWorkflow, /npm run sync:auth-email-templates/);
+
 console.log("Auth email template contract verified.");
