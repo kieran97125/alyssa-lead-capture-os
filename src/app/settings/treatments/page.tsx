@@ -8,6 +8,7 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsBrandPicker } from "@/components/alyssa/SettingsBrandPicker";
 import { SettingsNav } from "@/components/alyssa/SettingsNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
+import { TreatmentMappingPanel } from "@/components/alyssa/TreatmentMappingPanel";
 import {
   getConfigurationData,
   getLinkedForms,
@@ -59,7 +60,7 @@ export default async function TreatmentSettingsPage({
                 療程管理
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                每個療程一行；展開先編輯，日常查看唔再被大量表單佔滿。
+                療程、價錢同 Lead 分類規則由 Growth OS 統一管理；Google Sheet 保留做原始 Lead 來源同 audit reference。
               </p>
             </div>
             <SettingsBrandPicker
@@ -231,6 +232,14 @@ export default async function TreatmentSettingsPage({
             </p>
           )}
         </section>
+
+        {selectedBrand ? (
+          <TreatmentMappingPanel
+            brandId={selectedBrand.id}
+            brandName={selectedBrand.name}
+            returnPath={returnPath}
+          />
+        ) : null}
       </div>
     </main>
   );

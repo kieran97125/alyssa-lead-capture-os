@@ -43,7 +43,7 @@ test("Growth OS keeps grouped navigation and settings overview compact", async (
   await expect(page.getByRole("link", { name: /System Audit/ })).toBeHidden();
 });
 
-test("treatments and pricing use expandable management rows instead of cards", async ({
+test("treatments, classification rules and pricing use expandable system management rows", async ({
   page,
 }) => {
   await page.goto("/settings/treatments", {
@@ -57,6 +57,17 @@ test("treatments and pricing use expandable management rows instead of cards", a
   await expect(
     treatmentRows.first().locator(":scope > summary")
   ).toContainText("編輯");
+
+  await expect(page.getByTestId("treatment-mapping-manager")).toBeVisible();
+  await expect(page.getByText("System source of truth", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Google Sheet.*歷史參考/)).toBeVisible();
+  await expect(page.getByRole("button", { name: "重新套用分類" })).toBeVisible();
+  const mappingRows = page
+    .getByTestId("treatment-mapping-rule-list")
+    .locator(":scope > details");
+  if ((await mappingRows.count()) > 0) {
+    await expect(mappingRows.first().locator(":scope > summary")).toContainText("編輯");
+  }
 
   await page.goto("/settings/packages", {
     waitUntil: "domcontentloaded",

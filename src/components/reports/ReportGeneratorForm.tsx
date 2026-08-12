@@ -2,8 +2,10 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 import {
+  AlignLeft,
   CalendarRange,
   Check,
+  Clipboard,
   Download,
   FileText,
   Layers3,
@@ -23,6 +25,12 @@ function downloadName(disposition: string | null, fallback: string) {
   return quoted || fallback;
 }
 
+function formatName(format: ReportOutputFormat) {
+  if (format === "pptx") return "PPTX";
+  if (format === "txt") return "文字摘要";
+  return "PDF";
+}
+
 export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptions }) {
   const [startDate, setStartDate] = useState(options.defaultStartDate);
   const [endDate, setEndDate] = useState(options.defaultEndDate);
@@ -33,6 +41,8 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
   const [lastDownload, setLastDownload] = useState("");
+  const [lastText, setLastText] = useState("");
+  const [copied, setCopied] = useState(false);
 
   const breakdownLabel = useMemo(() => {
     if (breakdowns.length === 0) return "不拆分";
@@ -48,11 +58,35 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
     );
   }
 
+  function triggerDownload(blob: Blob, filename: string) {
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = filename;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+  }
+
+  async function copyText() {
+    if (!lastText) return;
+    try {
+      await navigator.clipboard.writeText(lastText);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1_500);
+    } catch {
+      setError("瀏覽器未能自動複製；你仍然可以喺下方文字預覽手動選取。 ");
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setPending(true);
     setError("");
     setLastDownload("");
+    setLastText("");
+    setCopied(false);
     try {
       const response = await fetch("/api/internal/reports/export", {
         method: "POST",
@@ -70,19 +104,18 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
         const payload = await response.json().catch(() => null) as { message?: string } | null;
         throw new Error(payload?.message || "暫時未能生成報告，請稍後再試。");
       }
-      const blob = await response.blob();
       const filename = downloadName(
         response.headers.get("content-disposition"),
         `growth-report.${format}`
       );
-      const url = URL.createObjectURL(blob);
-      const anchor = document.createElement("a");
-      anchor.href = url;
-      anchor.download = filename;
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+
+      if (format === "txt") {
+        const text = await response.text();
+        setLastText(text);
+        triggerDownload(new Blob([text], { type: "text/plain;charset=utf-8" }), filename);
+      } else {
+        triggerDownload(await response.blob(), filename);
+      }
       setLastDownload(filename);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "暫時未能生成報告，請稍後再試。");
@@ -165,7 +198,7 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
           <span className="report-generator-step">03</span>
           <div>
             <h2>輸出格式</h2>
-            <p>兩款格式共用同一 snapshot；只係輸出載體不同。</p>
+            <p>三款格式共用同一 immutable snapshot；數字口徑完全一致，只係輸出載體不同。</p>
           </div>
           <Download size={22} />
         </header>
@@ -182,20 +215,45 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
             <span><strong>PowerPoint</strong><small>文字、圖表、形狀可編輯，適合管理會議再加工</small></span>
             {format === "pptx" ? <Check size={17} /> : null}
           </label>
+          <label className={format === "txt" ? "is-selected" : ""}>
+            <input type="radio" name="report-format" value="txt" checked={format === "txt"} onChange={() => setFormat("txt")} />
+            <AlignLeft size={24} />
+            <span><strong>Dashboard 文字摘要</strong><small>純文字 KPI、同期比較同 Breakdown，方便直接 Copy／WhatsApp／Email</small></span>
+            {format === "txt" ? <Check size={17} /> : null}
+          </label>
         </div>
       </section>
 
       {error ? <p className="command-status-message is-error" role="alert">{error}</p> : null}
       {lastDownload ? <p className="command-status-message is-success" role="status">已生成並下載：{lastDownload}</p> : null}
 
+      {lastText ? (
+        <section className="command-surface report-generator-section" data-testid="report-text-preview">
+          <header>
+            <span className="report-generator-step">04</span>
+            <div>
+              <h2>文字預覽</h2>
+              <p>同下載檔完全相同；可以直接複製去 WhatsApp、Email、ChatGPT 或工作文件。</p>
+            </div>
+            <button type="button" className="command-secondary-button" onClick={copyText}>
+              {copied ? <Check size={16} /> : <Clipboard size={16} />}
+              {copied ? "已複製" : "複製全文"}
+            </button>
+          </header>
+          <pre className="max-h-[560px] overflow-auto whitespace-pre-wrap rounded-[18px] border border-[#ead9cf] bg-[#fffdfb] p-5 text-sm leading-6 text-[#321428]">
+            {lastText}
+          </pre>
+        </section>
+      ) : null}
+
       <footer className="report-generator-submit-row">
         <div>
-          <strong>{format === "pdf" ? "可搜尋 PDF" : "可編輯 PowerPoint"}</strong>
+          <strong>{format === "pdf" ? "可搜尋 PDF" : format === "pptx" ? "可編輯 PowerPoint" : "Dashboard 純文字摘要"}</strong>
           <span>{startDate} 至 {endDate} · {breakdownLabel}</span>
         </div>
         <button type="submit" className="command-primary-button" disabled={pending || !startDate || !endDate}>
           {pending ? <LoaderCircle className="report-generator-spinner" size={17} /> : <Download size={17} />}
-          {pending ? "建立快照並生成…" : `生成 ${format === "pdf" ? "PDF" : "PPTX"}`}
+          {pending ? "建立快照並生成…" : `生成 ${formatName(format)}`}
         </button>
       </footer>
     </form>
