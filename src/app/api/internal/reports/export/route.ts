@@ -38,6 +38,13 @@ export async function POST(request: Request) {
       "x-report-snapshot-id": snapshot.snapshotId,
     });
 
+    if (normalized.format === "txt") {
+      const { renderReportText } = await import("@/lib/reports/text");
+      const output = renderReportText(snapshot);
+      headers.set("content-type", "text/plain; charset=utf-8");
+      return new Response(output, { status: 200, headers });
+    }
+
     if (normalized.format === "pptx") {
       const { renderReportPptx } = await import("@/lib/reports/pptx");
       const output = await renderReportPptx(snapshot);
