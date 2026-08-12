@@ -46,6 +46,21 @@ export type TreatmentAliasResolution = {
   source: "system" | "legacy_fallback";
 };
 
+type ValidatedTreatmentMappingValue = {
+  brand_id: string;
+  item_code: string;
+  keywords: string[];
+  output_label: string;
+  dashboard_label: string;
+  note: string | null;
+  enabled: boolean;
+  sort_order: number;
+};
+
+type TreatmentMappingValidation =
+  | { ok: false; error: string }
+  | { ok: true; value: ValidatedTreatmentMappingValue };
+
 function clean(value: unknown, max = 2000) {
   return typeof value === "string"
     ? value.replace(/\u00a0/g, " ").trim().slice(0, max)
@@ -177,7 +192,9 @@ export async function resolveTreatmentMappingAliases(
   };
 }
 
-function validateInput(input: TreatmentMappingRuleInput) {
+function validateInput(
+  input: TreatmentMappingRuleInput
+): TreatmentMappingValidation {
   const itemCode = normalizeTreatmentMappingItemCode(input.itemCode);
   const keywords = parseTreatmentMappingKeywords(input.keywords);
   const outputLabel = clean(input.outputLabel, 2000);
@@ -185,19 +202,22 @@ function validateInput(input: TreatmentMappingRuleInput) {
   const brandId = clean(input.brandId, 80);
   const note = clean(input.note, 1000) || null;
   const sortOrder = Number(input.sortOrder);
-  if (!brandId) return { error: "請選擇品牌。" } as const;
+  if (!brandId) return { ok: false, error: "請選擇品牌。" };
   if (!itemCode || itemCode.length < 2) {
-    return { error: "項目代號格式不正確。" } as const;
+    return { ok: false, error: "項目代號格式不正確。" };
   }
   if (keywords.length === 0) {
-    return { error: "至少需要一個配對關鍵字。" } as const;
+    return { ok: false, error: "至少需要一個配對關鍵字。" };
   }
-  if (!outputLabel) return { error: "請填寫標準輸出。" } as const;
-  if (!dashboardLabel) return { error: "請填寫 Dashboard 分類。" } as const;
+  if (!outputLabel) return { ok: false, error: "請填寫標準輸出。" };
+  if (!dashboardLabel) {
+    return { ok: false, error: "請填寫 Dashboard 分類。" };
+  }
   if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 100000) {
-    return { error: "排序必須為 0 至 100000 的整數。" } as const;
+    return { ok: false, error: "排序必須為 0 至 100000 的整數。" };
   }
   return {
+    ok: true,
     value: {
       brand_id: brandId,
       item_code: itemCode,
@@ -208,7 +228,7 @@ function validateInput(input: TreatmentMappingRuleInput) {
       enabled: Boolean(input.enabled),
       sort_order: sortOrder,
     },
-  } as const;
+  };
 }
 
 function mutationError(error: { code?: string; message?: string }) {
@@ -229,7 +249,7 @@ export async function createTreatmentMappingRule(
     return { ok: false, message: "正式資料服務尚未連接。" };
   }
   const validation = validateInput(input);
-  if ("error" in validation) return { ok: false, message: validation.error };
+  if (!validation.ok) return { ok: false, message: validation.error };
   const supabase = createSupabaseAdminClient();
   const { error } = await supabase.from("treatment_mapping_rules").insert({
     ...validation.value,
@@ -244,7 +264,10 @@ export async function createTreatmentMappingRule(
     });
     return { ok: false, message: mutationError(error) };
   }
-  return { ok: true, message: "療程分類規則已新增，Dashboard 會即時使用新設定。" };
+  return {
+    ok: true,
+    message: "療程分類規則已新增，Dashboard 會即時使用新設定。",
+  };
 }
 
 export async function updateTreatmentMappingRule(
@@ -260,7 +283,7 @@ export async function updateTreatmentMappingRule(
     return { ok: false, message: "規則版本已失效，請重新整理頁面。" };
   }
   const validation = validateInput(input);
-  if ("error" in validation) return { ok: false, message: validation.error };
+  if (!validation.ok) return { ok: false, message: validation.error };
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("treatment_mapping_rules")
@@ -286,5 +309,8 @@ export async function updateTreatmentMappingRule(
       message: "呢條規則已被另一位使用者更新。為免覆蓋新資料，請重新載入再儲存。",
     };
   }
-  return { ok: true, message: "療程分類規則已更新，Dashboard 會即時使用新設定。" };
+  return {
+    ok: true,
+    message: "療程分類規則已更新，Dashboard 會即時使用新設定。",
+  };
 }
