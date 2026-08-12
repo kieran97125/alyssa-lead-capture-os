@@ -77,6 +77,10 @@ async function requireMappingAccess(path: string, brandId: string) {
   return session.access;
 }
 
+function actorLabel(access: Awaited<ReturnType<typeof requireMappingAccess>>) {
+  return access.email || `${access.source}:${access.accessLevel}`;
+}
+
 function revalidateTreatmentMapping() {
   [
     "/settings/treatments",
@@ -143,7 +147,7 @@ export async function createTreatmentMappingRuleAction(formData: FormData) {
   const input = mappingInput(formData);
   const path = returnPath(formData);
   const access = await requireMappingAccess(path, input.brandId);
-  const actor = access.email || access.identifier || "system-admin";
+  const actor = actorLabel(access);
   const result = await createTreatmentMappingRule(input, actor);
   return finishMutation(path, result, actor);
 }
@@ -152,7 +156,7 @@ export async function updateTreatmentMappingRuleAction(formData: FormData) {
   const input = mappingInput(formData);
   const path = returnPath(formData);
   const access = await requireMappingAccess(path, input.brandId);
-  const actor = access.email || access.identifier || "system-admin";
+  const actor = actorLabel(access);
   const result = await updateTreatmentMappingRule(input, actor);
   return finishMutation(path, result, actor);
 }
@@ -161,7 +165,7 @@ export async function resyncTreatmentMappingAction(formData: FormData) {
   const brandId = readString(formData, "brandId");
   const path = returnPath(formData);
   const access = await requireMappingAccess(path, brandId);
-  const actor = access.email || access.identifier || "system-admin";
+  const actor = actorLabel(access);
   const sync = await syncLeadClassification(actor);
   revalidateTreatmentMapping();
   redirectBack(path, {
