@@ -1,6 +1,6 @@
 export const REPORT_METRIC_CONTRACT_VERSION = "growth-os-report-v1";
 
-export const reportOutputFormats = ["pdf", "pptx"] as const;
+export const reportOutputFormats = ["pdf", "pptx", "txt"] as const;
 export type ReportOutputFormat = (typeof reportOutputFormats)[number];
 
 export const reportBreakdownDimensions = ["brand", "treatment"] as const;
