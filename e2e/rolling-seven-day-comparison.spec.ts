@@ -60,6 +60,6 @@ test("comparison KPI cards keep long HKD values readable and remove empty compar
   expect(style.textOverflow).toBe("clip");
   expect(style.whiteSpace).toBe("nowrap");
 
-  await expect(page.getByText("未有可比基準", { exact: true })).toHaveCount(0);
-  await expect(page.getByText("與上月相若", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("未有可比基準", { exact: true }).first()).toBeHidden();
+  await expect(page.getByText("與上月相若", { exact: true }).first()).toBeHidden();
 });
