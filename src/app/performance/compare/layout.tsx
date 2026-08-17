@@ -5,12 +5,15 @@ export default function PeriodComparisonLayout({ children }: { children: ReactNo
     <>
       <style>{`
         .rolling-compare-shell {
-          padding-left: var(--command-sidebar-width);
-          background: var(--command-page);
+          width: 100%;
+          min-width: 0;
+          padding-left: 0;
+          background: transparent;
         }
         .rolling-compare-panel {
-          width: min(100% - 2rem, 1500px);
-          margin: 0 auto;
+          width: 100%;
+          min-width: 0;
+          margin: 0;
           padding: 1.25rem 0 0.1rem;
         }
         .rolling-compare-header {
@@ -205,7 +208,7 @@ export default function PeriodComparisonLayout({ children }: { children: ReactNo
         }
         @media (max-width: 720px) {
           .rolling-compare-shell { padding-left: 0; }
-          .rolling-compare-panel { width: min(100% - 1rem, 1500px); padding-top: 0.65rem; }
+          .rolling-compare-panel { width: 100%; padding-top: 0.65rem; }
           .rolling-kpi-grid,
           .period-kpi-grid { grid-template-columns: minmax(0, 1fr) !important; }
           .rolling-period-pills > span { white-space: normal; }
