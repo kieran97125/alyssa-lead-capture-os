@@ -29,51 +29,18 @@ jobs:
           path = Path("src/components/alyssa/PublicLeadForm.tsx")
           source = path.read_text()
 
-          def sub_once(pattern: str, replacement: str, value: str, label: str, flags=0):
+          def sub_once(pattern, replacement, value, label, flags=0):
               updated, count = re.subn(pattern, replacement, value, count=1, flags=flags)
               if count != 1:
                   raise RuntimeError(f"{label}: expected exactly one match, got {count}")
               return updated
 
-          source = sub_once(
-              r'const GOS_BOOKING_TIMES = \[.*?\] as const;\n\n',
-              '',
-              source,
-              'fixed GOS booking-time constant',
-              re.S,
-          )
-          source = sub_once(
-              r'(\n\s*if \(\n\s*)isCompactPublicForm \|\|\n(\s*!formData\.appointment_time \|\|\n\s*standardBookingTimes\.includes\(formData\.appointment_time\)\n\s*\) \{)',
-              r'\1\2',
-              source,
-              'compact stale-time exemption',
-          )
-          source = sub_once(
-              r'\}, \[\n\s*formData\.appointment_time,\n\s*isCompactPublicForm,\n\s*standardBookingTimes,\n\s*\]\);',
-              '}, [formData.appointment_time, standardBookingTimes]);',
-              source,
-              'stale-time effect dependencies',
-          )
-          source = sub_once(
-              r'(<GosTimeField\n\s*value=\{formData\.appointment_time\}\n)(\s*onChange=)',
-              r'\1                      times={standardBookingTimes}\n\2',
-              source,
-              'compact time options prop',
-          )
-          source = sub_once(
-              r'function GosTimeField\(\{\n\s*value,\n\s*onChange,\n\s*\}: \{\n\s*value: string;\n\s*onChange: \(value: string\) => void;\n\s*\}\) \{',
-              '''function GosTimeField({
-  value,
-  times,
-  onChange,
-}: {
-  value: string;
-  times: string[];
-  onChange: (value: string) => void;
-}) {''',
-              source,
-              'GosTimeField signature',
-          )
+          source = sub_once(r'const GOS_BOOKING_TIMES = \[.*?\] as const;\n\n', '', source, 'fixed GOS booking-time constant', re.S)
+          source = sub_once(r'(\n\s*if \(\n\s*)isCompactPublicForm \|\|\n(\s*!formData\.appointment_time \|\|\n\s*standardBookingTimes\.includes\(formData\.appointment_time\)\n\s*\) \{)', r'\1\2', source, 'compact stale-time exemption')
+          source = sub_once(r'\}, \[\n\s*formData\.appointment_time,\n\s*isCompactPublicForm,\n\s*standardBookingTimes,\n\s*\]\);', '}, [formData.appointment_time, standardBookingTimes]);', source, 'stale-time effect dependencies')
+          source = sub_once(r'(<GosTimeField\n\s*value=\{formData\.appointment_time\}\n)(\s*onChange=)', r'\1                      times={standardBookingTimes}\n\2', source, 'compact time options prop')
+          signature = "function GosTimeField({\n  value,\n  times,\n  onChange,\n}: {\n  value: string;\n  times: string[];\n  onChange: (value: string) => void;\n}) {"
+          source = sub_once(r'function GosTimeField\(\{\n\s*value,\n\s*onChange,\n\s*\}: \{\n\s*value: string;\n\s*onChange: \(value: string\) => void;\n\s*\}\) \{', signature, source, 'GosTimeField signature')
           if source.count('{GOS_BOOKING_TIMES.map((time) =>') != 1:
               raise RuntimeError('expected exactly one GOS_BOOKING_TIMES map')
           source = source.replace('{GOS_BOOKING_TIMES.map((time) =>', '{times.map((time) =>', 1)
@@ -83,39 +50,39 @@ jobs:
           tests = test_path.read_text()
           if "GOS weekday booking times follow the live branch opening hours" in tests:
               raise RuntimeError('GOS booking-hour regression tests already exist')
-          tests = tests.rstrip() + '''
-
-const GOS_HOURS = {
-  note: "星期一至五 12:00–21:00\\r\\n星期六、日及公眾假期 11:00-19:00",
-};
-
-test("GOS weekday booking times follow the live branch opening hours", () => {
-  const times = getPublicBookingTimeOptions({
-    openingHours: GOS_HOURS,
-    appointmentDate: "2026-08-17",
-    brandSlug: "gos-beauty",
-  });
-
-  expect(times[0]).toBe("12:00");
-  expect(times.at(-1)).toBe("20:30");
-  expect(times).not.toContain("11:00");
-  expect(times).toContain("20:00");
-});
-
-test("GOS weekend booking times stop before the 19:00 closing time", () => {
-  const times = getPublicBookingTimeOptions({
-    openingHours: GOS_HOURS,
-    appointmentDate: "2026-08-22",
-    brandSlug: "gos-beauty",
-  });
-
-  expect(times[0]).toBe("11:00");
-  expect(times.at(-1)).toBe("18:30");
-  expect(times).not.toContain("19:00");
-  expect(times).not.toContain("19:30");
-});
-'''
-          test_path.write_text(tests)
+          extra = [
+              "",
+              "const GOS_HOURS = {",
+              "  note: \"星期一至五 12:00–21:00\\\\r\\\\n星期六、日及公眾假期 11:00-19:00\",",
+              "};",
+              "",
+              "test(\"GOS weekday booking times follow the live branch opening hours\", () => {",
+              "  const times = getPublicBookingTimeOptions({",
+              "    openingHours: GOS_HOURS,",
+              "    appointmentDate: \"2026-08-17\",",
+              "    brandSlug: \"gos-beauty\",",
+              "  });",
+              "",
+              "  expect(times[0]).toBe(\"12:00\");",
+              "  expect(times.at(-1)).toBe(\"20:30\");",
+              "  expect(times).not.toContain(\"11:00\");",
+              "  expect(times).toContain(\"20:00\");",
+              "});",
+              "",
+              "test(\"GOS weekend booking times stop before the 19:00 closing time\", () => {",
+              "  const times = getPublicBookingTimeOptions({",
+              "    openingHours: GOS_HOURS,",
+              "    appointmentDate: \"2026-08-22\",",
+              "    brandSlug: \"gos-beauty\",",
+              "  });",
+              "",
+              "  expect(times[0]).toBe(\"11:00\");",
+              "  expect(times.at(-1)).toBe(\"18:30\");",
+              "  expect(times).not.toContain(\"19:00\");",
+              "  expect(times).not.toContain(\"19:30\");",
+              "});",
+          ]
+          test_path.write_text(tests.rstrip() + "\n" + "\n".join(extra) + "\n")
           PY
 
           git diff --check
