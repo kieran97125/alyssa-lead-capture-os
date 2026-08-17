@@ -1290,7 +1290,7 @@ export function PublicLeadForm({
 
   useEffect(() => {
     if (
-            !formData.appointment_time ||
+      !formData.appointment_time ||
       standardBookingTimes.includes(formData.appointment_time)
     ) {
       return;
