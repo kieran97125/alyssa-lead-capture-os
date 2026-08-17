@@ -36,6 +36,21 @@ test("period comparison includes two adjacent complete seven-day windows", async
     rollingBeforeAnalysis: true,
   });
 
+  const alignment = await page.evaluate(() => {
+    const monthly = document.querySelector(".period-kpi-grid");
+    const rolling = document.querySelector(".rolling-compare-panel");
+    if (!monthly || !rolling) return null;
+    const monthlyRect = monthly.getBoundingClientRect();
+    const rollingRect = rolling.getBoundingClientRect();
+    return {
+      leftDelta: Math.abs(monthlyRect.left - rollingRect.left),
+      rightDelta: Math.abs(monthlyRect.right - rollingRect.right),
+    };
+  });
+  expect(alignment).not.toBeNull();
+  expect(alignment!.leftDelta).toBeLessThanOrEqual(2);
+  expect(alignment!.rightDelta).toBeLessThanOrEqual(2);
+
   const result = await page.evaluate(async () => {
     const response = await fetch("/api/internal/performance/rolling-comparison");
     return {
