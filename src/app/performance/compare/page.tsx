@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { Suspense, type ComponentType } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -21,6 +21,7 @@ import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { PeriodComparisonChartLazy } from "@/components/command-center/PeriodComparisonChartLazy";
+import { RollingSevenDayComparison } from "@/components/command-center/RollingSevenDayComparison";
 import {
   getPeriodComparisonSnapshot,
   type ComparisonDataQuality,
@@ -413,6 +414,10 @@ export default async function PeriodComparisonPage({
               })}
             </section>
           ) : null}
+
+          <Suspense fallback={null}>
+            <RollingSevenDayComparison />
+          </Suspense>
 
           <section className="period-analysis-grid">
             <article className="command-surface period-trend-card">
