@@ -1,0 +1,93 @@
+name: Booking hours notice once
+
+on:
+  push:
+    branches:
+      - agent/hk-public-holiday-booking-hours
+    paths:
+      - .github/workflows/booking-hours-notice-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/hk-public-holiday-booking-hours
+          fetch-depth: 0
+      - name: Add booking-hours notices
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/alyssa/PublicLeadForm.tsx")
+          source = path.read_text()
+
+          old = '''import {
+  getPublicBookingTimeOptions,
+  type PublicBranchOpeningHours,
+} from "@/lib/booking/publicBookingTimes";'''
+          new = '''import {
+  getPublicBookingHoursNotice,
+  getPublicBookingTimeOptions,
+  type PublicBranchOpeningHours,
+} from "@/lib/booking/publicBookingTimes";'''
+          if source.count(old) != 1:
+              raise RuntimeError(f"booking import target count={source.count(old)}")
+          source = source.replace(old, new, 1)
+
+          marker = '''  const legalProfile = useMemo(() => {'''
+          insertion = '''  const bookingHoursNotice = useMemo(
+    () => getPublicBookingHoursNotice(brand.slug || brandSlug),
+    [brand.slug, brandSlug]
+  );
+  const legalProfile = useMemo(() => {'''
+          if source.count(marker) != 1:
+              raise RuntimeError(f"booking notice memo target count={source.count(marker)}")
+          source = source.replace(marker, insertion, 1)
+
+          compact_marker = '''                </div>
+
+                <label className="mt-4 flex items-start gap-2.5 text-[13px] font-semibold leading-5 text-[var(--public-heading)]">'''
+          compact_insert = '''                </div>
+
+                <p className="mt-2 text-[11px] font-semibold leading-4 text-[var(--public-muted)] sm:text-xs sm:leading-5">
+                  {bookingHoursNotice}
+                </p>
+
+                <label className="mt-4 flex items-start gap-2.5 text-[13px] font-semibold leading-5 text-[var(--public-heading)]">'''
+          if source.count(compact_marker) != 1:
+              raise RuntimeError(f"compact notice target count={source.count(compact_marker)}")
+          source = source.replace(compact_marker, compact_insert, 1)
+
+          standard_marker = '''                  </div>
+                </FormSection>
+
+                <section className="box-border w-full max-w-full rounded-[12px] border border-[#f3e5ec] bg-white p-2.5 sm:rounded-[18px] sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-3">'''
+          standard_insert = '''                  </div>
+                  <p className="text-[11px] font-semibold leading-4 text-[var(--public-muted)] sm:text-xs sm:leading-5">
+                    {bookingHoursNotice}
+                  </p>
+                </FormSection>
+
+                <section className="box-border w-full max-w-full rounded-[12px] border border-[#f3e5ec] bg-white p-2.5 sm:rounded-[18px] sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-3">'''
+          if source.count(standard_marker) != 1:
+              raise RuntimeError(f"standard notice target count={source.count(standard_marker)}")
+          source = source.replace(standard_marker, standard_insert, 1)
+
+          path.write_text(source)
+          PY
+          git diff --check
+          git diff -- src/components/alyssa/PublicLeadForm.tsx
+      - name: Commit notice patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/alyssa/PublicLeadForm.tsx
+          git commit -m "Show booking-hours reminder on public forms [skip ci]"
+          git push origin HEAD:agent/hk-public-holiday-booking-hours
