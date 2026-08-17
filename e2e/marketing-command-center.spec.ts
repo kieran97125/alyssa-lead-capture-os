@@ -1486,6 +1486,11 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
   await expect(page.getByText("CPA · Book", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("CPA · Show", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("CPL", { exact: true }).first()).toBeVisible();
+  const coreMetrics = page.getByRole("region", { name: "同期核心指標" });
+  await expect(coreMetrics.getByText(/上月同期：/)).toHaveCount(7);
+  await expect(page.getByText(/上月同期：/)).toHaveCount(10);
+  await expect(page.getByText("未有可比基準", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("與上月相若", { exact: true })).toHaveCount(0);
   await expect(
     page.getByRole("heading", { name: "同期累積走勢", exact: true })
   ).toBeVisible();

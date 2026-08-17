@@ -1,5 +1,4 @@
-import { Suspense, type ReactNode } from "react";
-import { RollingSevenDayComparison } from "@/components/command-center/RollingSevenDayComparison";
+import type { ReactNode } from "react";
 
 export default function PeriodComparisonLayout({ children }: { children: ReactNode }) {
   return (
@@ -212,9 +211,6 @@ export default function PeriodComparisonLayout({ children }: { children: ReactNo
           .rolling-period-pills > span { white-space: normal; }
         }
       `}</style>
-      <Suspense fallback={null}>
-        <RollingSevenDayComparison />
-      </Suspense>
       {children}
     </>
   );

@@ -16,6 +16,26 @@ test("period comparison includes two adjacent complete seven-day windows", async
   await expect(page.getByText("最近 7 日", { exact: false }).first()).toBeVisible();
   await expect(page.getByText("前 7 日", { exact: false }).first()).toBeVisible();
 
+  const layoutOrder = await page.evaluate(() => {
+    const filter = document.querySelector(".period-filter-panel");
+    const monthly = document.querySelector(".period-kpi-grid");
+    const rolling = document.querySelector(".rolling-compare-shell");
+    const analysis = document.querySelector(".period-analysis-grid");
+    if (!filter || !monthly || !rolling || !analysis) return null;
+    const position = (left: Element, right: Element) =>
+      left.compareDocumentPosition(right) & Node.DOCUMENT_POSITION_FOLLOWING;
+    return {
+      filterBeforeMonthly: Boolean(position(filter, monthly)),
+      monthlyBeforeRolling: Boolean(position(monthly, rolling)),
+      rollingBeforeAnalysis: Boolean(position(rolling, analysis)),
+    };
+  });
+  expect(layoutOrder).toEqual({
+    filterBeforeMonthly: true,
+    monthlyBeforeRolling: true,
+    rollingBeforeAnalysis: true,
+  });
+
   const result = await page.evaluate(async () => {
     const response = await fetch("/api/internal/performance/rolling-comparison");
     return {

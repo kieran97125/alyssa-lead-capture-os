@@ -1,4 +1,4 @@
-import type { ComponentType } from "react";
+import { Suspense, type ComponentType } from "react";
 import {
   ArrowDownRight,
   ArrowUpRight,
@@ -21,6 +21,7 @@ import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { PeriodComparisonChartLazy } from "@/components/command-center/PeriodComparisonChartLazy";
+import { RollingSevenDayComparison } from "@/components/command-center/RollingSevenDayComparison";
 import {
   getPeriodComparisonSnapshot,
   type ComparisonDataQuality,
@@ -164,11 +165,8 @@ function ChangeBadge({
   metric: ComparisonMetricKey;
   change: number | null | undefined;
 }) {
-  if (change === null || change === undefined) {
-    return <span className="period-change is-neutral">未有可比基準</span>;
-  }
-  if (Math.abs(change) < 0.0005) {
-    return <span className="period-change is-neutral">與上月相若</span>;
+  if (change === null || change === undefined || Math.abs(change) < 0.0005) {
+    return null;
   }
   if (metric === "spend") {
     const Icon = change > 0 ? ArrowUpRight : ArrowDownRight;
@@ -194,6 +192,21 @@ function ChangeBadge({
       })}
       <span>vs 上月</span>
     </span>
+  );
+}
+
+function PreviousPeriodValue({
+  value,
+  kind,
+}: {
+  value: number | null | undefined;
+  kind: MetricKind;
+}) {
+  if (value === null || value === undefined || !Number.isFinite(value)) return null;
+  return (
+    <small className="mt-1 block text-[11px] font-bold text-[#765669] sm:text-xs">
+      上月同期：{formatMetric(value, kind)}
+    </small>
   );
 }
 
@@ -225,6 +238,7 @@ export default async function PeriodComparisonPage({
     getCurrentInternalAccess(),
   ]);
   const current = snapshot.totals[0];
+  const previous = snapshot.totals[1];
   const breakdownBrandNames = Array.from(
     new Set(snapshot.brandRows.map((row) => row.brandName))
   );
@@ -382,6 +396,14 @@ export default async function PeriodComparisonPage({
                       <p>{definition.label}</p>
                       <strong>{formatMetric(value, definition.kind)}</strong>
                       <small>{definition.note}</small>
+                      <PreviousPeriodValue
+                        value={
+                          previous
+                            ? metricValue(previous.metrics, definition.key)
+                            : null
+                        }
+                        kind={definition.kind}
+                      />
                       <ChangeBadge
                         metric={definition.key}
                         change={current.changes[definition.key]}
@@ -392,6 +414,10 @@ export default async function PeriodComparisonPage({
               })}
             </section>
           ) : null}
+
+          <Suspense fallback={null}>
+            <RollingSevenDayComparison />
+          </Suspense>
 
           <section className="period-analysis-grid">
             <article className="command-surface period-trend-card">
@@ -433,6 +459,14 @@ export default async function PeriodComparisonPage({
                             "rate"
                           )}
                         </strong>
+                        <PreviousPeriodValue
+                          value={
+                            previous
+                              ? metricValue(previous.metrics, definition.key)
+                              : null
+                          }
+                          kind="rate"
+                        />
                         <ChangeBadge
                           metric={definition.key}
                           change={current.changes[definition.key]}
