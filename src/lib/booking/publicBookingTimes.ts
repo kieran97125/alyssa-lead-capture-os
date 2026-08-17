@@ -21,12 +21,12 @@ type ParsedBookingDate = {
 };
 
 const HALF_HOUR_MINUTES = 30;
+const ALYSSA_IB_BROAD_RANGE: OpeningRange = {
+  startMinutes: 10 * 60,
+  endMinutes: 21 * 60,
+};
 
-// Gazetted Hong Kong general holidays. Sundays are already handled by the
-// weekend rule, but keeping dated holidays here makes weekday substitute /
-// additional holidays use the same customer-facing hours as Saturday/Sunday.
 const HONG_KONG_GENERAL_HOLIDAYS = new Set([
-  // 2026 — GovHK gazetted general holidays.
   "2026-01-01",
   "2026-02-17",
   "2026-02-18",
@@ -44,7 +44,6 @@ const HONG_KONG_GENERAL_HOLIDAYS = new Set([
   "2026-10-19",
   "2026-12-25",
   "2026-12-26",
-  // 2027 — GovHK gazetted general holidays.
   "2027-01-01",
   "2027-02-06",
   "2027-02-08",
@@ -67,6 +66,16 @@ const HONG_KONG_GENERAL_HOLIDAYS = new Set([
 function normalizeBrandSlug(value: string | null | undefined) {
   const slug = (value || "").trim().toLowerCase();
   return slug === "ineffable-beauty" ? "ineffable" : slug;
+}
+
+function isAlyssaOrIneffable(value: string | null | undefined) {
+  const slug = normalizeBrandSlug(value);
+  return slug === "alyssa" || slug === "ineffable";
+}
+
+function isGos(value: string | null | undefined) {
+  const slug = normalizeBrandSlug(value);
+  return slug === "gos" || slug === "gos-beauty" || slug === "gosbeauty";
 }
 
 function openingHoursNote(value: PublicBranchOpeningHours) {
@@ -134,19 +143,24 @@ function parseOpeningRange(line: string): OpeningRange | null {
   return { startMinutes, endMinutes };
 }
 
+function usesWeekendHours(appointmentDate: string | undefined) {
+  const date = parseDateInput(appointmentDate);
+  return Boolean(
+    date &&
+      (date.dayOfWeek === 0 ||
+        date.dayOfWeek === 6 ||
+        HONG_KONG_GENERAL_HOLIDAYS.has(date.key))
+  );
+}
+
 function fallbackRange(
   brandSlug: string | null | undefined,
-  usesWeekendHours: boolean
+  weekendOrHoliday: boolean
 ): OpeningRange {
-  const slug = normalizeBrandSlug(brandSlug);
-  if (slug === "alyssa" || slug === "ineffable") {
-    return usesWeekendHours
-      ? { startMinutes: 10 * 60, endMinutes: 20 * 60 }
-      : { startMinutes: 11 * 60, endMinutes: 21 * 60 };
-  }
+  if (isAlyssaOrIneffable(brandSlug)) return ALYSSA_IB_BROAD_RANGE;
 
-  if (slug === "gos" || slug === "gos-beauty" || slug === "gosbeauty") {
-    return usesWeekendHours
+  if (isGos(brandSlug)) {
+    return weekendOrHoliday
       ? { startMinutes: 11 * 60, endMinutes: 19 * 60 }
       : { startMinutes: 12 * 60, endMinutes: 21 * 60 };
   }
@@ -159,27 +173,26 @@ function resolveOpeningRange({
   appointmentDate,
   brandSlug,
 }: BookingTimeOptionsInput): OpeningRange {
-  const date = parseDateInput(appointmentDate);
-  const usesWeekendHours = Boolean(
-    date &&
-      (date.dayOfWeek === 0 ||
-        date.dayOfWeek === 6 ||
-        HONG_KONG_GENERAL_HOLIDAYS.has(date.key))
-  );
+  // Alyssa / Ineffable intentionally expose a broad 10:00–21:00 preference
+  // window every day. CS confirms the actual appointment against official
+  // opening hours shown below the form.
+  if (isAlyssaOrIneffable(brandSlug)) return ALYSSA_IB_BROAD_RANGE;
+
+  const weekendOrHoliday = usesWeekendHours(appointmentDate);
   const note = openingHoursNote(openingHours);
   const lines = note
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const preferredLine = usesWeekendHours
+  const preferredLine = weekendOrHoliday
     ? lines.find((line) => /星期六|星期日|六日|公眾假期/.test(line))
     : lines.find((line) => /星期一至五|星期一.*星期五|平日/.test(line));
   const parsedPreferred = preferredLine ? parseOpeningRange(preferredLine) : null;
   if (parsedPreferred) return parsedPreferred;
 
   const parsedFirst = lines.map(parseOpeningRange).find(Boolean);
-  return parsedFirst || fallbackRange(brandSlug, usesWeekendHours);
+  return parsedFirst || fallbackRange(brandSlug, weekendOrHoliday);
 }
 
 function formatTime(minutes: number) {
@@ -188,15 +201,26 @@ function formatTime(minutes: number) {
   return `${hour}:${minute}`;
 }
 
+export function getPublicBookingHoursNotice(
+  brandSlug: string | null | undefined
+) {
+  if (isAlyssaOrIneffable(brandSlug)) {
+    return "營業時間：星期一至五 11:00–21:00；星期六日及公眾假期 10:00–20:00。表格時段只作預約意向，實際時間由客服確認。";
+  }
+
+  if (isGos(brandSlug)) {
+    return "營業時間：星期一至五 12:00–21:00；星期六、日及公眾假期 11:00–19:00。實際時間由客服確認。";
+  }
+
+  return "所選時段只作預約意向，實際時間由客服確認。";
+}
+
 export function getPublicBookingTimeOptions(
   input: BookingTimeOptionsInput
 ): string[] {
   const range = resolveOpeningRange(input);
   const output: string[] = [];
 
-  // Each selectable value is a preferred treatment start time. The final slot
-  // therefore begins 30 minutes before the branch closing time; CS still owns
-  // the final availability confirmation shown in the form copy.
   for (
     let minutes = range.startMinutes;
     minutes <= range.endMinutes - HALF_HOUR_MINUTES;
