@@ -43,6 +43,7 @@ import {
 } from "@/lib/data/alyssaConfig";
 import type { PublicFormConfigSuccess } from "@/lib/data/publicFormConfig";
 import {
+  getPublicBookingHoursNotice,
   getPublicBookingTimeOptions,
   type PublicBranchOpeningHours,
 } from "@/lib/booking/publicBookingTimes";
@@ -1244,6 +1245,10 @@ export function PublicLeadForm({
       selectedBranch?.openingHours,
     ]
   );
+  const bookingHoursNotice = useMemo(
+    () => getPublicBookingHoursNotice(brand.slug || brandSlug),
+    [brand.slug, brandSlug]
+  );
   const legalProfile = useMemo(() => {
     const resolvedSlug = brand.slug || brandSlug || "alyssa";
 
@@ -2142,6 +2147,10 @@ export function PublicLeadForm({
                   </div>
                 </div>
 
+                <p className="mt-2 text-[11px] font-semibold leading-4 text-[var(--public-muted)] sm:text-xs sm:leading-5">
+                  {bookingHoursNotice}
+                </p>
+
                 <label className="mt-4 flex items-start gap-2.5 text-[13px] font-semibold leading-5 text-[var(--public-heading)]">
                   <input
                     required
@@ -2451,6 +2460,9 @@ export function PublicLeadForm({
                       </select>
                     </Field>
                   </div>
+                  <p className="text-[11px] font-semibold leading-4 text-[var(--public-muted)] sm:text-xs sm:leading-5">
+                    {bookingHoursNotice}
+                  </p>
                 </FormSection>
 
                 <section className="box-border w-full max-w-full rounded-[12px] border border-[#f3e5ec] bg-white p-2.5 sm:rounded-[18px] sm:border-[var(--public-border)] sm:bg-[var(--public-soft-bg)] sm:p-3">
