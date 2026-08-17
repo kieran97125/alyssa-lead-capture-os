@@ -15,7 +15,54 @@ type BookingTimeOptionsInput = {
   brandSlug?: string | null;
 };
 
+type ParsedBookingDate = {
+  key: string;
+  dayOfWeek: number;
+};
+
 const HALF_HOUR_MINUTES = 30;
+
+// Gazetted Hong Kong general holidays. Sundays are already handled by the
+// weekend rule, but keeping dated holidays here makes weekday substitute /
+// additional holidays use the same customer-facing hours as Saturday/Sunday.
+const HONG_KONG_GENERAL_HOLIDAYS = new Set([
+  // 2026 — GovHK gazetted general holidays.
+  "2026-01-01",
+  "2026-02-17",
+  "2026-02-18",
+  "2026-02-19",
+  "2026-04-03",
+  "2026-04-04",
+  "2026-04-06",
+  "2026-04-07",
+  "2026-05-01",
+  "2026-05-25",
+  "2026-06-19",
+  "2026-07-01",
+  "2026-09-26",
+  "2026-10-01",
+  "2026-10-19",
+  "2026-12-25",
+  "2026-12-26",
+  // 2027 — GovHK gazetted general holidays.
+  "2027-01-01",
+  "2027-02-06",
+  "2027-02-08",
+  "2027-02-09",
+  "2027-03-26",
+  "2027-03-27",
+  "2027-03-29",
+  "2027-04-05",
+  "2027-05-01",
+  "2027-05-13",
+  "2027-06-09",
+  "2027-07-01",
+  "2027-09-16",
+  "2027-10-01",
+  "2027-10-08",
+  "2027-12-25",
+  "2027-12-27",
+]);
 
 function normalizeBrandSlug(value: string | null | undefined) {
   const slug = (value || "").trim().toLowerCase();
@@ -28,24 +75,27 @@ function openingHoursNote(value: PublicBranchOpeningHours) {
   return typeof value.note === "string" ? value.note.trim() : "";
 }
 
-function parseDateInput(value: string | undefined) {
+function parseDateInput(value: string | undefined): ParsedBookingDate | null {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value || "");
   if (!match) return null;
 
   const year = Number(match[1]);
   const month = Number(match[2]);
   const day = Number(match[3]);
-  const parsed = new Date(year, month - 1, day, 12, 0, 0, 0);
+  const parsed = new Date(Date.UTC(year, month - 1, day, 12, 0, 0, 0));
 
   if (
-    parsed.getFullYear() !== year ||
-    parsed.getMonth() !== month - 1 ||
-    parsed.getDate() !== day
+    parsed.getUTCFullYear() !== year ||
+    parsed.getUTCMonth() !== month - 1 ||
+    parsed.getUTCDate() !== day
   ) {
     return null;
   }
 
-  return parsed;
+  return {
+    key: `${match[1]}-${match[2]}-${match[3]}`,
+    dayOfWeek: parsed.getUTCDay(),
+  };
 }
 
 function to24HourMinutes(
@@ -86,13 +136,19 @@ function parseOpeningRange(line: string): OpeningRange | null {
 
 function fallbackRange(
   brandSlug: string | null | undefined,
-  isWeekend: boolean
+  usesWeekendHours: boolean
 ): OpeningRange {
   const slug = normalizeBrandSlug(brandSlug);
   if (slug === "alyssa" || slug === "ineffable") {
-    return isWeekend
+    return usesWeekendHours
       ? { startMinutes: 10 * 60, endMinutes: 20 * 60 }
       : { startMinutes: 11 * 60, endMinutes: 21 * 60 };
+  }
+
+  if (slug === "gos" || slug === "gos-beauty" || slug === "gosbeauty") {
+    return usesWeekendHours
+      ? { startMinutes: 11 * 60, endMinutes: 19 * 60 }
+      : { startMinutes: 12 * 60, endMinutes: 21 * 60 };
   }
 
   return { startMinutes: 11 * 60, endMinutes: 20 * 60 };
@@ -104,21 +160,26 @@ function resolveOpeningRange({
   brandSlug,
 }: BookingTimeOptionsInput): OpeningRange {
   const date = parseDateInput(appointmentDate);
-  const isWeekend = Boolean(date && (date.getDay() === 0 || date.getDay() === 6));
+  const usesWeekendHours = Boolean(
+    date &&
+      (date.dayOfWeek === 0 ||
+        date.dayOfWeek === 6 ||
+        HONG_KONG_GENERAL_HOLIDAYS.has(date.key))
+  );
   const note = openingHoursNote(openingHours);
   const lines = note
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean);
 
-  const preferredLine = isWeekend
+  const preferredLine = usesWeekendHours
     ? lines.find((line) => /星期六|星期日|六日|公眾假期/.test(line))
     : lines.find((line) => /星期一至五|星期一.*星期五|平日/.test(line));
   const parsedPreferred = preferredLine ? parseOpeningRange(preferredLine) : null;
   if (parsedPreferred) return parsedPreferred;
 
   const parsedFirst = lines.map(parseOpeningRange).find(Boolean);
-  return parsedFirst || fallbackRange(brandSlug, isWeekend);
+  return parsedFirst || fallbackRange(brandSlug, usesWeekendHours);
 }
 
 function formatTime(minutes: number) {
