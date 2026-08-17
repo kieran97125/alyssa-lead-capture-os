@@ -75,27 +75,6 @@ type SubmitState = "idle" | "loading" | "success" | "error";
 type ConfigStatus = "loading" | "ready" | "error";
 type ConversionMode = "form_submit_pixel" | "thank_you_redirect";
 
-const GOS_BOOKING_TIMES = [
-  "11:00",
-  "11:30",
-  "12:00",
-  "12:30",
-  "13:00",
-  "13:30",
-  "14:00",
-  "14:30",
-  "15:00",
-  "15:30",
-  "16:00",
-  "16:30",
-  "17:00",
-  "17:30",
-  "18:00",
-  "18:30",
-  "19:00",
-  "19:30",
-] as const;
-
 const GosBookingCalendar = dynamic(
   () =>
     import("@/components/alyssa/GosBookingCalendar").then(
@@ -1311,7 +1290,6 @@ export function PublicLeadForm({
 
   useEffect(() => {
     if (
-      isCompactPublicForm ||
       !formData.appointment_time ||
       standardBookingTimes.includes(formData.appointment_time)
     ) {
@@ -1322,11 +1300,7 @@ export function PublicLeadForm({
       ...current,
       appointment_time: "",
     }));
-  }, [
-    formData.appointment_time,
-    isCompactPublicForm,
-    standardBookingTimes,
-  ]);
+  }, [formData.appointment_time, standardBookingTimes]);
 
   async function waitForParentAttribution(
     selfAttribution: AttributionEnvelope
@@ -2160,6 +2134,7 @@ export function PublicLeadForm({
                     <span>預約時間</span>
                     <GosTimeField
                       value={formData.appointment_time}
+                      times={standardBookingTimes}
                       onChange={(value) =>
                         updateField("appointment_time", value)
                       }
@@ -2739,9 +2714,11 @@ function GosDateField({
 
 function GosTimeField({
   value,
+  times,
   onChange,
 }: {
   value: string;
+  times: string[];
   onChange: (value: string) => void;
 }) {
   return (
@@ -2750,7 +2727,7 @@ function GosTimeField({
       aria-label="預約時間"
       className="mt-1.5 grid grid-cols-4 gap-1.5 rounded-[13px] border border-[var(--public-border)] bg-white p-2"
     >
-      {GOS_BOOKING_TIMES.map((time) => {
+      {times.map((time) => {
         const isSelected = time === value;
         return (
           <button
