@@ -187,7 +187,7 @@ test("GOS compact form shows the configured item and submits the short booking f
   await expect(page.getByLabel("預約日期")).toBeVisible();
   await expect(page.getByLabel("預約時間")).toBeVisible();
   await expect(page.getByRole("radio")).toHaveCount(18);
-  await expect(page.getByRole("radio", { name: "11:30" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "12:00" })).toBeVisible();
   await expect(page.getByLabel("Email")).toHaveCount(0);
   await expect(page.getByLabel("療程")).toHaveCount(0);
   await expect(page.getByLabel("套餐")).toHaveCount(0);
