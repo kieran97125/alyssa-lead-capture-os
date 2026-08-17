@@ -1,0 +1,70 @@
+name: Align rolling comparison once
+
+on:
+  push:
+    branches:
+      - agent/align-rolling-comparison-width-2
+    paths:
+      - .github/workflows/align-rolling-comparison-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/align-rolling-comparison-width-2
+          fetch-depth: 0
+      - name: Align rolling comparison with monthly content width
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          layout = Path('src/app/performance/compare/layout.tsx')
+          source = layout.read_text()
+          replacements = [
+              (
+                  '''        .rolling-compare-shell {\n          padding-left: var(--command-sidebar-width);\n          background: var(--command-page);\n        }''',
+                  '''        .rolling-compare-shell {\n          width: 100%;\n          min-width: 0;\n          padding-left: 0;\n          background: transparent;\n        }''',
+                  'rolling shell nested width',
+              ),
+              (
+                  '''        .rolling-compare-panel {\n          width: min(100% - 2rem, 1500px);\n          margin: 0 auto;\n          padding: 1.25rem 0 0.1rem;\n        }''',
+                  '''        .rolling-compare-panel {\n          width: 100%;\n          min-width: 0;\n          margin: 0;\n          padding: 1.25rem 0 0.1rem;\n        }''',
+                  'rolling panel nested width',
+              ),
+              (
+                  '''          .rolling-compare-shell { padding-left: 0; }\n          .rolling-compare-panel { width: min(100% - 1rem, 1500px); padding-top: 0.65rem; }''',
+                  '''          .rolling-compare-shell { padding-left: 0; }\n          .rolling-compare-panel { width: 100%; padding-top: 0.65rem; }''',
+                  'mobile rolling width',
+              ),
+          ]
+          for old, new, label in replacements:
+              count = source.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{label}: expected 1 target, got {count}')
+              source = source.replace(old, new, 1)
+          layout.write_text(source)
+
+          spec = Path('e2e/rolling-seven-day-comparison.spec.ts')
+          tests = spec.read_text()
+          anchor = '''  expect(layoutOrder).toEqual({\n    filterBeforeMonthly: true,\n    monthlyBeforeRolling: true,\n    rollingBeforeAnalysis: true,\n  });\n\n  const result = await page.evaluate(async () => {'''
+          replacement = '''  expect(layoutOrder).toEqual({\n    filterBeforeMonthly: true,\n    monthlyBeforeRolling: true,\n    rollingBeforeAnalysis: true,\n  });\n\n  const alignment = await page.evaluate(() => {\n    const monthly = document.querySelector(\".period-kpi-grid\");\n    const rolling = document.querySelector(\".rolling-compare-panel\");\n    if (!monthly || !rolling) return null;\n    const monthlyRect = monthly.getBoundingClientRect();\n    const rollingRect = rolling.getBoundingClientRect();\n    return {\n      leftDelta: Math.abs(monthlyRect.left - rollingRect.left),\n      rightDelta: Math.abs(monthlyRect.right - rollingRect.right),\n    };\n  });\n  expect(alignment).not.toBeNull();\n  expect(alignment!.leftDelta).toBeLessThanOrEqual(2);\n  expect(alignment!.rightDelta).toBeLessThanOrEqual(2);\n\n  const result = await page.evaluate(async () => {'''
+          if tests.count(anchor) != 1:
+              raise RuntimeError(f'rolling alignment test anchor: expected 1, got {tests.count(anchor)}')
+          spec.write_text(tests.replace(anchor, replacement, 1))
+          PY
+          git diff --check
+          git diff -- src/app/performance/compare/layout.tsx e2e/rolling-seven-day-comparison.spec.ts
+      - name: Commit product update
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/performance/compare/layout.tsx e2e/rolling-seven-day-comparison.spec.ts
+          git commit -m "Align rolling comparison with monthly KPI width [skip ci]"
+          git push origin HEAD:agent/align-rolling-comparison-width-2
