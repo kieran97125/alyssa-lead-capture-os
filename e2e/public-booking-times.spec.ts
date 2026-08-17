@@ -53,7 +53,7 @@ test("standard-form schedule keeps a safe brand fallback when branch hours are m
 });
 
 const GOS_HOURS = {
-  note: "星期一至五 12:00–21:00\\r\\n星期六、日及公眾假期 11:00-19:00",
+  note: "星期一至五 12:00–21:00\r\n星期六、日及公眾假期 11:00-19:00",
 };
 
 test("GOS weekday booking times follow the live branch opening hours", () => {
