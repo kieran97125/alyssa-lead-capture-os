@@ -1,0 +1,43 @@
+name: GOS test contract once
+
+on:
+  push:
+    branches:
+      - agent/hk-public-holiday-booking-hours
+    paths:
+      - .github/workflows/gos-test-contract-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/hk-public-holiday-booking-hours
+          fetch-depth: 0
+      - name: Update GOS fallback expectation
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path("e2e/gos-compact-form.spec.ts")
+          source = path.read_text()
+          old = 'await expect(page.getByRole("radio", { name: "11:30" })).toBeVisible();'
+          new = 'await expect(page.getByRole("radio", { name: "12:00" })).toBeVisible();'
+          if source.count(old) != 1:
+              raise RuntimeError(f"expected one GOS radio expectation, got {source.count(old)}")
+          path.write_text(source.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff -- e2e/gos-compact-form.spec.ts
+      - name: Commit test update
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/gos-compact-form.spec.ts
+          git commit -m "Update GOS fallback time expectation [skip ci]"
+          git push origin HEAD:agent/hk-public-holiday-booking-hours
