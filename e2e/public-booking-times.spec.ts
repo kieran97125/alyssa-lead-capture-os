@@ -34,6 +34,18 @@ test("Alyssa and IB weekend forms follow the earlier weekend hours", () => {
   expect(times).not.toContain("20:00");
 });
 
+test("Alyssa and IB weekday public holidays use the same hours as weekends", () => {
+  const times = getPublicBookingTimeOptions({
+    openingHours: ALYSSA_IB_HOURS,
+    appointmentDate: "2026-10-01",
+    brandSlug: "ineffable",
+  });
+
+  expect(times[0]).toBe("10:00");
+  expect(times.at(-1)).toBe("19:30");
+  expect(times).not.toContain("20:00");
+});
+
 test("standard-form schedule keeps a safe brand fallback when branch hours are missing", () => {
   const weekday = getPublicBookingTimeOptions({
     openingHours: null,
@@ -80,4 +92,27 @@ test("GOS weekend booking times stop before the 19:00 closing time", () => {
   expect(times.at(-1)).toBe("18:30");
   expect(times).not.toContain("19:00");
   expect(times).not.toContain("19:30");
+});
+
+test("GOS weekday public holidays use the same hours as weekends", () => {
+  const times = getPublicBookingTimeOptions({
+    openingHours: GOS_HOURS,
+    appointmentDate: "2027-01-01",
+    brandSlug: "gos-beauty",
+  });
+
+  expect(times[0]).toBe("11:00");
+  expect(times.at(-1)).toBe("18:30");
+  expect(times).not.toContain("19:00");
+});
+
+test("GOS fallback keeps the official weekday hours if opening-hours data is unavailable", () => {
+  const times = getPublicBookingTimeOptions({
+    openingHours: null,
+    appointmentDate: "2026-08-17",
+    brandSlug: "gos-beauty",
+  });
+
+  expect(times[0]).toBe("12:00");
+  expect(times.at(-1)).toBe("20:30");
 });
