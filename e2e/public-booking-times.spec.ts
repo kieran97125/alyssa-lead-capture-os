@@ -51,3 +51,33 @@ test("standard-form schedule keeps a safe brand fallback when branch hours are m
   expect(weekend[0]).toBe("10:00");
   expect(weekend.at(-1)).toBe("19:30");
 });
+
+const GOS_HOURS = {
+  note: "星期一至五 12:00–21:00\\r\\n星期六、日及公眾假期 11:00-19:00",
+};
+
+test("GOS weekday booking times follow the live branch opening hours", () => {
+  const times = getPublicBookingTimeOptions({
+    openingHours: GOS_HOURS,
+    appointmentDate: "2026-08-17",
+    brandSlug: "gos-beauty",
+  });
+
+  expect(times[0]).toBe("12:00");
+  expect(times.at(-1)).toBe("20:30");
+  expect(times).not.toContain("11:00");
+  expect(times).toContain("20:00");
+});
+
+test("GOS weekend booking times stop before the 19:00 closing time", () => {
+  const times = getPublicBookingTimeOptions({
+    openingHours: GOS_HOURS,
+    appointmentDate: "2026-08-22",
+    brandSlug: "gos-beauty",
+  });
+
+  expect(times[0]).toBe("11:00");
+  expect(times.at(-1)).toBe("18:30");
+  expect(times).not.toContain("19:00");
+  expect(times).not.toContain("19:30");
+});
