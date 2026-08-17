@@ -1,0 +1,171 @@
+name: Form health one-shot patch
+
+on:
+  push:
+    branches:
+      - agent/form-health-gos-booking-hours
+    paths:
+      - .github/workflows/form-health-patch.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/form-health-gos-booking-hours
+          fetch-depth: 0
+
+      - name: Patch GOS booking times and regression coverage
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/alyssa/PublicLeadForm.tsx")
+          source = path.read_text()
+
+          fixed_times = '''const GOS_BOOKING_TIMES = [
+            "11:00",
+            "11:30",
+            "12:00",
+            "12:30",
+            "13:00",
+            "13:30",
+            "14:00",
+            "14:30",
+            "15:00",
+            "15:30",
+            "16:00",
+            "16:30",
+            "17:00",
+            "17:30",
+            "18:00",
+            "18:30",
+            "19:00",
+            "19:30",
+          ] as const;
+
+          '''
+          assert fixed_times in source
+          source = source.replace(fixed_times, "", 1)
+
+          old = '''    if (
+              isCompactPublicForm ||
+              !formData.appointment_time ||
+              standardBookingTimes.includes(formData.appointment_time)
+            ) {
+          '''
+          new = '''    if (
+              !formData.appointment_time ||
+              standardBookingTimes.includes(formData.appointment_time)
+            ) {
+          '''
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          old = '''  }, [
+            formData.appointment_time,
+            isCompactPublicForm,
+            standardBookingTimes,
+          ]);
+          '''
+          new = '''  }, [formData.appointment_time, standardBookingTimes]);
+          '''
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          old = '''                    <GosTimeField
+                              value={formData.appointment_time}
+                              onChange={(value) =>
+                                updateField("appointment_time", value)
+                              }
+                            />
+          '''
+          new = '''                    <GosTimeField
+                              value={formData.appointment_time}
+                              times={standardBookingTimes}
+                              onChange={(value) =>
+                                updateField("appointment_time", value)
+                              }
+                            />
+          '''
+          assert old in source
+          source = source.replace(old, new, 1)
+
+          old = '''function GosTimeField({
+            value,
+            onChange,
+          }: {
+            value: string;
+            onChange: (value: string) => void;
+          }) {
+          '''
+          new = '''function GosTimeField({
+            value,
+            times,
+            onChange,
+          }: {
+            value: string;
+            times: string[];
+            onChange: (value: string) => void;
+          }) {
+          '''
+          assert old in source
+          source = source.replace(old, new, 1)
+          assert "{GOS_BOOKING_TIMES.map((time) =>" in source
+          source = source.replace("{GOS_BOOKING_TIMES.map((time) =>", "{times.map((time) =>", 1)
+          path.write_text(source)
+
+          test_path = Path("e2e/public-booking-times.spec.ts")
+          tests = test_path.read_text()
+          assert "GOS weekday booking times follow the live branch opening hours" not in tests
+          tests = tests.rstrip() + '''
+
+          const GOS_HOURS = {
+            note: "星期一至五 12:00–21:00\\r\\n星期六、日及公眾假期 11:00-19:00",
+          };
+
+          test("GOS weekday booking times follow the live branch opening hours", () => {
+            const times = getPublicBookingTimeOptions({
+              openingHours: GOS_HOURS,
+              appointmentDate: "2026-08-17",
+              brandSlug: "gos-beauty",
+            });
+
+            expect(times[0]).toBe("12:00");
+            expect(times.at(-1)).toBe("20:30");
+            expect(times).not.toContain("11:00");
+            expect(times).toContain("20:00");
+          });
+
+          test("GOS weekend booking times stop before the 19:00 closing time", () => {
+            const times = getPublicBookingTimeOptions({
+              openingHours: GOS_HOURS,
+              appointmentDate: "2026-08-22",
+              brandSlug: "gos-beauty",
+            });
+
+            expect(times[0]).toBe("11:00");
+            expect(times.at(-1)).toBe("18:30");
+            expect(times).not.toContain("19:00");
+            expect(times).not.toContain("19:30");
+          });
+          '''
+          test_path.write_text(tests)
+          PY
+
+          git diff --check
+          git diff -- src/components/alyssa/PublicLeadForm.tsx e2e/public-booking-times.spec.ts
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/components/alyssa/PublicLeadForm.tsx e2e/public-booking-times.spec.ts
+          git commit -m "Fix GOS booking times from branch hours [skip ci]"
+          git push origin HEAD:agent/form-health-gos-booking-hours
