@@ -1,0 +1,83 @@
+name: Period prior values once
+
+on:
+  push:
+    branches:
+      - agent/show-prior-values-in-comparisons
+    paths:
+      - .github/workflows/period-prior-values-once.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/show-prior-values-in-comparisons
+          fetch-depth: 0
+      - name: Show prior values on monthly comparison cards
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('src/app/performance/compare/page.tsx')
+          source = page.read_text()
+
+          replacements = [
+              (
+                  '''function ChangeBadge({\n  metric,\n  change,\n}: {\n  metric: ComparisonMetricKey;\n  change: number | null | undefined;\n}) {\n  if (change === null || change === undefined) {\n    return <span className="period-change is-neutral">未有可比基準</span>;\n  }\n  if (Math.abs(change) < 0.0005) {\n    return <span className="period-change is-neutral">與上月相若</span>;\n  }''',
+                  '''function ChangeBadge({\n  metric,\n  change,\n}: {\n  metric: ComparisonMetricKey;\n  change: number | null | undefined;\n}) {\n  if (change === null || change === undefined || Math.abs(change) < 0.0005) {\n    return null;\n  }''',
+                  'neutral comparison badge cleanup',
+              ),
+              (
+                  '''function metricKind(key: ComparisonMetricKey): MetricKind {''',
+                  '''function PreviousPeriodValue({\n  value,\n  kind,\n}: {\n  value: number | null | undefined;\n  kind: MetricKind;\n}) {\n  if (value === null || value === undefined || !Number.isFinite(value)) return null;\n  return (\n    <small className="mt-1 block text-[11px] font-bold text-[#765669] sm:text-xs">\n      上月同期：{formatMetric(value, kind)}\n    </small>\n  );\n}\n\nfunction metricKind(key: ComparisonMetricKey): MetricKind {''',
+                  'previous-period helper',
+              ),
+              (
+                  '''  const current = snapshot.totals[0];\n  const breakdownBrandNames = Array.from(''',
+                  '''  const current = snapshot.totals[0];\n  const previous = snapshot.totals[1];\n  const breakdownBrandNames = Array.from(''',
+                  'previous total row',
+              ),
+              (
+                  '''                      <strong>{formatMetric(value, definition.kind)}</strong>\n                      <small>{definition.note}</small>\n                      <ChangeBadge''',
+                  '''                      <strong>{formatMetric(value, definition.kind)}</strong>\n                      <small>{definition.note}</small>\n                      <PreviousPeriodValue\n                        value={\n                          previous\n                            ? metricValue(previous.metrics, definition.key)\n                            : null\n                        }\n                        kind={definition.kind}\n                      />\n                      <ChangeBadge''',
+                  'primary KPI previous value',
+              ),
+              (
+                  '''                        <strong>\n                          {formatMetric(\n                            metricValue(current.metrics, definition.key),\n                            "rate"\n                          )}\n                        </strong>\n                        <ChangeBadge''',
+                  '''                        <strong>\n                          {formatMetric(\n                            metricValue(current.metrics, definition.key),\n                            "rate"\n                          )}\n                        </strong>\n                        <PreviousPeriodValue\n                          value={\n                            previous\n                              ? metricValue(previous.metrics, definition.key)\n                              : null\n                          }\n                          kind="rate"\n                        />\n                        <ChangeBadge''',
+                  'rate KPI previous value',
+              ),
+          ]
+
+          for old, new, label in replacements:
+              count = source.count(old)
+              if count != 1:
+                  raise RuntimeError(f'{label}: expected 1 target, got {count}')
+              source = source.replace(old, new, 1)
+
+          page.write_text(source)
+
+          spec = Path('e2e/marketing-command-center.spec.ts')
+          tests = spec.read_text()
+          old = '''  await expect(page.getByText("CPL", { exact: true }).first()).toBeVisible();\n  await expect(\n    page.getByRole("heading", { name: "同期累積走勢", exact: true })\n  ).toBeVisible();'''
+          new = '''  await expect(page.getByText("CPL", { exact: true }).first()).toBeVisible();\n  const coreMetrics = page.getByRole("region", { name: "同期核心指標" });\n  await expect(coreMetrics.getByText(/上月同期：/)).toHaveCount(7);\n  await expect(page.getByText(/上月同期：/)).toHaveCount(10);\n  await expect(page.getByText("未有可比基準", { exact: true })).toHaveCount(0);\n  await expect(page.getByText("與上月相若", { exact: true })).toHaveCount(0);\n  await expect(\n    page.getByRole("heading", { name: "同期累積走勢", exact: true })\n  ).toBeVisible();'''
+          if tests.count(old) != 1:
+              raise RuntimeError(f'period comparison test target: expected 1, got {tests.count(old)}')
+          spec.write_text(tests.replace(old, new, 1))
+          PY
+          git diff --check
+          git diff -- src/app/performance/compare/page.tsx e2e/marketing-command-center.spec.ts
+      - name: Commit product update
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/performance/compare/page.tsx e2e/marketing-command-center.spec.ts
+          git commit -m "Show prior period values on comparison KPIs [skip ci]"
+          git push origin HEAD:agent/show-prior-values-in-comparisons
