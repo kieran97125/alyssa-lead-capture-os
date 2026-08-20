@@ -29,6 +29,7 @@ type CalendarBrand = {
 };
 
 const weekdays = ["一", "二", "三", "四", "五", "六", "日"];
+const MAX_VISIBLE_ITEMS_PER_DAY = 3;
 
 function calendarDate(year: number, month: number, day: number) {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(
@@ -49,6 +50,20 @@ function itemTypeLabel(type: CalendarItem["itemType"]) {
   return labels[type];
 }
 
+function statusLabel(status: CalendarItem["status"]) {
+  const labels: Record<CalendarItem["status"], string> = {
+    idea: "Idea",
+    planned: "Planned",
+    in_progress: "In progress",
+    review: "Review",
+    scheduled: "Scheduled",
+    published: "Published",
+    blocked: "Blocked",
+    cancelled: "Cancelled",
+  };
+  return labels[status];
+}
+
 function CalendarTaskCard({
   item,
   brand,
@@ -67,57 +82,89 @@ function CalendarTaskCard({
     disabled: overlay,
     data: { scheduledDate: item.scheduledDate },
   });
+  const brandColor = brand?.color || "#5a2348";
   const style = overlay
     ? undefined
     : {
         transform: CSS.Translate.toString(draggable.transform),
         opacity: draggable.isDragging ? 0.35 : 1,
-        borderLeftColor: brand?.color || "#5a2348",
       };
 
   return (
     <article
       ref={overlay ? undefined : draggable.setNodeRef}
       style={style}
-      className={`calendar-task ${overlay ? "is-overlay" : ""}`}
+      className={`calendar-task calendar-task-compact ${overlay ? "is-overlay" : ""}`}
+      data-calendar-task-title={item.title}
       {...(overlay ? {} : draggable.attributes)}
       {...(overlay ? {} : draggable.listeners)}
     >
-      <div>
-        <span>
-          {itemTypeLabel(item.itemType)}
-          {item.channel ? <small>{item.channel}</small> : null}
-        </span>
-        {!overlay && onDelete ? (
-          <button
-            type="button"
-            className="calendar-task-delete"
-            aria-label={`刪除事項：${item.title}`}
-            title="刪除事項"
-            disabled={deleting}
-            onPointerDown={(event) => event.stopPropagation()}
-            onKeyDown={(event) => event.stopPropagation()}
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete(item);
-            }}
-          >
-            <Trash2 size={11} />
-          </button>
-        ) : null}
-      </div>
-      <strong>{item.title}</strong>
-      {item.treatmentLabel ? (
-        <small className="calendar-task-treatment">{item.treatmentLabel}</small>
-      ) : null}
-      <footer>
+      <div className="calendar-task-summary">
         <span
           className="calendar-task-brand-dot"
-          style={{ background: brand?.color || "#5a2348" }}
+          style={{ background: brandColor }}
+          aria-hidden="true"
         />
-        <span>{brand?.name || "未設定品牌"}</span>
-        <GripVertical size={12} />
-      </footer>
+        <strong title={item.title}>{item.title}</strong>
+        <small>
+          {itemTypeLabel(item.itemType)}
+          {item.channel ? ` · ${item.channel}` : ""}
+        </small>
+        <GripVertical className="calendar-task-grip" size={11} aria-hidden="true" />
+      </div>
+
+      {!overlay ? (
+        <div className="calendar-task-preview" role="group" aria-label={`${item.title} 詳細資料`}>
+          <div className="calendar-task-preview-head">
+            <div>
+              <span className="calendar-task-preview-kicker">
+                <i style={{ background: brandColor }} />
+                {brand?.name || "未設定品牌"}
+              </span>
+              <strong>{item.title}</strong>
+            </div>
+            {onDelete ? (
+              <button
+                type="button"
+                className="calendar-task-delete"
+                aria-label={`刪除事項：${item.title}`}
+                title="刪除事項"
+                disabled={deleting}
+                onPointerDown={(event) => event.stopPropagation()}
+                onKeyDown={(event) => event.stopPropagation()}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onDelete(item);
+                }}
+              >
+                <Trash2 size={12} />
+              </button>
+            ) : null}
+          </div>
+
+          <div className="calendar-task-preview-meta">
+            <span>{itemTypeLabel(item.itemType)}</span>
+            {item.channel ? <span>{item.channel}</span> : null}
+            <span>{statusLabel(item.status)}</span>
+            {item.scheduledTime ? <span>{item.scheduledTime.slice(0, 5)}</span> : null}
+          </div>
+
+          {item.treatmentLabel ? (
+            <p className="calendar-task-preview-line">
+              <b>療程</b>
+              <span>{item.treatmentLabel}</span>
+            </p>
+          ) : null}
+          {item.assigneeEmail ? (
+            <p className="calendar-task-preview-line">
+              <b>負責人</b>
+              <span>{item.assigneeEmail}</span>
+            </p>
+          ) : null}
+          {item.notes ? <p className="calendar-task-preview-notes">{item.notes}</p> : null}
+          <p className="calendar-task-preview-hint">拖放可更改日期</p>
+        </div>
+      ) : null}
     </article>
   );
 }
@@ -140,6 +187,8 @@ function CalendarDay({
   onDelete: (item: CalendarItem) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: date });
+  const visibleItems = items.slice(0, MAX_VISIBLE_ITEMS_PER_DAY);
+  const overflowItems = items.slice(MAX_VISIBLE_ITEMS_PER_DAY);
 
   return (
     <section
@@ -154,7 +203,7 @@ function CalendarDay({
         {date === today ? <small>今日</small> : null}
       </header>
       <div className="calendar-day-items">
-        {items.map((item) => (
+        {visibleItems.map((item) => (
           <CalendarTaskCard
             key={item.id}
             item={item}
@@ -163,6 +212,34 @@ function CalendarDay({
             onDelete={onDelete}
           />
         ))}
+        {overflowItems.length ? (
+          <div className="calendar-more-wrap">
+            <button
+              type="button"
+              className="calendar-more-button"
+              aria-label={`${date} 還有 ${overflowItems.length} 項`}
+            >
+              +{overflowItems.length} more
+            </button>
+            <div className="calendar-more-preview" role="group" aria-label={`${date} 其餘事項`}>
+              <div className="calendar-more-preview-head">
+                <strong>{day} 日其餘事項</strong>
+                <small>共 {overflowItems.length} 項</small>
+              </div>
+              <div className="calendar-more-preview-list">
+                {overflowItems.map((item) => (
+                  <CalendarTaskCard
+                    key={item.id}
+                    item={item}
+                    brand={brands.find((brand) => brand.id === item.brandId)}
+                    deleting={deletingId === item.id}
+                    onDelete={onDelete}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : null}
       </div>
     </section>
   );
@@ -272,6 +349,304 @@ export function MarketingCalendarBoard({
 
   return (
     <div className="marketing-calendar-shell">
+      <style>{`
+        .calendar-day {
+          position: relative;
+          overflow: visible;
+        }
+        .calendar-day-items {
+          gap: 0.22rem !important;
+        }
+        .calendar-task.calendar-task-compact {
+          position: relative;
+          z-index: 1;
+          min-width: 0;
+          border: 1px solid #e7e9ef;
+          border-radius: 0.42rem;
+          background: #fff;
+          padding: 0 !important;
+          box-shadow: 0 2px 7px rgba(35, 44, 70, 0.035);
+          cursor: grab;
+          touch-action: none;
+        }
+        .calendar-task.calendar-task-compact:hover,
+        .calendar-task.calendar-task-compact:focus-within {
+          z-index: 40;
+          border-color: #d8dce6;
+          box-shadow: 0 5px 14px rgba(35, 44, 70, 0.08);
+        }
+        .calendar-task.calendar-task-compact:active {
+          cursor: grabbing;
+        }
+        .calendar-task-summary {
+          display: grid !important;
+          min-width: 0;
+          height: 1.56rem;
+          grid-template-columns: auto minmax(0, 1fr) auto auto;
+          gap: 0.28rem !important;
+          align-items: center !important;
+          padding: 0.26rem 0.32rem;
+        }
+        .calendar-task-summary .calendar-task-brand-dot {
+          width: 0.42rem;
+          height: 0.42rem;
+          flex: 0 0 auto;
+          border-radius: 999px;
+        }
+        .calendar-task-summary > strong {
+          min-width: 0;
+          margin: 0 !important;
+          overflow: hidden;
+          color: #30384d;
+          font-size: 0.5rem !important;
+          font-weight: 780 !important;
+          line-height: 1.1 !important;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          display: block !important;
+          -webkit-line-clamp: unset !important;
+        }
+        .calendar-task-summary > small {
+          max-width: 4.8rem;
+          overflow: hidden;
+          color: #98a0b0 !important;
+          font-size: 0.41rem !important;
+          font-weight: 700 !important;
+          line-height: 1 !important;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .calendar-task-grip {
+          color: #b4bac7;
+        }
+        .calendar-task-preview {
+          position: absolute;
+          z-index: 60;
+          top: calc(100% - 1px);
+          left: -0.15rem;
+          width: min(18.5rem, calc(100vw - 2rem));
+          padding: 0.78rem;
+          border: 1px solid #dfe3eb;
+          border-radius: 0.78rem;
+          background: rgba(255, 255, 255, 0.985);
+          box-shadow: 0 16px 42px rgba(35, 44, 70, 0.16);
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transform: translateY(4px);
+          transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+        }
+        .calendar-task.calendar-task-compact:hover > .calendar-task-preview,
+        .calendar-task.calendar-task-compact:focus-within > .calendar-task-preview {
+          opacity: 1;
+          visibility: visible;
+          pointer-events: auto;
+          transform: translateY(0);
+        }
+        .calendar-task.is-overlay .calendar-task-preview {
+          display: none;
+        }
+        .calendar-day:nth-child(7n) .calendar-task-preview,
+        .calendar-day:nth-child(7n - 1) .calendar-task-preview {
+          right: -0.15rem;
+          left: auto;
+        }
+        .calendar-task-preview-head {
+          display: flex !important;
+          align-items: flex-start !important;
+          justify-content: space-between !important;
+          gap: 0.6rem !important;
+        }
+        .calendar-task-preview-head > div {
+          min-width: 0;
+        }
+        .calendar-task-preview-kicker {
+          display: inline-flex !important;
+          align-items: center;
+          gap: 0.3rem;
+          color: #7d8494 !important;
+          font-size: 0.56rem !important;
+          font-weight: 760 !important;
+        }
+        .calendar-task-preview-kicker i {
+          width: 0.46rem;
+          height: 0.46rem;
+          border-radius: 999px;
+        }
+        .calendar-task-preview-head strong {
+          display: block !important;
+          margin-top: 0.2rem !important;
+          color: #242c40;
+          font-size: 0.75rem !important;
+          font-weight: 850 !important;
+          line-height: 1.35 !important;
+          white-space: normal !important;
+          overflow: visible !important;
+          -webkit-line-clamp: unset !important;
+        }
+        .calendar-task-preview .calendar-task-delete {
+          display: inline-grid;
+          width: 1.65rem;
+          height: 1.65rem;
+          flex: 0 0 auto;
+          place-items: center;
+        }
+        .calendar-task-preview-meta {
+          display: flex !important;
+          flex-wrap: wrap;
+          justify-content: flex-start !important;
+          gap: 0.28rem !important;
+          margin-top: 0.58rem;
+        }
+        .calendar-task-preview-meta span {
+          border-radius: 999px;
+          background: #f5f6f8;
+          padding: 0.22rem 0.4rem;
+          color: #737b8d !important;
+          font-size: 0.5rem !important;
+          font-weight: 760 !important;
+        }
+        .calendar-task-preview-line {
+          display: grid;
+          grid-template-columns: 3.1rem minmax(0, 1fr);
+          gap: 0.45rem;
+          margin: 0.52rem 0 0;
+          color: #646d80;
+          font-size: 0.57rem;
+          line-height: 1.45;
+        }
+        .calendar-task-preview-line b {
+          color: #9198a7;
+          font-weight: 760;
+        }
+        .calendar-task-preview-line span {
+          min-width: 0;
+          overflow-wrap: anywhere;
+        }
+        .calendar-task-preview-notes {
+          display: -webkit-box;
+          margin: 0.58rem 0 0;
+          overflow: hidden;
+          color: #646d80;
+          font-size: 0.56rem;
+          line-height: 1.45;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
+        }
+        .calendar-task-preview-hint {
+          margin: 0.62rem 0 0;
+          border-top: 1px solid #eef0f4;
+          padding-top: 0.5rem;
+          color: #a0a6b2;
+          font-size: 0.5rem;
+          font-weight: 690;
+        }
+        .calendar-more-wrap {
+          position: relative;
+          z-index: 2;
+        }
+        .calendar-more-wrap:hover,
+        .calendar-more-wrap:focus-within {
+          z-index: 50;
+        }
+        .calendar-more-button {
+          display: flex;
+          width: 100%;
+          height: 1.38rem;
+          align-items: center;
+          border: 1px dashed #dfe2e8;
+          border-radius: 0.4rem;
+          background: #fafbfc;
+          padding: 0 0.42rem;
+          color: #8b92a1;
+          font-size: 0.48rem;
+          font-weight: 800;
+          text-align: left;
+        }
+        .calendar-more-button:hover,
+        .calendar-more-button:focus-visible {
+          border-color: #cdd2dc;
+          background: #f5f6f8;
+          color: #626b7d;
+          outline: none;
+        }
+        .calendar-more-preview {
+          position: absolute;
+          z-index: 70;
+          top: calc(100% - 1px);
+          left: -0.15rem;
+          width: min(19rem, calc(100vw - 2rem));
+          max-height: 18rem;
+          overflow-y: auto;
+          border: 1px solid #dfe3eb;
+          border-radius: 0.8rem;
+          background: rgba(255, 255, 255, 0.99);
+          padding: 0.72rem;
+          box-shadow: 0 18px 46px rgba(35, 44, 70, 0.17);
+          opacity: 0;
+          visibility: hidden;
+          pointer-events: none;
+          transform: translateY(4px);
+          transition: opacity 120ms ease, transform 120ms ease, visibility 120ms ease;
+        }
+        .calendar-more-wrap:hover > .calendar-more-preview,
+        .calendar-more-wrap:focus-within > .calendar-more-preview {
+          opacity: 1;
+          visibility: visible;
+          pointer-events: auto;
+          transform: translateY(0);
+        }
+        .calendar-day:nth-child(7n) .calendar-more-preview,
+        .calendar-day:nth-child(7n - 1) .calendar-more-preview {
+          right: -0.15rem;
+          left: auto;
+        }
+        .calendar-more-preview-head {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 0.5rem;
+          margin-bottom: 0.5rem;
+        }
+        .calendar-more-preview-head strong {
+          color: #384154;
+          font-size: 0.65rem;
+          font-weight: 820;
+        }
+        .calendar-more-preview-head small {
+          color: #9ba2af;
+          font-size: 0.5rem;
+          font-weight: 700;
+        }
+        .calendar-more-preview-list {
+          display: grid;
+          gap: 0.28rem;
+        }
+        .calendar-task.is-overlay {
+          width: 11rem;
+          padding: 0 !important;
+          border-left: 1px solid #dfe3eb !important;
+          box-shadow: 0 16px 38px rgba(34, 42, 68, 0.18);
+        }
+        @media (max-width: 760px) {
+          .calendar-task-summary {
+            grid-template-columns: auto minmax(0, 1fr) auto;
+          }
+          .calendar-task-summary > small {
+            display: none;
+          }
+          .calendar-task-preview,
+          .calendar-more-preview {
+            position: fixed;
+            top: auto;
+            right: 0.65rem !important;
+            bottom: 0.65rem;
+            left: 0.65rem !important;
+            width: auto;
+            max-height: min(70vh, 28rem);
+          }
+        }
+      `}</style>
       <div className="calendar-weekdays" aria-hidden="true">
         {weekdays.map((weekday) => (
           <span key={weekday}>星期{weekday}</span>
