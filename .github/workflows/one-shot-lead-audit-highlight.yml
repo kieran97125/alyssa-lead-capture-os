@@ -1,0 +1,252 @@
+name: One-shot Lead Audit change highlights
+
+on:
+  push:
+    branches:
+      - agent/lead-audit-change-highlights
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/lead-audit-change-highlights
+      - name: Apply guarded UI patch
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          page = Path('src/app/lead-audit/page.tsx')
+          text = page.read_text()
+
+          old = '''function reviewStatusLabel(value: string) {
+            if (value === "expected") return "正常操作";
+            if (value === "reviewed") return "已核對";
+            if (value === "dismissed") return "已忽略";
+            if (value === "informational") return "一般更新";
+            return "待核對";
+          }
+          '''
+          new = '''function reviewStatusLabel(value: string) {
+            if (value === "expected") return "正常操作";
+            if (value === "reviewed") return "已核對";
+            if (value === "dismissed") return "已忽略";
+            if (value === "informational") return "一般更新";
+            return "待核對";
+          }
+
+          function conciseChangeSummary(change: LeadAuditChangeView) {
+            if (change.changeType === "added") return "新增 Lead";
+            if (change.changeType === "deleted") return "刪除 Lead";
+            if (change.changeType !== "modified") return "批量異動";
+            const labels = change.changedFields.map((field) => field.label);
+            if (labels.length === 0) return "資料有更新";
+            const visible = labels.slice(0, 3);
+            const suffix = labels.length > 3 ? ` 等 ${labels.length} 項` : "";
+            return `改${visible.join("、")}${suffix}`;
+          }
+          '''
+          assert text.count(old) == 1, 'reviewStatusLabel anchor mismatch'
+          text = text.replace(old, new)
+
+          old = '''          <div>
+            <strong>{change.subjectLabel}</strong>
+            <small>{change.summary}</small>
+          </div>
+          '''
+          new = '''          <div>
+            <strong>{change.subjectLabel}</strong>
+            <span
+              data-testid="lead-audit-change-summary"
+              className="mt-1 inline-flex w-fit rounded-full border border-[#efc7c7] bg-[#fff3f2] px-2 py-0.5 text-[11px] font-black text-[#a63f48]"
+            >
+              （{conciseChangeSummary(change)}）
+            </span>
+            <small>{change.summary}</small>
+          </div>
+          '''
+          assert text.count(old) == 1, 'change title anchor mismatch'
+          text = text.replace(old, new)
+
+          old = '''            <FullRowSnapshot
+              label="更改前完整列"
+              fields={change.beforeRow}
+              copyText={change.beforeRowCopy}
+              copyLabel="複製更改前完整列"
+              emptyText={change.changeType === "added" ? "新增紀錄，沒有上一版本。" : "沒有可讀取嘅上一版本。"}
+            />
+            <FullRowSnapshot
+              label="更改後完整列"
+              fields={change.afterRow}
+              copyText={change.afterRowCopy}
+              copyLabel="複製更改後完整列"
+              emptyText={change.changeType === "deleted" ? "紀錄已刪除，沒有更改後版本。" : "沒有可讀取嘅更改後版本。"}
+            />
+          '''
+          new = '''            <FullRowSnapshot
+              label="更改前完整列"
+              fields={change.beforeRow}
+              copyText={change.beforeRowCopy}
+              copyLabel="複製更改前完整列"
+              emptyText={change.changeType === "added" ? "新增紀錄，沒有上一版本。" : "沒有可讀取嘅上一版本。"}
+              changedFields={change.changedFields.map((field) => field.field)}
+              version="before"
+            />
+            <FullRowSnapshot
+              label="更改後完整列"
+              fields={change.afterRow}
+              copyText={change.afterRowCopy}
+              copyLabel="複製更改後完整列"
+              emptyText={change.changeType === "deleted" ? "紀錄已刪除，沒有更改後版本。" : "沒有可讀取嘅更改後版本。"}
+              changedFields={change.changedFields.map((field) => field.field)}
+              version="after"
+            />
+          '''
+          assert text.count(old) == 1, 'FullRowSnapshot call anchor mismatch'
+          text = text.replace(old, new)
+
+          old = '''function FullRowSnapshot({
+            label,
+            fields,
+            copyText,
+            copyLabel,
+            emptyText,
+          }: {
+            label: string;
+            fields: LeadAuditRowFieldView[] | null;
+            copyText: string | null;
+            copyLabel: string;
+            emptyText: string;
+          }) {
+          '''
+          new = '''function FullRowSnapshot({
+            label,
+            fields,
+            copyText,
+            copyLabel,
+            emptyText,
+            changedFields,
+            version,
+          }: {
+            label: string;
+            fields: LeadAuditRowFieldView[] | null;
+            copyText: string | null;
+            copyLabel: string;
+            emptyText: string;
+            changedFields: string[];
+            version: "before" | "after";
+          }) {
+          '''
+          assert text.count(old) == 1, 'FullRowSnapshot signature anchor mismatch'
+          text = text.replace(old, new)
+
+          old = '''          {fields.map((field) => (
+            <div
+              key={field.field}
+              data-field={field.field}
+              className="grid grid-cols-[7.5rem_minmax(0,1fr)] border-b border-[#f4ece8] last:border-b-0"
+            >
+              <span className="bg-[#fbf7f5] px-3 py-2 text-[11px] font-black text-[#806476]">
+                {field.label}
+              </span>
+              <span
+                className={`break-words whitespace-pre-wrap px-3 py-2 text-xs ${
+                  field.field === "phone"
+                    ? "font-black text-[#5a2348]"
+                    : "font-semibold text-[#44313a]"
+                }`}
+              >
+                {field.value || "—"}
+              </span>
+            </div>
+          ))}
+          '''
+          new = '''          {fields.map((field) => {
+            const changed = changedFields.includes(field.field);
+            const beforeHighlight = changed && version === "before";
+            const afterHighlight = changed && version === "after";
+            return (
+              <div
+                key={field.field}
+                data-field={field.field}
+                data-changed={changed ? "true" : "false"}
+                data-highlight-tone={changed ? version : "none"}
+                className={`grid grid-cols-[7.5rem_minmax(0,1fr)] border-b last:border-b-0 ${
+                  beforeHighlight
+                    ? "border-[#efb9bd] bg-[#fff1f1] shadow-[inset_3px_0_0_#c94752]"
+                    : afterHighlight
+                      ? "border-[#b9dec7] bg-[#effaf3] shadow-[inset_3px_0_0_#2f8f5b]"
+                      : "border-[#f4ece8]"
+                }`}
+              >
+                <span
+                  className={`px-3 py-2 text-[11px] font-black ${
+                    beforeHighlight
+                      ? "bg-[#ffe5e5] text-[#9c303b]"
+                      : afterHighlight
+                        ? "bg-[#ddf4e6] text-[#237348]"
+                        : "bg-[#fbf7f5] text-[#806476]"
+                  }`}
+                >
+                  {field.label}
+                  {changed ? (
+                    <em className="ml-1 not-italic text-[9px] font-black">已改</em>
+                  ) : null}
+                </span>
+                <span
+                  className={`break-words whitespace-pre-wrap px-3 py-2 text-xs ${
+                    field.field === "phone"
+                      ? "font-black text-[#5a2348]"
+                      : beforeHighlight
+                        ? "font-black text-[#8f2934]"
+                        : afterHighlight
+                          ? "font-black text-[#1f6b43]"
+                          : "font-semibold text-[#44313a]"
+                  }`}
+                >
+                  {field.value || "—"}
+                </span>
+              </div>
+            );
+          })}
+          '''
+          assert text.count(old) == 1, 'field row anchor mismatch'
+          text = text.replace(old, new)
+          page.write_text(text)
+
+          test = Path('e2e/lead-sheet-audit.spec.ts')
+          text = test.read_text()
+          old = '''  await expect(beforeRow.locator('[data-field="appointmentDate"]')).toContainText("2026-08-10");
+          await expect(afterRow.locator('[data-field="appointmentDate"]')).toContainText("2026-08-12");
+          await expect(beforeRow.getByRole("button", { name: "複製更改前完整列" })).toBeVisible();
+          '''
+          new = '''  await expect(beforeRow.locator('[data-field="appointmentDate"]')).toContainText("2026-08-10");
+          await expect(afterRow.locator('[data-field="appointmentDate"]')).toContainText("2026-08-12");
+          await expect(modifiedCard.getByTestId("lead-audit-change-summary")).toHaveText("（改預約日期）");
+          await expect(beforeRow.locator('[data-field="appointmentDate"]')).toHaveAttribute("data-changed", "true");
+          await expect(beforeRow.locator('[data-field="appointmentDate"]')).toHaveAttribute("data-highlight-tone", "before");
+          await expect(afterRow.locator('[data-field="appointmentDate"]')).toHaveAttribute("data-changed", "true");
+          await expect(afterRow.locator('[data-field="appointmentDate"]')).toHaveAttribute("data-highlight-tone", "after");
+          await expect(beforeRow.locator('[data-field="phone"]')).toHaveAttribute("data-changed", "false");
+          await expect(beforeRow.getByRole("button", { name: "複製更改前完整列" })).toBeVisible();
+          '''
+          assert text.count(old) == 1, 'test anchor mismatch'
+          test.write_text(text.replace(old, new))
+
+          workflow = Path('.github/workflows/one-shot-lead-audit-highlight.yml')
+          workflow.unlink()
+          PY
+          git diff --check
+          git status --short
+      - name: Commit final patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/lead-audit/page.tsx e2e/lead-sheet-audit.spec.ts .github/workflows/one-shot-lead-audit-highlight.yml
+          git commit -m "Highlight changed Lead Audit fields [skip ci]"
+          git push origin HEAD:agent/lead-audit-change-highlights
