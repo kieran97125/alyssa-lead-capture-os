@@ -67,6 +67,17 @@ function reviewStatusLabel(value: string) {
   return "待核對";
 }
 
+function conciseChangeSummary(change: LeadAuditChangeView) {
+  if (change.changeType === "added") return "新增 Lead";
+  if (change.changeType === "deleted") return "刪除 Lead";
+  if (change.changeType !== "modified") return "批量異動";
+  const labels = change.changedFields.map((field) => field.label);
+  if (labels.length === 0) return "資料有更新";
+  const visible = labels.slice(0, 3);
+  const suffix = labels.length > 3 ? ` 等 ${labels.length} 項` : "";
+  return `改${visible.join("、")}${suffix}`;
+}
+
 export default async function LeadAuditPage({
   searchParams,
 }: {
@@ -289,6 +300,12 @@ function AuditChangeCard({ change }: { change: LeadAuditChangeView }) {
           <span>{changeTypeLabel(change.changeType)}</span>
           <div>
             <strong>{change.subjectLabel}</strong>
+            <span
+              data-testid="lead-audit-change-summary"
+              className="mt-1 inline-flex w-fit rounded-full border border-[#efc7c7] bg-[#fff3f2] px-2 py-0.5 text-[11px] font-black text-[#a63f48]"
+            >
+              （{conciseChangeSummary(change)}）
+            </span>
             <small>{change.summary}</small>
           </div>
         </div>
@@ -334,6 +351,8 @@ function AuditChangeCard({ change }: { change: LeadAuditChangeView }) {
               copyText={change.beforeRowCopy}
               copyLabel="複製更改前完整列"
               emptyText={change.changeType === "added" ? "新增紀錄，沒有上一版本。" : "沒有可讀取嘅上一版本。"}
+              changedFields={change.changedFields.map((field) => field.field)}
+              version="before"
             />
             <FullRowSnapshot
               label="更改後完整列"
@@ -341,6 +360,8 @@ function AuditChangeCard({ change }: { change: LeadAuditChangeView }) {
               copyText={change.afterRowCopy}
               copyLabel="複製更改後完整列"
               emptyText={change.changeType === "deleted" ? "紀錄已刪除，沒有更改後版本。" : "沒有可讀取嘅更改後版本。"}
+              changedFields={change.changedFields.map((field) => field.field)}
+              version="after"
             />
           </div>
         </details>
@@ -388,12 +409,16 @@ function FullRowSnapshot({
   copyText,
   copyLabel,
   emptyText,
+  changedFields,
+  version,
 }: {
   label: string;
   fields: LeadAuditRowFieldView[] | null;
   copyText: string | null;
   copyLabel: string;
   emptyText: string;
+  changedFields: string[];
+  version: "before" | "after";
 }) {
   return (
     <section
@@ -406,26 +431,54 @@ function FullRowSnapshot({
       </header>
       {fields ? (
         <div className="max-h-[28rem] overflow-auto rounded-lg border border-[#f0e6e1]">
-          {fields.map((field) => (
-            <div
-              key={field.field}
-              data-field={field.field}
-              className="grid grid-cols-[7.5rem_minmax(0,1fr)] border-b border-[#f4ece8] last:border-b-0"
-            >
-              <span className="bg-[#fbf7f5] px-3 py-2 text-[11px] font-black text-[#806476]">
-                {field.label}
-              </span>
-              <span
-                className={`break-words whitespace-pre-wrap px-3 py-2 text-xs ${
-                  field.field === "phone"
-                    ? "font-black text-[#5a2348]"
-                    : "font-semibold text-[#44313a]"
+          {fields.map((field) => {
+            const changed = changedFields.includes(field.field);
+            const beforeHighlight = changed && version === "before";
+            const afterHighlight = changed && version === "after";
+            return (
+              <div
+                key={field.field}
+                data-field={field.field}
+                data-changed={changed ? "true" : "false"}
+                data-highlight-tone={changed ? version : "none"}
+                className={`grid grid-cols-[7.5rem_minmax(0,1fr)] border-b last:border-b-0 ${
+                  beforeHighlight
+                    ? "border-[#efb9bd] bg-[#fff1f1] shadow-[inset_3px_0_0_#c94752]"
+                    : afterHighlight
+                      ? "border-[#b9dec7] bg-[#effaf3] shadow-[inset_3px_0_0_#2f8f5b]"
+                      : "border-[#f4ece8]"
                 }`}
               >
-                {field.value || "—"}
-              </span>
-            </div>
-          ))}
+                <span
+                  className={`px-3 py-2 text-[11px] font-black ${
+                    beforeHighlight
+                      ? "bg-[#ffe5e5] text-[#9c303b]"
+                      : afterHighlight
+                        ? "bg-[#ddf4e6] text-[#237348]"
+                        : "bg-[#fbf7f5] text-[#806476]"
+                  }`}
+                >
+                  {field.label}
+                  {changed ? (
+                    <em className="ml-1 not-italic text-[9px] font-black">已改</em>
+                  ) : null}
+                </span>
+                <span
+                  className={`break-words whitespace-pre-wrap px-3 py-2 text-xs ${
+                    field.field === "phone"
+                      ? "font-black text-[#5a2348]"
+                      : beforeHighlight
+                        ? "font-black text-[#8f2934]"
+                        : afterHighlight
+                          ? "font-black text-[#1f6b43]"
+                          : "font-semibold text-[#44313a]"
+                  }`}
+                >
+                  {field.value || "—"}
+                </span>
+              </div>
+            );
+          })}
         </div>
       ) : (
         <p className="rounded-lg bg-[#fbf7f5] px-3 py-4 text-xs font-semibold text-[#806476]">
