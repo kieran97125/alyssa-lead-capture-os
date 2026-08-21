@@ -15,10 +15,12 @@ import {
 import { redirect } from "next/navigation";
 import { reviewLeadAuditChangeAction } from "@/app/lead-audit/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { CopyButton } from "@/components/alyssa/CopyButton";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   getLeadAuditView,
   type LeadAuditChangeView,
+  type LeadAuditRowFieldView,
   type LeadAuditRunView,
 } from "@/lib/marketing/leadSheetAuditView";
 import { requireModuleAccess } from "@/lib/security/internalAccessServer";
@@ -278,7 +280,10 @@ export default async function LeadAuditPage({
 function AuditChangeCard({ change }: { change: LeadAuditChangeView }) {
   const open = change.reviewStatus === "open";
   return (
-    <article className={`command-surface lead-audit-change is-${change.severity}`}>
+    <article
+      data-testid={`lead-audit-change-${change.id}`}
+      className={`command-surface lead-audit-change is-${change.severity}`}
+    >
       <header>
         <div className="lead-audit-change-title">
           <span>{changeTypeLabel(change.changeType)}</span>
@@ -298,6 +303,9 @@ function AuditChangeCard({ change }: { change: LeadAuditChangeView }) {
           <time>
             <Clock3 size={12} /> {formatDateTime(change.createdAt)}
           </time>
+          {change.phone ? (
+            <CopyButton value={change.phone} label="複製電話" />
+          ) : null}
         </div>
       </header>
 
@@ -312,6 +320,30 @@ function AuditChangeCard({ change }: { change: LeadAuditChangeView }) {
             </div>
           ))}
         </div>
+      ) : null}
+
+      {change.beforeRow || change.afterRow ? (
+        <details open className="mt-4 overflow-hidden rounded-xl border border-[#ead9cf] bg-[#fffdfb]">
+          <summary className="cursor-pointer px-4 py-3 text-sm font-black text-[#5a2348]">
+            完整列紀錄（可直接複製）
+          </summary>
+          <div className="grid gap-3 border-t border-[#ead9cf] p-3 xl:grid-cols-2">
+            <FullRowSnapshot
+              label="更改前完整列"
+              fields={change.beforeRow}
+              copyText={change.beforeRowCopy}
+              copyLabel="複製更改前完整列"
+              emptyText={change.changeType === "added" ? "新增紀錄，沒有上一版本。" : "沒有可讀取嘅上一版本。"}
+            />
+            <FullRowSnapshot
+              label="更改後完整列"
+              fields={change.afterRow}
+              copyText={change.afterRowCopy}
+              copyLabel="複製更改後完整列"
+              emptyText={change.changeType === "deleted" ? "紀錄已刪除，沒有更改後版本。" : "沒有可讀取嘅更改後版本。"}
+            />
+          </div>
+        </details>
       ) : null}
 
       {open && change.severity !== "info" ? (
@@ -347,5 +379,59 @@ function AuditChangeCard({ change }: { change: LeadAuditChangeView }) {
         </footer>
       )}
     </article>
+  );
+}
+
+function FullRowSnapshot({
+  label,
+  fields,
+  copyText,
+  copyLabel,
+  emptyText,
+}: {
+  label: string;
+  fields: LeadAuditRowFieldView[] | null;
+  copyText: string | null;
+  copyLabel: string;
+  emptyText: string;
+}) {
+  return (
+    <section
+      data-testid={label === "更改前完整列" ? "lead-audit-before-row" : "lead-audit-after-row"}
+      className="min-w-0 rounded-lg border border-[#eee2dc] bg-white p-3"
+    >
+      <header className="mb-3 flex flex-wrap items-center justify-between gap-2">
+        <strong className="text-sm text-[#321428]">{label}</strong>
+        {copyText ? <CopyButton value={copyText} label={copyLabel} /> : null}
+      </header>
+      {fields ? (
+        <div className="max-h-[28rem] overflow-auto rounded-lg border border-[#f0e6e1]">
+          {fields.map((field) => (
+            <div
+              key={field.field}
+              data-field={field.field}
+              className="grid grid-cols-[7.5rem_minmax(0,1fr)] border-b border-[#f4ece8] last:border-b-0"
+            >
+              <span className="bg-[#fbf7f5] px-3 py-2 text-[11px] font-black text-[#806476]">
+                {field.label}
+              </span>
+              <span
+                className={`break-words whitespace-pre-wrap px-3 py-2 text-xs ${
+                  field.field === "phone"
+                    ? "font-black text-[#5a2348]"
+                    : "font-semibold text-[#44313a]"
+                }`}
+              >
+                {field.value || "—"}
+              </span>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <p className="rounded-lg bg-[#fbf7f5] px-3 py-4 text-xs font-semibold text-[#806476]">
+          {emptyText}
+        </p>
+      )}
+    </section>
   );
 }

@@ -3,8 +3,8 @@ import "server-only";
 import { createSupabaseAdminClient, hasSupabaseAdminEnv } from "@/lib/supabase/admin";
 import { decryptLeadAuditPayload } from "@/lib/marketing/leadSheetAudit";
 import {
+  leadAuditFieldKeys,
   leadAuditFieldLabels,
-  maskLeadAuditValue,
   type LeadAuditCanonicalRecord,
   type LeadAuditFieldKey,
   type LeadAuditSeverity,
@@ -35,16 +35,27 @@ export type LeadAuditFieldChangeView = {
   after: string;
 };
 
+export type LeadAuditRowFieldView = {
+  field: LeadAuditFieldKey;
+  label: string;
+  value: string;
+};
+
 export type LeadAuditChangeView = {
   id: string;
   runId: string;
   brandId: string | null;
   subjectLabel: string;
+  phone: string | null;
   changeType: string;
   severity: LeadAuditSeverity;
   riskCode: string;
   summary: string;
   changedFields: LeadAuditFieldChangeView[];
+  beforeRow: LeadAuditRowFieldView[] | null;
+  afterRow: LeadAuditRowFieldView[] | null;
+  beforeRowCopy: string | null;
+  afterRowCopy: string | null;
   reviewStatus: string;
   reviewNote: string | null;
   reviewedByEmail: string | null;
@@ -120,9 +131,86 @@ function applyBrandScope<T>(
   );
 }
 
+function fixtureCanonical(
+  overrides: Partial<LeadAuditCanonicalRecord>
+): LeadAuditCanonicalRecord {
+  return Object.fromEntries(
+    leadAuditFieldKeys.map((field) => [field, overrides[field] ?? ""])
+  ) as LeadAuditCanonicalRecord;
+}
+
+function rowFields(record: LeadAuditCanonicalRecord | null) {
+  if (!record) return null;
+  return leadAuditFieldKeys.map((field) => ({
+    field,
+    label: leadAuditFieldLabels[field],
+    value: record[field],
+  }));
+}
+
+function rowCopyText(record: LeadAuditCanonicalRecord | null) {
+  if (!record) return null;
+  return leadAuditFieldKeys.map((field) => record[field]).join("\t");
+}
+
+function resolvedPhone(
+  before: LeadAuditCanonicalRecord | null,
+  after: LeadAuditCanonicalRecord | null
+) {
+  return after?.phone || before?.phone || null;
+}
+
+function fullSubjectLabel(input: {
+  storedLabel: string;
+  before: LeadAuditCanonicalRecord | null;
+  after: LeadAuditCanonicalRecord | null;
+}) {
+  const phone = resolvedPhone(input.before, input.after);
+  return phone ? `Lead · ${phone}` : input.storedLabel;
+}
+
 function fixtureView(): LeadAuditView {
   const now = new Date();
   const previous = new Date(now.getTime() - 86_400_000);
+  const deletedBefore = fixtureCanonical({
+    createdAt: "2026-08-20 10:20:00",
+    followUpStatus: "待跟進",
+    brand: "Alyssa",
+    branch: "銅鑼灣",
+    customerName: "Fixture Customer",
+    phone: "85291231234",
+    treatmentOffer: "$988 FaceLift",
+    treatmentItem: "FaceLift",
+    source: "Meta WhatsApp",
+    campaignAd: "Fixture Campaign A",
+    leadKey: "fixture-delete-1",
+    csRemark: "等待客人回覆",
+    assignedTo: "CS A",
+  });
+  const modifiedBefore = fixtureCanonical({
+    createdAt: "2026-08-20 11:10:00",
+    followUpStatus: "已預約",
+    brand: "Ineffable Beauty",
+    branch: "銅鑼灣",
+    customerName: "Fixture Customer 2",
+    phone: "85298767788",
+    treatmentOffer: "$388 柔清舒敏鉗清",
+    treatmentItem: "$388 柔清舒敏鉗清",
+    appointmentDate: "2026-08-10",
+    appointmentTime: "14:00",
+    source: "Meta WhatsApp",
+    campaignAd: "Fixture Campaign B",
+    leadKey: "fixture-modify-1",
+    csRemark: "客人要求改期",
+    assignedTo: "CS B",
+  });
+  const modifiedAfter = {
+    ...modifiedBefore,
+    appointmentDate: "2026-08-12",
+    appointmentTime: "16:00",
+    csRemark: "已確認改期至 8 月 12 日",
+  };
+
   return {
     schemaReady: true,
     encryptionReady: true,
@@ -166,12 +254,17 @@ function fixtureView(): LeadAuditView {
         id: "audit-change-critical",
         runId: "audit-run-current",
         brandId: null,
-        subjectLabel: "Lead · ****1234",
+        subjectLabel: "Lead · 85291231234",
+        phone: "85291231234",
         changeType: "deleted",
         severity: "critical",
         riskCode: "record_deleted",
         summary: "上一版本存在嘅 Lead 紀錄已消失。",
         changedFields: [],
+        beforeRow: rowFields(deletedBefore),
+        afterRow: null,
+        beforeRowCopy: rowCopyText(deletedBefore),
+        afterRowCopy: null,
         reviewStatus: "open",
         reviewNote: null,
         reviewedByEmail: null,
@@ -182,7 +275,8 @@ function fixtureView(): LeadAuditView {
         id: "audit-change-warning",
         runId: "audit-run-current",
         brandId: null,
-        subjectLabel: "Lead · ****7788",
+        subjectLabel: "Lead · 85298767788",
+        phone: "85298767788",
         changeType: "modified",
         severity: "warning",
         riskCode: "historical_field_changed:appointmentDate",
@@ -195,6 +289,10 @@ function fixtureView(): LeadAuditView {
             after: "2026-08-12",
           },
         ],
+        beforeRow: rowFields(modifiedBefore),
+        afterRow: rowFields(modifiedAfter),
+        beforeRowCopy: rowCopyText(modifiedBefore),
+        afterRowCopy: rowCopyText(modifiedAfter),
         reviewStatus: "open",
         reviewNote: null,
         reviewedByEmail: null,
@@ -238,8 +336,8 @@ function fieldChanges(input: {
       {
         field,
         label: leadAuditFieldLabels[field],
-        before: maskLeadAuditValue(field, input.before?.[field] ?? ""),
-        after: maskLeadAuditValue(field, input.after?.[field] ?? ""),
+        before: input.before?.[field] || "—",
+        after: input.after?.[field] || "—",
       },
     ];
   });
@@ -368,7 +466,12 @@ export async function getLeadAuditView(input: {
         id: row.id,
         runId: row.run_id,
         brandId: row.brand_id,
-        subjectLabel: row.subject_label,
+        subjectLabel: fullSubjectLabel({
+          storedLabel: row.subject_label,
+          before,
+          after,
+        }),
+        phone: resolvedPhone(before, after),
         changeType: row.change_type,
         severity: row.severity,
         riskCode: row.risk_code,
@@ -378,6 +481,10 @@ export async function getLeadAuditView(input: {
           before,
           after,
         }),
+        beforeRow: rowFields(before),
+        afterRow: rowFields(after),
+        beforeRowCopy: rowCopyText(before),
+        afterRowCopy: rowCopyText(after),
         reviewStatus: row.review_status,
         reviewNote: row.review_note,
         reviewedByEmail: row.reviewed_by_email,
