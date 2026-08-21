@@ -38,6 +38,12 @@ test("Master can inspect full Lead Sheet versions, phone numbers and before-afte
   await expect(afterRow.locator('[data-field="phone"]')).toContainText("85298767788");
   await expect(beforeRow.locator('[data-field="appointmentDate"]')).toContainText("2026-08-10");
   await expect(afterRow.locator('[data-field="appointmentDate"]')).toContainText("2026-08-12");
+  await expect(modifiedCard.getByTestId("lead-audit-change-summary")).toHaveText("（改預約日期）");
+  await expect(beforeRow.locator('[data-field="appointmentDate"]')).toHaveAttribute("data-changed", "true");
+  await expect(beforeRow.locator('[data-field="appointmentDate"]')).toHaveAttribute("data-highlight-tone", "before");
+  await expect(afterRow.locator('[data-field="appointmentDate"]')).toHaveAttribute("data-changed", "true");
+  await expect(afterRow.locator('[data-field="appointmentDate"]')).toHaveAttribute("data-highlight-tone", "after");
+  await expect(beforeRow.locator('[data-field="phone"]')).toHaveAttribute("data-changed", "false");
   await expect(beforeRow.getByRole("button", { name: "複製更改前完整列" })).toBeVisible();
   await expect(afterRow.getByRole("button", { name: "複製更改後完整列" })).toBeVisible();
 
