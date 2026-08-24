@@ -310,7 +310,7 @@ export default async function DailyOverviewPage({
               </SubmitButton>
               <button
                 type="submit"
-                formAction="/api/internal/daily-overview/export"
+                formAction="/api/internal/reports/daily-overview/export"
                 data-testid="daily-overview-excel-export"
                 className="command-primary-button"
               >
