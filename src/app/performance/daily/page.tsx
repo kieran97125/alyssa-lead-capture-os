@@ -7,6 +7,7 @@ import {
   Clock3,
   Coins,
   DatabaseZap,
+  FileSpreadsheet,
   Info,
   Save,
   TriangleAlert,
@@ -240,6 +241,11 @@ export default async function DailyOverviewPage({
     returnParams.set("brand", snapshot.selectedBrandScope);
   }
   const returnPath = `/performance/daily?${returnParams.toString()}`;
+  const exportParams = new URLSearchParams({ month: snapshot.monthStart });
+  if (snapshot.selectedBrandScope) {
+    exportParams.set("brand", snapshot.selectedBrandScope);
+  }
+  const exportHref = `/api/internal/daily-overview/export?${exportParams.toString()}`;
   const tableBrands =
     !snapshot.selectedBrandScope ||
     snapshot.selectedBrandScope === ALYSSA_ALL_BRAND_SCOPE
@@ -307,6 +313,14 @@ export default async function DailyOverviewPage({
                 <CalendarDays size={15} />
                 查看數據
               </SubmitButton>
+              <a
+                data-testid="daily-overview-excel-export"
+                href={exportHref}
+                className="command-primary-button"
+              >
+                <FileSpreadsheet size={15} />
+                匯出 Excel
+              </a>
             </form>
           </header>
 
