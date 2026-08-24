@@ -3,7 +3,10 @@ import "server-only";
 import { createHash, randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
-import { readLiveLeadTable } from "@/lib/integrations/googleSheetsLeadTable";
+import {
+  normalizeMetaLeadRowsInLiveTable,
+  readLiveLeadTable,
+} from "@/lib/integrations/googleSheetsLeadTable";
 import {
   captureLeadSheetAuditSnapshot,
   recordLeadSheetAuditFailure,
@@ -336,7 +339,25 @@ async function collectLeadFunnelMetrics(
   throughDate: string,
   options: { actorIdentifier?: string; startedAt: string }
 ) {
-  const { headers, rows, headerRow } = await readLiveLeadTable(configuration);
+  const rawLiveTable = await readLiveLeadTable(configuration);
+  const leadBrandAliases = stringRecord(configuration.brandAliases);
+  const leadTreatmentAliases = treatmentAliases(configuration.treatmentAliases);
+  const normalizedLiveTable = await normalizeMetaLeadRowsInLiveTable({
+    configuration,
+    liveTable: rawLiveTable,
+    brands,
+    brandAliases: leadBrandAliases,
+    treatmentAliases: leadTreatmentAliases,
+    writeBack: true,
+  });
+  const { headers, rows, headerRow } = normalizedLiveTable;
+  if (normalizedLiveTable.normalizedMetaLeadRows > 0) {
+    console.info("meta_lead_form_rows_normalized", {
+      sourceId: source.id,
+      rows: normalizedLiveTable.normalizedMetaLeadRows,
+      writeBackOk: normalizedLiveTable.normalizationWriteBackOk,
+    });
+  }
   const audit = await captureLeadSheetAuditSnapshot({
     dataSourceId: source.id,
     actorIdentifier: options.actorIdentifier,
@@ -344,7 +365,7 @@ async function collectLeadFunnelMetrics(
     rows,
     headerRow,
     brands,
-    brandAliases: stringRecord(configuration.brandAliases),
+    brandAliases: leadBrandAliases,
     startedAt: options.startedAt,
   });
   const timestamp = new Date().toISOString();
@@ -354,8 +375,8 @@ async function collectLeadFunnelMetrics(
     rows,
     brands,
     sourceBrandId: source.brand_id,
-    brandAliases: stringRecord(configuration.brandAliases),
-    treatmentAliases: treatmentAliases(configuration.treatmentAliases),
+    brandAliases: leadBrandAliases,
+    treatmentAliases: leadTreatmentAliases,
     dailyThroughDate: throughDate,
     activityThroughDate: month.today,
     pendingThroughDate: addIsoDays(month.today, 400),
