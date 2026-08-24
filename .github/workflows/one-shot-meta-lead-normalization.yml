@@ -1,0 +1,113 @@
+name: One-shot Meta Lead normalization integration
+
+on:
+  push:
+    branches:
+      - agent/meta-lead-form-normalization
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/meta-lead-form-normalization
+      - name: Patch sync and dashboard callers
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          sync = Path('src/lib/integrations/googleSheetsMarketingSync.ts')
+          text = sync.read_text()
+          old = 'import { readLiveLeadTable } from "@/lib/integrations/googleSheetsLeadTable";'
+          new = '''import {
+            normalizeMetaLeadRowsInLiveTable,
+            readLiveLeadTable,
+          } from "@/lib/integrations/googleSheetsLeadTable";'''
+          assert text.count(old) == 1, 'sync import anchor mismatch'
+          text = text.replace(old, new)
+
+          old = '''  const { headers, rows, headerRow } = await readLiveLeadTable(configuration);
+          const audit = await captureLeadSheetAuditSnapshot({'''
+          new = '''  const rawLiveTable = await readLiveLeadTable(configuration);
+          const leadBrandAliases = stringRecord(configuration.brandAliases);
+          const leadTreatmentAliases = treatmentAliases(configuration.treatmentAliases);
+          const normalizedLiveTable = await normalizeMetaLeadRowsInLiveTable({
+            configuration,
+            liveTable: rawLiveTable,
+            brands,
+            brandAliases: leadBrandAliases,
+            treatmentAliases: leadTreatmentAliases,
+            writeBack: true,
+          });
+          const { headers, rows, headerRow } = normalizedLiveTable;
+          if (normalizedLiveTable.normalizedMetaLeadRows > 0) {
+            console.info("meta_lead_form_rows_normalized", {
+              sourceId: source.id,
+              rows: normalizedLiveTable.normalizedMetaLeadRows,
+              writeBackOk: normalizedLiveTable.normalizationWriteBackOk,
+            });
+          }
+          const audit = await captureLeadSheetAuditSnapshot({'''
+          assert text.count(old) == 1, 'sync collect anchor mismatch'
+          text = text.replace(old, new)
+
+          old = '''    brandAliases: stringRecord(configuration.brandAliases),
+            startedAt: options.startedAt,'''
+          new = '''    brandAliases: leadBrandAliases,
+            startedAt: options.startedAt,'''
+          assert text.count(old) == 1, 'audit alias anchor mismatch'
+          text = text.replace(old, new)
+
+          old = '''    brandAliases: stringRecord(configuration.brandAliases),
+            treatmentAliases: treatmentAliases(configuration.treatmentAliases),'''
+          new = '''    brandAliases: leadBrandAliases,
+            treatmentAliases: leadTreatmentAliases,'''
+          assert text.count(old) == 1, 'aggregate alias anchor mismatch'
+          text = text.replace(old, new)
+          sync.write_text(text)
+
+          dash = Path('src/lib/marketing/leadDashboard.ts')
+          text = dash.read_text()
+          old = 'import { readLiveLeadTable } from "@/lib/integrations/googleSheetsLeadTable";'
+          new = '''import {
+            normalizeMetaLeadRowsInLiveTable,
+            readLiveLeadTable,
+          } from "@/lib/integrations/googleSheetsLeadTable";'''
+          assert text.count(old) == 1, 'dashboard import anchor mismatch'
+          text = text.replace(old, new)
+
+          old = '''    const aliases = treatmentAliases(source.configuration.treatmentAliases);
+            const liveTable = await readLiveLeadTable(source.configuration);
+            const parsed = buildLeadSheetGroups({'''
+          new = '''    const aliases = treatmentAliases(source.configuration.treatmentAliases);
+            const rawLiveTable = await readLiveLeadTable(source.configuration);
+            const liveTable = await normalizeMetaLeadRowsInLiveTable({
+              configuration: source.configuration,
+              liveTable: rawLiveTable,
+              brands,
+              brandAliases: stringRecord(source.configuration.brandAliases),
+              treatmentAliases: aliases,
+              writeBack: true,
+            });
+            const parsed = buildLeadSheetGroups({'''
+          assert text.count(old) == 1, 'dashboard live table anchor mismatch'
+          text = text.replace(old, new)
+          dash.write_text(text)
+
+          workflow = Path('.github/workflows/one-shot-meta-lead-normalization.yml')
+          workflow.unlink()
+          PY
+          git diff --check
+          git status --short
+      - name: Commit integration patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/lib/integrations/googleSheetsMarketingSync.ts src/lib/marketing/leadDashboard.ts .github/workflows/one-shot-meta-lead-normalization.yml
+          git commit -m "Wire Meta Lead normalization into live reads and sync [skip ci]"
+          git push origin HEAD:agent/meta-lead-form-normalization
