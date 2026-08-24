@@ -1,0 +1,38 @@
+name: One-shot Daily export permission route patch
+
+on:
+  push:
+    branches:
+      - agent/daily-overview-excel-export
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/daily-overview-excel-export
+      - name: Update export route action
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('src/app/performance/daily/page.tsx')
+          text = path.read_text()
+          old = 'formAction="/api/internal/daily-overview/export"'
+          new = 'formAction="/api/internal/reports/daily-overview/export"'
+          assert text.count(old) == 1, 'Daily export route anchor mismatch'
+          path.write_text(text.replace(old, new))
+          Path('.github/workflows/one-shot-daily-export-permission-route.yml').unlink()
+          PY
+          git diff --check
+      - name: Commit route patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add src/app/performance/daily/page.tsx .github/workflows/one-shot-daily-export-permission-route.yml
+          git commit -m "Scope Daily Overview export action to performance route [skip ci]"
+          git push origin HEAD:agent/daily-overview-excel-export
