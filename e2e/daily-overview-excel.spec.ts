@@ -80,3 +80,28 @@ test("Daily Overview Excel keeps the dashboard metric contract", () => {
   expect(workbook.body).toContain(">2<");
   expect(workbook.body).toContain(">1<");
 });
+
+test("Daily Overview exposes a working Excel download for the active filters", async ({
+  page,
+}) => {
+  await page.goto("/performance/daily?month=2026-08-01");
+  const exportButton = page.getByTestId("daily-overview-excel-export");
+  await expect(exportButton).toBeVisible();
+  await expect(exportButton).toHaveAttribute(
+    "formaction",
+    "/api/internal/daily-overview/export"
+  );
+
+  const response = await page.request.get(
+    "/api/internal/daily-overview/export?month=2026-08-01"
+  );
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain(
+    "application/vnd.ms-excel"
+  );
+  expect(response.headers()["content-disposition"]).toContain("attachment;");
+  const body = await response.text();
+  expect(body).toContain('progid="Excel.Sheet"');
+  expect(body).toContain('ss:Name="每日數據"');
+  expect(body).toContain('ss:Name="月份摘要"');
+});
