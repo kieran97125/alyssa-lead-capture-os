@@ -1,10 +1,13 @@
 import "server-only";
 
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
+import type { MetaLeadFormRowRewrite } from "@/lib/integrations/metaLeadFormSheetNormalizer";
 
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
 const MAX_LEAD_ROWS = 50_000;
+const OPERATIONAL_LAST_COLUMN = "V";
+const META_RAW_TAIL_LAST_COLUMN = "BN";
 
 type GoogleValueRange = {
   values?: unknown[][];
@@ -52,6 +55,13 @@ function tabName(configuration: LeadTableSourceConfiguration) {
   return value;
 }
 
+function configuredLastColumn(configuration: LeadTableSourceConfiguration) {
+  const configured = stringValue(configuration.lastColumn) || OPERATIONAL_LAST_COLUMN;
+  return /^[A-Z]{1,3}$/i.test(configured)
+    ? configured.toUpperCase()
+    : OPERATIONAL_LAST_COLUMN;
+}
+
 function quoteSheetName(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
 }
@@ -95,6 +105,96 @@ async function batchGetValues(input: {
   return (await response.json()) as { valueRanges?: GoogleValueRange[] };
 }
 
+export async function rewriteMetaLeadFormRows(
+  configuration: LeadTableSourceConfiguration,
+  rewrites: MetaLeadFormRowRewrite[]
+) {
+  if (rewrites.length === 0) return { updatedRows: 0 };
+  if (configuredLastColumn(configuration) !== OPERATIONAL_LAST_COLUMN) {
+    throw new Error(
+      "Meta Lead Form 自動整理只支援目前 A:V Lead Sheet contract；已安全停止回寫。"
+    );
+  }
+
+  const validRewrites = rewrites.filter(
+    (rewrite) =>
+      Number.isInteger(rewrite.rowNumber) &&
+      rewrite.rowNumber >= 2 &&
+      rewrite.values.length === 22
+  );
+  if (validRewrites.length !== rewrites.length) {
+    throw new Error("Meta Lead Form 自動整理偵測到無效 row payload；已安全停止回寫。");
+  }
+
+  const accessToken = await getGoogleSheetsOAuthAccessToken({
+    requireWrite: true,
+  });
+  const sourceSpreadsheetId = spreadsheetId(configuration);
+  const sourceTabName = tabName(configuration);
+  const quotedTab = quoteSheetName(sourceTabName);
+
+  const updateResponse = await fetch(
+    `${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(
+      sourceSpreadsheetId
+    )}/values:batchUpdate`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        valueInputOption: "RAW",
+        includeValuesInResponse: false,
+        data: validRewrites.map((rewrite) => ({
+          range: `${quotedTab}!A${rewrite.rowNumber}:V${rewrite.rowNumber}`,
+          majorDimension: "ROWS",
+          values: [rewrite.values],
+        })),
+      }),
+      cache: "no-store",
+    }
+  );
+  if (!updateResponse.ok) {
+    throw new Error(
+      `Meta Lead Form A:V 整理回寫失敗（HTTP ${updateResponse.status}）。`
+    );
+  }
+
+  // Meta's native Google Sheets CRM integration can append additional raw
+  // metadata to columns after V. The Growth OS Lead Sheet contract explicitly
+  // governs A:V, so clear only the raw tail for rows we have positively
+  // identified and normalized. Other CS rows are never touched.
+  const clearResponse = await fetch(
+    `${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(
+      sourceSpreadsheetId
+    )}/values:batchClear`,
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        ranges: validRewrites.map(
+          (rewrite) =>
+            `${quotedTab}!W${rewrite.rowNumber}:${META_RAW_TAIL_LAST_COLUMN}${rewrite.rowNumber}`
+        ),
+      }),
+      cache: "no-store",
+    }
+  );
+  if (!clearResponse.ok) {
+    throw new Error(
+      `Meta Lead Form raw tail 清理失敗（HTTP ${clearResponse.status}）。`
+    );
+  }
+
+  return { updatedRows: validRewrites.length };
+}
+
 export async function readLiveLeadTable(
   configuration: LeadTableSourceConfiguration
 ): Promise<LiveLeadTable> {
@@ -107,10 +207,7 @@ export async function readLiveLeadTable(
     DEFAULT_MAX_ROWS
   );
   const maxRows = Math.min(configuredMaxRows, MAX_LEAD_ROWS);
-  const configuredLastColumn = stringValue(configuration.lastColumn) || "V";
-  const lastColumn = /^[A-Z]{1,3}$/i.test(configuredLastColumn)
-    ? configuredLastColumn.toUpperCase()
-    : "V";
+  const lastColumn = configuredLastColumn(configuration);
 
   const headerResponse = await batchGetValues({
     accessToken,
