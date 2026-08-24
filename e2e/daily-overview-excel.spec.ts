@@ -90,7 +90,7 @@ test("Daily Overview exposes a working Excel download for the active filters", a
   await expect(exportButton).toBeVisible();
   await expect(exportButton).toHaveAttribute(
     "formaction",
-    "/api/internal/daily-overview/export"
+    "/api/internal/reports/daily-overview/export"
   );
 
   const downloadPromise = page.waitForEvent("download");
