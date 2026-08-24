@@ -7,6 +7,7 @@ import {
   Clock3,
   Coins,
   DatabaseZap,
+  FileSpreadsheet,
   Info,
   Save,
   TriangleAlert,
@@ -307,6 +308,15 @@ export default async function DailyOverviewPage({
                 <CalendarDays size={15} />
                 查看數據
               </SubmitButton>
+              <button
+                type="submit"
+                formAction="/api/internal/reports/daily-overview/export"
+                data-testid="daily-overview-excel-export"
+                className="command-primary-button"
+              >
+                <FileSpreadsheet size={15} />
+                匯出 Excel
+              </button>
             </form>
           </header>
 
