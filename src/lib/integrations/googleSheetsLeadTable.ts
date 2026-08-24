@@ -1,7 +1,12 @@
 import "server-only";
 
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
-import type { MetaLeadFormRowRewrite } from "@/lib/integrations/metaLeadFormSheetNormalizer";
+import {
+  normalizeMetaLeadFormRows,
+  type MetaLeadFormRowRewrite,
+  type MetaLeadNormalizationBrand,
+} from "@/lib/integrations/metaLeadFormSheetNormalizer";
+import type { LeadSheetTreatmentAlias } from "@/lib/marketing/googleSheetsMetricParser";
 
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
@@ -26,6 +31,11 @@ export type LiveLeadTable = {
   headers: unknown[];
   rows: unknown[][];
   headerRow: number;
+};
+
+export type NormalizedLiveLeadTable = LiveLeadTable & {
+  normalizedMetaLeadRows: number;
+  normalizationWriteBackOk: boolean;
 };
 
 function stringValue(value: unknown) {
@@ -193,6 +203,43 @@ export async function rewriteMetaLeadFormRows(
   }
 
   return { updatedRows: validRewrites.length };
+}
+
+export async function normalizeMetaLeadRowsInLiveTable(input: {
+  configuration: LeadTableSourceConfiguration;
+  liveTable: LiveLeadTable;
+  brands: MetaLeadNormalizationBrand[];
+  brandAliases?: Record<string, string>;
+  treatmentAliases?: LeadSheetTreatmentAlias[];
+  writeBack?: boolean;
+}): Promise<NormalizedLiveLeadTable> {
+  const normalized = normalizeMetaLeadFormRows({
+    ...input.liveTable,
+    brands: input.brands,
+    brandAliases: input.brandAliases,
+    treatmentAliases: input.treatmentAliases,
+  });
+
+  let normalizationWriteBackOk = true;
+  if (input.writeBack !== false && normalized.rewrites.length > 0) {
+    try {
+      await rewriteMetaLeadFormRows(input.configuration, normalized.rewrites);
+    } catch (error) {
+      normalizationWriteBackOk = false;
+      console.warn("meta_lead_form_sheet_writeback_failed", {
+        rows: normalized.rewrites.length,
+        message: error instanceof Error ? error.message : "unknown",
+      });
+    }
+  }
+
+  return {
+    headers: input.liveTable.headers,
+    rows: normalized.rows,
+    headerRow: input.liveTable.headerRow,
+    normalizedMetaLeadRows: normalized.rewrites.length,
+    normalizationWriteBackOk,
+  };
 }
 
 export async function readLiveLeadTable(
