@@ -1,6 +1,9 @@
 import "server-only";
 
-import { readLiveLeadTable } from "@/lib/integrations/googleSheetsLeadTable";
+import {
+  normalizeMetaLeadRowsInLiveTable,
+  readLiveLeadTable,
+} from "@/lib/integrations/googleSheetsLeadTable";
 import {
   buildLeadSheetGroups,
   normalizeGoogleSheetBrandKey,
@@ -351,7 +354,15 @@ export async function getLeadDashboardSnapshot(
       (brand) => !allowedBrandIdSet || allowedBrandIdSet.has(brand.id)
     );
     const aliases = treatmentAliases(source.configuration.treatmentAliases);
-    const liveTable = await readLiveLeadTable(source.configuration);
+    const rawLiveTable = await readLiveLeadTable(source.configuration);
+    const liveTable = await normalizeMetaLeadRowsInLiveTable({
+      configuration: source.configuration,
+      liveTable: rawLiveTable,
+      brands,
+      brandAliases: stringRecord(source.configuration.brandAliases),
+      treatmentAliases: aliases,
+      writeBack: true,
+    });
     const parsed = buildLeadSheetGroups({
       ...liveTable,
       brands,
@@ -396,6 +407,11 @@ export async function getLeadDashboardSnapshot(
     const warnings: string[] = [];
     if (source.status !== "connected") {
       warnings.push("Lead Funnel 連接狀態需要檢查；以下仍為今次即時讀取結果。");
+    }
+    if (!liveTable.normalizationWriteBackOk) {
+      warnings.push(
+        "Meta Lead Form 已即時納入 Dashboard，但 Google Sheet 格式回寫暫時失敗；請檢查 Google Sheets write authorization。"
+      );
     }
     if (parsed.diagnostics.unknownBrandRows > 0) {
       warnings.push(
