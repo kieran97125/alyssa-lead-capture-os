@@ -1,3 +1,4 @@
+import { readFile } from "node:fs/promises";
 import { expect, test } from "@playwright/test";
 import { buildDailyOverviewExcelWorkbook } from "../src/lib/marketing/dailyOverviewExcel";
 import { deriveDailyMetrics } from "../src/lib/marketing/dailyOverviewMath";
@@ -92,15 +93,15 @@ test("Daily Overview exposes a working Excel download for the active filters", a
     "/api/internal/daily-overview/export"
   );
 
-  const response = await page.request.get(
-    "/api/internal/daily-overview/export?month=2026-08-01"
+  const downloadPromise = page.waitForEvent("download");
+  await exportButton.click();
+  const download = await downloadPromise;
+  expect(download.suggestedFilename()).toMatch(
+    /^Alyssa_Daily_Overview_2026-08_.*\.xls$/
   );
-  expect(response.status()).toBe(200);
-  expect(response.headers()["content-type"]).toContain(
-    "application/vnd.ms-excel"
-  );
-  expect(response.headers()["content-disposition"]).toContain("attachment;");
-  const body = await response.text();
+  const path = await download.path();
+  expect(path).not.toBeNull();
+  const body = await readFile(path as string, "utf8");
   expect(body).toContain('progid="Excel.Sheet"');
   expect(body).toContain('ss:Name="每日數據"');
   expect(body).toContain('ss:Name="月份摘要"');
