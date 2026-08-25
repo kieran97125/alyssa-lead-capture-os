@@ -121,14 +121,27 @@ test("Daily Overview uses one brand with all four Spend sources", async ({ page 
   const editor = page.getByTestId("daily-brand-spend-editor");
   await expect(editor).toBeVisible();
   await expect(editor.getByText("按品牌一次過填晒每日廣告費")).toBeVisible();
-  await expect(editor.getByText("Meta · WhatsApp", { exact: true })).toBeVisible();
-  await expect(editor.getByText("Meta · Lead Form", { exact: true })).toBeVisible();
-  await expect(editor.getByText("Meta · Website Form", { exact: true })).toBeVisible();
-  await expect(editor.getByText("Google Ads", { exact: true })).toBeVisible();
+  await expect(editor.getByText("Meta · WhatsApp", { exact: true }).first()).toBeVisible();
+  await expect(editor.getByText("Meta · Lead Form", { exact: true }).first()).toBeVisible();
+  await expect(editor.getByText("Meta · Website Form", { exact: true }).first()).toBeVisible();
+  await expect(editor.getByText("Google Ads", { exact: true }).first()).toBeVisible();
   await expect(editor.locator('select[name="entry_brand"]')).toBeVisible();
-  await expect(editor.locator('select[name="spend_type"]')).toHaveCount(0);
+  const sourceFocus = editor.getByLabel("廣告費類型");
+  await expect(sourceFocus).toHaveValue("meta_whatsapp");
+  await expect(sourceFocus.locator("option")).toHaveText([
+    "Meta · WhatsApp",
+    "Meta · Lead Form",
+    "Meta · Website Form",
+    "Google Ads",
+  ]);
   await expect(editor.locator('input[name="amount:meta_whatsapp"]')).toBeVisible();
   await expect(editor.locator('input[name="amount:meta_lead_form"]')).toBeVisible();
   await expect(editor.locator('input[name="amount:meta_website_form"]')).toBeVisible();
   await expect(editor.locator('input[name="amount:google_ads"]')).toBeVisible();
+
+  await sourceFocus.selectOption("meta_lead_form");
+  await editor.getByRole("button", { name: "載入日期及類型" }).click();
+  await expect(page).toHaveURL(/spend_type=meta_lead_form/);
+  await expect(editor.locator('input[name="amount:meta_whatsapp"]')).toBeVisible();
+  await expect(editor.locator('input[name="amount:meta_lead_form"]')).toBeVisible();
 });
