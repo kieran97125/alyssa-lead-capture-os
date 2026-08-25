@@ -15,6 +15,7 @@ import {
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { DashboardRefreshButton } from "@/components/command-center/DashboardRefreshButton";
 import { LeadDashboardPanel } from "@/components/command-center/LeadDashboardPanel";
+import { SourcePerformancePanel } from "@/components/command-center/SourcePerformancePanel";
 import { refreshDashboardDataAction } from "@/app/command-center/actions";
 import { money } from "@/lib/data/businessMetrics";
 import {
@@ -25,6 +26,7 @@ import {
 import { getLeadDashboardSnapshot } from "@/lib/marketing/leadDashboard";
 import { buildLeadDashboardReturnPath } from "@/lib/marketing/leadDashboardFilters";
 import { getLeadAuditNavigationSummary } from "@/lib/marketing/leadSheetAuditView";
+import { getSourcePerformanceSnapshot } from "@/lib/marketing/sourcePerformance";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 import {
   hasWorkspaceModulePermission,
@@ -82,6 +84,19 @@ export default async function DashboardPage({
       access
     )
   );
+  const sourcePerformancePromise = Promise.all([
+    accessPromise,
+    leadDashboardPromise,
+  ]).then(([access, leadDashboard]) =>
+    getSourcePerformanceSnapshot(
+      {
+        startDate: leadDashboard.filters.startDate,
+        endDate: leadDashboard.filters.endDate,
+        brandScope: leadDashboard.filters.brandId,
+      },
+      access
+    )
+  );
   const leadAuditAlertPromise = accessPromise.then((access) => {
     const isMaster = access.accessLevel === "master";
     const canSee =
@@ -97,10 +112,17 @@ export default async function DashboardPage({
         ));
     return canSee ? getLeadAuditNavigationSummary(access) : 0;
   });
-  const [snapshot, access, leadDashboard, leadAuditAlertCount] = await Promise.all([
+  const [
+    snapshot,
+    access,
+    leadDashboard,
+    sourcePerformance,
+    leadAuditAlertCount,
+  ] = await Promise.all([
     commandSnapshotPromise,
     accessPromise,
     leadDashboardPromise,
+    sourcePerformancePromise,
     leadAuditAlertPromise,
   ]);
   const isMaster = access.accessLevel === "master";
@@ -232,6 +254,7 @@ export default async function DashboardPage({
           ) : null}
 
           <LeadDashboardPanel snapshot={leadDashboard} />
+          <SourcePerformancePanel snapshot={sourcePerformance} />
 
           <div className="lead-dashboard-operations-heading">
             <p>Operations control</p>
