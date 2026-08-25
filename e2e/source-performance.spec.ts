@@ -109,9 +109,11 @@ test("Dashboard and period comparison expose Source efficiency analysis", async 
 
   await page.goto("/performance/compare?months=2");
   await expect(page.getByTestId("source-comparison-panel")).toBeVisible();
+  await expect(page.getByTestId("brand-source-comparison-table")).toBeVisible();
   await expect(page.getByText("Source 預算分佈與效率對比")).toBeVisible();
+  await expect(page.getByText("各品牌 × Source", { exact: true })).toBeVisible();
   await expect(page.getByText("Spend Δ", { exact: true })).toBeVisible();
-  await expect(page.getByText("CPShow Δ", { exact: true })).toBeVisible();
+  await expect(page.getByText("CPShow Δ", { exact: true }).first()).toBeVisible();
 });
 
 test("Daily Overview uses one brand with all four Spend sources", async ({ page }) => {
