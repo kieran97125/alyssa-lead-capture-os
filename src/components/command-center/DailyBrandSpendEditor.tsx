@@ -85,11 +85,11 @@ export function DailyBrandSpendEditor({
         </div>
         <div className="grid min-w-[210px] grid-cols-2 gap-2 rounded-2xl border border-[#ead9cf] bg-[#fff9f3] p-3 text-right">
           <span>
-            <small className="block text-[11px] font-bold text-[#8a6477]">今日已輸入</small>
+            <small className="block text-[11px] font-bold text-[#8a6477]">當日已輸入</small>
             <strong className="text-base text-[#321428]">{liveCompletion}/4</strong>
           </span>
           <span>
-            <small className="block text-[11px] font-bold text-[#8a6477]">今日總額</small>
+            <small className="block text-[11px] font-bold text-[#8a6477]">當日總額</small>
             <strong className="text-base text-[#321428]">{money(liveTotal)}</strong>
           </span>
         </div>
@@ -128,7 +128,7 @@ export function DailyBrandSpendEditor({
           載入品牌
         </SubmitButton>
         <span className="ml-auto text-xs font-bold text-[#8a6477]">
-          昨日 {formatDate(snapshot.previousDate)} 合計：{money(snapshot.previousTotal)}
+          前一日 {formatDate(snapshot.previousDate)} 合計：{money(snapshot.previousTotal)}
         </span>
       </form>
 
@@ -163,7 +163,7 @@ export function DailyBrandSpendEditor({
                 </div>
 
                 <label className="mt-4 block">
-                  <span className="text-[11px] font-black uppercase tracking-[0.08em] text-[#866274]">今日 Spend</span>
+                  <span className="text-[11px] font-black uppercase tracking-[0.08em] text-[#866274]">當日 Spend</span>
                   <span className="mt-1 flex items-center rounded-xl border border-[#dfcdc4] bg-[#fffdfb] px-3 focus-within:border-[#a76a88]">
                     <b className="text-sm text-[#8a6477]">$</b>
                     <input
@@ -187,7 +187,7 @@ export function DailyBrandSpendEditor({
                 </label>
 
                 <div className="mt-2 flex items-center justify-between text-xs font-bold text-[#8a6477]">
-                  <span>昨日</span>
+                  <span>前一日</span>
                   <strong className="text-[#5f4253]">{money(previous?.amount ?? null)}</strong>
                 </div>
 
