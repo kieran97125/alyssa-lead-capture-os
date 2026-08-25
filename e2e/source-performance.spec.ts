@@ -121,10 +121,18 @@ test("Daily Overview uses one brand with all four Spend sources", async ({ page 
   const editor = page.getByTestId("daily-brand-spend-editor");
   await expect(editor).toBeVisible();
   await expect(editor.getByText("按品牌一次過填晒每日廣告費")).toBeVisible();
-  await expect(editor.getByText("Meta · WhatsApp", { exact: true }).first()).toBeVisible();
-  await expect(editor.getByText("Meta · Lead Form", { exact: true }).first()).toBeVisible();
-  await expect(editor.getByText("Meta · Website Form", { exact: true }).first()).toBeVisible();
-  await expect(editor.getByText("Google Ads", { exact: true }).first()).toBeVisible();
+  await expect(
+    editor.locator('[data-spend-source="meta_whatsapp"]').getByText("Meta · WhatsApp", { exact: true })
+  ).toBeVisible();
+  await expect(
+    editor.locator('[data-spend-source="meta_lead_form"]').getByText("Meta · Lead Form", { exact: true })
+  ).toBeVisible();
+  await expect(
+    editor.locator('[data-spend-source="meta_website_form"]').getByText("Meta · Website Form", { exact: true })
+  ).toBeVisible();
+  await expect(
+    editor.locator('[data-spend-source="google_ads"]').getByText("Google Ads", { exact: true })
+  ).toBeVisible();
   await expect(editor.locator('select[name="entry_brand"]')).toBeVisible();
   const sourceFocus = editor.getByLabel("廣告費類型");
   await expect(sourceFocus).toHaveValue("meta_whatsapp");
