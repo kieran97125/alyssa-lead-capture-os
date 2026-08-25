@@ -31,6 +31,18 @@ function rowFor(snapshot: SourcePerformanceSnapshot, sourceKey: SpendType) {
   return snapshot.overall.rows.find((row) => row.sourceKey === sourceKey) ?? null;
 }
 
+function brandRowFor(
+  snapshot: SourcePerformanceSnapshot,
+  brandId: string,
+  sourceKey: SpendType
+) {
+  return (
+    snapshot.brands
+      .find((brand) => brand.brandId === brandId)
+      ?.rows.find((row) => row.sourceKey === sourceKey) ?? null
+  );
+}
+
 function Change({ value, lowerIsBetter = false }: { value: number | null; lowerIsBetter?: boolean }) {
   if (value === null || Math.abs(value) < 0.0005) return <span className="text-[#9a7d8d]">—</span>;
   const improved = lowerIsBetter ? value < 0 : value > 0;
@@ -99,6 +111,20 @@ export function SourceComparisonPanel({
       (previousRow?.metrics.leads ?? 0) > 0;
     return hasActivity ? [{ sourceKey, currentRow, previousRow }] : [];
   });
+  const brandDetailRows = current.brands.flatMap((brand) =>
+    ALL_SPEND_TYPES.flatMap((sourceKey) => {
+      const currentRow = brandRowFor(current, brand.brandId, sourceKey);
+      const previousRow = brandRowFor(previous, brand.brandId, sourceKey);
+      const hasActivity =
+        (currentRow?.metrics.spend ?? 0) > 0 ||
+        (currentRow?.metrics.leads ?? 0) > 0 ||
+        (previousRow?.metrics.spend ?? 0) > 0 ||
+        (previousRow?.metrics.leads ?? 0) > 0;
+      return hasActivity
+        ? [{ brand, sourceKey, currentRow, previousRow }]
+        : [];
+    })
+  );
 
   return (
     <section className="command-surface overflow-hidden" data-testid="source-comparison-panel">
@@ -120,14 +146,17 @@ export function SourceComparisonPanel({
         </div>
       </header>
 
-      {[...current.warnings, ...previous.warnings].map((warning) => (
+      {Array.from(new Set([...current.warnings, ...previous.warnings])).map((warning) => (
         <div key={warning} className="mx-5 mt-4 flex gap-2 rounded-xl bg-[#fff7e9] px-3 py-2 text-xs font-bold text-[#805b25]">
           <Info size={15} className="mt-0.5 shrink-0" />
           <span>{warning}</span>
         </div>
       ))}
 
-      <div className="overflow-x-auto p-5">
+      <div className="p-5 pb-2">
+        <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9a5d76]">所選品牌合計</p>
+      </div>
+      <div className="overflow-x-auto px-5 pb-5">
         <table className="min-w-[1240px] w-full border-collapse rounded-2xl border border-[#ead9cf] text-sm">
           <thead className="bg-[#fff8f5] text-left text-xs font-black uppercase tracking-[0.05em] text-[#805d70]">
             <tr>
@@ -177,6 +206,61 @@ export function SourceComparisonPanel({
           </tbody>
         </table>
       </div>
+
+      {brandDetailRows.length > 0 ? (
+        <div className="border-t border-[#ead9cf] p-5">
+          <p className="mb-3 text-xs font-black uppercase tracking-[0.12em] text-[#9a5d76]">各品牌 × Source</p>
+          <div className="overflow-x-auto rounded-2xl border border-[#ead9cf]">
+            <table className="min-w-[1080px] w-full border-collapse text-sm" data-testid="brand-source-comparison-table">
+              <thead className="bg-[#fff8f5] text-left text-xs font-black uppercase tracking-[0.05em] text-[#805d70]">
+                <tr>
+                  <th className="px-3 py-3">品牌</th>
+                  <th className="px-3 py-3">Source</th>
+                  <th className="px-3 py-3 text-right">本期 Spend</th>
+                  <th className="px-3 py-3 text-right">上期 Spend</th>
+                  <th className="px-3 py-3 text-right">本期 Mix</th>
+                  <th className="px-3 py-3 text-right">Lead</th>
+                  <th className="px-3 py-3 text-right">CPL</th>
+                  <th className="px-3 py-3 text-right">Book</th>
+                  <th className="px-3 py-3 text-right">CPBook</th>
+                  <th className="px-3 py-3 text-right">Show</th>
+                  <th className="px-3 py-3 text-right">CPShow</th>
+                  <th className="px-3 py-3 text-right">CPShow Δ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {brandDetailRows.map(({ brand, sourceKey, currentRow, previousRow }) => (
+                  <tr key={`${brand.brandId}:${sourceKey}`} className="border-t border-[#f0e3dc] bg-white">
+                    <td className="px-3 py-3 font-black text-[#321428]">
+                      <span className="mr-2 inline-block h-2.5 w-2.5 rounded-full" style={{ backgroundColor: brand.brandColor }} />
+                      {brand.brandName}
+                    </td>
+                    <td className="px-3 py-3 font-bold text-[#68485b]">{SPEND_TYPE_LABELS[sourceKey]}</td>
+                    <td className="px-3 py-3 text-right font-black">{money(currentRow?.metrics.spend ?? 0)}</td>
+                    <td className="px-3 py-3 text-right text-[#765669]">{money(previousRow?.metrics.spend ?? 0)}</td>
+                    <td className="px-3 py-3 text-right">{percent(currentRow?.metrics.spendShare ?? null)}</td>
+                    <td className="px-3 py-3 text-right">{count(currentRow?.metrics.leads ?? 0)}</td>
+                    <td className="px-3 py-3 text-right font-bold">{money(currentRow?.metrics.cpl ?? null)}</td>
+                    <td className="px-3 py-3 text-right">{count(currentRow?.metrics.bookings ?? 0)}</td>
+                    <td className="px-3 py-3 text-right font-bold">{money(currentRow?.metrics.costPerBooking ?? null)}</td>
+                    <td className="px-3 py-3 text-right">{count(currentRow?.metrics.shows ?? 0)}</td>
+                    <td className="px-3 py-3 text-right font-bold">{money(currentRow?.metrics.costPerShow ?? null)}</td>
+                    <td className="px-3 py-3 text-right">
+                      <Change
+                        lowerIsBetter
+                        value={sourceMetricChange(
+                          currentRow?.metrics.costPerShow ?? null,
+                          previousRow?.metrics.costPerShow ?? null
+                        )}
+                      />
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
     </section>
   );
 }
