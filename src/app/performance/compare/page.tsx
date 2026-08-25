@@ -22,6 +22,7 @@ import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { PeriodComparisonChartLazy } from "@/components/command-center/PeriodComparisonChartLazy";
 import { RollingSevenDayComparison } from "@/components/command-center/RollingSevenDayComparison";
+import { SourceComparisonPanel } from "@/components/command-center/SourceComparisonPanel";
 import {
   getPeriodComparisonSnapshot,
   type ComparisonDataQuality,
@@ -31,6 +32,7 @@ import type {
   ComparisonKpis,
   ComparisonMetricKey,
 } from "@/lib/marketing/periodComparisonMath";
+import { getSourcePerformanceSnapshot } from "@/lib/marketing/sourcePerformance";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
@@ -239,6 +241,27 @@ export default async function PeriodComparisonPage({
   ]);
   const current = snapshot.totals[0];
   const previous = snapshot.totals[1];
+  const [currentSources, previousSources] =
+    current && previous
+      ? await Promise.all([
+          getSourcePerformanceSnapshot(
+            {
+              startDate: current.period.startDate,
+              endDate: current.period.endDate,
+              brandScope: snapshot.filters.brandId,
+            },
+            access
+          ),
+          getSourcePerformanceSnapshot(
+            {
+              startDate: previous.period.startDate,
+              endDate: previous.period.endDate,
+              brandScope: snapshot.filters.brandId,
+            },
+            access
+          ),
+        ])
+      : [null, null];
   const breakdownBrandNames = Array.from(
     new Set(snapshot.brandRows.map((row) => row.brandName))
   );
@@ -418,6 +441,15 @@ export default async function PeriodComparisonPage({
           <Suspense fallback={null}>
             <RollingSevenDayComparison />
           </Suspense>
+
+          {currentSources && previousSources && current && previous ? (
+            <SourceComparisonPanel
+              current={currentSources}
+              previous={previousSources}
+              currentLabel={current.label}
+              previousLabel={previous.label}
+            />
+          ) : null}
 
           <section className="period-analysis-grid">
             <article className="command-surface period-trend-card">

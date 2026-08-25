@@ -1,34 +1,28 @@
 import type { ReactNode } from "react";
 import {
-  BadgeDollarSign,
   CalendarDays,
-  CheckCircle2,
   ClipboardPenLine,
   Clock3,
   Coins,
   DatabaseZap,
   FileSpreadsheet,
   Info,
-  Save,
-  TriangleAlert,
   UserRoundCheck,
   UsersRound,
   WalletCards,
 } from "lucide-react";
-import { saveDailySpendAction } from "@/app/command-center/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
+import { DailyBrandSpendEditor } from "@/components/command-center/DailyBrandSpendEditor";
+import { getDailyBrandSpendEditorSnapshot } from "@/lib/marketing/dailyBrandSpendEditor";
 import {
   getDailyOverviewSnapshot,
   type DailyOverviewBrandRow,
   type DailyOverviewCell,
   type DailyOverviewQuery,
 } from "@/lib/marketing/dailyOverview";
-import {
-  SPEND_TYPE_LABELS,
-  type SpendType,
-} from "@/lib/marketing/spendTypes";
+import type { SpendType } from "@/lib/marketing/spendTypes";
 import { ALYSSA_ALL_BRAND_SCOPE } from "@/lib/marketing/brandScope";
 
 export const dynamic = "force-dynamic";
@@ -219,6 +213,7 @@ export default async function DailyOverviewPage({
 }: {
   searchParams?: Promise<
     DailyOverviewQuery & {
+      entry_brand?: string | string[];
       command_status?: string | string[];
       message?: string | string[];
     }
@@ -226,19 +221,25 @@ export default async function DailyOverviewPage({
 }) {
   const query = (await searchParams) ?? {};
   const snapshot = await getDailyOverviewSnapshot(query);
+  const editorSnapshot = await getDailyBrandSpendEditorSnapshot({
+    selectedDate: snapshot.selectedEntryDate,
+    requestedBrandId: firstParam(query.entry_brand),
+    reportingBrandScope: snapshot.selectedBrandScope,
+  });
   const message = firstParam(query.message);
   const commandStatus = firstParam(query.command_status);
-  const selectedSpendLabel = SPEND_TYPE_LABELS[snapshot.selectedSpendType];
   const visibleMetricRows = snapshot.hasLegacySpend
     ? metricRows
     : metricRows.filter((metric) => metric.key !== "spend:legacy_unclassified");
   const returnParams = new URLSearchParams({
     month: snapshot.monthStart,
     entry_date: snapshot.selectedEntryDate,
-    spend_type: snapshot.selectedSpendType,
   });
   if (snapshot.selectedBrandScope) {
     returnParams.set("brand", snapshot.selectedBrandScope);
+  }
+  if (editorSnapshot.selectedBrandId) {
+    returnParams.set("entry_brand", editorSnapshot.selectedBrandId);
   }
   const returnPath = `/performance/daily?${returnParams.toString()}`;
   const tableBrands =
@@ -275,11 +276,6 @@ export default async function DailyOverviewPage({
               </div>
             </div>
             <form className="daily-overview-month-filter" method="get">
-              <input
-                type="hidden"
-                name="spend_type"
-                value={snapshot.selectedSpendType}
-              />
               <label>
                 <span>月份</span>
                 <select name="month" defaultValue={snapshot.monthStart}>
@@ -362,164 +358,14 @@ export default async function DailyOverviewPage({
             />
           </section>
 
-          <section className="command-surface daily-spend-editor">
-            <header>
-              <div>
-                <p>每日廣告費</p>
-                <h2>填寫每日廣告費</h2>
-                <span>
-                  先揀 Meta 細分類或 Google Ads，再一次更新你有權限管理嘅品牌；輸入 0 代表確認冇廣告費，清空再儲存代表刪除該類舊值。每次修改都會保留紀錄。
-                </span>
-              </div>
-              <BadgeDollarSign size={24} />
-            </header>
-
-            <form className="daily-spend-date-picker" method="get">
-              <input type="hidden" name="month" value={snapshot.monthStart} />
-              {snapshot.selectedBrandScope ? (
-                <input
-                  type="hidden"
-                  name="brand"
-                  value={snapshot.selectedBrandScope}
-                />
-              ) : null}
-              <label>
-                <span>輸入日期</span>
-                <input
-                  type="date"
-                  name="entry_date"
-                  min={snapshot.monthStart}
-                  max={snapshot.maxEntryDate}
-                  defaultValue={snapshot.selectedEntryDate}
-                />
-              </label>
-              <label>
-                <span>廣告費類型</span>
-                <select
-                  name="spend_type"
-                  defaultValue={snapshot.selectedSpendType}
-                >
-                  {snapshot.spendTypeOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <SubmitButton
-                className="command-secondary-button"
-                pendingLabel="載入中…"
-              >
-                載入日期及類型
-              </SubmitButton>
-            </form>
-
-            <form action={saveDailySpendAction} className="daily-spend-form">
-              <input type="hidden" name="spendDate" value={snapshot.selectedEntryDate} />
-              <input
-                type="hidden"
-                name="spendType"
-                value={snapshot.selectedSpendType}
-              />
-              <input type="hidden" name="returnPath" value={returnPath} />
-              <div className="daily-spend-brand-grid">
-                {snapshot.brands.map((brand) => {
-                  const entry = snapshot.selectedEntries[brand.id];
-                  return (
-                    <article
-                      key={brand.id}
-                      className="daily-spend-brand-card"
-                      style={{
-                        borderTopColor: brand.color,
-                        backgroundColor: brand.secondaryColor,
-                      }}
-                    >
-                      <div className="daily-spend-brand-heading">
-                        <BrandMark
-                          name={brand.name}
-                          color={brand.color}
-                        />
-                        <span>
-                          {entry
-                            ? entry.entryMethod === "legacy_import"
-                              ? "已由舊表搬入"
-                              : `第 ${entry.revision} 次更新`
-                            : "尚未填寫"}
-                        </span>
-                      </div>
-                      <label className="daily-spend-amount-field">
-                        <span>{selectedSpendLabel}</span>
-                        <span className="daily-spend-money-input">
-                          <b>$</b>
-                          <input
-                            type="number"
-                            name={`amount:${brand.id}`}
-                            min="0"
-                            max="99999999.99"
-                            step="0.01"
-                            defaultValue={entry?.amount ?? ""}
-                            inputMode="decimal"
-                            aria-label={`${brand.name} ${snapshot.selectedEntryDate} ${selectedSpendLabel} 廣告費`}
-                          />
-                        </span>
-                      </label>
-                      <input
-                        type="hidden"
-                        name={`originalAmount:${brand.id}`}
-                        value={entry?.amount ?? ""}
-                      />
-                      <input
-                        type="hidden"
-                        name={`originalNote:${brand.id}`}
-                        value={entry?.note ?? ""}
-                      />
-                      <input
-                        type="hidden"
-                        name={`expectedRevision:${brand.id}`}
-                        value={entry?.revision ?? ""}
-                      />
-                      <label className="daily-spend-note-field">
-                        <span>備註（選填）</span>
-                        <input
-                          name={`note:${brand.id}`}
-                          maxLength={500}
-                          defaultValue={entry?.note ?? ""}
-                          placeholder={`例如：${selectedSpendLabel} 帳戶調整`}
-                        />
-                      </label>
-                      <small>
-                        {entry
-                          ? `${formatHkDateTime(entry.updatedAt)} · ${entry.updatedBy ?? "系統搬數"}`
-                          : "留空並儲存不會製造 0 值；如確認冇投放，請填 0。"}
-                      </small>
-                    </article>
-                  );
-                })}
-              </div>
-              <footer>
-                <div>
-                  {snapshot.schemaReady ? (
-                    <CheckCircle2 size={17} />
-                  ) : (
-                    <TriangleAlert size={17} />
-                  )}
-                  <span>
-                    {snapshot.schemaReady
-                      ? `將更新 ${snapshot.selectedEntryDate} · ${selectedSpendLabel}，儲存後總廣告費、CPL 同 CPA 會即時重算。`
-                      : "廣告費記錄功能暫時未能使用，請聯絡系統管理員。"}
-                  </span>
-                </div>
-                <SubmitButton
-                  className="command-primary-button"
-                  pendingLabel="儲存及重算中…"
-                  disabled={!snapshot.canEditSpend || !snapshot.schemaReady}
-                >
-                  <Save size={15} />
-                  儲存 {selectedSpendLabel}
-                </SubmitButton>
-              </footer>
-            </form>
-          </section>
+          <DailyBrandSpendEditor
+            snapshot={editorSnapshot}
+            monthStart={snapshot.monthStart}
+            maxEntryDate={snapshot.maxEntryDate}
+            reportingBrandScope={snapshot.selectedBrandScope}
+            returnPath={returnPath}
+            schemaReady={snapshot.schemaReady}
+          />
 
           <section
             className="command-surface daily-overview-surface"
