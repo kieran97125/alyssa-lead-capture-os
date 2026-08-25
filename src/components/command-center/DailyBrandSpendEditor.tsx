@@ -39,7 +39,7 @@ export function DailyBrandSpendEditor({
   monthStart,
   maxEntryDate,
   reportingBrandScope,
-  focusedSpendType,
+  focusedSpendType = "meta_whatsapp",
   returnPath,
   schemaReady,
 }: {
@@ -47,7 +47,7 @@ export function DailyBrandSpendEditor({
   monthStart: string;
   maxEntryDate: string;
   reportingBrandScope: string;
-  focusedSpendType: EditableSpendType;
+  focusedSpendType?: EditableSpendType;
   returnPath: string;
   schemaReady: boolean;
 }) {
