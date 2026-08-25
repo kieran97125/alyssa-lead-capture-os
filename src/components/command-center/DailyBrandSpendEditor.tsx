@@ -39,6 +39,7 @@ export function DailyBrandSpendEditor({
   monthStart,
   maxEntryDate,
   reportingBrandScope,
+  focusedSpendType,
   returnPath,
   schemaReady,
 }: {
@@ -46,6 +47,7 @@ export function DailyBrandSpendEditor({
   monthStart: string;
   maxEntryDate: string;
   reportingBrandScope: string;
+  focusedSpendType: EditableSpendType;
   returnPath: string;
   schemaReady: boolean;
 }) {
@@ -123,9 +125,22 @@ export function DailyBrandSpendEditor({
             ))}
           </select>
         </label>
+        <label className="grid min-w-[210px] gap-1.5">
+          <span className="text-xs font-black text-[#755568]">廣告費類型</span>
+          <select
+            name="spend_type"
+            aria-label="廣告費類型"
+            defaultValue={focusedSpendType}
+            className="rounded-xl border border-[#dfcdc4] bg-white px-3 py-2 text-sm font-bold text-[#4d2d40]"
+          >
+            {SPEND_TYPE_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>{option.label}</option>
+            ))}
+          </select>
+        </label>
         <SubmitButton className="command-secondary-button" pendingLabel="載入中…">
           <CalendarDays size={15} />
-          載入品牌
+          載入日期及類型
         </SubmitButton>
         <span className="ml-auto text-xs font-bold text-[#8a6477]">
           前一日 {formatDate(snapshot.previousDate)} 合計：{money(snapshot.previousTotal)}
@@ -140,7 +155,7 @@ export function DailyBrandSpendEditor({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <strong className="text-base text-[#321428]">{snapshot.selectedBrandName} · {formatDate(snapshot.selectedDate)}</strong>
-            <p className="mt-1 text-xs font-semibold text-[#8a6477]">四個 Source 同一版完成；每個欄位保留獨立 revision 同 audit。</p>
+            <p className="mt-1 text-xs font-semibold text-[#8a6477]">四個 Source 同一版完成；上面「廣告費類型」只係快速標示目前 Source，唔會變返逐 Source 入數。</p>
           </div>
           <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black ${liveCompletion === 4 ? "bg-[#eaf7ef] text-[#3d7355]" : "bg-[#fff5e8] text-[#8a632b]"}`}>
             {liveCompletion === 4 ? <CheckCircle2 size={14} /> : <TriangleAlert size={14} />}
@@ -152,8 +167,13 @@ export function DailyBrandSpendEditor({
           {SPEND_TYPE_OPTIONS.map((option) => {
             const entry = snapshot.entries[option.value];
             const previous = snapshot.previousEntries[option.value];
+            const focused = option.value === focusedSpendType;
             return (
-              <article key={option.value} className="rounded-2xl border border-[#ead9cf] bg-white p-4 shadow-[0_8px_22px_rgba(90,35,72,0.05)]">
+              <article
+                key={option.value}
+                data-spend-source={option.value}
+                className={`rounded-2xl border bg-white p-4 shadow-[0_8px_22px_rgba(90,35,72,0.05)] ${focused ? "border-[#9c5878] ring-2 ring-[#f3dfe8]" : "border-[#ead9cf]"}`}
+              >
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <strong className="text-sm text-[#321428]">{option.label}</strong>
