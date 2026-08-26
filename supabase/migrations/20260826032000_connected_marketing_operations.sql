@@ -115,7 +115,7 @@ create index if not exists marketing_notifications_recipient_unread_idx
   on public.marketing_notifications(recipient_member_id, is_read, created_at desc);
 alter table public.marketing_notifications enable row level security;
 
--- 3) Central event layer used by performance charts / timeline markers.
+-- 3) Central event layer used by Dashboard / Treatment Performance timeline markers.
 create table if not exists public.marketing_operational_events (
   id uuid primary key default gen_random_uuid(),
   brand_id uuid not null references public.brands(id) on delete cascade,
@@ -139,7 +139,9 @@ create index if not exists marketing_operational_events_brand_date_idx
   on public.marketing_operational_events(brand_id, event_date, event_type);
 alter table public.marketing_operational_events enable row level security;
 
--- Keep performance markers synchronized with published Calendar items.
+-- Keep linked Weekly Tasks aligned with Calendar scheduling. Publishing a linked
+-- Calendar item completes the execution task; completing a generic task does NOT
+-- publish the Calendar item, so content completion is never mistaken for go-live.
 create or replace function public.sync_calendar_operational_event()
 returns trigger
 language plpgsql
@@ -154,6 +156,30 @@ begin
       and event_type = 'calendar_published';
     return old;
   end if;
+
+  update public.marketing_work_tasks task
+  set
+    due_date = new.scheduled_date,
+    due_time = new.scheduled_time,
+    status = case
+      when new.status = 'published' then 'done'
+      else task.status
+    end,
+    completed_at = case
+      when new.status = 'published' then coalesce(task.completed_at, new.published_at, now())
+      else task.completed_at
+    end,
+    updated_at = now()
+  where task.id in (
+    select link.task_id
+    from public.marketing_task_calendar_links link
+    where link.calendar_item_id = new.id
+  )
+    and (
+      task.due_date is distinct from new.scheduled_date
+      or task.due_time is distinct from new.scheduled_time
+      or (new.status = 'published' and task.status <> 'done')
+    );
 
   if new.status = 'published' and new.show_on_performance_timeline then
     insert into public.marketing_operational_events (
@@ -295,6 +321,55 @@ drop trigger if exists marketing_task_operational_event_sync on public.marketing
 create trigger marketing_task_operational_event_sync
 after insert or update or delete on public.marketing_work_tasks
 for each row execute function public.sync_task_operational_event();
+
+-- Backfill central events for any Calendar items already published before this layer existed.
+insert into public.marketing_operational_events (
+  brand_id,
+  treatment_id,
+  treatment_label,
+  event_date,
+  event_at,
+  event_type,
+  title,
+  item_type,
+  channel,
+  notes,
+  source_entity_type,
+  source_entity_id,
+  metadata,
+  updated_at
+)
+select
+  item.brand_id,
+  item.treatment_id,
+  item.treatment_label,
+  item.scheduled_date,
+  coalesce(
+    item.published_at,
+    ((item.scheduled_date + coalesce(item.scheduled_time, time '12:00')) at time zone 'Asia/Hong_Kong')
+  ),
+  'calendar_published',
+  item.title,
+  item.item_type,
+  item.channel,
+  item.notes,
+  'calendar_item',
+  item.id,
+  jsonb_build_object('autoPublished', item.auto_published_at is not null),
+  now()
+from public.marketing_calendar_items item
+where item.status = 'published'
+  and item.show_on_performance_timeline
+on conflict (source_entity_type, source_entity_id, event_type)
+do update set
+  event_date = excluded.event_date,
+  event_at = excluded.event_at,
+  title = excluded.title,
+  item_type = excluded.item_type,
+  channel = excluded.channel,
+  notes = excluded.notes,
+  metadata = excluded.metadata,
+  updated_at = now();
 
 -- 4) Auto publish Scheduled calendar items at their HKT date/time.
 -- Missing time intentionally means 12:00 HKT.
