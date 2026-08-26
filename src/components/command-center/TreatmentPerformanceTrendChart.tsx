@@ -84,7 +84,7 @@ function AnnotationDot(props: {
     return null;
   }
   return (
-    <g aria-label={`${count} 個日曆操作`}>
+    <g aria-label={`${count} 個成效事件`}>
       <circle cx={props.cx} cy={props.cy} r={7} fill="#fff" stroke="#D3913E" strokeWidth={3} />
       {count > 1 ? (
         <text
@@ -146,7 +146,7 @@ function TrendTooltip({
       </div>
       {annotations.length > 0 ? (
         <div className="performance-trend-annotations">
-          <p>當日日曆操作</p>
+          <p>當日成效事件</p>
           {annotations.slice(0, 5).map((annotation) => (
             <article key={annotation.id}>
               <span style={{ background: annotation.brandColor }} />
@@ -232,7 +232,7 @@ export function TreatmentPerformanceTrendChart({
       <div
         className="period-chart-canvas"
         role="img"
-        aria-label={`${selectedMetric.label}走勢；橙色圓點代表日曆操作`}
+        aria-label={`${selectedMetric.label}走勢；橙色圓點代表已連結嘅成效事件`}
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={{ top: 14, right: 16, left: 4, bottom: 4 }} accessibilityLayer>
@@ -275,7 +275,7 @@ export function TreatmentPerformanceTrendChart({
             <Line
               type="linear"
               dataKey="annotationY"
-              name="日曆操作"
+              name="成效事件"
               stroke="transparent"
               dot={<AnnotationDot />}
               activeDot={<AnnotationDot />}
