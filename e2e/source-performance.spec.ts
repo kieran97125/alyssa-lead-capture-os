@@ -116,40 +116,75 @@ test("Dashboard and period comparison expose Source efficiency analysis", async 
   await expect(page.getByText("CPShow Δ", { exact: true }).first()).toBeVisible();
 });
 
-test("Daily Overview uses one brand with all four Spend sources", async ({ page }) => {
+test("Daily Overview supports both brand-first and source-first Spend entry", async ({ page }) => {
   await page.goto("/performance/daily?month=2026-08-01");
-  const editor = page.getByTestId("daily-brand-spend-editor");
-  await expect(editor).toBeVisible();
-  await expect(editor.getByText("按品牌一次過填晒每日廣告費")).toBeVisible();
+
+  const modeSwitch = page.getByTestId("daily-spend-entry-mode-switch");
+  await expect(modeSwitch).toBeVisible();
+  await expect(modeSwitch.getByRole("link", { name: "按品牌", exact: true })).toHaveAttribute(
+    "aria-current",
+    "page"
+  );
+  await expect(modeSwitch.getByRole("link", { name: "按 Source", exact: true })).toBeVisible();
+
+  const brandEditor = page.getByTestId("daily-brand-spend-editor");
+  await expect(brandEditor).toBeVisible();
+  await expect(brandEditor.getByText("按品牌一次過填晒每日廣告費")).toBeVisible();
   await expect(
-    editor.locator('[data-spend-source="meta_whatsapp"]').getByText("Meta · WhatsApp", { exact: true })
+    brandEditor
+      .locator('[data-spend-source="meta_whatsapp"]')
+      .getByText("Meta · WhatsApp", { exact: true })
   ).toBeVisible();
   await expect(
-    editor.locator('[data-spend-source="meta_lead_form"]').getByText("Meta · Lead Form", { exact: true })
+    brandEditor
+      .locator('[data-spend-source="meta_lead_form"]')
+      .getByText("Meta · Lead Form", { exact: true })
   ).toBeVisible();
   await expect(
-    editor.locator('[data-spend-source="meta_website_form"]').getByText("Meta · Website Form", { exact: true })
+    brandEditor
+      .locator('[data-spend-source="meta_website_form"]')
+      .getByText("Meta · Website Form", { exact: true })
   ).toBeVisible();
   await expect(
-    editor.locator('[data-spend-source="google_ads"]').getByText("Google Ads", { exact: true })
+    brandEditor
+      .locator('[data-spend-source="google_ads"]')
+      .getByText("Google Ads", { exact: true })
   ).toBeVisible();
-  await expect(editor.locator('select[name="entry_brand"]')).toBeVisible();
-  const sourceFocus = editor.getByLabel("廣告費類型");
-  await expect(sourceFocus).toHaveValue("meta_whatsapp");
-  await expect(sourceFocus.locator("option")).toHaveText([
+  await expect(brandEditor.locator('select[name="entry_brand"]')).toBeVisible();
+  await expect(brandEditor.locator('input[name="amount:meta_whatsapp"]')).toBeVisible();
+  await expect(brandEditor.locator('input[name="amount:meta_lead_form"]')).toBeVisible();
+  await expect(brandEditor.locator('input[name="amount:meta_website_form"]')).toBeVisible();
+  await expect(brandEditor.locator('input[name="amount:google_ads"]')).toBeVisible();
+  await expect(page.getByTestId("daily-source-spend-editor")).toHaveCount(0);
+
+  await modeSwitch.getByRole("link", { name: "按 Source", exact: true }).click();
+  await expect(page).toHaveURL(/entry_mode=source/);
+
+  const sourceEditor = page.getByTestId("daily-source-spend-editor");
+  await expect(sourceEditor).toBeVisible();
+  await expect(sourceEditor.getByText("按 Source 一次過填晒各品牌廣告費")).toBeVisible();
+  await expect(page.getByTestId("daily-brand-spend-editor")).toHaveCount(0);
+  await expect(
+    page
+      .getByTestId("daily-spend-entry-mode-switch")
+      .getByRole("link", { name: "按 Source", exact: true })
+  ).toHaveAttribute("aria-current", "page");
+
+  const sourceSelect = sourceEditor.getByLabel("Source");
+  await expect(sourceSelect).toHaveValue("meta_whatsapp");
+  await expect(sourceSelect.locator("option")).toHaveText([
     "Meta · WhatsApp",
     "Meta · Lead Form",
     "Meta · Website Form",
     "Google Ads",
   ]);
-  await expect(editor.locator('input[name="amount:meta_whatsapp"]')).toBeVisible();
-  await expect(editor.locator('input[name="amount:meta_lead_form"]')).toBeVisible();
-  await expect(editor.locator('input[name="amount:meta_website_form"]')).toBeVisible();
-  await expect(editor.locator('input[name="amount:google_ads"]')).toBeVisible();
+  await expect(sourceEditor.locator('input[name^="amount:"]')).toHaveCount(4);
 
-  await sourceFocus.selectOption("meta_lead_form");
-  await editor.getByRole("button", { name: "載入日期及類型" }).click();
+  await sourceSelect.selectOption("meta_lead_form");
+  await sourceEditor.getByRole("button", { name: "載入 Source" }).click();
+  await expect(page).toHaveURL(/entry_mode=source/);
   await expect(page).toHaveURL(/spend_type=meta_lead_form/);
-  await expect(editor.locator('input[name="amount:meta_whatsapp"]')).toBeVisible();
-  await expect(editor.locator('input[name="amount:meta_lead_form"]')).toBeVisible();
+  await expect(page.getByTestId("daily-source-spend-editor").getByLabel("Source")).toHaveValue(
+    "meta_lead_form"
+  );
 });
