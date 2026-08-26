@@ -15,6 +15,7 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { DailyBrandSpendEditor } from "@/components/command-center/DailyBrandSpendEditor";
+import { DailySourceSpendEditor } from "@/components/command-center/DailySourceSpendEditor";
 import { getDailyBrandSpendEditorSnapshot } from "@/lib/marketing/dailyBrandSpendEditor";
 import {
   getDailyOverviewSnapshot,
@@ -22,6 +23,7 @@ import {
   type DailyOverviewCell,
   type DailyOverviewQuery,
 } from "@/lib/marketing/dailyOverview";
+import { getDailySourceSpendEditorSnapshot } from "@/lib/marketing/dailySourceSpendEditor";
 import type { SpendType } from "@/lib/marketing/spendTypes";
 import { ALYSSA_ALL_BRAND_SCOPE } from "@/lib/marketing/brandScope";
 
@@ -33,6 +35,8 @@ type MetricRow = {
   note: string;
   render: (cell: DailyOverviewCell) => ReactNode;
 };
+
+type SpendEntryMode = "brand" | "source";
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value || "";
@@ -214,6 +218,7 @@ export default async function DailyOverviewPage({
   searchParams?: Promise<
     DailyOverviewQuery & {
       entry_brand?: string | string[];
+      entry_mode?: string | string[];
       command_status?: string | string[];
       message?: string | string[];
     }
@@ -221,11 +226,23 @@ export default async function DailyOverviewPage({
 }) {
   const query = (await searchParams) ?? {};
   const snapshot = await getDailyOverviewSnapshot(query);
-  const editorSnapshot = await getDailyBrandSpendEditorSnapshot({
-    selectedDate: snapshot.selectedEntryDate,
-    requestedBrandId: firstParam(query.entry_brand),
-    reportingBrandScope: snapshot.selectedBrandScope,
-  });
+  const entryMode: SpendEntryMode =
+    firstParam(query.entry_mode) === "source" ? "source" : "brand";
+  const brandEditorSnapshot =
+    entryMode === "brand"
+      ? await getDailyBrandSpendEditorSnapshot({
+          selectedDate: snapshot.selectedEntryDate,
+          requestedBrandId: firstParam(query.entry_brand),
+          reportingBrandScope: snapshot.selectedBrandScope,
+        })
+      : null;
+  const sourceEditorSnapshot =
+    entryMode === "source"
+      ? await getDailySourceSpendEditorSnapshot({
+          selectedDate: snapshot.selectedEntryDate,
+          requestedSpendType: firstParam(query.spend_type),
+        })
+      : null;
   const message = firstParam(query.message);
   const commandStatus = firstParam(query.command_status);
   const visibleMetricRows = snapshot.hasLegacySpend
@@ -234,14 +251,39 @@ export default async function DailyOverviewPage({
   const returnParams = new URLSearchParams({
     month: snapshot.monthStart,
     entry_date: snapshot.selectedEntryDate,
+    entry_mode: entryMode,
   });
   if (snapshot.selectedBrandScope) {
     returnParams.set("brand", snapshot.selectedBrandScope);
   }
-  if (editorSnapshot.selectedBrandId) {
-    returnParams.set("entry_brand", editorSnapshot.selectedBrandId);
+  if (entryMode === "brand" && brandEditorSnapshot?.selectedBrandId) {
+    returnParams.set("entry_brand", brandEditorSnapshot.selectedBrandId);
+    returnParams.set("spend_type", snapshot.selectedSpendType);
+  }
+  if (entryMode === "source") {
+    returnParams.set(
+      "spend_type",
+      sourceEditorSnapshot?.spendType ?? snapshot.selectedSpendType
+    );
   }
   const returnPath = `/performance/daily?${returnParams.toString()}`;
+
+  const modeBaseParams = new URLSearchParams({
+    month: snapshot.monthStart,
+    entry_date: snapshot.selectedEntryDate,
+  });
+  if (snapshot.selectedBrandScope) {
+    modeBaseParams.set("brand", snapshot.selectedBrandScope);
+  }
+  const brandModeParams = new URLSearchParams(modeBaseParams);
+  brandModeParams.set("entry_mode", "brand");
+  brandModeParams.set("spend_type", snapshot.selectedSpendType);
+  const requestedEntryBrand = firstParam(query.entry_brand);
+  if (requestedEntryBrand) brandModeParams.set("entry_brand", requestedEntryBrand);
+  const sourceModeParams = new URLSearchParams(modeBaseParams);
+  sourceModeParams.set("entry_mode", "source");
+  sourceModeParams.set("spend_type", snapshot.selectedSpendType);
+
   const tableBrands =
     !snapshot.selectedBrandScope ||
     snapshot.selectedBrandScope === ALYSSA_ALL_BRAND_SCOPE
@@ -358,14 +400,68 @@ export default async function DailyOverviewPage({
             />
           </section>
 
-          <DailyBrandSpendEditor
-            snapshot={editorSnapshot}
-            monthStart={snapshot.monthStart}
-            maxEntryDate={snapshot.maxEntryDate}
-            reportingBrandScope={snapshot.selectedBrandScope}
-            returnPath={returnPath}
-            schemaReady={snapshot.schemaReady}
-          />
+          <section
+            className="command-surface flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between"
+            data-testid="daily-spend-entry-mode-switch"
+            aria-label="廣告費輸入方式"
+          >
+            <div>
+              <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9a5d76]">
+                Spend entry mode
+              </p>
+              <strong className="mt-1 block text-base text-[#321428]">
+                同一份廣告費帳簿，按工作習慣切換輸入方式
+              </strong>
+              <span className="mt-1 block text-xs font-semibold text-[#806174]">
+                按品牌：一次填 4 個 Source；按 Source：一次填晒各品牌。
+              </span>
+            </div>
+            <nav className="inline-flex rounded-2xl border border-[#ead9cf] bg-[#fffaf7] p-1">
+              <a
+                href={`/performance/daily?${brandModeParams.toString()}`}
+                aria-current={entryMode === "brand" ? "page" : undefined}
+                className={`rounded-xl px-4 py-2 text-sm font-black transition ${
+                  entryMode === "brand"
+                    ? "bg-[#5a2348] text-white shadow-sm"
+                    : "text-[#765669] hover:bg-white"
+                }`}
+              >
+                按品牌
+              </a>
+              <a
+                href={`/performance/daily?${sourceModeParams.toString()}`}
+                aria-current={entryMode === "source" ? "page" : undefined}
+                className={`rounded-xl px-4 py-2 text-sm font-black transition ${
+                  entryMode === "source"
+                    ? "bg-[#46618d] text-white shadow-sm"
+                    : "text-[#765669] hover:bg-white"
+                }`}
+              >
+                按 Source
+              </a>
+            </nav>
+          </section>
+
+          {entryMode === "source" && sourceEditorSnapshot ? (
+            <DailySourceSpendEditor
+              snapshot={sourceEditorSnapshot}
+              monthStart={snapshot.monthStart}
+              maxEntryDate={snapshot.maxEntryDate}
+              reportingBrandScope={snapshot.selectedBrandScope}
+              returnPath={returnPath}
+              schemaReady={snapshot.schemaReady}
+            />
+          ) : brandEditorSnapshot ? (
+            <DailyBrandSpendEditor
+              snapshot={brandEditorSnapshot}
+              monthStart={snapshot.monthStart}
+              maxEntryDate={snapshot.maxEntryDate}
+              reportingBrandScope={snapshot.selectedBrandScope}
+              focusedSpendType={snapshot.selectedSpendType}
+              returnPath={returnPath}
+              schemaReady={snapshot.schemaReady}
+            />
+          ) : null}
 
           <section
             className="command-surface daily-overview-surface"
