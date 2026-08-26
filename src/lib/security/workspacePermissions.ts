@@ -122,6 +122,7 @@ export function getWorkspaceModuleForPath(
   if (pathname === "/" || pathname.startsWith("/dashboard")) return "dashboard";
   if (pathname.startsWith("/kpis")) return "kpis";
   if (pathname.startsWith("/calendar")) return "calendar";
+  if (pathname.startsWith("/tasks")) return "calendar";
   if (pathname.startsWith("/data-sources")) return "data_sources";
   if (pathname.startsWith("/leads")) return "leads";
   if (pathname.startsWith("/lead-audit")) return "lead_audit";
