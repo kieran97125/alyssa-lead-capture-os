@@ -448,7 +448,7 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
 test("GOS form overrides a legacy LaunchHub redirect with the official thank-you page", async ({
   page,
 }) => {
-  const bookingDate = futureBookingDate(12);
+  const bookingDate = futureBookingDate(4);
   const officialFinalRedirect = `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=688&lead_id=gos-redirect-lead&event_id=gos-redirect-event&form_id=${formId}`;
 
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
