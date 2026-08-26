@@ -13,6 +13,7 @@ const files = Object.fromEntries(
       "src/components/command-center/LeadDashboardPanel.tsx",
       "src/components/command-center/PerformanceCostSummary.tsx",
       "src/components/command-center/TreatmentPerformanceTrendChart.tsx",
+      "src/lib/marketing/operationalAnnotationStore.ts",
       "src/lib/marketing/periodComparison.ts",
       "src/lib/marketing/performanceCostMath.ts",
       "src/lib/marketing/performanceCosts.ts",
@@ -50,7 +51,15 @@ assert.match(
 );
 assert.match(
   files["src/components/command-center/TreatmentPerformanceTrendChart.tsx"],
-  /日曆操作/
+  /成效事件/
+);
+assert.match(
+  files["src/lib/marketing/operationalAnnotationStore.ts"],
+  /marketing_operational_events/
+);
+assert.match(
+  files["src/lib/marketing/operationalAnnotationStore.ts"],
+  /marketing_calendar_items/
 );
 
 const costMath = files["src/lib/marketing/performanceCostMath.ts"];
@@ -98,5 +107,5 @@ assert.match(migration, /where treatment_id is not null/);
 assert.doesNotMatch(migration, /\bgrant\b|\bpolicy\b/i);
 
 console.log(
-  "Reporting trend, cost metrics, calendar annotation, and Manager KPI contracts verified."
+  "Reporting trend, cost metrics, connected performance events, calendar annotation, and Manager KPI contracts verified."
 );
