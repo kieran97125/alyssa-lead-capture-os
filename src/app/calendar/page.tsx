@@ -1,5 +1,5 @@
-import { CalendarPlus, ChevronLeft, ChevronRight, Info } from "lucide-react";
-import { createCalendarItemAction } from "@/app/command-center/actions";
+import { CalendarPlus, ChevronLeft, ChevronRight, Info, Link2, Sparkles } from "lucide-react";
+import { createConnectedCalendarItemAction } from "@/app/calendar/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
@@ -47,7 +47,7 @@ export default async function MarketingCalendarPage({
               <p className="command-page-kicker">營銷規劃</p>
               <h1 className="command-page-title">營銷日曆</h1>
               <p className="command-page-subtitle">
-                {snapshot.month.label} · 集中安排各品牌、療程、內容同廣告事項；可直接拖放更改日期。
+                {snapshot.month.label} · Idea → Scheduled → Published。Scheduled 事項到排定 HKT 時間會自動發布，亦可以同步建立 Weekly 工作。
               </p>
             </div>
             <div className="calendar-header-actions">
@@ -108,7 +108,7 @@ export default async function MarketingCalendarPage({
             </div>
             <p>
               <Info size={14} />
-              拖放後會自動保存新日期
+              拖放更改日期；Scheduled 冇時間預設 12:00 HKT 發布
             </p>
           </section>
 
@@ -134,7 +134,7 @@ export default async function MarketingCalendarPage({
             <header>
               <h2>新增營銷事項</h2>
             </header>
-            <form action={createCalendarItemAction}>
+            <form action={createConnectedCalendarItemAction}>
               <input type="hidden" name="returnPath" value={returnPath} />
               <label>
                 <span>品牌</span>
@@ -204,19 +204,16 @@ export default async function MarketingCalendarPage({
                 />
               </label>
               <label>
-                <span>時間</span>
+                <span>時間（可留空）</span>
                 <input type="time" name="scheduledTime" />
+                <small>Scheduled 如冇填時間，系統會喺該日 12:00 HKT 自動轉 Published。</small>
               </label>
               <label>
                 <span>狀態</span>
-                <select name="status" defaultValue="planned">
+                <select name="status" defaultValue="idea" data-testid="calendar-status-select">
                   <option value="idea">Idea</option>
-                  <option value="planned">Planned</option>
-                  <option value="in_progress">In progress</option>
-                  <option value="review">Review</option>
                   <option value="scheduled">Scheduled</option>
                   <option value="published">Published</option>
-                  <option value="blocked">Blocked</option>
                 </select>
               </label>
               <label>
@@ -231,6 +228,31 @@ export default async function MarketingCalendarPage({
                   placeholder="素材、審批或上線要求"
                 />
               </label>
+
+              <div className="calendar-notes-field grid gap-2 rounded-2xl border border-[#ead9cf] bg-[#fff9f3] p-3 sm:grid-cols-2">
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" name="showOnPerformanceTimeline" defaultChecked />
+                  <span>
+                    <b className="flex items-center gap-1"><Sparkles size={13} /> 成效時間線標記</b>
+                    <small>Published 後會顯示喺成效圖表小點點，方便對照 Lead / Book / Show 變化。</small>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2">
+                  <input type="checkbox" name="createTask" />
+                  <span>
+                    <b className="flex items-center gap-1"><Link2 size={13} /> 同步建立工作事項</b>
+                    <small>建立一項 linked Weekly Task；如負責人係系統同事會收到通知。</small>
+                  </span>
+                </label>
+                <label>
+                  <span>同步工作 Priority</span>
+                  <select name="taskPriority" defaultValue="normal">
+                    <option value="low">Low</option>
+                    <option value="normal">Normal</option>
+                    <option value="high">High</option>
+                  </select>
+                </label>
+              </div>
               <footer>
                 <SubmitButton
                   className="command-primary-button"
