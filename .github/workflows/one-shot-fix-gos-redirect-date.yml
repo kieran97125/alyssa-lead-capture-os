@@ -1,0 +1,40 @@
+name: One-shot fix GOS redirect test date
+
+on:
+  push:
+    branches:
+      - agent/spend-entry-dual-mode
+    paths:
+      - .github/workflows/one-shot-fix-gos-redirect-date.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/spend-entry-dual-mode
+      - name: Replace calendar-edge fixture and remove one-shot workflow
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('e2e/gos-compact-form.spec.ts')
+          text = path.read_text()
+          old = '  const bookingDate = futureBookingDate(12);'
+          new = '  const bookingDate = futureBookingDate(4);'
+          if text.count(old) != 1:
+              raise SystemExit(f'expected one redirect fixture, found {text.count(old)}')
+          path.write_text(text.replace(old, new, 1))
+          PY
+          git rm .github/workflows/one-shot-fix-gos-redirect-date.yml
+      - name: Commit test fixture update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/gos-compact-form.spec.ts
+          git commit -m "Stabilize GOS redirect booking date fixture"
+          git push origin HEAD:agent/spend-entry-dual-mode
