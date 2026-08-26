@@ -13,6 +13,7 @@ import {
   FilePlus2,
   Home,
   Inbox,
+  ListTodo,
   LockKeyhole,
   LogOut,
   MailCheck,
@@ -56,6 +57,7 @@ const navigationGroups: NavigationGroup[] = [
       { href: "/dashboard", label: "Dashboard", icon: Home, module: "dashboard" },
       { href: "/kpis", label: "品牌 KPI", icon: CircleGauge, module: "kpis" },
       { href: "/calendar", label: "營銷日曆", icon: CalendarDays, module: "calendar" },
+      { href: "/tasks", label: "工作事項", icon: ListTodo, module: "calendar" },
     ],
   },
   {
@@ -175,11 +177,13 @@ function SidebarContent({
   onNavigate,
   access,
   leadAuditAlertCount,
+  workNotificationCount,
 }: {
   pathname: string;
   onNavigate: () => void;
   access: InternalAccessContext;
   leadAuditAlertCount: number;
+  workNotificationCount: number;
 }) {
   const isMaster = access.accessLevel === "master";
   const isEmailMember = access.source === "supabase_auth";
@@ -213,11 +217,15 @@ function SidebarContent({
           },
           item.module
         );
-      }).map((item) =>
-        item.module === "lead_audit" && leadAuditAlertCount > 0
-          ? { ...item, badge: String(leadAuditAlertCount) }
-          : item
-      ),
+      }).map((item) => {
+        if (item.module === "lead_audit" && leadAuditAlertCount > 0) {
+          return { ...item, badge: String(leadAuditAlertCount) };
+        }
+        if (item.href === "/tasks" && workNotificationCount > 0) {
+          return { ...item, badge: String(workNotificationCount) };
+        }
+        return item;
+      }),
     }))
     .filter((group) => group.items.length > 0);
   const accountCard = (
@@ -303,9 +311,11 @@ function SidebarContent({
 export function AppNavClient({
   access,
   leadAuditAlertCount = 0,
+  workNotificationCount = 0,
 }: {
   access: InternalAccessContext;
   leadAuditAlertCount?: number;
+  workNotificationCount?: number;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -342,6 +352,7 @@ export function AppNavClient({
           onNavigate={() => setOpen(false)}
           access={access}
           leadAuditAlertCount={leadAuditAlertCount}
+          workNotificationCount={workNotificationCount}
         />
       </aside>
     </>
