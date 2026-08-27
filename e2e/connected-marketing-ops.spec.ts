@@ -21,7 +21,7 @@ test("Marketing Calendar only exposes Idea, Scheduled and Published", async ({ p
   await expect(page.getByText("同步建立工作事項", { exact: true })).toBeVisible();
 });
 
-test("Weekly work board uses a Monday-style list with assignment, status and calendar columns", async ({ page }) => {
+test("Weekly work board uses a Monday-style list with assignment, status, calendar and delete controls", async ({ page }) => {
   await page.goto("/tasks");
 
   const board = page.getByTestId("weekly-task-board");
@@ -35,6 +35,7 @@ test("Weekly work board uses a Monday-style list with assignment, status and cal
   await expect(page.getByText("狀態", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("期限", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Priority", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("操作", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("work-notification-center")).toBeVisible();
   await expect(page.getByText("新增／派工作", { exact: true })).toBeVisible();
   await expect(page.getByText(/只顯示擁有此品牌 Access/)).toBeVisible();
@@ -42,6 +43,11 @@ test("Weekly work board uses a Monday-style list with assignment, status and cal
   const firstTask = page.locator("[data-task-id]").first();
   await expect(firstTask.getByTestId("task-assignee-form").getByRole("button", { name: "派" })).toBeVisible();
   await expect(firstTask.getByTestId("task-status-form").getByRole("button", { name: "更新" })).toBeVisible();
+  const deleteControl = firstTask.getByTestId("task-delete-control");
+  await expect(deleteControl).toBeVisible();
+  await deleteControl.locator("summary").click();
+  await expect(deleteControl.getByRole("button", { name: "確認刪除" })).toBeVisible();
+  await expect(deleteControl.getByText(/唔會刪已連結嘅營銷日曆事項/)).toBeVisible();
 });
 
 test("Dashboard trend consumes the connected operational event layer", async ({ page }) => {

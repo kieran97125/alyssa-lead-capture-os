@@ -268,6 +268,30 @@ export async function updateWorkTaskStatusAction(formData: FormData) {
   redirectResult(returnPath, true, "工作狀態已更新。" );
 }
 
+export async function deleteWorkTaskAction(formData: FormData) {
+  const returnPath = safeReturnPath(readString(formData, "returnPath"));
+  const access = await requireTaskOperator(returnPath);
+  const taskId = readString(formData, "taskId");
+  if (!taskId) {
+    redirectResult(returnPath, false, "缺少要刪除嘅工作資料。" );
+  }
+  const taskResult = await getAccessibleTask(taskId, access);
+  if (taskResult.error || !taskResult.data || !canAccessInternalBrand(access, taskResult.data.brand_id)) {
+    redirectResult(returnPath, false, "你未獲授權刪除呢項工作。" );
+  }
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("marketing_work_tasks")
+    .delete()
+    .eq("id", taskId);
+  if (error) {
+    console.warn("marketing_work_task_delete_failed", { code: error.code });
+    redirectResult(returnPath, false, "刪除工作失敗，請稍後再試。" );
+  }
+  revalidateOps();
+  redirectResult(returnPath, true, `已刪除工作：${taskResult.data.title}`);
+}
+
 export async function assignWorkTaskAction(formData: FormData) {
   const returnPath = safeReturnPath(readString(formData, "returnPath"));
   const access = await requireTaskOperator(returnPath);
