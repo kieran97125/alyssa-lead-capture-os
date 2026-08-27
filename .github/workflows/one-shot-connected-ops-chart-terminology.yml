@@ -1,0 +1,51 @@
+name: One-shot connected ops chart terminology patch
+on:
+  push:
+    branches:
+      - agent/connected-marketing-ops-v1
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/connected-marketing-ops-v1
+      - name: Align Period Comparison with operational event terminology
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          chart = Path('src/components/command-center/PeriodComparisonChart.tsx')
+          text = chart.read_text()
+          replacements = {
+              '${count} 個日曆操作': '${count} 個成效事件',
+              '<p>同期日曆操作</p>': '<p>同期成效事件</p>',
+              '橙色圓點代表日曆操作': '橙色圓點代表已連結嘅成效事件',
+              'name="日曆操作"': 'name="成效事件"',
+          }
+          for old, new in replacements.items():
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f'expected one occurrence of {old!r}, found {count}')
+              text = text.replace(old, new)
+          chart.write_text(text)
+
+          contract = Path('scripts/verify-reporting-trend-contract.mjs')
+          contract_text = contract.read_text()
+          old = 'files["src/components/command-center/PeriodComparisonChart.tsx"],\n  /日曆操作/'
+          new = 'files["src/components/command-center/PeriodComparisonChart.tsx"],\n  /成效事件/'
+          if contract_text.count(old) != 1:
+              raise SystemExit('expected one Period Comparison terminology contract')
+          contract.write_text(contract_text.replace(old, new))
+          PY
+      - name: Remove one-shot workflow and commit
+        run: |
+          rm .github/workflows/one-shot-connected-ops-chart-terminology.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/components/command-center/PeriodComparisonChart.tsx scripts/verify-reporting-trend-contract.mjs .github/workflows/one-shot-connected-ops-chart-terminology.yml
+          git commit -m "Align comparison charts with connected operations events"
+          git push origin HEAD:agent/connected-marketing-ops-v1
