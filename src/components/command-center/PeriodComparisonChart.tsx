@@ -57,8 +57,6 @@ const rateMetrics = new Set<PerformanceTrendMetricKey>([
 
 type ChartDatum = {
   day: number;
-  annotations: OperationalAnnotation[];
-  annotationY: number | null;
   [key: string]: number | string | null | OperationalAnnotation[];
 };
 
@@ -103,17 +101,34 @@ function pointValue(
   return point ? point[metric] : null;
 }
 
+function annotationsForSeries(
+  payload: ChartDatum | undefined,
+  seriesIndex: number
+) {
+  const value = payload?.[`annotations_${seriesIndex}`];
+  return Array.isArray(value) ? (value as OperationalAnnotation[]) : [];
+}
+
 function AnnotationDot(props: {
   cx?: number;
   cy?: number;
   payload?: ChartDatum;
+  seriesIndex: number;
+  seriesLabel: string;
+  seriesColor: string;
 }) {
-  const count = props.payload?.annotations.length ?? 0;
+  const annotations = annotationsForSeries(props.payload, props.seriesIndex);
+  const count = annotations.length;
   if (!count || typeof props.cx !== "number" || typeof props.cy !== "number") {
     return null;
   }
   return (
-    <g aria-label={`${count} 個成效事件`}>
+    <g
+      aria-label={`${props.seriesLabel} · ${count} 個成效事件`}
+      data-testid="period-series-annotation"
+      data-series-label={props.seriesLabel}
+      data-event-dates={annotations.map((annotation) => annotation.date).join(",")}
+    >
       <circle
         cx={props.cx}
         cy={props.cy}
@@ -127,13 +142,15 @@ function AnnotationDot(props: {
           x={props.cx}
           y={props.cy + 2.5}
           textAnchor="middle"
-          fill="#8A4F17"
+          fill={props.seriesColor}
           fontSize={7}
           fontWeight={900}
         >
           {count}
         </text>
-      ) : null}
+      ) : (
+        <circle cx={props.cx} cy={props.cy} r={2.25} fill={props.seriesColor} />
+      )}
     </g>
   );
 }
@@ -143,6 +160,7 @@ function ComparisonTooltip({
   label,
   payload,
   metric,
+  seriesLabels,
 }: {
   active?: boolean;
   label?: string | number;
@@ -154,11 +172,19 @@ function ComparisonTooltip({
     payload?: ChartDatum;
   }>;
   metric: PerformanceTrendMetricKey;
+  seriesLabels: string[];
 }) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload;
-  const annotations = row?.annotations ?? [];
-  const values = payload.filter((item) => item.dataKey !== "annotationY");
+  const annotationEntries = seriesLabels.flatMap((seriesLabel, seriesIndex) =>
+    annotationsForSeries(row, seriesIndex).map((annotation) => ({
+      annotation,
+      seriesLabel,
+    }))
+  );
+  const values = payload.filter(
+    (item) => !String(item.dataKey ?? "").startsWith("annotationY_")
+  );
   return (
     <div className="performance-trend-tooltip">
       <strong>第 {label} 日累積</strong>
@@ -179,16 +205,16 @@ function ComparisonTooltip({
           );
         })}
       </div>
-      {annotations.length > 0 ? (
+      {annotationEntries.length > 0 ? (
         <div className="performance-trend-annotations">
-          <p>同期成效事件</p>
-          {annotations.slice(0, 6).map((annotation) => (
-            <article key={annotation.id}>
+          <p>同期成效事件（按月份）</p>
+          {annotationEntries.slice(0, 8).map(({ annotation, seriesLabel }) => (
+            <article key={`${seriesLabel}:${annotation.id}`}>
               <span style={{ background: annotation.brandColor }} />
               <div>
                 <strong>{annotation.title}</strong>
                 <small>
-                  {formatDate(annotation.date)} · {annotation.brandName}
+                  {seriesLabel} · {formatDate(annotation.date)} · {annotation.brandName}
                   {annotation.treatmentLabel
                     ? ` · ${annotation.treatmentLabel}`
                     : " · 品牌整體"}
@@ -223,23 +249,22 @@ export function PeriodComparisonChart({
     const series = scope?.series ?? [];
     const maximumPoints = Math.max(0, ...series.map((item) => item.points.length));
     return Array.from({ length: maximumPoints }, (_, index): ChartDatum => {
-      const annotations = uniqueAnnotations(
-        series.flatMap((item) => item.points[index]?.annotations ?? [])
-      );
       const row: ChartDatum = {
         day: series[0]?.points[index]?.day ?? index + 1,
-        annotations,
-        annotationY: null,
       };
-      let maximum = 0;
       series.forEach((item, seriesIndex) => {
-        const value = pointValue(item.points[index], activeMetric);
+        const point = item.points[index];
+        const value = pointValue(point, activeMetric);
+        const annotations = uniqueAnnotations(point?.annotations ?? []);
         row[`series_${seriesIndex}`] = value;
-        if (typeof value === "number" && Number.isFinite(value)) {
-          maximum = Math.max(maximum, value);
-        }
+        row[`annotations_${seriesIndex}`] = annotations;
+        row[`annotationY_${seriesIndex}`] =
+          annotations.length > 0
+            ? typeof value === "number" && Number.isFinite(value)
+              ? value
+              : 0
+            : null;
       });
-      row.annotationY = annotations.length > 0 ? maximum : null;
       return row;
     });
   }, [activeMetric, scope]);
@@ -251,6 +276,7 @@ export function PeriodComparisonChart({
   const overallScopes = scopes.filter((item) => item.type === "overall");
   const brandScopes = scopes.filter((item) => item.type === "brand");
   const treatmentScopes = scopes.filter((item) => item.type === "treatment");
+  const seriesLabels = scope.series.map((item) => item.label);
   return (
     <div className="period-chart-panel">
       <div className="period-scope-control">
@@ -305,7 +331,7 @@ export function PeriodComparisonChart({
       <div
         className="period-chart-canvas"
         role="img"
-        aria-label={`${scope.label} ${selectedMetric.label}同期累積走勢；橙色圓點代表已連結嘅成效事件`}
+        aria-label={`${scope.label} ${selectedMetric.label}同期累積走勢；橙色圓點代表已連結嘅成效事件，圓心顏色對應所屬月份`}
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -331,7 +357,12 @@ export function PeriodComparisonChart({
             />
             <Tooltip
               cursor={{ stroke: "#c9828e", strokeDasharray: "4 4" }}
-              content={<ComparisonTooltip metric={activeMetric} />}
+              content={
+                <ComparisonTooltip
+                  metric={activeMetric}
+                  seriesLabels={seriesLabels}
+                />
+              }
             />
             <Legend
               iconType="circle"
@@ -353,17 +384,32 @@ export function PeriodComparisonChart({
                 isAnimationActive={false}
               />
             ))}
-            <Line
-              type="linear"
-              dataKey="annotationY"
-              name="成效事件"
-              stroke="transparent"
-              dot={<AnnotationDot />}
-              activeDot={<AnnotationDot />}
-              connectNulls={false}
-              isAnimationActive={false}
-              legendType="none"
-            />
+            {scope.series.map((item, index) => (
+              <Line
+                key={`annotation:${item.key}`}
+                type="linear"
+                dataKey={`annotationY_${index}`}
+                name={`${item.label} 成效事件`}
+                stroke="transparent"
+                dot={
+                  <AnnotationDot
+                    seriesIndex={index}
+                    seriesLabel={item.label}
+                    seriesColor={item.color}
+                  />
+                }
+                activeDot={
+                  <AnnotationDot
+                    seriesIndex={index}
+                    seriesLabel={item.label}
+                    seriesColor={item.color}
+                  />
+                }
+                connectNulls={false}
+                isAnimationActive={false}
+                legendType="none"
+              />
+            ))}
           </LineChart>
         </ResponsiveContainer>
       </div>
