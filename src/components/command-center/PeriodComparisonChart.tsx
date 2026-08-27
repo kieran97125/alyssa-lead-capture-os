@@ -124,7 +124,7 @@ function AnnotationDot(props: {
   }
   return (
     <g
-      aria-label={`${props.seriesLabel} · ${count} 個成效事件`}
+      aria-label={`${count} 個成效事件`}
       data-testid="period-series-annotation"
       data-series-label={props.seriesLabel}
       data-event-dates={annotations.map((annotation) => annotation.date).join(",")}
