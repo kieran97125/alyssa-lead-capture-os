@@ -47,7 +47,7 @@ assert.match(
 );
 assert.match(
   files["src/components/command-center/PeriodComparisonChart.tsx"],
-  /日曆操作/
+  /成效事件/
 );
 assert.match(
   files["src/components/command-center/TreatmentPerformanceTrendChart.tsx"],
