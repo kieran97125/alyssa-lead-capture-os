@@ -41,14 +41,20 @@ assert.match(
   files["src/lib/marketing/treatmentPerformance.ts"],
   /buildDailyTreatmentTrend/
 );
-assert.match(
-  files["src/components/command-center/PeriodComparisonChart.tsx"],
-  /type === "treatment"/
+const periodComparisonChart =
+  files["src/components/command-center/PeriodComparisonChart.tsx"];
+assert.match(periodComparisonChart, /type === "treatment"/);
+assert.match(periodComparisonChart, /成效事件/);
+assert.match(periodComparisonChart, /annotations_\$\{seriesIndex\}/);
+assert.match(periodComparisonChart, /annotationY_\$\{seriesIndex\}/);
+assert.match(periodComparisonChart, /data-testid="period-series-annotation"/);
+assert.match(periodComparisonChart, /seriesLabels=\{seriesLabels\}/);
+assert.doesNotMatch(
+  periodComparisonChart,
+  /series\.flatMap\(\(item\) => item\.points\[index\]\?\.annotations/
 );
-assert.match(
-  files["src/components/command-center/PeriodComparisonChart.tsx"],
-  /成效事件/
-);
+assert.doesNotMatch(periodComparisonChart, /dataKey="annotationY"/);
+assert.doesNotMatch(periodComparisonChart, /row\.annotationY/);
 assert.match(
   files["src/components/command-center/TreatmentPerformanceTrendChart.tsx"],
   /成效事件/
@@ -107,5 +113,5 @@ assert.match(migration, /where treatment_id is not null/);
 assert.doesNotMatch(migration, /\bgrant\b|\bpolicy\b/i);
 
 console.log(
-  "Reporting trend, cost metrics, connected performance events, calendar annotation, and Manager KPI contracts verified."
+  "Reporting trend, cost metrics, month-specific connected performance events, calendar annotation, and Manager KPI contracts verified."
 );
