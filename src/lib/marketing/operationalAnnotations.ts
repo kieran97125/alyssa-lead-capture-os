@@ -19,16 +19,18 @@ export const operationalItemTypeLabels: Record<string, string> = {
   landing_page: "Landing Page",
   email: "Email",
   meeting: "會議",
-  task: "任務",
+  task: "工作里程碑",
 };
 
 export const operationalStatusLabels: Record<string, string> = {
   idea: "Idea",
+  scheduled: "已排期",
+  published: "已上線",
+  done: "已完成",
+  // Legacy labels remain readable for historical annotation payloads.
   planned: "Planned",
   in_progress: "進行中",
   review: "審批中",
-  scheduled: "已排期",
-  published: "已上線",
   blocked: "受阻",
   cancelled: "已取消",
 };

@@ -113,7 +113,7 @@ function AnnotationDot(props: {
     return null;
   }
   return (
-    <g aria-label={`${count} 個日曆操作`}>
+    <g aria-label={`${count} 個成效事件`}>
       <circle
         cx={props.cx}
         cy={props.cy}
@@ -181,7 +181,7 @@ function ComparisonTooltip({
       </div>
       {annotations.length > 0 ? (
         <div className="performance-trend-annotations">
-          <p>同期日曆操作</p>
+          <p>同期成效事件</p>
           {annotations.slice(0, 6).map((annotation) => (
             <article key={annotation.id}>
               <span style={{ background: annotation.brandColor }} />
@@ -305,7 +305,7 @@ export function PeriodComparisonChart({
       <div
         className="period-chart-canvas"
         role="img"
-        aria-label={`${scope.label} ${selectedMetric.label}同期累積走勢；橙色圓點代表日曆操作`}
+        aria-label={`${scope.label} ${selectedMetric.label}同期累積走勢；橙色圓點代表已連結嘅成效事件`}
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -356,7 +356,7 @@ export function PeriodComparisonChart({
             <Line
               type="linear"
               dataKey="annotationY"
-              name="日曆操作"
+              name="成效事件"
               stroke="transparent"
               dot={<AnnotationDot />}
               activeDot={<AnnotationDot />}

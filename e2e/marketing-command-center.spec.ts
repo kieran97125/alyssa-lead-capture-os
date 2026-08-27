@@ -1239,7 +1239,7 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
   await expect(page.getByRole("heading", { name: "療程表現" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Lead Funnel 走勢" })).toBeVisible();
   await expect(
-    page.getByRole("img", { name: /每日 Lead走勢；橙色圓點代表日曆操作/ })
+    page.getByRole("img", { name: /每日 Lead走勢；橙色圓點代表已連結嘅成效事件/ })
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "來源／Campaign 表現" })
@@ -1256,7 +1256,7 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
     page.getByRole("button", { name: "同步最新數據" })
   ).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "主要功能" });
-  await expect(navigation.getByRole("link")).toHaveCount(13);
+  await expect(navigation.getByRole("link")).toHaveCount(14);
   await expect(
     navigation.getByRole("link", { name: "Dashboard" })
   ).toBeVisible();
@@ -1444,7 +1444,7 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
     page.getByRole("heading", { name: "療程成效走勢", exact: true })
   ).toBeVisible();
   await expect(
-    page.getByRole("img", { name: /每日 Lead走勢；橙色圓點代表日曆操作/ })
+    page.getByRole("img", { name: /每日 Lead走勢；橙色圓點代表已連結嘅成效事件/ })
   ).toBeVisible();
   const noShowTrend = page.getByRole("button", {
     name: "No Show",
@@ -1453,7 +1453,7 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
   await noShowTrend.click();
   await expect(noShowTrend).toHaveAttribute("aria-pressed", "true");
   await expect(
-    page.locator('[aria-label="1 個日曆操作"]').first()
+    page.locator('[aria-label="1 個成效事件"]').first()
   ).toBeVisible();
   await expect(page.getByText(/唔會重複讀取舊報表數據/)).toBeVisible();
 });
@@ -1525,7 +1525,7 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
     page.getByRole("img", { name: /Alyssa · Facelift Lead同期累積走勢/ })
   ).toBeVisible();
   await expect(
-    page.locator('[aria-label="1 個日曆操作"]').first()
+    page.locator('[aria-label="1 個成效事件"]').first()
   ).toBeVisible();
   await expect(page.getByText(/同期營運比率/)).toBeVisible();
   await expect(page.getByText(/系統廣告費帳簿/)).toBeVisible();
