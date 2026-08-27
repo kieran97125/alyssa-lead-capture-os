@@ -1,0 +1,124 @@
+name: One-shot task delete patch
+on:
+  push:
+    branches:
+      - agent/monday-task-delete
+permissions:
+  contents: write
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: agent/monday-task-delete
+      - name: Add safe task deletion
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          actions = Path('src/app/tasks/actions.ts')
+          text = actions.read_text()
+          anchor = 'export async function assignWorkTaskAction(formData: FormData) {'
+          if text.count(anchor) != 1:
+              raise SystemExit(f'assign action anchor count={text.count(anchor)}')
+          delete_action = '''export async function deleteWorkTaskAction(formData: FormData) {
+  const returnPath = safeReturnPath(readString(formData, "returnPath"));
+  const access = await requireTaskOperator(returnPath);
+  const taskId = readString(formData, "taskId");
+  if (!taskId) {
+    redirectResult(returnPath, false, "缺少要刪除嘅工作資料。" );
+  }
+  const taskResult = await getAccessibleTask(taskId, access);
+  if (taskResult.error || !taskResult.data || !canAccessInternalBrand(access, taskResult.data.brand_id)) {
+    redirectResult(returnPath, false, "你未獲授權刪除呢項工作。" );
+  }
+  const supabase = createSupabaseAdminClient();
+  const { error } = await supabase
+    .from("marketing_work_tasks")
+    .delete()
+    .eq("id", taskId);
+  if (error) {
+    console.warn("marketing_work_task_delete_failed", { code: error.code });
+    redirectResult(returnPath, false, "刪除工作失敗，請稍後再試。" );
+  }
+  revalidateOps();
+  redirectResult(returnPath, true, `已刪除工作：${taskResult.data.title}`);
+}
+
+'''
+          text = text.replace(anchor, delete_action + anchor)
+          actions.write_text(text)
+
+          page = Path('src/app/tasks/page.tsx')
+          text = page.read_text()
+          old_import = '  assignWorkTaskAction,\n  markWorkNotificationReadAction,'
+          new_import = '  assignWorkTaskAction,\n  deleteWorkTaskAction,\n  markWorkNotificationReadAction,'
+          if text.count(old_import) != 1:
+              raise SystemExit('task action import anchor not found once')
+          text = text.replace(old_import, new_import)
+
+          old_icon = '  Sparkles,\n  UserRound,'
+          new_icon = '  Sparkles,\n  Trash2,\n  UserRound,'
+          if text.count(old_icon) != 1:
+              raise SystemExit('Trash2 import anchor not found once')
+          text = text.replace(old_icon, new_icon)
+
+          old_cols = 'grid-cols-[minmax(260px,1.8fr)_150px_150px_130px_140px_90px_115px_76px]'
+          new_cols = 'grid-cols-[minmax(260px,1.8fr)_150px_150px_130px_140px_90px_115px_118px]'
+          if text.count(old_cols) < 2:
+              raise SystemExit(f'grid columns count={text.count(old_cols)}')
+          text = text.replace(old_cols, new_cols)
+
+          old_head = '<span className="border-l border-[#eee3dd] px-3 py-2.5 text-center">更新</span>'
+          new_head = '<span className="border-l border-[#eee3dd] px-3 py-2.5 text-center">操作</span>'
+          if text.count(old_head) != 1:
+              raise SystemExit('operation header anchor not found once')
+          text = text.replace(old_head, new_head)
+
+          old_cell = '''        <div className="flex items-center justify-center border-l border-[#f0e7e2] px-2 py-2">
+          <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-[#fff4f8] px-2 py-1 text-[9px] font-black text-[#7c365f]">
+            <MessageSquareText size={10} className="mr-1" />{task.comments.length}
+          </span>
+        </div>'''
+          new_cell = '''        <div className="flex items-center justify-center gap-1.5 border-l border-[#f0e7e2] px-2 py-2">
+          <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-[#fff4f8] px-2 py-1 text-[9px] font-black text-[#7c365f]" title="留言數">
+            <MessageSquareText size={10} className="mr-1" />{task.comments.length}
+          </span>
+          <details className="relative" data-testid="task-delete-control">
+            <summary className="list-none cursor-pointer rounded-lg bg-[#fff1f0] px-2 py-1.5 text-[9px] font-black text-[#a34c46]" aria-label={`刪除 ${task.title}`}>
+              <Trash2 size={10} />
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 w-40 rounded-xl border border-[#e8c8c4] bg-white p-2 shadow-[0_10px_30px_rgba(90,35,72,0.12)]">
+              <p className="text-[10px] font-bold leading-4 text-[#6e505d]">確認刪除「{task.title}」？</p>
+              <p className="mt-1 text-[9px] leading-4 text-[#9a7a8a]">只刪工作，唔會刪已連結嘅營銷日曆事項。</p>
+              <form action={deleteWorkTaskAction} className="mt-2">
+                <input type="hidden" name="taskId" value={task.id} />
+                <input type="hidden" name="returnPath" value={returnPath} />
+                <button className="w-full rounded-lg bg-[#a34c46] px-2 py-1.5 text-[9px] font-black text-white">確認刪除</button>
+              </form>
+            </div>
+          </details>
+        </div>'''
+          if text.count(old_cell) != 1:
+              raise SystemExit('operation cell anchor not found once')
+          text = text.replace(old_cell, new_cell)
+          page.write_text(text)
+
+          spec = Path('e2e/connected-marketing-ops.spec.ts')
+          text = spec.read_text()
+          anchor = '  await expect(firstTask.getByTestId("task-status-form").getByRole("button", { name: "更新" })).toBeVisible();\n'
+          if text.count(anchor) != 1:
+              raise SystemExit('spec inline action anchor not found once')
+          text = text.replace(anchor, anchor + '  await expect(firstTask.getByTestId("task-delete-control")).toBeVisible();\n  await expect(firstTask.getByLabel(/刪除/)).toBeVisible();\n')
+          spec.write_text(text)
+          PY
+      - name: Remove one-shot workflow and commit
+        run: |
+          rm .github/workflows/one-shot-task-delete.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -- src/app/tasks/actions.ts src/app/tasks/page.tsx e2e/connected-marketing-ops.spec.ts .github/workflows/one-shot-task-delete.yml
+          git commit -m "Add safe deletion to weekly tasks"
+          git push origin HEAD:agent/monday-task-delete
