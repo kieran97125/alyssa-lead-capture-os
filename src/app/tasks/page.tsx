@@ -10,6 +10,7 @@ import {
   ListTodo,
   MessageSquareText,
   Sparkles,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
@@ -25,6 +26,7 @@ import {
   addWorkTaskCommentAction,
   addWorkTaskToCalendarAction,
   assignWorkTaskAction,
+  deleteWorkTaskAction,
   markWorkNotificationReadAction,
   updateWorkTaskStatusAction,
 } from "./actions";
@@ -204,9 +206,9 @@ function TaskGroup({ group, items, members, returnPath }: { group: (typeof group
         <span className="h-8 w-1 rounded-full" style={{ backgroundColor: group.accent }} />
         <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><strong className="text-sm text-[#321428]">{group.label}</strong><span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-black" style={{ color: group.accent }}>{items.length}</span></div><p className="mt-0.5 text-[10px] font-semibold text-[#9b7b8c]">{group.hint}</p></div>
       </header>
-      <div className="overflow-x-auto"><div className="min-w-[1040px]">
-        <div className="grid grid-cols-[minmax(260px,1.8fr)_160px_160px_130px_140px_90px_115px_76px] border-b border-[#eee3dd] bg-[#fbf9f7] text-[10px] font-black uppercase tracking-[0.06em] text-[#9a7a8a]">
-          <span className="px-4 py-2.5">工作事項</span><span className="border-l border-[#eee3dd] px-3 py-2.5">負責人</span><span className="border-l border-[#eee3dd] px-3 py-2.5">狀態</span><span className="border-l border-[#eee3dd] px-3 py-2.5">期限</span><span className="border-l border-[#eee3dd] px-3 py-2.5">品牌</span><span className="border-l border-[#eee3dd] px-3 py-2.5">Priority</span><span className="border-l border-[#eee3dd] px-3 py-2.5">日曆</span><span className="border-l border-[#eee3dd] px-3 py-2.5 text-center">更新</span>
+      <div className="overflow-x-auto"><div className="min-w-[1080px]">
+        <div className="grid grid-cols-[minmax(260px,1.8fr)_160px_160px_130px_140px_90px_115px_118px] border-b border-[#eee3dd] bg-[#fbf9f7] text-[10px] font-black uppercase tracking-[0.06em] text-[#9a7a8a]">
+          <span className="px-4 py-2.5">工作事項</span><span className="border-l border-[#eee3dd] px-3 py-2.5">負責人</span><span className="border-l border-[#eee3dd] px-3 py-2.5">狀態</span><span className="border-l border-[#eee3dd] px-3 py-2.5">期限</span><span className="border-l border-[#eee3dd] px-3 py-2.5">品牌</span><span className="border-l border-[#eee3dd] px-3 py-2.5">Priority</span><span className="border-l border-[#eee3dd] px-3 py-2.5">日曆</span><span className="border-l border-[#eee3dd] px-3 py-2.5 text-center">操作</span>
         </div>
         {items.length ? items.map((task) => <TaskRow key={task.id} task={task} members={members} returnPath={returnPath} />) : <div className="px-4 py-5 text-center text-xs font-semibold text-[#9b7b8c]">暫時冇工作</div>}
       </div></div>
@@ -221,7 +223,7 @@ function TaskRow({ task, members, returnPath }: { task: WorkTaskRow; members: Aw
 
   return (
     <article className="border-b border-[#f0e7e2] last:border-b-0" data-task-id={task.id}>
-      <div className="grid grid-cols-[minmax(260px,1.8fr)_160px_160px_130px_140px_90px_115px_76px] items-stretch text-[11px] text-[#5e4655]">
+      <div className="grid grid-cols-[minmax(260px,1.8fr)_160px_160px_130px_140px_90px_115px_118px] items-stretch text-[11px] text-[#5e4655]">
         <div className="min-w-0 px-4 py-3">
           <details className="group"><summary className="cursor-pointer list-none"><div className="flex items-start gap-2"><span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: task.brandColor }} /><div className="min-w-0"><strong className="block truncate text-[12px] leading-5 text-[#321428]">{task.title}</strong>{task.description ? <span className="mt-0.5 block truncate text-[10px] font-semibold text-[#9a7a8a]">{task.description}</span> : null}</div></div></summary>
             <div className="mt-3 ml-4 grid gap-2 rounded-xl border border-[#eee3dd] bg-[#fffaf7] p-3">{task.description ? <p className="text-[11px] font-semibold leading-5 text-[#6f5364]">{task.description}</p> : null}{task.performanceMarker ? <span className="flex items-center gap-1.5 text-[10px] font-black text-[#7c365f]"><Sparkles size={12} />成效里程碑</span> : null}{task.calendarLinks.length ? task.calendarLinks.map((link) => <Link key={link.id} href={`/calendar?month=${link.scheduledDate.slice(0, 7)}-01`} className="flex items-center gap-1 text-[10px] font-black text-[#53677e]"><Link2 size={11} />{link.title} · {link.status}</Link>) : null}
@@ -250,7 +252,20 @@ function TaskRow({ task, members, returnPath }: { task: WorkTaskRow; members: Aw
         <div className="flex min-w-0 items-center gap-2 border-l border-[#f0e7e2] px-3 py-2"><span className="h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: task.brandColor }} /><span className="truncate font-bold" style={{ color: task.brandColor }}>{task.brandName}</span></div>
         <div className="flex items-center border-l border-[#f0e7e2] px-3 py-2"><span className={`rounded-full px-2 py-1 text-[9px] font-black ${task.priority === "high" ? "bg-[#fff0ef] text-[#a14d45]" : task.priority === "low" ? "bg-[#f0f4f8] text-[#617285]" : "bg-[#fff6e9] text-[#8a632b]"}`}>{priorityLabel}</span></div>
         <div className="flex items-center justify-center border-l border-[#f0e7e2] px-2 py-2">{task.calendarLinks.length ? <Link href={`/calendar?month=${task.calendarLinks[0].scheduledDate.slice(0, 7)}-01`} className="inline-flex items-center gap-1 rounded-lg bg-[#eef4fa] px-2 py-1.5 text-[9px] font-black text-[#53677e]"><Link2 size={10} />已連結</Link> : task.dueDate ? <form action={addWorkTaskToCalendarAction}><input type="hidden" name="taskId" value={task.id} /><input type="hidden" name="returnPath" value={returnPath} /><button className="inline-flex items-center gap-1 rounded-lg bg-[#f4f7fb] px-2 py-1.5 text-[9px] font-black text-[#53677e]"><CalendarCheck2 size={10} />加入</button></form> : <span className="text-[9px] font-bold text-[#b09ca7]">—</span>}</div>
-        <div className="flex items-center justify-center border-l border-[#f0e7e2] px-2 py-2"><span className="inline-flex min-w-7 items-center justify-center rounded-full bg-[#fff4f8] px-2 py-1 text-[9px] font-black text-[#7c365f]"><MessageSquareText size={10} className="mr-1" />{task.comments.length}</span></div>
+        <div className="flex items-center justify-center gap-1.5 border-l border-[#f0e7e2] px-2 py-2">
+          <span className="inline-flex min-w-7 items-center justify-center rounded-full bg-[#fff4f8] px-2 py-1 text-[9px] font-black text-[#7c365f]" title="留言數"><MessageSquareText size={10} className="mr-1" />{task.comments.length}</span>
+          <details className="relative" data-testid="task-delete-control">
+            <summary className="list-none cursor-pointer rounded-lg bg-[#fff1f0] px-2 py-1.5 text-[9px] font-black text-[#a34c46]" aria-label={`刪除 ${task.title}`}><Trash2 size={10} /></summary>
+            <div className="absolute right-0 z-20 mt-1 w-44 rounded-xl border border-[#e8c8c4] bg-white p-2.5 shadow-[0_10px_30px_rgba(90,35,72,0.12)]">
+              <p className="text-[10px] font-bold leading-4 text-[#6e505d]">確認刪除「{task.title}」？</p>
+              <p className="mt-1 text-[9px] leading-4 text-[#9a7a8a]">只刪工作，唔會刪已連結嘅營銷日曆事項。</p>
+              <form action={deleteWorkTaskAction} className="mt-2">
+                <input type="hidden" name="taskId" value={task.id} /><input type="hidden" name="returnPath" value={returnPath} />
+                <button className="w-full rounded-lg bg-[#a34c46] px-2 py-1.5 text-[9px] font-black text-white">確認刪除</button>
+              </form>
+            </div>
+          </details>
+        </div>
       </div>
     </article>
   );
