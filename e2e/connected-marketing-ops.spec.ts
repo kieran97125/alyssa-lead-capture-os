@@ -55,3 +55,31 @@ test("Dashboard trend consumes the connected operational event layer", async ({ 
   const trend = page.getByRole("img", { name: /橙色圓點代表已連結嘅成效事件/ }).first();
   await expect(trend).toBeVisible({ timeout: 15_000 });
 });
+
+test("Period comparison keeps each performance event on its own month series", async ({ page }) => {
+  await page.goto(
+    "/performance/compare?month=2026-08&months=3&start_day=1&end_day=27"
+  );
+
+  const chart = page
+    .getByRole("img", {
+      name: /同期累積走勢；橙色圓點代表已連結嘅成效事件/,
+    })
+    .first();
+  await expect(chart).toBeVisible({ timeout: 15_000 });
+
+  const markers = chart.getByTestId("period-series-annotation");
+  await expect(markers).not.toHaveCount(0);
+  const marker = markers.first();
+  const seriesLabel = await marker.getAttribute("data-series-label");
+  const eventDates = (await marker.getAttribute("data-event-dates"))
+    ?.split(",")
+    .filter(Boolean) ?? [];
+
+  expect(seriesLabel).toBeTruthy();
+  expect(eventDates.length).toBeGreaterThan(0);
+  for (const eventDate of eventDates) {
+    expect(seriesLabel).toContain(eventDate.slice(0, 4));
+    expect(seriesLabel).toContain(`${Number(eventDate.slice(5, 7))}月`);
+  }
+});
