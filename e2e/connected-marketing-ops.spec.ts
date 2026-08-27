@@ -38,6 +38,10 @@ test("Weekly work board uses a Monday-style list with assignment, status and cal
   await expect(page.getByTestId("work-notification-center")).toBeVisible();
   await expect(page.getByText("新增／派工作", { exact: true })).toBeVisible();
   await expect(page.getByText(/只顯示擁有此品牌 Access/)).toBeVisible();
+
+  const firstTask = page.locator("[data-task-id]").first();
+  await expect(firstTask.getByTestId("task-assignee-form").getByRole("button", { name: "派" })).toBeVisible();
+  await expect(firstTask.getByTestId("task-status-form").getByRole("button", { name: "更新" })).toBeVisible();
 });
 
 test("Dashboard trend consumes the connected operational event layer", async ({ page }) => {
