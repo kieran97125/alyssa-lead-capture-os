@@ -8,6 +8,7 @@
 - Moving Start Day does not move Calendar or performance-event dates.
 - Updating Due Day synchronizes linked unpublished Calendar items in one database transaction.
 - Published Calendar dates remain immutable.
+- Calendar acceptance tests address `Due／出街日期` and `同步工作 Start Day` explicitly rather than relying on the former ambiguous `日期` label.
 
 ## Desktop notification contract
 
