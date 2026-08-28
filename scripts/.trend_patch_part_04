@@ -1,0 +1,160 @@
+    const dates = Array.from(
+      new Set(displaySeries.flatMap((item) => item.points.map((point) => point.date)))
+    ).sort();
+''',
+)
+replace_once(
+    treatment_chart_path,
+    '''          series.flatMap(
+''',
+    '''          displaySeries.flatMap(
+''',
+)
+replace_once(treatment_chart_path, "      series.forEach((item, index) => {", "      displaySeries.forEach((item, index) => {")
+replace_once(treatment_chart_path, "  }, [metric, series]);", "  }, [metric, mode, series]);")
+replace_once(
+    treatment_chart_path,
+    '''    <div className="period-chart-panel treatment-trend-panel">
+      <div className="period-chart-controls" aria-label="療程走勢指標">
+''',
+    '''    <div className="period-chart-panel treatment-trend-panel">
+      <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-[#eadfd9] bg-[#fffaf7] px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <TrendModeToggle mode={mode} onChange={setMode} compact />
+        <span className="text-[10px] font-semibold leading-4 text-[#8b7180]">
+          單日用嚟搵波動；累積用嚟睇整段期間進度。成本同轉換率會按模式重新計算。
+        </span>
+      </div>
+      <div className="period-chart-controls" aria-label="療程走勢指標">
+''',
+)
+replace_once(
+    treatment_chart_path,
+    '''        aria-label={`${selectedMetric.label}走勢；橙色圓點代表已連結嘅成效事件`}
+''',
+    '''        aria-label={`${selectedMetric.label}${
+          mode === "cumulative" ? "累積" : "單日"
+        }走勢；橙色圓點代表已連結嘅成效事件`}
+        data-trend-mode={mode}
+''',
+)
+replace_once(treatment_chart_path, '              content={<TrendTooltip metric={metric} />}\n', '              content={<TrendTooltip metric={metric} mode={mode} />}\n')
+replace_once(treatment_chart_path, '                type="monotone"\n', '                type={mode === "cumulative" ? "monotone" : "linear"}\n')
+replace_once(treatment_chart_path, '                connectNulls\n', '                connectNulls={mode === "cumulative"}\n')
+
+replace_once(
+    "src/components/command-center/TreatmentPerformanceTrendChartLazy.tsx",
+    "  return <LazyTreatmentPerformanceTrendChart series={series} />;",
+    '''  return (
+    <LazyTreatmentPerformanceTrendChart
+      series={series}
+      defaultMode="daily"
+      preferenceKey="treatment-performance"
+    />
+  );''',
+)
+replace_once(
+    "src/components/command-center/LeadDashboardTrendChartLazy.tsx",
+    "  return <LazyTrendChart series={series} />;",
+    '''  return (
+    <LazyTrendChart
+      series={series}
+      defaultMode="daily"
+      preferenceKey="lead-dashboard"
+    />
+  );''',
+)
+
+# 6. Neutral page headings so both modes are first-class.
+replace_once(
+    "src/app/performance/compare/page.tsx",
+    '''                  <p>累計進度</p>
+                  <h2>同期累積走勢</h2>
+                  <small>每條線都由同一日開始，避免完整月份壓住未完月份。</small>
+''',
+    '''                  <p>趨勢比較</p>
+                  <h2>同期走勢</h2>
+                  <small>累積睇整體進度；單日睇每日波動。所有月份仍由同一日開始公平比較。</small>
+''',
+)
+replace_once(
+    "src/app/performance/page.tsx",
+    '''              eyebrow="Daily movement"
+              title="療程成效走勢"
+              description="每日數字會跟上方品牌、療程、來源及 Campaign 篩選；橙色圓點代表當日日曆操作。"
+''',
+    '''              eyebrow="Trend view"
+              title="療程成效走勢"
+              description="可切換單日與累積；單日睇波動，累積睇整段期間進度。數字會跟上方篩選，橙色圓點代表當日日曆操作。"
+''',
+)
+replace_once(
+    "src/components/command-center/LeadDashboardPanel.tsx",
+    '''              <p>每日變化</p>
+              <h2>Lead Funnel 走勢</h2>
+''',
+    '''              <p>趨勢分析</p>
+              <h2>Lead Funnel 走勢</h2>
+''',
+)
+replace_once(
+    "src/components/command-center/LeadDashboardPanel.tsx",
+    '''          <span>橙色波點代表當日日曆活動；移上去可查看內容</span>
+''',
+    '''          <span>可切換單日／累積；橙色波點代表當日日曆活動</span>
+''',
+)
+
+# 7. Build contract covers data ownership, both product surfaces and persistence.
+verify_path = "scripts/verify-reporting-trend-contract.mjs"
+replace_once(
+    verify_path,
+    '''      "src/components/command-center/PeriodComparisonChart.tsx",
+''',
+    '''      "src/components/command-center/PeriodComparisonChart.tsx",
+      "src/components/command-center/TrendModeToggle.tsx",
+      "src/components/command-center/TreatmentPerformanceTrendChartLazy.tsx",
+      "src/components/command-center/LeadDashboardTrendChartLazy.tsx",
+''',
+)
+replace_once(
+    verify_path,
+    '''      "src/lib/marketing/periodComparison.ts",
+''',
+    '''      "src/lib/marketing/periodComparison.ts",
+      "src/lib/marketing/periodComparisonMath.ts",
+      "src/lib/marketing/performanceTrend.ts",
+''',
+)
+replace_once(verify_path, "/buildCumulativeTreatmentTrend/", "/buildDailyTreatmentTrendPoints/")
+replace_once(
+    verify_path,
+    '''assert.match(
+  files["src/lib/marketing/periodComparison.ts"],
+  /getOperationalAnnotations/
+);
+''',
+    '''assert.match(
+  files["src/lib/marketing/periodComparison.ts"],
+  /getOperationalAnnotations/
+);
+assert.match(
+  files["src/lib/marketing/periodComparison.ts"],
+  /buildDailyComparisonTrend/
+);
+assert.doesNotMatch(
+  files["src/lib/marketing/periodComparison.ts"],
+  /points: buildCumulativeComparisonTrend/
+);
+''',
+)
+replace_once(
+    verify_path,
+    '''assert.match(periodComparisonChart, /seriesLabels=\{seriesLabels\}/);
+''',
+    '''assert.match(periodComparisonChart, /seriesLabels=\{seriesLabels\}/);
+assert.match(periodComparisonChart, /TrendModeToggle/);
+assert.match(periodComparisonChart, /data-trend-mode=\{mode\}/);
+assert.match(periodComparisonChart, /performanceTrendPointsForMode/);
+assert.match(periodComparisonChart, /mode === "cumulative" \? "monotone" : "linear"/);
+''',
+)
