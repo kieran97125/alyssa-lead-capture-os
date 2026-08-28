@@ -1,44 +1,4 @@
-  });
-  await expect(chart).toBeVisible();
-
-  let markers = chart.getByTestId("period-series-annotation");
-  await expect(markers).not.toHaveCount(0);
-  const marker = markers.first();
-  const seriesLabel = await marker.getAttribute("data-series-label");
-  const eventDates =
-    (await marker.getAttribute("data-event-dates"))
-      ?.split(",")
-      .filter(Boolean) ?? [];
-
-  expect(seriesLabel).toBeTruthy();
-  expect(eventDates.length).toBeGreaterThan(0);
-  for (const eventDate of eventDates) {
-    expect(seriesLabel).toContain(eventDate.slice(0, 4));
-    expect(seriesLabel).toContain(`${Number(eventDate.slice(5, 7))}月`);
-  }
-
-  await toggle.getByTestId("trend-mode-daily").click();
-  chart = trendCard.getByRole("img", {
-    name: /同期單日走勢；橙色圓點代表已連結嘅成效事件/,
-  });
-  await expect(chart).toBeVisible();
-  await expect(chart).toHaveAttribute("data-trend-mode", "daily");
-  markers = chart.getByTestId("period-series-annotation");
-  await expect(markers).not.toHaveCount(0);
-
-  await page.reload();
-  await expect(
-    trendCard.getByTestId("trend-mode-daily")
-  ).toHaveAttribute("aria-pressed", "true");
-});
-''',
-    flags=re.S,
-)
-
-# 9. Reusable product learning in the pilot repo.
-write(
-    "docs/product-learning/entries/2026-08-28-daily-cumulative-trend-toggle.md",
-    '''# Daily / Cumulative Trend View
+# Daily / Cumulative Trend View
 
 ## Problem
 
@@ -75,10 +35,3 @@ Each surface keeps its own device preference, while preserving the historically 
 - Existing default behavior remains unchanged until a user switches mode.
 - Mode preference survives reload without leaking across unrelated surfaces.
 - Full production build and Playwright acceptance must pass before release.
-''',
-)
-
-# Remove this one-shot implementation script from the final product diff.
-Path(__file__).unlink()
-
-print("Applied daily/cumulative trend mode across Period Comparison, Treatment Performance and Dashboard.")

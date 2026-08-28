@@ -23,5 +23,11 @@ export function TreatmentPerformanceTrendChartLazy({
 }: {
   series: PerformanceTrendSeries[];
 }) {
-  return <LazyTreatmentPerformanceTrendChart series={series} />;
+  return (
+    <LazyTreatmentPerformanceTrendChart
+      series={series}
+      defaultMode="daily"
+      preferenceKey="treatment-performance"
+    />
+  );
 }

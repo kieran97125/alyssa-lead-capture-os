@@ -409,9 +409,9 @@ export default async function TreatmentPerformancePage({
 
           <section className="command-surface treatment-trend-card">
             <SectionHeading
-              eyebrow="Daily movement"
+              eyebrow="Trend view"
               title="療程成效走勢"
-              description="每日數字會跟上方品牌、療程、來源及 Campaign 篩選；橙色圓點代表當日日曆操作。"
+              description="可切換單日與累積；單日睇波動，累積睇整段期間進度。數字會跟上方篩選，橙色圓點代表當日日曆操作。"
               icon={Activity}
             />
             <TreatmentPerformanceTrendChartLazy series={snapshot.trendSeries} />
