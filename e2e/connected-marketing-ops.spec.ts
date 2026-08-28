@@ -86,7 +86,8 @@ test("desktop notifications expose a Service Worker but only bind individual inv
 
   const enrollmentResponse = await page.request.get("/api/notifications/push");
   expect(enrollmentResponse.status()).toBe(403);
-  await expect(enrollmentResponse.json()).resolves.toMatchObject({ ready: false });
+  const enrollmentBody = await enrollmentResponse.json();
+  expect(enrollmentBody).toMatchObject({ ready: false });
 });
 
 test("Dashboard trend consumes the connected operational event layer", async ({ page }) => {
