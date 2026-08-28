@@ -1,5 +1,6 @@
 import type { OperationalAnnotation } from "@/lib/marketing/operationalAnnotations";
 import {
+  accumulatePerformanceTrendPoints,
   calculatePerformanceTrendPoint,
   emptyPerformanceTrendBase,
   type PerformanceTrendPoint,
@@ -164,7 +165,7 @@ export function aggregateComparisonRows(
   return calculateComparisonKpis(totals);
 }
 
-export function buildCumulativeComparisonTrend(input: {
+export function buildDailyComparisonTrend(input: {
   period: ComparisonPeriod;
   rows: CanonicalComparisonMetricRow[];
   brandIds?: Set<string>;
@@ -208,34 +209,43 @@ export function buildCumulativeComparisonTrend(input: {
     treatmentByDate.set(fact.metricDate, existing);
   }
 
-  const cumulative = emptyPerformanceTrendBase();
   const points: PerformanceTrendPoint[] = [];
   const prefix = input.period.monthStart.slice(0, 8);
   for (let day = input.period.startDay; day <= input.period.endDay; day += 1) {
     const date = `${prefix}${String(day).padStart(2, "0")}`;
     const metric = byDate.get(date);
-    if (metric) {
-      cumulative.spend += metric.spend;
-      cumulative.leads += metric.leads;
-      cumulative.bookings += metric.bookings;
-      cumulative.shows += metric.shows;
-    }
     const treatmentMetric = treatmentByDate.get(date);
-    if (treatmentMetric) {
-      cumulative.noShows += treatmentMetric.noShows;
-      cumulative.pendingShows += treatmentMetric.pendingShows;
-    }
     points.push(
-      calculatePerformanceTrendPoint(cumulative, {
-        day,
-        date,
-        annotations: (input.annotations ?? []).filter(
-          (annotation) => annotation.date === date
-        ),
-      })
+      calculatePerformanceTrendPoint(
+        {
+          spend: metric?.spend ?? 0,
+          leads: metric?.leads ?? 0,
+          bookings: metric?.bookings ?? 0,
+          shows: metric?.shows ?? 0,
+          noShows: treatmentMetric?.noShows ?? 0,
+          pendingShows: treatmentMetric?.pendingShows ?? 0,
+        },
+        {
+          day,
+          date,
+          annotations: (input.annotations ?? []).filter(
+            (annotation) => annotation.date === date
+          ),
+        }
+      )
     );
   }
   return points;
+}
+
+export function buildCumulativeComparisonTrend(input: {
+  period: ComparisonPeriod;
+  rows: CanonicalComparisonMetricRow[];
+  brandIds?: Set<string>;
+  annotations?: OperationalAnnotation[];
+  treatmentFacts?: TreatmentTrendFact[];
+}): PerformanceTrendPoint[] {
+  return accumulatePerformanceTrendPoints(buildDailyComparisonTrend(input));
 }
 export type {
   PerformanceTrendPoint as ComparisonTrendPoint,

@@ -59,6 +59,8 @@ export type PerformanceTrendScope = {
   series: PerformanceTrendSeries[];
 };
 
+export type PerformanceTrendMode = "daily" | "cumulative";
+
 export type TreatmentTrendFact = {
   brandId: string;
   brandName: string;
@@ -122,6 +124,34 @@ export function emptyPerformanceTrendBase(): PerformanceTrendBaseMetrics {
     noShows: 0,
     pendingShows: 0,
   };
+}
+
+export function accumulatePerformanceTrendPoints(
+  points: PerformanceTrendPoint[]
+): PerformanceTrendPoint[] {
+  const cumulative = emptyPerformanceTrendBase();
+  return points.map((point) => {
+    cumulative.spend += finiteNonNegative(point.spend);
+    cumulative.leads += finiteNonNegative(point.leads);
+    cumulative.bookings += finiteNonNegative(point.bookings);
+    cumulative.shows += finiteNonNegative(point.shows);
+    cumulative.noShows += finiteNonNegative(point.noShows);
+    cumulative.pendingShows += finiteNonNegative(point.pendingShows);
+    return calculatePerformanceTrendPoint(cumulative, {
+      day: point.day,
+      date: point.date,
+      annotations: point.annotations,
+    });
+  });
+}
+
+export function performanceTrendPointsForMode(
+  points: PerformanceTrendPoint[],
+  mode: PerformanceTrendMode
+) {
+  return mode === "cumulative"
+    ? accumulatePerformanceTrendPoints(points)
+    : points;
 }
 
 export function calculatePerformanceTrendPoint(
@@ -270,7 +300,7 @@ export function buildDailyTreatmentTrend(input: {
   };
 }
 
-export function buildCumulativeTreatmentTrend(input: {
+export function buildDailyTreatmentTrendPoints(input: {
   facts: TreatmentTrendFact[];
   annotations: OperationalAnnotation[];
   brandId: string;
@@ -292,10 +322,10 @@ export function buildCumulativeTreatmentTrend(input: {
       fact,
     ]);
   }
-  const cumulative = emptyPerformanceTrendBase();
   return dates.map((date) => {
-    for (const fact of factsByDate.get(date) ?? []) addFactToBase(cumulative, fact);
-    return calculatePerformanceTrendPoint(cumulative, {
+    const base = emptyPerformanceTrendBase();
+    for (const fact of factsByDate.get(date) ?? []) addFactToBase(base, fact);
+    return calculatePerformanceTrendPoint(base, {
       day: Number(date.slice(-2)),
       date,
       annotations: input.annotations.filter(
@@ -309,4 +339,17 @@ export function buildCumulativeTreatmentTrend(input: {
       ),
     });
   });
+}
+
+export function buildCumulativeTreatmentTrend(input: {
+  facts: TreatmentTrendFact[];
+  annotations: OperationalAnnotation[];
+  brandId: string;
+  treatmentLabel: string;
+  startDate: string;
+  endDate: string;
+}) {
+  return accumulatePerformanceTrendPoints(
+    buildDailyTreatmentTrendPoints(input)
+  );
 }

@@ -290,11 +290,11 @@ export function LeadDashboardPanel({
           <div>
             <Activity size={17} />
             <div>
-              <p>每日變化</p>
+              <p>趨勢分析</p>
               <h2>Lead Funnel 走勢</h2>
             </div>
           </div>
-          <span>橙色波點代表當日日曆活動；移上去可查看內容</span>
+          <span>可切換單日／累積；橙色波點代表當日日曆活動</span>
         </div>
         <LeadDashboardTrendChartLazy series={snapshot.trendSeries} />
       </section>

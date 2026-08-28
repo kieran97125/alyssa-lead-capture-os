@@ -1,5 +1,50 @@
 import { expect, test } from "@playwright/test";
 import { getWorkspaceModuleForPath } from "../src/lib/security/workspacePermissions";
+import {
+  accumulatePerformanceTrendPoints,
+  calculatePerformanceTrendPoint,
+} from "../src/lib/marketing/performanceTrend";
+
+test("cumulative trend recomputes aggregate-first cost and rates from daily facts", () => {
+  const daily = [
+    calculatePerformanceTrendPoint(
+      {
+        spend: 100,
+        leads: 2,
+        bookings: 1,
+        shows: 0,
+        noShows: 0,
+        pendingShows: 1,
+      },
+      { day: 1, date: "2026-08-01", annotations: [] }
+    ),
+    calculatePerformanceTrendPoint(
+      {
+        spend: 50,
+        leads: 0,
+        bookings: 1,
+        shows: 1,
+        noShows: 0,
+        pendingShows: 0,
+      },
+      { day: 2, date: "2026-08-02", annotations: [] }
+    ),
+  ];
+  const cumulative = accumulatePerformanceTrendPoints(daily);
+  expect(cumulative[1]).toMatchObject({
+    spend: 150,
+    leads: 2,
+    bookings: 2,
+    shows: 1,
+    cpl: 75,
+    costPerBooking: 75,
+    costPerShow: 150,
+    leadToBookRate: 1,
+    bookToShowRate: 0.5,
+    leadToShowRate: 0.5,
+  });
+  expect(daily[1].cpl).toBeNull();
+});
 
 test("Weekly Tasks reuses Calendar module access", () => {
   expect(getWorkspaceModuleForPath("/tasks")).toBe("calendar");
@@ -90,27 +135,62 @@ test("desktop notifications expose a Service Worker but only bind individual inv
   expect(enrollmentBody).toMatchObject({ ready: false });
 });
 
-test("Dashboard trend consumes the connected operational event layer", async ({ page }) => {
+test("Dashboard trend switches between single-day and cumulative views", async ({ page }) => {
   await page.goto("/dashboard");
-  const trend = page
-    .getByRole("img", { name: /橙色圓點代表已連結嘅成效事件/ })
-    .first();
-  await expect(trend).toBeVisible({ timeout: 15_000 });
+  const card = page.locator(".lead-dashboard-trend-card");
+  const toggle = card.getByTestId("trend-mode-toggle");
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await expect(toggle.getByTestId("trend-mode-daily")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await expect(
+    card.getByRole("img", { name: /Lead單日走勢；橙色圓點代表已連結嘅成效事件/ })
+  ).toBeVisible();
+
+  await toggle.getByTestId("trend-mode-cumulative").click();
+  await expect(
+    card.getByRole("img", { name: /Lead累積走勢；橙色圓點代表已連結嘅成效事件/ })
+  ).toBeVisible();
 });
 
-test("Period comparison keeps each performance event on its own month series", async ({ page }) => {
+test("Treatment trend independently remembers its daily or cumulative view", async ({ page }) => {
+  await page.goto("/performance");
+  const card = page.locator(".treatment-trend-card");
+  const toggle = card.getByTestId("trend-mode-toggle");
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await expect(toggle.getByTestId("trend-mode-daily")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await toggle.getByTestId("trend-mode-cumulative").click();
+  await expect(
+    card.getByRole("img", { name: /Lead累積走勢；橙色圓點代表已連結嘅成效事件/ })
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    card.getByTestId("trend-mode-cumulative")
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("Period comparison keeps monthly events in both cumulative and single-day views", async ({ page }) => {
   await page.goto(
     "/performance/compare?month=2026-08&months=3&start_day=1&end_day=27"
   );
 
-  const chart = page
-    .getByRole("img", {
-      name: /同期累積走勢；橙色圓點代表已連結嘅成效事件/,
-    })
-    .first();
-  await expect(chart).toBeVisible({ timeout: 15_000 });
+  const trendCard = page.locator(".period-trend-card");
+  const toggle = trendCard.getByTestId("trend-mode-toggle");
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await expect(toggle.getByTestId("trend-mode-cumulative")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  let chart = trendCard.getByRole("img", {
+    name: /同期累積走勢；橙色圓點代表已連結嘅成效事件/,
+  });
+  await expect(chart).toBeVisible();
 
-  const markers = chart.getByTestId("period-series-annotation");
+  let markers = chart.getByTestId("period-series-annotation");
   await expect(markers).not.toHaveCount(0);
   const marker = markers.first();
   const seriesLabel = await marker.getAttribute("data-series-label");
@@ -125,4 +205,18 @@ test("Period comparison keeps each performance event on its own month series", a
     expect(seriesLabel).toContain(eventDate.slice(0, 4));
     expect(seriesLabel).toContain(`${Number(eventDate.slice(5, 7))}月`);
   }
+
+  await toggle.getByTestId("trend-mode-daily").click();
+  chart = trendCard.getByRole("img", {
+    name: /同期單日走勢；橙色圓點代表已連結嘅成效事件/,
+  });
+  await expect(chart).toBeVisible();
+  await expect(chart).toHaveAttribute("data-trend-mode", "daily");
+  markers = chart.getByTestId("period-series-annotation");
+  await expect(markers).not.toHaveCount(0);
+
+  await page.reload();
+  await expect(
+    trendCard.getByTestId("trend-mode-daily")
+  ).toHaveAttribute("aria-pressed", "true");
 });

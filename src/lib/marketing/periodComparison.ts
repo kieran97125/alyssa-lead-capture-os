@@ -10,7 +10,7 @@ import { getOperationalAnnotations } from "@/lib/marketing/operationalAnnotation
 import type { OperationalAnnotation } from "@/lib/marketing/operationalAnnotations";
 import {
   brandTrendMetricKeys,
-  buildCumulativeTreatmentTrend,
+  buildDailyTreatmentTrendPoints,
   treatmentTrendMetricKeys,
   type PerformanceTrendScope,
   type TreatmentTrendFact,
@@ -22,7 +22,7 @@ import {
 } from "@/lib/marketing/spendTypes";
 import {
   aggregateComparisonRows,
-  buildCumulativeComparisonTrend,
+  buildDailyComparisonTrend,
   comparisonMonthDays,
   createComparisonPeriods,
   normalizeComparisonMonth,
@@ -714,7 +714,7 @@ function buildTrendScopes(input: {
       monthStart: period.monthStart,
       label: monthLabel(period.monthStart),
       color: trendColors[index % trendColors.length],
-      points: buildCumulativeComparisonTrend({
+      points: buildDailyComparisonTrend({
         period,
         rows: input.canonicalData[index].rows,
         treatmentFacts: input.canonicalData[index].treatmentFacts,
@@ -732,7 +732,7 @@ function buildTrendScopes(input: {
     key: "overall",
     type: "overall",
     label: input.selectedBrandLabel,
-    description: "品牌整體成本、成效、No Show 及待到店同期累積；橙點係該範圍日曆操作。",
+    description: "品牌整體成本、成效、No Show 及待到店同期走勢；可切換累積進度或單日波動，橙點係該範圍日曆操作。",
     availableMetrics: brandTrendMetricKeys,
     series: makeBrandSeries(allBrandIds, "overall"),
   });
@@ -785,7 +785,7 @@ function buildTrendScopes(input: {
         color: trendColors[index % trendColors.length],
         brandId: treatment.brandId,
         treatmentLabel: treatment.treatmentLabel,
-        points: buildCumulativeTreatmentTrend({
+        points: buildDailyTreatmentTrendPoints({
           facts: input.canonicalData[index].treatmentFacts,
           annotations: input.annotations,
           brandId: treatment.brandId,

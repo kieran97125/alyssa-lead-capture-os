@@ -458,9 +458,9 @@ export default async function PeriodComparisonPage({
                   <GitCompareArrows size={17} />
                 </span>
                 <div>
-                  <p>累計進度</p>
-                  <h2>同期累積走勢</h2>
-                  <small>每條線都由同一日開始，避免完整月份壓住未完月份。</small>
+                  <p>趨勢比較</p>
+                  <h2>同期走勢</h2>
+                  <small>累積睇整體進度；單日睇每日波動。所有月份仍由同一日開始公平比較。</small>
                 </div>
               </div>
               <PeriodComparisonChartLazy scopes={snapshot.trendScopes} />

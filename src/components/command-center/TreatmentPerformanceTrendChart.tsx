@@ -11,14 +11,17 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { TrendModeToggle, useTrendModePreference } from "@/components/command-center/TrendModeToggle";
 import {
   operationalItemTypeLabels,
   operationalStatusLabels,
   type OperationalAnnotation,
 } from "@/lib/marketing/operationalAnnotations";
 import {
+  performanceTrendPointsForMode,
   treatmentTrendMetricKeys,
   type PerformanceTrendMetricKey,
+  type PerformanceTrendMode,
   type PerformanceTrendSeries,
 } from "@/lib/marketing/performanceTrend";
 
@@ -27,15 +30,15 @@ const metricOptions: Array<{
   label: string;
   compactLabel: string;
 }> = [
-  { key: "leads", label: "每日 Lead", compactLabel: "Lead" },
-  { key: "bookings", label: "每日 Book", compactLabel: "Book" },
-  { key: "shows", label: "每日 Show", compactLabel: "Show" },
-  { key: "noShows", label: "每日 No Show", compactLabel: "No Show" },
-  { key: "pendingShows", label: "每日待到店", compactLabel: "待到店" },
-  { key: "leadToBookRate", label: "每日 Lead → Book", compactLabel: "L→B" },
-  { key: "bookToShowRate", label: "每日 Book → Show", compactLabel: "B→S" },
-  { key: "leadToShowRate", label: "每日 Lead → Show", compactLabel: "L→S" },
-  { key: "noShowRate", label: "每日 No-show Rate", compactLabel: "No-show %" },
+  { key: "leads", label: "Lead", compactLabel: "Lead" },
+  { key: "bookings", label: "Book", compactLabel: "Book" },
+  { key: "shows", label: "Show", compactLabel: "Show" },
+  { key: "noShows", label: "No Show", compactLabel: "No Show" },
+  { key: "pendingShows", label: "待到店", compactLabel: "待到店" },
+  { key: "leadToBookRate", label: "Lead → Book", compactLabel: "L→B" },
+  { key: "bookToShowRate", label: "Book → Show", compactLabel: "B→S" },
+  { key: "leadToShowRate", label: "Lead → Show", compactLabel: "L→S" },
+  { key: "noShowRate", label: "No-show Rate", compactLabel: "No-show %" },
 ];
 
 const rateMetrics = new Set<PerformanceTrendMetricKey>([
@@ -107,6 +110,7 @@ function TrendTooltip({
   label,
   payload,
   metric,
+  mode,
 }: {
   active?: boolean;
   label?: string | number;
@@ -118,6 +122,7 @@ function TrendTooltip({
     payload?: ChartDatum;
   }>;
   metric: PerformanceTrendMetricKey;
+  mode: PerformanceTrendMode;
 }) {
   if (!active || !payload?.length) return null;
   const row = payload[0]?.payload;
@@ -125,7 +130,9 @@ function TrendTooltip({
   const values = payload.filter((item) => item.dataKey !== "annotationY");
   return (
     <div className="performance-trend-tooltip">
-      <strong>{formatDate(String(label ?? row?.date ?? ""))}</strong>
+      <strong>
+        {formatDate(String(label ?? row?.date ?? ""))} · {mode === "cumulative" ? "累積" : "單日"}
+      </strong>
       <div className="performance-trend-tooltip-values">
         {values.map((item) => (
           <span key={String(item.dataKey)}>
@@ -173,22 +180,34 @@ function TrendTooltip({
 
 export function TreatmentPerformanceTrendChart({
   series,
+  defaultMode = "daily",
+  preferenceKey = "treatment-performance",
 }: {
   series: PerformanceTrendSeries[];
+  defaultMode?: PerformanceTrendMode;
+  preferenceKey?: string;
 }) {
   const [metric, setMetric] = useState<PerformanceTrendMetricKey>("leads");
+  const [mode, setMode] = useTrendModePreference({
+    defaultMode,
+    preferenceKey,
+  });
   const selectedMetric =
     metricOptions.find((option) => option.key === metric) ?? metricOptions[0];
   const available = new Set(treatmentTrendMetricKeys);
   const chartData = useMemo(() => {
+    const displaySeries = series.map((item) => ({
+      ...item,
+      points: performanceTrendPointsForMode(item.points, mode),
+    }));
     const dates = Array.from(
-      new Set(series.flatMap((item) => item.points.map((point) => point.date)))
+      new Set(displaySeries.flatMap((item) => item.points.map((point) => point.date)))
     ).sort();
     return dates.map((date): ChartDatum => {
       const row = {
         date,
         annotations: uniqueAnnotations(
-          series.flatMap(
+          displaySeries.flatMap(
             (item) =>
               item.points.find((point) => point.date === date)?.annotations ?? []
           )
@@ -196,7 +215,7 @@ export function TreatmentPerformanceTrendChart({
         annotationY: null,
       } as ChartDatum;
       let maximum = 0;
-      series.forEach((item, index) => {
+      displaySeries.forEach((item, index) => {
         const point = item.points.find((candidate) => candidate.date === date);
         const value = point?.[metric] ?? null;
         row[`series_${index}`] = value;
@@ -207,7 +226,7 @@ export function TreatmentPerformanceTrendChart({
       row.annotationY = row.annotations.length > 0 ? maximum : null;
       return row;
     });
-  }, [metric, series]);
+  }, [metric, mode, series]);
 
   if (series.length === 0) {
     return <div className="period-chart-loading">所選期間未有可繪製嘅療程走勢。</div>;
@@ -215,6 +234,12 @@ export function TreatmentPerformanceTrendChart({
 
   return (
     <div className="period-chart-panel treatment-trend-panel">
+      <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-[#eadfd9] bg-[#fffaf7] px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <TrendModeToggle mode={mode} onChange={setMode} compact />
+        <span className="text-[10px] font-semibold leading-4 text-[#8b7180]">
+          單日用嚟搵波動；累積用嚟睇整段期間進度。成本同轉換率會按模式重新計算。
+        </span>
+      </div>
       <div className="period-chart-controls" aria-label="療程走勢指標">
         {metricOptions
           .filter((option) => available.has(option.key))
@@ -232,7 +257,10 @@ export function TreatmentPerformanceTrendChart({
       <div
         className="period-chart-canvas"
         role="img"
-        aria-label={`${selectedMetric.label}走勢；橙色圓點代表已連結嘅成效事件`}
+        aria-label={`${selectedMetric.label}${
+          mode === "cumulative" ? "累積" : "單日"
+        }走勢；橙色圓點代表已連結嘅成效事件`}
+        data-trend-mode={mode}
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={chartData} margin={{ top: 14, right: 16, left: 4, bottom: 4 }} accessibilityLayer>
@@ -255,20 +283,20 @@ export function TreatmentPerformanceTrendChart({
             />
             <Tooltip
               cursor={{ stroke: "#c9828e", strokeDasharray: "4 4" }}
-              content={<TrendTooltip metric={metric} />}
+              content={<TrendTooltip metric={metric} mode={mode} />}
             />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px", fontWeight: 700, paddingTop: 8 }} />
             {series.map((item, index) => (
               <Line
                 key={item.key}
-                type="monotone"
+                type={mode === "cumulative" ? "monotone" : "linear"}
                 dataKey={`series_${index}`}
                 name={item.label}
                 stroke={item.color}
                 strokeWidth={2.5}
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
-                connectNulls
+                connectNulls={mode === "cumulative"}
                 isAnimationActive={false}
               />
             ))}

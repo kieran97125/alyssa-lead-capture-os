@@ -11,6 +11,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { TrendModeToggle, useTrendModePreference } from "@/components/command-center/TrendModeToggle";
 import {
   operationalItemTypeLabels,
   operationalStatusLabels,
@@ -18,9 +19,11 @@ import {
 } from "@/lib/marketing/operationalAnnotations";
 import type {
   PerformanceTrendMetricKey,
+  PerformanceTrendMode,
   PerformanceTrendPoint,
   PerformanceTrendScope,
 } from "@/lib/marketing/performanceTrend";
+import { performanceTrendPointsForMode } from "@/lib/marketing/performanceTrend";
 
 const metricOptions: Array<{
   key: PerformanceTrendMetricKey;
@@ -160,6 +163,7 @@ function ComparisonTooltip({
   label,
   payload,
   metric,
+  mode,
   seriesLabels,
 }: {
   active?: boolean;
@@ -172,6 +176,7 @@ function ComparisonTooltip({
     payload?: ChartDatum;
   }>;
   metric: PerformanceTrendMetricKey;
+  mode: PerformanceTrendMode;
   seriesLabels: string[];
 }) {
   if (!active || !payload?.length) return null;
@@ -187,7 +192,9 @@ function ComparisonTooltip({
   );
   return (
     <div className="performance-trend-tooltip">
-      <strong>第 {label} 日累積</strong>
+      <strong>
+        第 {label} 日 · {mode === "cumulative" ? "累積" : "單日"}
+      </strong>
       <div className="performance-trend-tooltip-values">
         {values.map((item) => {
           const value =
@@ -239,6 +246,10 @@ export function PeriodComparisonChart({
 }) {
   const [scopeKey, setScopeKey] = useState(scopes[0]?.key ?? "");
   const [metric, setMetric] = useState<PerformanceTrendMetricKey>("spend");
+  const [mode, setMode] = useTrendModePreference({
+    defaultMode: "cumulative",
+    preferenceKey: "period-comparison",
+  });
   const scope = scopes.find((item) => item.key === scopeKey) ?? scopes[0];
   const activeMetric = scope?.availableMetrics.includes(metric)
     ? metric
@@ -246,7 +257,10 @@ export function PeriodComparisonChart({
   const selectedMetric =
     metricOptions.find((option) => option.key === activeMetric) ?? metricOptions[1];
   const chartData = useMemo(() => {
-    const series = scope?.series ?? [];
+    const series = (scope?.series ?? []).map((item) => ({
+      ...item,
+      points: performanceTrendPointsForMode(item.points, mode),
+    }));
     const maximumPoints = Math.max(0, ...series.map((item) => item.points.length));
     return Array.from({ length: maximumPoints }, (_, index): ChartDatum => {
       const row: ChartDatum = {
@@ -267,7 +281,7 @@ export function PeriodComparisonChart({
       });
       return row;
     });
-  }, [activeMetric, scope]);
+  }, [activeMetric, mode, scope]);
 
   if (!scope) {
     return <div className="period-chart-loading">所選期間未有可繪製走勢。</div>;
@@ -313,6 +327,13 @@ export function PeriodComparisonChart({
         <small>{scope.description}</small>
       </div>
 
+      <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-[#eadfd9] bg-[#fffaf7] px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <TrendModeToggle mode={mode} onChange={setMode} compact />
+        <span className="text-[10px] font-semibold leading-4 text-[#8b7180]">
+          累積比較整體進度；單日比較每日實際波動。成本同轉換率均按所選模式重新計算。
+        </span>
+      </div>
+
       <div className="period-chart-controls" aria-label="走勢指標">
         {metricOptions
           .filter((option) => scope.availableMetrics.includes(option.key))
@@ -331,7 +352,10 @@ export function PeriodComparisonChart({
       <div
         className="period-chart-canvas"
         role="img"
-        aria-label={`${scope.label} ${selectedMetric.label}同期累積走勢；橙色圓點代表已連結嘅成效事件，圓心顏色對應所屬月份`}
+        aria-label={`${scope.label} ${selectedMetric.label}同期${
+          mode === "cumulative" ? "累積" : "單日"
+        }走勢；橙色圓點代表已連結嘅成效事件，圓心顏色對應所屬月份`}
+        data-trend-mode={mode}
       >
         <ResponsiveContainer width="100%" height="100%">
           <LineChart
@@ -360,6 +384,7 @@ export function PeriodComparisonChart({
               content={
                 <ComparisonTooltip
                   metric={activeMetric}
+                  mode={mode}
                   seriesLabels={seriesLabels}
                 />
               }
@@ -372,7 +397,7 @@ export function PeriodComparisonChart({
             {scope.series.map((item, index) => (
               <Line
                 key={item.key}
-                type="monotone"
+                type={mode === "cumulative" ? "monotone" : "linear"}
                 dataKey={`series_${index}`}
                 name={item.label}
                 stroke={item.color}
@@ -380,7 +405,7 @@ export function PeriodComparisonChart({
                 strokeOpacity={index === 0 ? 1 : 0.78}
                 dot={false}
                 activeDot={{ r: 4, strokeWidth: 2, fill: "#fff" }}
-                connectNulls
+                connectNulls={mode === "cumulative"}
                 isAnimationActive={false}
               />
             ))}

@@ -23,5 +23,11 @@ export function LeadDashboardTrendChartLazy({
 }: {
   series: PerformanceTrendSeries[];
 }) {
-  return <LazyTrendChart series={series} />;
+  return (
+    <LazyTrendChart
+      series={series}
+      defaultMode="daily"
+      preferenceKey="lead-dashboard"
+    />
+  );
 }
