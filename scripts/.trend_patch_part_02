@@ -1,4 +1,88 @@
-{", "      points: buildDailyComparisonTrend({")
+  treatmentFacts?: TreatmentTrendFact[];
+}): PerformanceTrendPoint[] {
+  const byDate = new Map<string, ComparisonBaseMetrics>();
+  for (const row of input.rows) {
+    if (input.brandIds && !input.brandIds.has(row.brandId)) continue;
+    const existing = byDate.get(row.metricDate) ?? {
+      spend: 0,
+      leads: 0,
+      bookings: 0,
+      shows: 0,
+    };
+    existing.spend += finiteNonNegative(row.spend);
+    existing.leads += finiteNonNegative(row.leads);
+    existing.bookings += finiteNonNegative(row.bookings);
+    existing.shows += finiteNonNegative(row.shows);
+    byDate.set(row.metricDate, existing);
+  }
+
+  const treatmentByDate = new Map<
+    string,
+    { noShows: number; pendingShows: number }
+  >();
+  for (const fact of input.treatmentFacts ?? []) {
+    if (input.brandIds && !input.brandIds.has(fact.brandId)) continue;
+    if (fact.metricKind !== "no_show" && fact.metricKind !== "pending_show") {
+      continue;
+    }
+    const existing = treatmentByDate.get(fact.metricDate) ?? {
+      noShows: 0,
+      pendingShows: 0,
+    };
+    if (fact.metricKind === "no_show") {
+      existing.noShows += finiteNonNegative(fact.metricCount);
+    } else {
+      existing.pendingShows += finiteNonNegative(fact.metricCount);
+    }
+    treatmentByDate.set(fact.metricDate, existing);
+  }
+
+  const points: PerformanceTrendPoint[] = [];
+  const prefix = input.period.monthStart.slice(0, 8);
+  for (let day = input.period.startDay; day <= input.period.endDay; day += 1) {
+    const date = `${prefix}${String(day).padStart(2, "0")}`;
+    const metric = byDate.get(date);
+    const treatmentMetric = treatmentByDate.get(date);
+    points.push(
+      calculatePerformanceTrendPoint(
+        {
+          spend: metric?.spend ?? 0,
+          leads: metric?.leads ?? 0,
+          bookings: metric?.bookings ?? 0,
+          shows: metric?.shows ?? 0,
+          noShows: treatmentMetric?.noShows ?? 0,
+          pendingShows: treatmentMetric?.pendingShows ?? 0,
+        },
+        {
+          day,
+          date,
+          annotations: (input.annotations ?? []).filter(
+            (annotation) => annotation.date === date
+          ),
+        }
+      )
+    );
+  }
+  return points;
+}
+
+export function buildCumulativeComparisonTrend(input: {
+  period: ComparisonPeriod;
+  rows: CanonicalComparisonMetricRow[];
+  brandIds?: Set<string>;
+  annotations?: OperationalAnnotation[];
+  treatmentFacts?: TreatmentTrendFact[];
+}): PerformanceTrendPoint[] {
+  return accumulatePerformanceTrendPoints(buildDailyComparisonTrend(input));
+}
+export type {''',
+    flags=re.S,
+)
+
+period_path = "src/lib/marketing/periodComparison.ts"
+replace_once(period_path, "  buildCumulativeTreatmentTrend,", "  buildDailyTreatmentTrendPoints,")
+replace_once(period_path, "  buildCumulativeComparisonTrend,", "  buildDailyComparisonTrend,")
+replace_once(period_path, "      points: buildCumulativeComparisonTrend({", "      points: buildDailyComparisonTrend({")
 replace_once(period_path, "        points: buildCumulativeTreatmentTrend({", "        points: buildDailyTreatmentTrendPoints({")
 replace_once(
     period_path,
@@ -74,91 +158,3 @@ replace_once(
     '''  const [scopeKey, setScopeKey] = useState(scopes[0]?.key ?? "");
   const [metric, setMetric] = useState<PerformanceTrendMetricKey>("spend");
   const [mode, setMode] = useTrendModePreference({
-    defaultMode: "cumulative",
-    preferenceKey: "period-comparison",
-  });
-''',
-)
-replace_once(
-    period_chart_path,
-    '''    const series = scope?.series ?? [];
-    const maximumPoints = Math.max(0, ...series.map((item) => item.points.length));
-''',
-    '''    const series = (scope?.series ?? []).map((item) => ({
-      ...item,
-      points: performanceTrendPointsForMode(item.points, mode),
-    }));
-    const maximumPoints = Math.max(0, ...series.map((item) => item.points.length));
-''',
-)
-replace_once(period_chart_path, "  }, [activeMetric, scope]);", "  }, [activeMetric, mode, scope]);")
-replace_once(
-    period_chart_path,
-    '''      <div className="period-chart-controls" aria-label="走勢指標">
-''',
-    '''      <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-[#eadfd9] bg-[#fffaf7] px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
-        <TrendModeToggle mode={mode} onChange={setMode} compact />
-        <span className="text-[10px] font-semibold leading-4 text-[#8b7180]">
-          累積比較整體進度；單日比較每日實際波動。成本同轉換率均按所選模式重新計算。
-        </span>
-      </div>
-
-      <div className="period-chart-controls" aria-label="走勢指標">
-''',
-)
-replace_once(
-    period_chart_path,
-    '''        aria-label={`${scope.label} ${selectedMetric.label}同期累積走勢；橙色圓點代表已連結嘅成效事件，圓心顏色對應所屬月份`}
-''',
-    '''        aria-label={`${scope.label} ${selectedMetric.label}同期${
-          mode === "cumulative" ? "累積" : "單日"
-        }走勢；橙色圓點代表已連結嘅成效事件，圓心顏色對應所屬月份`}
-        data-trend-mode={mode}
-''',
-)
-replace_once(
-    period_chart_path,
-    '''                  metric={activeMetric}
-                  seriesLabels={seriesLabels}
-''',
-    '''                  metric={activeMetric}
-                  mode={mode}
-                  seriesLabels={seriesLabels}
-''',
-)
-replace_once(period_chart_path, '                type="monotone"\n', '                type={mode === "cumulative" ? "monotone" : "linear"}\n')
-replace_once(period_chart_path, '                connectNulls\n', '                connectNulls={mode === "cumulative"}\n')
-
-# 5. Treatment and Dashboard chart share the same mode architecture, with separate preferences.
-treatment_chart_path = "src/components/command-center/TreatmentPerformanceTrendChart.tsx"
-replace_once(
-    treatment_chart_path,
-    '''import {
-  operationalItemTypeLabels,
-''',
-    '''import { TrendModeToggle, useTrendModePreference } from "@/components/command-center/TrendModeToggle";
-import {
-  operationalItemTypeLabels,
-''',
-)
-replace_once(
-    treatment_chart_path,
-    '''  treatmentTrendMetricKeys,
-  type PerformanceTrendMetricKey,
-  type PerformanceTrendSeries,
-} from "@/lib/marketing/performanceTrend";
-''',
-    '''  performanceTrendPointsForMode,
-  treatmentTrendMetricKeys,
-  type PerformanceTrendMetricKey,
-  type PerformanceTrendMode,
-  type PerformanceTrendSeries,
-} from "@/lib/marketing/performanceTrend";
-''',
-)
-for old, new in [
-    ('{ key: "leads", label: "每日 Lead", compactLabel: "Lead" }', '{ key: "leads", label: "Lead", compactLabel: "Lead" }'),
-    ('{ key: "bookings", label: "每日 Book", compactLabel: "Book" }', '{ key: "bookings", label: "Book", compactLabel: "Book" }'),
-    ('{ key: "shows", label: "每日 Show", compactLabel: "Show" }', '{ key: "shows", label: "Show", compactLabel: "Show" }'),
-    ('{ key: "noShows", label: "每日 No Show", compactLabel: "No Show" }', '{ key: "noShows", label: "No Show", compactLabel: "No Show" }'),
-    ('{ key: "pendingShows", label: "每日待到店", compactLabel: "待到店" }', '{ key: "pendin
