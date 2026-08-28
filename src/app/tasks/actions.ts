@@ -307,77 +307,50 @@ export async function updateWorkTaskScheduleAction(formData: FormData) {
   }
 
   const supabase = createSupabaseAdminClient();
-  const linksResult = await supabase
-    .from("marketing_task_calendar_links")
-    .select("calendar_item_id")
-    .eq("task_id", taskId);
-  if (linksResult.error) {
-    redirectResult(returnPath, false, "未能核對相關營銷日曆事項。" );
-  }
-  const calendarItemIds = (linksResult.data ?? [])
-    .map((row) => String(row.calendar_item_id ?? ""))
-    .filter(Boolean);
-  if (calendarItemIds.length > 0 && !dueDate) {
+  const scheduleResult = await supabase.rpc(
+    "update_marketing_work_task_schedule",
+    {
+      task_id_input: taskId,
+      start_date_input: startDate,
+      start_time_input: startTime,
+      due_date_input: dueDate,
+      due_time_input: dueTime,
+    }
+  );
+  if (scheduleResult.error) {
+    console.warn("marketing_work_task_schedule_rpc_failed", {
+      code: scheduleResult.error.code,
+    });
     redirectResult(
       returnPath,
       false,
-      "已連結營銷日曆嘅工作必須保留 Due Day／出街日期。"
+      "工作日期同步失敗，Task 同營銷日曆均未有更改。"
     );
   }
 
-  const currentDueDate = String(taskResult.data.due_date ?? "");
-  const currentDueTime = compactTime(taskResult.data.due_time);
-  const dueChanged =
-    (dueDate || "") !== currentDueDate ||
-    compactTime(dueTime) !== currentDueTime;
-  if (calendarItemIds.length > 0 && dueChanged) {
-    const calendarStatus = await supabase
-      .from("marketing_calendar_items")
-      .select("id,status")
-      .in("id", calendarItemIds);
-    if (calendarStatus.error) {
-      redirectResult(returnPath, false, "未能核對日曆發布狀態。" );
-    }
-    if ((calendarStatus.data ?? []).some((item) => item.status === "published")) {
-      redirectResult(
-        returnPath,
-        false,
-        "已 Published 嘅日曆事項唔可以再改 Due Day；請另建新事項保留歷史紀錄。"
-      );
-    }
+  const schedulePayload =
+    scheduleResult.data &&
+    typeof scheduleResult.data === "object" &&
+    !Array.isArray(scheduleResult.data)
+      ? (scheduleResult.data as Record<string, unknown>)
+      : {};
+  if (schedulePayload.ok !== true) {
+    const reason = String(schedulePayload.reason ?? "");
+    const message =
+      reason === "linked_due_required"
+        ? "已連結營銷日曆嘅工作必須保留 Due Day／出街日期。"
+        : reason === "published_calendar_immutable"
+          ? "已 Published 嘅日曆事項唔可以再改 Due Day；Start Day 仍可獨立調整。"
+          : reason === "due_before_start"
+            ? "Due Day 唔可以早過 Start Day。"
+            : reason === "task_not_found"
+              ? "工作已不存在，請重新整理。"
+              : "工作日期更新失敗，Task 同營銷日曆均未有更改。";
+    redirectResult(returnPath, false, message);
   }
 
-  const { error } = await supabase
-    .from("marketing_work_tasks")
-    .update({
-      start_date: startDate,
-      start_time: startTime,
-      due_date: dueDate,
-      due_time: dueTime,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", taskId);
-  if (error) {
-    redirectResult(returnPath, false, "工作日期更新失敗。" );
-  }
-
-  if (calendarItemIds.length > 0 && dueChanged && dueDate) {
-    const calendarUpdate = await supabase
-      .from("marketing_calendar_items")
-      .update({
-        scheduled_date: dueDate,
-        scheduled_time: dueTime,
-        updated_at: new Date().toISOString(),
-      })
-      .in("id", calendarItemIds);
-    if (calendarUpdate.error) {
-      redirectResult(
-        returnPath,
-        false,
-        "工作已更新，但相關營銷日曆未能同步；請立即檢查日曆。"
-      );
-    }
-  }
+  const linkedCount = Number(schedulePayload.linkedCount ?? 0);
+  const dueChanged = schedulePayload.dueChanged === true;
 
   if (
     taskResult.data.assignee_member_id &&
@@ -403,7 +376,7 @@ export async function updateWorkTaskScheduleAction(formData: FormData) {
   redirectResult(
     returnPathForTaskStart(returnPath, startDate, taskId),
     true,
-    calendarItemIds.length > 0 && dueChanged
+    linkedCount > 0 && dueChanged
       ? "Start Day 已更新；Due Day 亦已同步至營銷日曆。"
       : "工作 Start Day／Due Day 已更新。"
   );
