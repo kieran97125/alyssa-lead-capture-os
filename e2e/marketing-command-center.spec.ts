@@ -1322,7 +1322,12 @@ test("Marketing Calendar can open another month and keeps new items inside that 
     "href",
     "/calendar?month=2026-08"
   );
-  await expect(page.getByLabel("日期")).toHaveValue("2026-07-01");
+  await expect(
+    page.getByRole("textbox", { name: "Due／出街日期", exact: true })
+  ).toHaveValue("2026-07-01");
+  await expect(page.getByLabel("同步工作 Start Day")).toHaveValue(
+    "2026-07-01"
+  );
   await expect(page.getByLabel("影響療程（可選）")).toBeEnabled();
 });
 
