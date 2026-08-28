@@ -18,6 +18,7 @@ const paths = [
   "supabase/migrations/20260828055834_web_push_delivery_claiming_aftercare.sql",
   "supabase/migrations/20260828055853_web_push_stale_claim_recovery.sql",
   "supabase/migrations/20260828061134_pg_net_extension_schema_aftercare.sql",
+  "supabase/migrations/20260828061810_atomic_work_task_schedule_sync.sql",
   "supabase/functions/marketing-web-push-dispatch/index.ts",
 ];
 const files = Object.fromEntries(
@@ -49,8 +50,12 @@ assert.match(taskActions, /start_date: startDate/);
 assert.match(taskActions, /start_time: startTime/);
 assert.match(taskActions, /dueDate < startDate/);
 assert.match(taskActions, /export async function updateWorkTaskScheduleAction/);
-assert.match(taskActions, /marketing_task_calendar_links/);
-assert.match(taskActions, /scheduled_date: dueDate/);
+assert.match(taskActions, /update_marketing_work_task_schedule/);
+assert.match(taskActions, /published_calendar_immutable/);
+assert.doesNotMatch(
+  taskActions,
+  /\.from\("marketing_calendar_items"\)[\s\S]{0,180}\.update\(\{[\s\S]{0,120}scheduled_date: dueDate/
+);
 
 const taskPage = files["src/app/tasks/page.tsx"];
 assert.match(taskPage, /Start Day/);
@@ -122,10 +127,29 @@ const pgNetAftercare =
   files[
     "supabase/migrations/20260828061134_pg_net_extension_schema_aftercare.sql"
   ];
-assert.match(pgNetAftercare, /create extension if not exists pg_net with schema extensions/);
+assert.match(
+  pgNetAftercare,
+  /create extension if not exists pg_net with schema extensions/
+);
 assert.match(pgNetAftercare, /set search_path = public, net, pg_temp/);
 assert.match(pgNetAftercare, /x-growth-os-dispatch-token/);
-assert.doesNotMatch(pgNetAftercare, /dispatch_token\s*=\s*'[A-Za-z0-9_-]{20}/);
+assert.doesNotMatch(
+  pgNetAftercare,
+  /dispatch_token\s*=\s*'[A-Za-z0-9_-]{20}/
+);
+const scheduleSync =
+  files[
+    "supabase/migrations/20260828061810_atomic_work_task_schedule_sync.sql"
+  ];
+assert.match(scheduleSync, /update_marketing_work_task_schedule/);
+assert.match(scheduleSync, /for update/);
+assert.match(scheduleSync, /published_calendar_immutable/);
+assert.match(scheduleSync, /scheduled_date = due_date_input/);
+assert.match(
+  scheduleSync,
+  /revoke all on function public\.update_marketing_work_task_schedule/
+);
+assert.match(scheduleSync, /to service_role/);
 
 const dispatcher =
   files["supabase/functions/marketing-web-push-dispatch/index.ts"];
@@ -136,5 +160,5 @@ assert.match(dispatcher, /contentEncoding: "aes128gcm"/);
 assert.match(dispatcher, /statusCode === 404 \|\| statusCode === 410/);
 
 console.log(
-  "Task Start Day, Due Day calendar ownership, reminders, Web Push subscription, atomic delivery, pg_net ownership, and Service Worker contracts verified."
+  "Task Start Day, Due Day calendar ownership, atomic schedule sync, reminders, Web Push subscription, atomic delivery, pg_net ownership, and Service Worker contracts verified."
 );
