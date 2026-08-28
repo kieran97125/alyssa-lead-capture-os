@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && next build",
+    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && npm run verify:work-ops-contract && next build",
     "start": "next start",
     "lint": "eslint",
     "verify:public-lead-contract": "node scripts/verify-public-lead-contract.mjs",
@@ -18,7 +18,8 @@
     "verify:app-icon-contract": "node scripts/verify-app-icon-contract.mjs",
     "test:e2e": "playwright test",
     "test:e2e:update": "playwright test --update-snapshots",
-    "sync:auth-email-templates": "node scripts/sync-supabase-auth-email-templates.mjs"
+    "sync:auth-email-templates": "node scripts/sync-supabase-auth-email-templates.mjs",
+    "verify:work-ops-contract": "node scripts/verify-work-task-push-contract.mjs"
   },
   "dependencies": {
     "@daypicker/react": "10.0.1",
