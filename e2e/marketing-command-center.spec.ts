@@ -1239,7 +1239,7 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
   await expect(page.getByRole("heading", { name: "療程表現" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Lead Funnel 走勢" })).toBeVisible();
   await expect(
-    page.getByRole("img", { name: /每日 Lead走勢；橙色圓點代表已連結嘅成效事件/ })
+    page.getByRole("img", { name: /Lead單日走勢；橙色圓點代表已連結嘅成效事件/ })
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "來源／Campaign 表現" })
@@ -1449,7 +1449,7 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
     page.getByRole("heading", { name: "療程成效走勢", exact: true })
   ).toBeVisible();
   await expect(
-    page.getByRole("img", { name: /每日 Lead走勢；橙色圓點代表已連結嘅成效事件/ })
+    page.getByRole("img", { name: /Lead單日走勢；橙色圓點代表已連結嘅成效事件/ })
   ).toBeVisible();
   const noShowTrend = page.getByRole("button", {
     name: "No Show",
@@ -1497,7 +1497,7 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
   await expect(page.getByText("未有可比基準", { exact: true })).toHaveCount(0);
   await expect(page.getByText("與上月相若", { exact: true })).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "同期累積走勢", exact: true })
+    page.getByRole("heading", { name: "同期走勢", exact: true })
   ).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "月份比較", exact: true })
