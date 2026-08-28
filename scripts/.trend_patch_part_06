@@ -1,0 +1,84 @@
+  });
+  await expect(chart).toBeVisible();
+
+  let markers = chart.getByTestId("period-series-annotation");
+  await expect(markers).not.toHaveCount(0);
+  const marker = markers.first();
+  const seriesLabel = await marker.getAttribute("data-series-label");
+  const eventDates =
+    (await marker.getAttribute("data-event-dates"))
+      ?.split(",")
+      .filter(Boolean) ?? [];
+
+  expect(seriesLabel).toBeTruthy();
+  expect(eventDates.length).toBeGreaterThan(0);
+  for (const eventDate of eventDates) {
+    expect(seriesLabel).toContain(eventDate.slice(0, 4));
+    expect(seriesLabel).toContain(`${Number(eventDate.slice(5, 7))}月`);
+  }
+
+  await toggle.getByTestId("trend-mode-daily").click();
+  chart = trendCard.getByRole("img", {
+    name: /同期單日走勢；橙色圓點代表已連結嘅成效事件/,
+  });
+  await expect(chart).toBeVisible();
+  await expect(chart).toHaveAttribute("data-trend-mode", "daily");
+  markers = chart.getByTestId("period-series-annotation");
+  await expect(markers).not.toHaveCount(0);
+
+  await page.reload();
+  await expect(
+    trendCard.getByTestId("trend-mode-daily")
+  ).toHaveAttribute("aria-pressed", "true");
+});
+''',
+    flags=re.S,
+)
+
+# 9. Reusable product learning in the pilot repo.
+write(
+    "docs/product-learning/entries/2026-08-28-daily-cumulative-trend-toggle.md",
+    '''# Daily / Cumulative Trend View
+
+## Problem
+
+A cumulative line is useful for pacing, but it hides daily volatility; a daily line exposes volatility, but it does not show progress against a period. Treating either view as the only chart contract forces users to mentally reconstruct the other view and can lead to incorrect operational conclusions.
+
+## Product direction
+
+Time-series performance charts support two explicit, equally reliable modes:
+
+- **Daily**: the actual value recorded on each date, used for volatility, anomaly and operational diagnosis.
+- **Cumulative**: the running total from the selected period start, used for pacing and like-for-like progress comparison.
+
+Each surface keeps its own device preference, while preserving the historically expected default for that surface.
+
+## Architecture decisions
+
+- Daily base facts are the canonical data transported to chart components.
+- Cumulative points are derived client-side from base numerators and denominators.
+- CPL, CPA and conversion rates are recalculated after aggregation; ratios are never summed or averaged from daily ratios.
+- Daily derived metrics remain `null` when the denominator is zero, creating an honest visual gap instead of a fabricated zero.
+- Operational annotations remain attached to their real event date in both modes.
+- Daily lines use linear interpolation; cumulative lines may use monotone interpolation.
+- The toggle is accessible, keyboard-operable and persisted independently per product surface.
+
+## Classification
+
+- **Core**: daily/cumulative semantic model, aggregate-first ratio derivation, annotation date ownership and accessible toggle.
+- **Configurable**: default mode, surface-specific preference key, available metrics and explanatory copy.
+- **Client-specific**: brand palette, metric naming and operational event terminology remain isolated in the Alyssa implementation.
+
+## Verification contract
+
+- Dashboard, treatment performance and period comparison all expose the same two modes.
+- Existing default behavior remains unchanged until a user switches mode.
+- Mode preference survives reload without leaking across unrelated surfaces.
+- Full production build and Playwright acceptance must pass before release.
+''',
+)
+
+# Remove this one-shot implementation script from the final product diff.
+Path(__file__).unlink()
+
+print("Applied daily/cumulative trend mode across Period Comparison, Treatment Performance and Dashboard.")
