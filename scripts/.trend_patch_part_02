@@ -1,0 +1,164 @@
+{", "      points: buildDailyComparisonTrend({")
+replace_once(period_path, "        points: buildCumulativeTreatmentTrend({", "        points: buildDailyTreatmentTrendPoints({")
+replace_once(
+    period_path,
+    'description: "品牌整體成本、成效、No Show 及待到店同期累積；橙點係該範圍日曆操作。",',
+    'description: "品牌整體成本、成效、No Show 及待到店同期走勢；可切換累積進度或單日波動，橙點係該範圍日曆操作。",',
+)
+
+# 4. Period Comparison chart toggle and truthful daily gaps.
+period_chart_path = "src/components/command-center/PeriodComparisonChart.tsx"
+replace_once(
+    period_chart_path,
+    '''import {
+  operationalItemTypeLabels,
+''',
+    '''import { TrendModeToggle, useTrendModePreference } from "@/components/command-center/TrendModeToggle";
+import {
+  operationalItemTypeLabels,
+''',
+)
+replace_once(
+    period_chart_path,
+    '''  PerformanceTrendMetricKey,
+  PerformanceTrendPoint,
+  PerformanceTrendScope,
+} from "@/lib/marketing/performanceTrend";
+''',
+    '''  PerformanceTrendMetricKey,
+  PerformanceTrendMode,
+  PerformanceTrendPoint,
+  PerformanceTrendScope,
+} from "@/lib/marketing/performanceTrend";
+import { performanceTrendPointsForMode } from "@/lib/marketing/performanceTrend";
+''',
+)
+replace_once(
+    period_chart_path,
+    '''  metric,
+  seriesLabels,
+}: {
+''',
+    '''  metric,
+  mode,
+  seriesLabels,
+}: {
+''',
+)
+replace_once(
+    period_chart_path,
+    '''  metric: PerformanceTrendMetricKey;
+  seriesLabels: string[];
+}) {
+''',
+    '''  metric: PerformanceTrendMetricKey;
+  mode: PerformanceTrendMode;
+  seriesLabels: string[];
+}) {
+''',
+)
+replace_once(
+    period_chart_path,
+    '''      <strong>第 {label} 日累積</strong>
+''',
+    '''      <strong>
+        第 {label} 日 · {mode === "cumulative" ? "累積" : "單日"}
+      </strong>
+''',
+)
+replace_once(
+    period_chart_path,
+    '''  const [scopeKey, setScopeKey] = useState(scopes[0]?.key ?? "");
+  const [metric, setMetric] = useState<PerformanceTrendMetricKey>("spend");
+''',
+    '''  const [scopeKey, setScopeKey] = useState(scopes[0]?.key ?? "");
+  const [metric, setMetric] = useState<PerformanceTrendMetricKey>("spend");
+  const [mode, setMode] = useTrendModePreference({
+    defaultMode: "cumulative",
+    preferenceKey: "period-comparison",
+  });
+''',
+)
+replace_once(
+    period_chart_path,
+    '''    const series = scope?.series ?? [];
+    const maximumPoints = Math.max(0, ...series.map((item) => item.points.length));
+''',
+    '''    const series = (scope?.series ?? []).map((item) => ({
+      ...item,
+      points: performanceTrendPointsForMode(item.points, mode),
+    }));
+    const maximumPoints = Math.max(0, ...series.map((item) => item.points.length));
+''',
+)
+replace_once(period_chart_path, "  }, [activeMetric, scope]);", "  }, [activeMetric, mode, scope]);")
+replace_once(
+    period_chart_path,
+    '''      <div className="period-chart-controls" aria-label="走勢指標">
+''',
+    '''      <div className="mb-3 flex flex-col gap-3 rounded-2xl border border-[#eadfd9] bg-[#fffaf7] px-3 py-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <TrendModeToggle mode={mode} onChange={setMode} compact />
+        <span className="text-[10px] font-semibold leading-4 text-[#8b7180]">
+          累積比較整體進度；單日比較每日實際波動。成本同轉換率均按所選模式重新計算。
+        </span>
+      </div>
+
+      <div className="period-chart-controls" aria-label="走勢指標">
+''',
+)
+replace_once(
+    period_chart_path,
+    '''        aria-label={`${scope.label} ${selectedMetric.label}同期累積走勢；橙色圓點代表已連結嘅成效事件，圓心顏色對應所屬月份`}
+''',
+    '''        aria-label={`${scope.label} ${selectedMetric.label}同期${
+          mode === "cumulative" ? "累積" : "單日"
+        }走勢；橙色圓點代表已連結嘅成效事件，圓心顏色對應所屬月份`}
+        data-trend-mode={mode}
+''',
+)
+replace_once(
+    period_chart_path,
+    '''                  metric={activeMetric}
+                  seriesLabels={seriesLabels}
+''',
+    '''                  metric={activeMetric}
+                  mode={mode}
+                  seriesLabels={seriesLabels}
+''',
+)
+replace_once(period_chart_path, '                type="monotone"\n', '                type={mode === "cumulative" ? "monotone" : "linear"}\n')
+replace_once(period_chart_path, '                connectNulls\n', '                connectNulls={mode === "cumulative"}\n')
+
+# 5. Treatment and Dashboard chart share the same mode architecture, with separate preferences.
+treatment_chart_path = "src/components/command-center/TreatmentPerformanceTrendChart.tsx"
+replace_once(
+    treatment_chart_path,
+    '''import {
+  operationalItemTypeLabels,
+''',
+    '''import { TrendModeToggle, useTrendModePreference } from "@/components/command-center/TrendModeToggle";
+import {
+  operationalItemTypeLabels,
+''',
+)
+replace_once(
+    treatment_chart_path,
+    '''  treatmentTrendMetricKeys,
+  type PerformanceTrendMetricKey,
+  type PerformanceTrendSeries,
+} from "@/lib/marketing/performanceTrend";
+''',
+    '''  performanceTrendPointsForMode,
+  treatmentTrendMetricKeys,
+  type PerformanceTrendMetricKey,
+  type PerformanceTrendMode,
+  type PerformanceTrendSeries,
+} from "@/lib/marketing/performanceTrend";
+''',
+)
+for old, new in [
+    ('{ key: "leads", label: "每日 Lead", compactLabel: "Lead" }', '{ key: "leads", label: "Lead", compactLabel: "Lead" }'),
+    ('{ key: "bookings", label: "每日 Book", compactLabel: "Book" }', '{ key: "bookings", label: "Book", compactLabel: "Book" }'),
+    ('{ key: "shows", label: "每日 Show", compactLabel: "Show" }', '{ key: "shows", label: "Show", compactLabel: "Show" }'),
+    ('{ key: "noShows", label: "每日 No Show", compactLabel: "No Show" }', '{ key: "noShows", label: "No Show", compactLabel: "No Show" }'),
+    ('{ key: "pendingShows", label: "每日待到店", compactLabel: "待到店" }', '{ key: "pendin
