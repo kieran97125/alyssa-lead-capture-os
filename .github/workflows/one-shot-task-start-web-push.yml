@@ -1,5 +1,6 @@
 name: One-shot task Start Day and Web Push integration
 
+# Retry 2: Deno Edge Functions are isolated from the Next.js TypeScript graph.
 on:
   push:
     branches:
