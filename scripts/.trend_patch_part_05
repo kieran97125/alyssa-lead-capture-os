@@ -1,0 +1,160 @@
+replace_once(
+    verify_path,
+    '''assert.match(
+  files["src/components/command-center/TreatmentPerformanceTrendChart.tsx"],
+  /成效事件/
+);
+''',
+    '''const treatmentTrendChart =
+  files["src/components/command-center/TreatmentPerformanceTrendChart.tsx"];
+assert.match(treatmentTrendChart, /成效事件/);
+assert.match(treatmentTrendChart, /TrendModeToggle/);
+assert.match(treatmentTrendChart, /performanceTrendPointsForMode/);
+assert.match(treatmentTrendChart, /preferenceKey/);
+assert.match(
+  files["src/components/command-center/TreatmentPerformanceTrendChartLazy.tsx"],
+  /preferenceKey="treatment-performance"/
+);
+assert.match(
+  files["src/components/command-center/LeadDashboardTrendChartLazy.tsx"],
+  /preferenceKey="lead-dashboard"/
+);
+const modeToggle =
+  files["src/components/command-center/TrendModeToggle.tsx"];
+assert.match(modeToggle, /growth-os:performance-trend-mode:/);
+assert.match(modeToggle, /aria-pressed=\{selected\}/);
+assert.match(modeToggle, /trend-mode-cumulative/);
+assert.match(modeToggle, /trend-mode-daily/);
+const trendMath = files["src/lib/marketing/performanceTrend.ts"];
+assert.match(trendMath, /export type PerformanceTrendMode = "daily" \| "cumulative"/);
+assert.match(trendMath, /accumulatePerformanceTrendPoints/);
+assert.match(trendMath, /performanceTrendPointsForMode/);
+assert.match(trendMath, /buildDailyTreatmentTrendPoints/);
+assert.match(
+  files["src/lib/marketing/periodComparisonMath.ts"],
+  /buildDailyComparisonTrend/
+);
+''',
+)
+replace_once(
+    verify_path,
+    '"Reporting trend, cost metrics, month-specific connected performance events, calendar annotation, and Manager KPI contracts verified."',
+    '"Reporting daily/cumulative mode, aggregate-first trend math, per-surface preference, cost metrics, connected events, calendar annotation, and Manager KPI contracts verified."',
+)
+
+# 8. Playwright verifies math semantics, all three product surfaces and persisted UX.
+e2e_path = "e2e/connected-marketing-ops.spec.ts"
+replace_once(
+    e2e_path,
+    '''import { getWorkspaceModuleForPath } from "../src/lib/security/workspacePermissions";
+''',
+    '''import { getWorkspaceModuleForPath } from "../src/lib/security/workspacePermissions";
+import {
+  accumulatePerformanceTrendPoints,
+  calculatePerformanceTrendPoint,
+} from "../src/lib/marketing/performanceTrend";
+''',
+)
+replace_once(
+    e2e_path,
+    '''test("Weekly Tasks reuses Calendar module access", () => {
+''',
+    '''test("cumulative trend recomputes aggregate-first cost and rates from daily facts", () => {
+  const daily = [
+    calculatePerformanceTrendPoint(
+      {
+        spend: 100,
+        leads: 2,
+        bookings: 1,
+        shows: 0,
+        noShows: 0,
+        pendingShows: 1,
+      },
+      { day: 1, date: "2026-08-01", annotations: [] }
+    ),
+    calculatePerformanceTrendPoint(
+      {
+        spend: 50,
+        leads: 0,
+        bookings: 1,
+        shows: 1,
+        noShows: 0,
+        pendingShows: 0,
+      },
+      { day: 2, date: "2026-08-02", annotations: [] }
+    ),
+  ];
+  const cumulative = accumulatePerformanceTrendPoints(daily);
+  expect(cumulative[1]).toMatchObject({
+    spend: 150,
+    leads: 2,
+    bookings: 2,
+    shows: 1,
+    cpl: 75,
+    costPerBooking: 75,
+    costPerShow: 150,
+    leadToBookRate: 1,
+    bookToShowRate: 0.5,
+    leadToShowRate: 0.5,
+  });
+  expect(daily[1].cpl).toBeNull();
+});
+
+test("Weekly Tasks reuses Calendar module access", () => {
+''',
+)
+regex_once(
+    e2e_path,
+    r'''test\("Dashboard trend consumes the connected operational event layer", async \(\{ page \}\) => \{.*?\n\}\);\n\ntest\("Period comparison keeps each performance event on its own month series", async \(\{ page \}\) => \{.*?\n\}\);\n''',
+    '''test("Dashboard trend switches between single-day and cumulative views", async ({ page }) => {
+  await page.goto("/dashboard");
+  const card = page.locator(".lead-dashboard-trend-card");
+  const toggle = card.getByTestId("trend-mode-toggle");
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await expect(toggle.getByTestId("trend-mode-daily")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await expect(
+    card.getByRole("img", { name: /Lead單日走勢；橙色圓點代表已連結嘅成效事件/ })
+  ).toBeVisible();
+
+  await toggle.getByTestId("trend-mode-cumulative").click();
+  await expect(
+    card.getByRole("img", { name: /Lead累積走勢；橙色圓點代表已連結嘅成效事件/ })
+  ).toBeVisible();
+});
+
+test("Treatment trend independently remembers its daily or cumulative view", async ({ page }) => {
+  await page.goto("/performance");
+  const card = page.locator(".treatment-trend-card");
+  const toggle = card.getByTestId("trend-mode-toggle");
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await expect(toggle.getByTestId("trend-mode-daily")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  await toggle.getByTestId("trend-mode-cumulative").click();
+  await expect(
+    card.getByRole("img", { name: /Lead累積走勢；橙色圓點代表已連結嘅成效事件/ })
+  ).toBeVisible();
+  await page.reload();
+  await expect(
+    card.getByTestId("trend-mode-cumulative")
+  ).toHaveAttribute("aria-pressed", "true");
+});
+
+test("Period comparison keeps monthly events in both cumulative and single-day views", async ({ page }) => {
+  await page.goto(
+    "/performance/compare?month=2026-08&months=3&start_day=1&end_day=27"
+  );
+
+  const trendCard = page.locator(".period-trend-card");
+  const toggle = trendCard.getByTestId("trend-mode-toggle");
+  await expect(toggle).toBeVisible({ timeout: 15_000 });
+  await expect(toggle.getByTestId("trend-mode-cumulative")).toHaveAttribute(
+    "aria-pressed",
+    "true"
+  );
+  let chart = trendCard.getByRole("img", {
+    name: /同期累積走勢；橙色圓點代表已連結嘅成效事件/,
