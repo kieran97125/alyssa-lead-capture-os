@@ -1,0 +1,213 @@
+from __future__ import annotations
+
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+
+
+def read(path: str) -> str:
+    return (ROOT / path).read_text(encoding="utf-8")
+
+
+def write(path: str, content: str) -> None:
+    target = ROOT / path
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(content, encoding="utf-8")
+
+
+def replace_once(path: str, old: str, new: str) -> None:
+    content = read(path)
+    count = content.count(old)
+    if count != 1:
+        raise RuntimeError(f"{path}: expected exactly one match, found {count}: {old[:100]!r}")
+    write(path, content.replace(old, new, 1))
+
+
+def regex_once(path: str, pattern: str, replacement: str, flags: int = 0) -> None:
+    content = read(path)
+    updated, count = re.subn(pattern, replacement, content, count=1, flags=flags)
+    if count != 1:
+        raise RuntimeError(f"{path}: expected one regex match, found {count}: {pattern[:120]!r}")
+    write(path, updated)
+
+
+# 1. Shared, accessible, per-surface persistent mode toggle.
+write(
+    "src/components/command-center/TrendModeToggle.tsx",
+    '''"use client";
+
+import { useCallback, useEffect, useId, useState } from "react";
+import type { PerformanceTrendMode } from "@/lib/marketing/performanceTrend";
+
+const STORAGE_PREFIX = "growth-os:performance-trend-mode:";
+
+const modeCopy: Record<
+  PerformanceTrendMode,
+  { label: string; description: string }
+> = {
+  cumulative: {
+    label: "累積",
+    description: "由期間開始逐日加總，適合睇整體進度。",
+  },
+  daily: {
+    label: "單日",
+    description: "只顯示當日實際值，適合睇波動同異常。",
+  },
+};
+
+function isTrendMode(value: string | null): value is PerformanceTrendMode {
+  return value === "cumulative" || value === "daily";
+}
+
+export function useTrendModePreference(input: {
+  defaultMode: PerformanceTrendMode;
+  preferenceKey: string;
+}) {
+  const [mode, setModeState] = useState<PerformanceTrendMode>(input.defaultMode);
+
+  useEffect(() => {
+    try {
+      const stored = window.localStorage.getItem(
+        `${STORAGE_PREFIX}${input.preferenceKey}`
+      );
+      if (isTrendMode(stored)) setModeState(stored);
+    } catch {
+      // Private browsing or restrictive browser policies may disable storage.
+    }
+  }, [input.preferenceKey]);
+
+  const setMode = useCallback(
+    (nextMode: PerformanceTrendMode) => {
+      setModeState(nextMode);
+      try {
+        window.localStorage.setItem(
+          `${STORAGE_PREFIX}${input.preferenceKey}`,
+          nextMode
+        );
+      } catch {
+        // The chart remains fully usable even when preference storage is blocked.
+      }
+    },
+    [input.preferenceKey]
+  );
+
+  return [mode, setMode] as const;
+}
+
+export function TrendModeToggle({
+  mode,
+  onChange,
+  compact = false,
+}: {
+  mode: PerformanceTrendMode;
+  onChange: (mode: PerformanceTrendMode) => void;
+  compact?: boolean;
+}) {
+  const descriptionId = useId();
+  return (
+    <div
+      className={`flex min-w-0 flex-col gap-1.5 ${
+        compact ? "sm:flex-row sm:items-center" : "sm:flex-row sm:items-center sm:gap-3"
+      }`}
+      data-testid="trend-mode-toggle"
+    >
+      <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.08em] text-[#8d7180]">
+        顯示方式
+      </span>
+      <div
+        role="group"
+        aria-label="走勢顯示方式"
+        aria-describedby={descriptionId}
+        className="inline-flex w-fit rounded-xl border border-[#e3d4cd] bg-[#f8f4f2] p-1 shadow-inner"
+      >
+        {(["cumulative", "daily"] as PerformanceTrendMode[]).map(
+          (option) => {
+            const selected = option === mode;
+            return (
+              <button
+                key={option}
+                type="button"
+                aria-pressed={selected}
+                data-testid={`trend-mode-${option}`}
+                onClick={() => onChange(option)}
+                className={`min-w-[4.35rem] rounded-lg px-3 py-1.5 text-[11px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5d76]/30 ${
+                  selected
+                    ? "bg-[#5a2348] text-white shadow-[0_5px_14px_rgba(90,35,72,0.18)]"
+                    : "text-[#765669] hover:bg-white hover:text-[#5a2348]"
+                }`}
+              >
+                {modeCopy[option].label}
+              </button>
+            );
+          }
+        )}
+      </div>
+      <span
+        id={descriptionId}
+        className={`max-w-md text-[10px] font-semibold leading-4 text-[#8b7180] ${
+          compact ? "hidden xl:inline" : ""
+        }`}
+        aria-live="polite"
+      >
+        {modeCopy[mode].description}
+      </span>
+    </div>
+  );
+}
+''',
+)
+
+# 2. Canonical daily points + aggregate-first cumulative derivation.
+performance_path = "src/lib/marketing/performanceTrend.ts"
+replace_once(
+    performance_path,
+    '''export type PerformanceTrendScope = {
+  key: string;
+  type: "overall" | "brand" | "treatment";
+  label: string;
+  description: string;
+  availableMetrics: PerformanceTrendMetricKey[];
+  series: PerformanceTrendSeries[];
+};
+''',
+    '''export type PerformanceTrendScope = {
+  key: string;
+  type: "overall" | "brand" | "treatment";
+  label: string;
+  description: string;
+  availableMetrics: PerformanceTrendMetricKey[];
+  series: PerformanceTrendSeries[];
+};
+
+export type PerformanceTrendMode = "daily" | "cumulative";
+''',
+)
+replace_once(
+    performance_path,
+    '''export function emptyPerformanceTrendBase(): PerformanceTrendBaseMetrics {
+  return {
+    spend: 0,
+    leads: 0,
+    bookings: 0,
+    shows: 0,
+    noShows: 0,
+    pendingShows: 0,
+  };
+}
+''',
+    '''export function emptyPerformanceTrendBase(): PerformanceTrendBaseMetrics {
+  return {
+    spend: 0,
+    leads: 0,
+    bookings: 0,
+    shows: 0,
+    noShows: 0,
+    pendingShows: 0,
+  };
+}
+
+export function accumulatePerformanceTrendPoints(
+  points: PerformanceTrendPoint[]
+): PerformanceTrendPoint[] {
+  const cumulative = emptyPerforman
