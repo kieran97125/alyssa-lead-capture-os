@@ -8,6 +8,7 @@
 - Moving Start Day does not move Calendar or performance-event dates.
 - Updating Due Day synchronizes linked unpublished Calendar items in one database transaction.
 - Published Calendar dates remain immutable.
+- Pre-cutover tasks infer Start Day from their HKT creation／assignment date rather than silently treating the former Due Day as their start.
 - Calendar acceptance tests address `Due／出街日期` and `同步工作 Start Day` explicitly rather than relying on the former ambiguous `日期` label.
 
 ## Desktop notification contract
@@ -22,7 +23,7 @@
 
 ## Production evidence recorded before PR
 
-- Supabase migrations applied through `20260828062233`.
+- Supabase migrations applied through `20260828063447`.
 - Atomic Task/Calendar transaction test passed and rolled back without persistent test rows.
 - Edge Function dispatch called through `pg_net` and returned HTTP 200.
 - Supabase security advisor showed no new exposed-table or extension-schema warning.
