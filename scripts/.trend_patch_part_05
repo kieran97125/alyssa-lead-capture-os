@@ -23,8 +23,7 @@ const modeToggle =
   files["src/components/command-center/TrendModeToggle.tsx"];
 assert.match(modeToggle, /growth-os:performance-trend-mode:/);
 assert.match(modeToggle, /aria-pressed=\{selected\}/);
-assert.match(modeToggle, /trend-mode-cumulative/);
-assert.match(modeToggle, /trend-mode-daily/);
+assert.match(modeToggle, /data-testid={`trend-mode-\$\{option\}`}/);
 const trendMath = files["src/lib/marketing/performanceTrend.ts"];
 assert.match(trendMath, /export type PerformanceTrendMode = "daily" \| "cumulative"/);
 assert.match(trendMath, /accumulatePerformanceTrendPoints/);
