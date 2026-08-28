@@ -58,6 +58,8 @@ export type WorkTaskRow = {
   assigneeEmail: string | null;
   assigneeName: string | null;
   createdByEmail: string | null;
+  startDate: string;
+  startTime: string | null;
   dueDate: string | null;
   dueTime: string | null;
   treatmentId: string | null;
@@ -159,6 +161,8 @@ function fixtureSnapshot(input: {
           assigneeEmail: member.email,
           assigneeName: member.name,
           createdByEmail: member.email,
+          startDate: shiftDate(input.weekStart, 1),
+          startTime: "09:30",
           dueDate: shiftDate(input.weekStart, 3),
           dueTime: null,
           treatmentId: null,
@@ -260,12 +264,13 @@ export async function getWorkTaskSnapshot(input?: {
       supabase
         .from("marketing_work_tasks")
         .select(
-          "id,brand_id,treatment_id,treatment_label,title,description,status,priority,assignee_member_id,assignee_email,created_by_email,due_date,due_time,performance_marker,completed_at,updated_at"
+          "id,brand_id,treatment_id,treatment_label,title,description,status,priority,assignee_member_id,assignee_email,created_by_email,start_date,start_time,due_date,due_time,performance_marker,completed_at,updated_at"
         )
         .in("brand_id", brandIds)
-        .or(
-          `due_date.is.null,and(due_date.gte.${shiftDate(weekStart, -14)},due_date.lte.${shiftDate(weekEnd, 14)})`
-        )
+        .gte("start_date", weekStart)
+        .lte("start_date", weekEnd)
+        .order("start_date", { ascending: true })
+        .order("start_time", { ascending: true, nullsFirst: true })
         .order("due_date", { ascending: true, nullsFirst: false })
         .order("created_at", { ascending: false }),
       supabase
@@ -388,6 +393,8 @@ export async function getWorkTaskSnapshot(input?: {
         assigneeEmail: textValue(row.assignee_email, 180),
         assigneeName: assignee?.name ?? null,
         createdByEmail: textValue(row.created_by_email, 180),
+        startDate: textValue(row.start_date, 10) || weekStart,
+        startTime: textValue(row.start_time, 16),
         dueDate: textValue(row.due_date, 10),
         dueTime: textValue(row.due_time, 16),
         treatmentId: textValue(row.treatment_id, 80),
@@ -409,10 +416,7 @@ export async function getWorkTaskSnapshot(input?: {
     tasks = tasks.filter((task) => task.assigneeMemberId === currentMemberId);
   }
   tasks = tasks.filter(
-    (task) =>
-      task.dueDate === null ||
-      (task.dueDate >= weekStart && task.dueDate <= weekEnd) ||
-      (task.status !== "done" && task.dueDate < weekStart)
+    (task) => task.startDate >= weekStart && task.startDate <= weekEnd
   );
 
   let notifications: WorkNotification[] = [];

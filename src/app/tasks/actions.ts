@@ -78,7 +78,7 @@ async function getAccessibleTask(taskId: string, access: Awaited<ReturnType<type
   const supabase = createSupabaseAdminClient();
   const result = await supabase
     .from("marketing_work_tasks")
-    .select("id,brand_id,title,status,assignee_member_id,assignee_email")
+    .select("id,brand_id,title,status,assignee_member_id,assignee_email,start_date,start_time,due_date,due_time")
     .eq("id", taskId)
     .maybeSingle();
   return result;
@@ -86,6 +86,35 @@ async function getAccessibleTask(taskId: string, access: Awaited<ReturnType<type
 
 function actorEmail(access: { email?: string; accessLevel: string }) {
   return access.email || (access.accessLevel === "master" ? "master" : "shared_admin");
+}
+
+function compactTime(value: unknown) {
+  return typeof value === "string" && value.trim()
+    ? value.trim().slice(0, 5)
+    : "";
+}
+
+function scheduleSummary(input: {
+  title: string;
+  startDate: string;
+  startTime?: string | null;
+  dueDate?: string | null;
+  dueTime?: string | null;
+}) {
+  const start = `Start ${input.startDate}${input.startTime ? ` ${compactTime(input.startTime)}` : ""}`;
+  const due = input.dueDate
+    ? `Due ${input.dueDate}${input.dueTime ? ` ${compactTime(input.dueTime)}` : ""}`
+    : "Due 未設定";
+  return `${input.title}\n${start} · ${due}`;
+}
+
+function returnPathForTaskStart(path: string, startDate: string, taskId: string) {
+  const url = new URL(path, "https://growth-os.internal");
+  url.searchParams.set("week", startDate);
+  url.searchParams.set("focus", taskId);
+  url.searchParams.delete("command_status");
+  url.searchParams.delete("message");
+  return `${url.pathname}?${url.searchParams.toString()}`;
 }
 
 async function insertNotification(input: {
@@ -136,6 +165,8 @@ export async function createWorkTaskAction(formData: FormData) {
   const status = readString(formData, "status") as WorkTaskStatus;
   const priority = readString(formData, "priority") as WorkTaskPriority;
   const assigneeMemberId = readString(formData, "assigneeMemberId") || null;
+  const startDate = readString(formData, "startDate");
+  const startTime = readString(formData, "startTime") || null;
   const dueDate = readString(formData, "dueDate") || null;
   const dueTime = readString(formData, "dueTime") || null;
   const treatmentId = readString(formData, "treatmentId") || null;
@@ -155,11 +186,20 @@ export async function createWorkTaskAction(formData: FormData) {
   if (!(["low", "normal", "high"] as string[]).includes(priority)) {
     redirectResult(returnPath, false, "請選擇有效 Priority。" );
   }
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    redirectResult(returnPath, false, "請設定有效 Start Day／派 Job 日。" );
+  }
+  if (startTime && !/^\d{2}:\d{2}/.test(startTime)) {
+    redirectResult(returnPath, false, "請檢查 Start Time。" );
+  }
   if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
-    redirectResult(returnPath, false, "請檢查截止日期。" );
+    redirectResult(returnPath, false, "請檢查 Due Day／截止日期。" );
   }
   if (dueTime && !/^\d{2}:\d{2}/.test(dueTime)) {
-    redirectResult(returnPath, false, "請檢查截止時間。" );
+    redirectResult(returnPath, false, "請檢查 Due Time。" );
+  }
+  if (dueDate && dueDate < startDate) {
+    redirectResult(returnPath, false, "Due Day 唔可以早過 Start Day。" );
   }
 
   const assignee = assigneeMemberId
@@ -196,6 +236,8 @@ export async function createWorkTaskAction(formData: FormData) {
       assignee_email: assignee?.email || null,
       created_by_member_id: access.memberId || null,
       created_by_email: actorEmail(access),
+      start_date: startDate,
+      start_time: startTime,
       due_date: dueDate,
       due_time: dueTime,
       performance_marker: performanceMarker,
@@ -222,12 +264,149 @@ export async function createWorkTaskAction(formData: FormData) {
     taskId: task.id,
     type: "task_assigned",
     title: "你有新工作事項",
-    body: title,
+    body: scheduleSummary({ title, startDate, startTime, dueDate, dueTime }),
     dedupeKey: `task_assigned:${task.id}:${assigneeMemberId || "none"}`,
   });
 
   revalidateOps();
   redirectResult(returnPath, true, `已建立工作：${title}`);
+}
+
+
+export async function updateWorkTaskScheduleAction(formData: FormData) {
+  const returnPath = safeReturnPath(readString(formData, "returnPath"));
+  const access = await requireTaskOperator(returnPath);
+  const taskId = readString(formData, "taskId");
+  const startDate = readString(formData, "startDate");
+  const startTime = readString(formData, "startTime") || null;
+  const dueDate = readString(formData, "dueDate") || null;
+  const dueTime = readString(formData, "dueTime") || null;
+  if (!taskId || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+    redirectResult(returnPath, false, "請設定有效 Start Day。" );
+  }
+  if (startTime && !/^\d{2}:\d{2}/.test(startTime)) {
+    redirectResult(returnPath, false, "請檢查 Start Time。" );
+  }
+  if (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) {
+    redirectResult(returnPath, false, "請檢查 Due Day。" );
+  }
+  if (dueTime && !/^\d{2}:\d{2}/.test(dueTime)) {
+    redirectResult(returnPath, false, "請檢查 Due Time。" );
+  }
+  if (dueDate && dueDate < startDate) {
+    redirectResult(returnPath, false, "Due Day 唔可以早過 Start Day。" );
+  }
+
+  const taskResult = await getAccessibleTask(taskId, access);
+  if (
+    taskResult.error ||
+    !taskResult.data ||
+    !canAccessInternalBrand(access, taskResult.data.brand_id)
+  ) {
+    redirectResult(returnPath, false, "你未獲授權更新呢項工作日期。" );
+  }
+
+  const supabase = createSupabaseAdminClient();
+  const linksResult = await supabase
+    .from("marketing_task_calendar_links")
+    .select("calendar_item_id")
+    .eq("task_id", taskId);
+  if (linksResult.error) {
+    redirectResult(returnPath, false, "未能核對相關營銷日曆事項。" );
+  }
+  const calendarItemIds = (linksResult.data ?? [])
+    .map((row) => String(row.calendar_item_id ?? ""))
+    .filter(Boolean);
+  if (calendarItemIds.length > 0 && !dueDate) {
+    redirectResult(
+      returnPath,
+      false,
+      "已連結營銷日曆嘅工作必須保留 Due Day／出街日期。"
+    );
+  }
+
+  const currentDueDate = String(taskResult.data.due_date ?? "");
+  const currentDueTime = compactTime(taskResult.data.due_time);
+  const dueChanged =
+    (dueDate || "") !== currentDueDate ||
+    compactTime(dueTime) !== currentDueTime;
+  if (calendarItemIds.length > 0 && dueChanged) {
+    const calendarStatus = await supabase
+      .from("marketing_calendar_items")
+      .select("id,status")
+      .in("id", calendarItemIds);
+    if (calendarStatus.error) {
+      redirectResult(returnPath, false, "未能核對日曆發布狀態。" );
+    }
+    if ((calendarStatus.data ?? []).some((item) => item.status === "published")) {
+      redirectResult(
+        returnPath,
+        false,
+        "已 Published 嘅日曆事項唔可以再改 Due Day；請另建新事項保留歷史紀錄。"
+      );
+    }
+  }
+
+  const { error } = await supabase
+    .from("marketing_work_tasks")
+    .update({
+      start_date: startDate,
+      start_time: startTime,
+      due_date: dueDate,
+      due_time: dueTime,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", taskId);
+  if (error) {
+    redirectResult(returnPath, false, "工作日期更新失敗。" );
+  }
+
+  if (calendarItemIds.length > 0 && dueChanged && dueDate) {
+    const calendarUpdate = await supabase
+      .from("marketing_calendar_items")
+      .update({
+        scheduled_date: dueDate,
+        scheduled_time: dueTime,
+        updated_at: new Date().toISOString(),
+      })
+      .in("id", calendarItemIds);
+    if (calendarUpdate.error) {
+      redirectResult(
+        returnPath,
+        false,
+        "工作已更新，但相關營銷日曆未能同步；請立即檢查日曆。"
+      );
+    }
+  }
+
+  if (
+    taskResult.data.assignee_member_id &&
+    taskResult.data.assignee_member_id !== access.memberId
+  ) {
+    await insertNotification({
+      recipientMemberId: taskResult.data.assignee_member_id,
+      recipientEmail: taskResult.data.assignee_email,
+      brandId: taskResult.data.brand_id,
+      taskId,
+      type: "task_schedule_changed",
+      title: "工作日期已更新",
+      body: scheduleSummary({
+        title: taskResult.data.title,
+        startDate,
+        startTime,
+        dueDate,
+        dueTime,
+      }),
+    });
+  }
+  revalidateOps();
+  redirectResult(
+    returnPathForTaskStart(returnPath, startDate, taskId),
+    true,
+    calendarItemIds.length > 0 && dueChanged
+      ? "Start Day 已更新；Due Day 亦已同步至營銷日曆。"
+      : "工作 Start Day／Due Day 已更新。"
+  );
 }
 
 export async function updateWorkTaskStatusAction(formData: FormData) {
@@ -324,7 +503,13 @@ export async function assignWorkTaskAction(formData: FormData) {
     taskId,
     type: "task_assigned",
     title: "你獲派一項工作",
-    body: taskResult.data.title,
+    body: scheduleSummary({
+      title: taskResult.data.title,
+      startDate: String(taskResult.data.start_date ?? ""),
+      startTime: taskResult.data.start_time,
+      dueDate: taskResult.data.due_date,
+      dueTime: taskResult.data.due_time,
+    }),
   });
   revalidateOps();
   redirectResult(returnPath, true, "負責人已更新。" );

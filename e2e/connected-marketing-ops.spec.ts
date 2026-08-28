@@ -19,6 +19,8 @@ test("Marketing Calendar only exposes Idea, Scheduled and Published", async ({ p
   await expect(page.getByText(/12:00 HKT/).first()).toBeVisible();
   await expect(page.getByText("成效時間線標記", { exact: true })).toBeVisible();
   await expect(page.getByText("同步建立工作事項", { exact: true })).toBeVisible();
+  await expect(page.getByText("Due／出街日期", { exact: true })).toBeVisible();
+  await expect(page.locator('input[name="taskStartDate"]')).toBeVisible();
 });
 
 test("Weekly work board uses a Monday-style list with assignment, status, calendar and delete controls", async ({ page }) => {
@@ -33,16 +35,24 @@ test("Weekly work board uses a Monday-style list with assignment, status, calend
   await expect(page.getByText("工作事項", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("負責人", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("狀態", { exact: true }).first()).toBeVisible();
-  await expect(page.getByText("期限", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Start Day", { exact: true }).first()).toBeVisible();
+  await expect(page.getByText("Due／出街", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("Priority", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("操作", { exact: true }).first()).toBeVisible();
   await expect(page.getByTestId("work-notification-center")).toBeVisible();
   await expect(page.getByText("新增／派工作", { exact: true })).toBeVisible();
   await expect(page.getByText(/只顯示擁有此品牌 Access/)).toBeVisible();
+  await expect(page.getByTestId("task-create-form").locator('input[name="startDate"]')).toBeVisible();
+  await expect(page.getByTestId("desktop-notification-control")).toBeVisible();
 
   const firstTask = page.locator("[data-task-id]").first();
   await expect(firstTask.getByTestId("task-assignee-form").getByRole("button", { name: "派" })).toBeVisible();
   await expect(firstTask.getByTestId("task-status-form").getByRole("button", { name: "更新" })).toBeVisible();
+  await firstTask.locator("summary").first().click();
+  const scheduleForm = firstTask.getByTestId("task-schedule-form");
+  await expect(scheduleForm.locator('input[name="startDate"]')).toBeVisible();
+  await expect(scheduleForm.locator('input[name="dueDate"]')).toBeVisible();
+  await expect(scheduleForm.getByRole("button", { name: "更新日期" })).toBeVisible();
   const deleteControl = firstTask.getByTestId("task-delete-control");
   await expect(deleteControl).toBeVisible();
   await deleteControl.locator("summary").click();

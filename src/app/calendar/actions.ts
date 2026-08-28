@@ -70,6 +70,9 @@ export async function createConnectedCalendarItemAction(formData: FormData) {
   const showOnTimeline = readBool(formData, "showOnPerformanceTimeline");
   const createTask = readBool(formData, "createTask");
   const taskPriority = readString(formData, "taskPriority") || "normal";
+  const taskStartDate = readString(formData, "taskStartDate");
+  const taskStartTime = readString(formData, "taskStartTime") || null;
+  const effectiveTaskStartDate = taskStartDate || scheduledDate;
 
   if (!brandId || !canAccessInternalBrand(verified.access, brandId)) {
     redirectResult(returnPath, false, "你未獲授權修改呢個品牌嘅日曆。" );
@@ -88,6 +91,20 @@ export async function createConnectedCalendarItemAction(formData: FormData) {
   }
   if (!(["low", "normal", "high"] as string[]).includes(taskPriority)) {
     redirectResult(returnPath, false, "請選擇有效工作 Priority。" );
+  }
+  if (
+    createTask &&
+    (!/^\d{4}-\d{2}-\d{2}$/.test(effectiveTaskStartDate) ||
+      effectiveTaskStartDate > scheduledDate)
+  ) {
+    redirectResult(
+      returnPath,
+      false,
+      "同步工作嘅 Start Day 必須有效，而且唔可以遲過 Due／出街日期。"
+    );
+  }
+  if (createTask && taskStartTime && !/^\d{2}:\d{2}/.test(taskStartTime)) {
+    redirectResult(returnPath, false, "請檢查同步工作 Start Time。" );
   }
 
   const supabase = createSupabaseAdminClient();
@@ -150,6 +167,8 @@ export async function createConnectedCalendarItemAction(formData: FormData) {
         created_by_email:
           verified.access.email ||
           (verified.access.accessLevel === "master" ? "master" : "shared_admin"),
+        start_date: effectiveTaskStartDate,
+        start_time: taskStartTime,
         due_date: scheduledDate,
         due_time: scheduledTime,
         performance_marker: false,
@@ -171,7 +190,7 @@ export async function createConnectedCalendarItemAction(formData: FormData) {
           calendar_item_id: calendarItem.id,
           notification_type: "task_assigned",
           title: "你有新工作事項",
-          body: title,
+          body: `${title}\nStart ${effectiveTaskStartDate}${taskStartTime ? ` ${taskStartTime.slice(0, 5)}` : ""} · Due ${scheduledDate}${scheduledTime ? ` ${scheduledTime.slice(0, 5)}` : ""}`,
           dedupe_key: `calendar_task_assigned:${calendarItem.id}:${assignee.id}`,
         });
       }

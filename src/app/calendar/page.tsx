@@ -47,7 +47,7 @@ export default async function MarketingCalendarPage({
               <p className="command-page-kicker">營銷規劃</p>
               <h1 className="command-page-title">營銷日曆</h1>
               <p className="command-page-subtitle">
-                {snapshot.month.label} · Idea → Scheduled → Published。Scheduled 事項到排定 HKT 時間會自動發布，亦可以同步建立 Weekly 工作。
+                {snapshot.month.label} · 日曆日期代表 Due／出街日。Scheduled 事項到排定 HKT 時間會自動發布；同步工作可另設較早嘅 Start Day。
               </p>
             </div>
             <div className="calendar-header-actions">
@@ -193,7 +193,7 @@ export default async function MarketingCalendarPage({
                 <input name="channel" placeholder="IG / Meta / Google" />
               </label>
               <label>
-                <span>日期</span>
+                <span>Due／出街日期</span>
                 <input
                   type="date"
                   name="scheduledDate"
@@ -229,7 +229,7 @@ export default async function MarketingCalendarPage({
                 />
               </label>
 
-              <div className="calendar-notes-field grid gap-2 rounded-2xl border border-[#ead9cf] bg-[#fff9f3] p-3 sm:grid-cols-2">
+              <div className="calendar-notes-field grid gap-2 rounded-2xl border border-[#ead9cf] bg-[#fff9f3] p-3 sm:grid-cols-2 lg:grid-cols-4">
                 <label className="flex items-start gap-2">
                   <input type="checkbox" name="showOnPerformanceTimeline" defaultChecked />
                   <span>
@@ -241,8 +241,22 @@ export default async function MarketingCalendarPage({
                   <input type="checkbox" name="createTask" />
                   <span>
                     <b className="flex items-center gap-1"><Link2 size={13} /> 同步建立工作事項</b>
-                    <small>建立一項 linked Weekly Task；如負責人係系統同事會收到通知。</small>
+                    <small>建立 linked Weekly Task；工作列表跟 Start Day，日曆同出街仍跟 Due Day。</small>
                   </span>
+                </label>
+                <label>
+                  <span>同步工作 Start Day</span>
+                  <input
+                    type="date"
+                    name="taskStartDate"
+                    defaultValue={createDefaultDate}
+                  />
+                  <small>決定工作出現喺邊一週；必須早過或等於 Due／出街日期。</small>
+                </label>
+                <label>
+                  <span>同步工作 Start Time</span>
+                  <input type="time" name="taskStartTime" />
+                  <small>留空會於 Start Day 09:00 HKT 提醒。</small>
                 </label>
                 <label>
                   <span>同步工作 Priority</span>
