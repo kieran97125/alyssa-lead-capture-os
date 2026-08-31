@@ -2,6 +2,7 @@ export const workspaceModuleKeys = [
   "dashboard",
   "kpis",
   "calendar",
+  "creative_jobs",
   "launchhub",
   "leads",
   "crm",
@@ -29,6 +30,7 @@ const roleDefaultModules: Record<WorkspaceRole, WorkspaceModuleKey[]> = {
     "dashboard",
     "kpis",
     "calendar",
+    "creative_jobs",
     "launchhub",
     "leads",
     "crm",
@@ -40,6 +42,7 @@ const roleDefaultModules: Record<WorkspaceRole, WorkspaceModuleKey[]> = {
     "dashboard",
     "kpis",
     "calendar",
+    "creative_jobs",
     "launchhub",
     "leads",
     "crm",
@@ -49,12 +52,13 @@ const roleDefaultModules: Record<WorkspaceRole, WorkspaceModuleKey[]> = {
     "dashboard",
     "kpis",
     "calendar",
+    "creative_jobs",
     "launchhub",
     "leads",
     "performance",
   ],
   cs: ["dashboard", "calendar", "leads", "crm"],
-  designer: ["dashboard", "calendar", "launchhub"],
+  designer: ["dashboard", "calendar", "creative_jobs", "launchhub"],
   viewer: ["dashboard", "kpis", "calendar", "performance"],
 };
 
@@ -123,6 +127,10 @@ export function getWorkspaceModuleForPath(
   if (pathname.startsWith("/kpis")) return "kpis";
   if (pathname.startsWith("/calendar")) return "calendar";
   if (pathname.startsWith("/tasks")) return "calendar";
+  if (
+    pathname.startsWith("/creative-jobs") ||
+    pathname.startsWith("/api/creative-jobs")
+  ) return "creative_jobs";
   if (pathname.startsWith("/data-sources")) return "data_sources";
   if (pathname.startsWith("/leads")) return "leads";
   if (pathname.startsWith("/lead-audit")) return "lead_audit";

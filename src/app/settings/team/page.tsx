@@ -52,6 +52,7 @@ const modules = [
   ["dashboard", "Dashboard"],
   ["kpis", "品牌 KPI"],
   ["calendar", "營銷日曆"],
+  ["creative_jobs", "設計工作"],
   ["launchhub", "建立 Wix Form"],
   ["leads", "Leads"],
   ["lead_audit", "Lead 變更監察"],
