@@ -87,4 +87,28 @@ patch_navigation_test(
 ''',
 )
 
-print("Creative Studio TypeScript and navigation aftercare patches completed.")
+
+migration_path = Path(
+    "supabase/migrations/20260901020000_creative_production_studio.sql"
+)
+migration = migration_path.read_text(encoding="utf-8")
+constraint_name = "workspace_member_module_permissions_key_check"
+constraint_sql = '''alter table public.workspace_member_module_permissions
+  drop constraint if exists workspace_member_module_permissions_key_check;
+alter table public.workspace_member_module_permissions
+  add constraint workspace_member_module_permissions_key_check
+  check (module_key in (
+    'dashboard', 'kpis', 'calendar', 'creative_jobs', 'launchhub', 'leads',
+    'crm', 'performance', 'data_sources', 'settings', 'system_audit',
+    'lead_audit'
+  ));
+
+'''
+if constraint_sql not in migration:
+    marker = "-- Existing members with explicit module lists need the new module written into\n"
+    if marker not in migration:
+        raise SystemExit("Creative migration permission marker missing")
+    migration = migration.replace(marker, constraint_sql + marker, 1)
+    migration_path.write_text(migration, encoding="utf-8")
+
+print("Creative Studio TypeScript, navigation and database aftercare patches completed.")
