@@ -61,6 +61,16 @@ assert.match(actions, /creative_assigned/);
 assert.match(actions, /save_creative_job_with_calendar/);
 assert.match(store, /getCreativeWorkspaceRole\(access\) === "designer"/);
 assert.match(store, /assignee_member_id/);
+const sortContract = store.match(/function sortJobs[\s\S]*?\n}\n/)?.[0] ?? "";
+assert.ok(
+  sortContract.indexOf("const start =") < sortContract.indexOf("const priority ="),
+  "Creative Job List must sort by Start Day before priority"
+);
+assert.match(store, /if \(!filters\.status && !filters\.view\)/);
+assert.match(actions, /派 Job 畀 Designer 前必須設定 Due Day/);
+assert.match(actions, /Source、用途同媒體格式/);
+assert.match(migration, /workspace_member_module_permissions_key_check/);
+assert.match(migration, /creative_calendar_already_published/);
 
 assert.match(editor, /@tiptap\/react/);
 assert.match(editor, /FileHandler\.configure/);

@@ -244,11 +244,11 @@ async function loadCreativeLookups() {
 function sortJobs(rows: CreativeJobRow[]) {
   const priorityWeight = { urgent: 0, priority: 1, normal: 2 } as const;
   return [...rows].sort((left, right) => {
+    const start = left.startDate.localeCompare(right.startDate);
+    if (start !== 0) return start;
     const priority =
       priorityWeight[left.priority] - priorityWeight[right.priority];
     if (priority !== 0) return priority;
-    const start = left.startDate.localeCompare(right.startDate);
-    if (start !== 0) return start;
     return (left.dueDate || "9999-12-31").localeCompare(
       right.dueDate || "9999-12-31"
     );
@@ -320,6 +320,9 @@ export async function getCreativeListSnapshot(
   }
 
   const today = getHongKongToday();
+  if (!filters.status && !filters.view) {
+    query = query.not("status", "in", "(completed,cancelled)");
+  }
   if (filters.view === "waiting") {
     query = query.eq("material_status", "waiting");
   } else if (filters.view === "review") {

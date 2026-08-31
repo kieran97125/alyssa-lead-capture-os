@@ -290,6 +290,7 @@ select
   now()
 from public.workspace_members member
 where member.workspace_role in ('owner', 'admin', 'manager', 'marketer', 'designer')
+  and member.status <> 'removed'
 on conflict (member_id, module_key) do update
 set can_access = excluded.can_access,
     updated_at = excluded.updated_at;
@@ -527,7 +528,9 @@ begin
     where id = next_calendar_id
     for update;
 
-    if found and existing_calendar.published_at is null then
+    if found and existing_calendar.published_at is not null then
+      raise exception using errcode = '55000', message = 'creative_calendar_already_published';
+    elsif found then
       delete from public.marketing_calendar_items where id = next_calendar_id;
       next_calendar_id := null;
     end if;

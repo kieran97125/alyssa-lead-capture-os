@@ -281,6 +281,22 @@ export async function updateCreativeJobAction(formData: FormData) {
     redirectWithMessage(returnPath, false, "Source、用途或媒體格式選項無效。" );
   }
 
+  if (assigneeProfileId) {
+    if (title === "未命名設計工作") {
+      redirectWithMessage(returnPath, false, "派 Job 前請先填寫清晰 Job 名稱。" );
+    }
+    if (!dueDate) {
+      redirectWithMessage(returnPath, false, "派 Job 畀 Designer 前必須設定 Due Day。" );
+    }
+    if (!sourceTaxonomyId || !usageTaxonomyId || !mediaFormatTaxonomyId) {
+      redirectWithMessage(
+        returnPath,
+        false,
+        "派 Job 前必須分別選擇 Source、用途同媒體格式。"
+      );
+    }
+  }
+
   let assigneeMemberId = "";
   let assigneeEmail = "";
   let assigneeProfileName = "";
