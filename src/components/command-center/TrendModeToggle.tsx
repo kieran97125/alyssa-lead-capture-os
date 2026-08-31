@@ -70,19 +70,19 @@ export function TrendModeToggle({
   const descriptionId = useId();
   return (
     <div
-      className={`flex min-w-0 flex-col gap-1.5 ${
-        compact ? "sm:flex-row sm:items-center" : "sm:flex-row sm:items-center sm:gap-3"
+      className={`flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 ${
+        compact ? "" : "sm:gap-x-2.5"
       }`}
       data-testid="trend-mode-toggle"
     >
-      <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.08em] text-[#8d7180]">
-        顯示方式
+      <span className="shrink-0 text-[10px] font-extrabold tracking-[0.04em] text-[#8d7180]">
+        顯示
       </span>
       <div
         role="group"
         aria-label="走勢顯示方式"
         aria-describedby={descriptionId}
-        className="inline-flex w-fit rounded-xl border border-[#e3d4cd] bg-[#f8f4f2] p-1 shadow-inner"
+        className="inline-flex w-fit rounded-[10px] border border-[#e2d3cc] bg-[#f6f1ef] p-0.5"
       >
         {(["cumulative", "daily"] as PerformanceTrendMode[]).map(
           (option) => {
@@ -94,10 +94,10 @@ export function TrendModeToggle({
                 aria-pressed={selected}
                 data-testid={`trend-mode-${option}`}
                 onClick={() => onChange(option)}
-                className={`min-w-[4.35rem] rounded-lg px-3 py-1.5 text-[11px] font-black transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5d76]/30 ${
+                className={`min-w-[3.65rem] rounded-[7px] px-2.5 py-1 text-[12px] font-extrabold leading-5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#9a5d76]/25 ${
                   selected
-                    ? "bg-[#5a2348] text-white shadow-[0_5px_14px_rgba(90,35,72,0.18)]"
-                    : "text-[#765669] hover:bg-white hover:text-[#5a2348]"
+                    ? "bg-[#5a2348] text-white shadow-[0_2px_6px_rgba(90,35,72,0.16)]"
+                    : "text-[#745667] hover:bg-white/80 hover:text-[#5a2348]"
                 }`}
               >
                 {modeCopy[option].label}
@@ -108,9 +108,11 @@ export function TrendModeToggle({
       </div>
       <span
         id={descriptionId}
-        className={`max-w-md text-[10px] font-semibold leading-4 text-[#8b7180] ${
-          compact ? "hidden xl:inline" : ""
-        }`}
+        className={
+          compact
+            ? "sr-only"
+            : "max-w-md text-[10px] font-semibold leading-4 text-[#8b7180]"
+        }
         aria-live="polite"
       >
         {modeCopy[mode].description}
