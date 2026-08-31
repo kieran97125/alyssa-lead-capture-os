@@ -1,51 +1,63 @@
 @custom-variant dark (&:is(.dark *));
 
+/*
+ * Design Quality Foundation tokens are deliberately namespaced.
+ * The existing Alyssa application already owns generic variables such as
+ * --muted for legacy screen text. Reusing those names at :root level can
+ * silently change established production UI, so new primitives only consume
+ * --system-* variables and system-* Tailwind utilities.
+ */
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --color-card: var(--card);
-  --color-card-foreground: var(--card-foreground);
-  --color-popover: var(--popover);
-  --color-popover-foreground: var(--popover-foreground);
-  --color-primary: var(--primary);
-  --color-primary-foreground: var(--primary-foreground);
-  --color-secondary: var(--secondary);
-  --color-secondary-foreground: var(--secondary-foreground);
-  --color-muted: var(--muted);
-  --color-muted-foreground: var(--muted-foreground);
-  --color-accent: var(--accent);
-  --color-accent-foreground: var(--accent-foreground);
-  --color-destructive: var(--destructive);
-  --color-border: var(--border);
-  --color-input: var(--input);
-  --color-ring: var(--ring);
-  --radius-sm: calc(var(--radius) - 0.25rem);
-  --radius-md: calc(var(--radius) - 0.125rem);
-  --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 0.25rem);
-  --radius-2xl: calc(var(--radius) + 0.5rem);
+  --color-system-background: var(--system-background);
+  --color-system-foreground: var(--system-foreground);
+  --color-system-card: var(--system-card);
+  --color-system-card-foreground: var(--system-card-foreground);
+  --color-system-popover: var(--system-popover);
+  --color-system-popover-foreground: var(--system-popover-foreground);
+  --color-system-primary: var(--system-primary);
+  --color-system-primary-foreground: var(--system-primary-foreground);
+  --color-system-secondary: var(--system-secondary);
+  --color-system-secondary-foreground: var(--system-secondary-foreground);
+  --color-system-muted: var(--system-muted);
+  --color-system-muted-foreground: var(--system-muted-foreground);
+  --color-system-accent: var(--system-accent);
+  --color-system-accent-foreground: var(--system-accent-foreground);
+  --color-system-destructive: var(--system-destructive);
+  --color-system-border: var(--system-border);
+  --color-system-input: var(--system-input);
+  --color-system-ring: var(--system-ring);
+  --radius-system-sm: var(--system-radius-sm);
+  --radius-system-md: var(--system-radius-md);
+  --radius-system-lg: var(--system-radius-lg);
+  --radius-system-xl: var(--system-radius-xl);
+  --radius-system-2xl: var(--system-radius-2xl);
 }
 
 :root {
-  --background: #fbf7f5;
-  --foreground: #321428;
-  --card: #ffffff;
-  --card-foreground: #321428;
-  --popover: #ffffff;
-  --popover-foreground: #321428;
-  --primary: #5a2348;
-  --primary-foreground: #ffffff;
-  --secondary: #fff6f0;
-  --secondary-foreground: #5a2348;
-  --muted: #f7f1ef;
-  --muted-foreground: #765f6d;
-  --accent: #f8e8e2;
-  --accent-foreground: #5a2348;
-  --destructive: #b42318;
-  --border: #ead9cf;
-  --input: #dfcfc7;
-  --ring: #9a5d76;
-  --radius: 0.75rem;
+  --system-background: #fbf7f5;
+  --system-foreground: #321428;
+  --system-card: #ffffff;
+  --system-card-foreground: #321428;
+  --system-popover: #ffffff;
+  --system-popover-foreground: #321428;
+  --system-primary: #5a2348;
+  --system-primary-foreground: #ffffff;
+  --system-secondary: #fff6f0;
+  --system-secondary-foreground: #5a2348;
+  --system-muted: #f7f1ef;
+  --system-muted-foreground: #765f6d;
+  --system-accent: #f8e8e2;
+  --system-accent-foreground: #5a2348;
+  --system-destructive: #b42318;
+  --system-border: #ead9cf;
+  --system-input: #dfcfc7;
+  --system-ring: #9a5d76;
+  --system-radius: 0.75rem;
+  --system-radius-sm: calc(var(--system-radius) - 0.25rem);
+  --system-radius-md: calc(var(--system-radius) - 0.125rem);
+  --system-radius-lg: var(--system-radius);
+  --system-radius-xl: calc(var(--system-radius) + 0.25rem);
+  --system-radius-2xl: calc(var(--system-radius) + 0.5rem);
 
   --surface-page: #fbf7f5;
   --surface-card: #ffffff;
@@ -69,33 +81,32 @@
 }
 
 .dark {
-  --background: #24101d;
-  --foreground: #fff8fb;
-  --card: #311627;
-  --card-foreground: #fff8fb;
-  --popover: #311627;
-  --popover-foreground: #fff8fb;
-  --primary: #e7afc3;
-  --primary-foreground: #321428;
-  --secondary: #422036;
-  --secondary-foreground: #fff8fb;
-  --muted: #3a1b30;
-  --muted-foreground: #d3b7c3;
-  --accent: #4a2239;
-  --accent-foreground: #fff8fb;
-  --destructive: #ff8a80;
-  --border: #5d344b;
-  --input: #5d344b;
-  --ring: #d29ab1;
+  --system-background: #24101d;
+  --system-foreground: #fff8fb;
+  --system-card: #311627;
+  --system-card-foreground: #fff8fb;
+  --system-popover: #311627;
+  --system-popover-foreground: #fff8fb;
+  --system-primary: #e7afc3;
+  --system-primary-foreground: #321428;
+  --system-secondary: #422036;
+  --system-secondary-foreground: #fff8fb;
+  --system-muted: #3a1b30;
+  --system-muted-foreground: #d3b7c3;
+  --system-accent: #4a2239;
+  --system-accent-foreground: #fff8fb;
+  --system-destructive: #ff8a80;
+  --system-border: #5d344b;
+  --system-input: #5d344b;
+  --system-ring: #d29ab1;
 }
 
-@layer base {
-  * {
-    border-color: var(--border);
-  }
-
-  body {
-    background: var(--background);
-    color: var(--foreground);
-  }
+/*
+ * Explicit legacy boundary: the Dashboard owns these as readable text tokens.
+ * Keeping them scoped prevents any future component-library theme from
+ * washing out labels or helper text again.
+ */
+.lead-dashboard-stack {
+  --ink: var(--command-navy, #321428);
+  --muted: var(--command-muted, #6d4a5c);
 }
