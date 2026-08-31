@@ -41,6 +41,7 @@ jobs:
         run: |
           python3 scripts/creative-bootstrap-patch.py
           python3 scripts/creative-aftercare-patch.py
+          python3 scripts/creative-import-dedup.py
 
       - name: Install focused rich Brief dependencies
         run: >-
