@@ -55,6 +55,10 @@ jobs:
               'render: (args) => <SystemButton {...args}><Download aria-hidden="true" />匯出報告</SystemButton>,': 'render: (args: Parameters<typeof SystemButton>[0]) => <SystemButton {...args}><Download aria-hidden="true" />匯出報告</SystemButton>,',
               '}: SystemButtonProps) {\n  return (': '}: SystemButtonProps) {\n  const resolvedDensity: SystemButtonDensity =\n    density === "compact" || density === "comfortable" ? density : "default";\n\n  return (',
               'className={cn(densityClasses[density], className)}': 'className={cn(densityClasses[resolvedDensity], className)}',
+              '    "src/app/__design-system/page.tsx",': '    "src/app/e2e/design-system/page.tsx",',
+              '  await page.goto("/__design-system", { waitUntil: "networkidle" });': '  await page.goto("/e2e/design-system", { waitUntil: "networkidle" });',
+              '  "src/components/system/DesignSystemSpecimen.tsx",\n  ".storybook/main.ts",': '  "src/components/system/DesignSystemSpecimen.tsx",\n  "src/app/e2e/design-system/page.tsx",\n  ".storybook/main.ts",',
+              '- src/components/system/*\n- .storybook/*': '- src/components/system/*\n- src/app/e2e/design-system/page.tsx\n- .storybook/*',
           }
           for old, new in replacements.items():
               if old not in text:
