@@ -68,8 +68,8 @@ jobs:
       - name: Install reviewed shadcn Base UI primitives
         shell: bash
         run: |
+          npm install @base-ui/react@latest tw-animate-css@latest
           npm install --save-dev shadcn@latest
-          npm install tw-animate-css@latest
           npx shadcn@latest add button badge separator skeleton --yes
           npx shadcn@latest info --json > design-shadcn-info.json
 
