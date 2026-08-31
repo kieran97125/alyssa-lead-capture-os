@@ -6,7 +6,6 @@ import {
   useRef,
   useState,
   type ChangeEvent,
-  type FormEvent,
 } from "react";
 import {
   AlertTriangle,
@@ -43,10 +42,10 @@ import {
   deleteCreativeJobAction,
   markCreativeNotificationReadAction,
   removeCreativeAssetAction,
-  restoreCreativeBriefVersionAction,
   updateCreativeJobAction,
   updateCreativeJobStatusAction,
 } from "@/app/creative-jobs/actions";
+import { restoreCreativeBriefVersionAction } from "@/app/creative-jobs/versionActions";
 import {
   creativeAssetPurposeLabels,
   creativeAssetPurposes,

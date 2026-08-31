@@ -16,6 +16,8 @@ type NotificationRow = {
   body: string | null;
   task_id: string | null;
   calendar_item_id: string | null;
+  creative_job_id: string | null;
+  action_url: string | null;
 };
 
 type SubscriptionRow = {
@@ -48,6 +50,11 @@ function isUrgent(type: string) {
     "task_due_soon",
     "task_overdue",
     "calendar_published",
+    "creative_assigned",
+    "creative_priority_changed",
+    "creative_due_soon",
+    "creative_overdue",
+    "creative_revision",
   ].includes(type);
 }
 
@@ -132,7 +139,7 @@ Deno.serve(async (request: Request) => {
     supabase
       .from("marketing_notifications")
       .select(
-        "id,notification_type,title,body,task_id,calendar_item_id"
+        "id,notification_type,title,body,task_id,calendar_item_id,creative_job_id,action_url"
       )
       .in("id", notificationIds),
     supabase
@@ -213,13 +220,13 @@ Deno.serve(async (request: Request) => {
       continue;
     }
 
-    let url = "/tasks";
-    if (notification.task_id) {
+    let url = notification.action_url || "/tasks";
+    if (!notification.action_url && notification.task_id) {
       const startDate = taskStartDates.get(notification.task_id);
       const query = new URLSearchParams({ focus: notification.task_id });
       if (startDate) query.set("week", startDate);
       url = `/tasks?${query.toString()}#task-${notification.task_id}`;
-    } else if (notification.calendar_item_id) {
+    } else if (!notification.action_url && notification.calendar_item_id) {
       const scheduledDate = calendarDates.get(notification.calendar_item_id);
       url = scheduledDate
         ? `/calendar?month=${scheduledDate.slice(0, 7)}`
@@ -236,7 +243,7 @@ Deno.serve(async (request: Request) => {
       url,
       notificationId: notification.id,
       type: notification.notification_type,
-      requireInteraction: notification.notification_type === "task_overdue",
+      requireInteraction: ["task_overdue", "creative_overdue"].includes(notification.notification_type),
     });
 
     try {

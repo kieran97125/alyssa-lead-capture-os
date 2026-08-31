@@ -14,6 +14,7 @@ import {
   canManageCreativeTaxonomy,
   canUpdateCreativeJobStatus,
   isCreativeDesignerRole,
+  isCreativeOperationsRole,
 } from "@/lib/creative/access";
 import {
   creativeCalendarItemType,
@@ -86,7 +87,7 @@ function revalidateCreative(jobId?: string) {
 
 export async function createCreativeDraftAction(formData: FormData) {
   const access = await requireCreativeAction();
-  if (!canEditCreativeJobMetadata(access, { brandId: "" })) {
+  if (!isCreativeOperationsRole(access)) {
     redirectWithMessage(
       "/creative-jobs",
       false,
@@ -121,6 +122,20 @@ export async function createCreativeDraftAction(formData: FormData) {
       requester_email:
         access.email ||
         (access.accessLevel === "master" ? "master" : "shared_admin"),
+      brief_document: {
+        type: "doc",
+        content: [
+          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Campaign 目的" }] },
+          { type: "paragraph", content: [{ type: "text", text: "寫低今次內容／廣告要解決嘅問題，同埋成功標準。" }] },
+          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Deliverables／輸出要求" }] },
+          { type: "taskList", content: [{ type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "列明數量、尺寸、片長、平台、字幕、VO 同版本要求" }] }] }] },
+          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "畫面及 Reference" }] },
+          { type: "paragraph", content: [{ type: "text", text: "可直接 Ctrl + V 貼 Screenshot，或者由右邊素材庫插入圖片及 Google Drive 連結。" }] },
+          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "必須遵守／不可出現" }] },
+          { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "價錢、CTA、Logo、合規字眼及品牌要求" }] }] }] },
+        ],
+      },
+      brief_plain_text: "Campaign 目的\nDeliverables／輸出要求\n畫面及 Reference\n必須遵守／不可出現",
     })
     .select("id")
     .single();

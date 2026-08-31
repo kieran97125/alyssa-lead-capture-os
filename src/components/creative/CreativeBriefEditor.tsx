@@ -8,6 +8,7 @@ import {
   useMemo,
   useRef,
   useState,
+  type ReactNode,
 } from "react";
 import { EditorContent, useEditor, type JSONContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
@@ -242,7 +243,6 @@ export const CreativeBriefEditor = forwardRef<
       Image.configure({
         inline: false,
         allowBase64: false,
-        resize: false,
         HTMLAttributes: {
           loading: "lazy",
           referrerpolicy: "no-referrer",
@@ -563,7 +563,7 @@ function ToolbarButton({
   disabled = false,
   onClick,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
   label: string;
   active?: boolean;
   disabled?: boolean;

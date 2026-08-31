@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && npm run verify:work-ops-contract && npm run verify:design-system-contract && next build",
+    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && npm run verify:work-ops-contract && npm run verify:design-system-contract && npm run verify:creative-production-contract && next build",
     "start": "next start",
     "lint": "eslint",
     "verify:public-lead-contract": "node scripts/verify-public-lead-contract.mjs",
@@ -25,7 +25,9 @@
     "build:storybook": "storybook build --quiet",
     "test:design": "playwright test e2e/design-quality.spec.ts",
     "test:design:update": "playwright test e2e/design-quality.spec.ts --update-snapshots",
-    "design:ci": "npm run verify:design-system-contract && npm run build:storybook && npm run test:design"
+    "design:ci": "npm run verify:design-system-contract && npm run build:storybook && npm run test:design",
+    "verify:creative-production-contract": "node scripts/verify-creative-production-contract.mjs",
+    "test:creative": "playwright test e2e/creative-production.spec.ts"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
@@ -35,6 +37,15 @@
     "@react-pdf/renderer": "4.6.0",
     "@supabase/ssr": "^0.12.4",
     "@supabase/supabase-js": "^2.105.4",
+    "@tiptap/extension-file-handler": "3.30.6",
+    "@tiptap/extension-image": "3.30.6",
+    "@tiptap/extension-link": "3.30.6",
+    "@tiptap/extension-placeholder": "3.30.6",
+    "@tiptap/extension-task-item": "3.30.6",
+    "@tiptap/extension-task-list": "3.30.6",
+    "@tiptap/extension-underline": "3.30.6",
+    "@tiptap/react": "3.30.6",
+    "@tiptap/starter-kit": "3.30.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "google-auth-library": "^10.9.1",

@@ -2,6 +2,7 @@ export type InternalModule =
   | "dashboard"
   | "kpis"
   | "calendar"
+  | "creative_jobs"
   | "data_sources"
   | "leads"
   | "lead_audit"

@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { ReactNode } from "react";
 import {
   AlertTriangle,
   CalendarCheck2,
@@ -450,7 +451,7 @@ function Rule({
 }: {
   icon: typeof Clock3;
   title: string;
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <div className="flex gap-2.5">

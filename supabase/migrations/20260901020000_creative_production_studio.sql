@@ -266,6 +266,16 @@ values
   ('media_format', 'Website Mobile Image', 70)
 on conflict do nothing;
 
+alter table public.workspace_member_module_permissions
+  drop constraint if exists workspace_member_module_permissions_key_check;
+alter table public.workspace_member_module_permissions
+  add constraint workspace_member_module_permissions_key_check
+  check (module_key in (
+    'dashboard', 'kpis', 'calendar', 'creative_jobs', 'launchhub', 'leads',
+    'crm', 'performance', 'data_sources', 'settings', 'system_audit',
+    'lead_audit'
+  ));
+
 -- Existing members with explicit module lists need the new module written into
 -- their permission rows. Marketers, managers, admins and designers receive it;
 -- CS and viewers remain excluded by default.
@@ -571,6 +581,69 @@ revoke all on function public.save_creative_job_with_calendar(uuid, jsonb)
   from public, anon, authenticated;
 grant execute on function public.save_creative_job_with_calendar(uuid, jsonb)
   to service_role;
+
+
+create or replace function public.restore_creative_brief_version(
+  p_job_id uuid,
+  p_source_version_id uuid,
+  p_new_version_no integer,
+  p_actor_member_id uuid,
+  p_actor_email text
+)
+returns void
+language plpgsql
+security definer
+set search_path = public, pg_temp
+as $$
+declare
+  current_job public.creative_jobs%rowtype;
+  source_version public.creative_job_brief_versions%rowtype;
+begin
+  select * into current_job
+  from public.creative_jobs
+  where id = p_job_id and deleted_at is null
+  for update;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'creative_job_not_found';
+  end if;
+
+  select * into source_version
+  from public.creative_job_brief_versions
+  where id = p_source_version_id and job_id = p_job_id;
+  if not found then
+    raise exception using errcode = 'P0002', message = 'creative_brief_version_not_found';
+  end if;
+
+  insert into public.creative_job_brief_versions (
+    job_id, version_no, document, plain_text, reason,
+    created_by_member_id, created_by_email
+  ) values (
+    p_job_id, p_new_version_no, current_job.brief_document,
+    current_job.brief_plain_text, 'manual', p_actor_member_id, p_actor_email
+  );
+
+  update public.creative_jobs
+  set brief_document = source_version.document,
+      brief_plain_text = source_version.plain_text,
+      updated_at = now()
+  where id = p_job_id;
+
+  insert into public.creative_job_brief_versions (
+    job_id, version_no, document, plain_text, reason,
+    created_by_member_id, created_by_email
+  ) values (
+    p_job_id, p_new_version_no + 1, source_version.document,
+    source_version.plain_text, 'restore', p_actor_member_id, p_actor_email
+  );
+end;
+$$;
+
+revoke all on function public.restore_creative_brief_version(
+  uuid, uuid, integer, uuid, text
+) from public, anon, authenticated;
+grant execute on function public.restore_creative_brief_version(
+  uuid, uuid, integer, uuid, text
+) to service_role;
 
 create or replace function public.queue_creative_job_reminders()
 returns integer

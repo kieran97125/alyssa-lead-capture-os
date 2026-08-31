@@ -327,7 +327,7 @@ export async function getCreativeListSnapshot(
   } else if (filters.view === "overdue") {
     query = query
       .lt("due_date", today)
-      .not("status", "in", '("completed","cancelled")');
+      .not("status", "in", "(completed,cancelled)");
   } else if (filters.view === "publish") {
     query = query.eq("sync_calendar", true).gte("publish_date", today);
   } else if (filters.view === "completed") {
@@ -345,7 +345,7 @@ export async function getCreativeListSnapshot(
   const jobs = sortJobs(
     (data ?? [])
       .map((row) =>
-        mapJob(row as RawRow, {
+        mapJob(row as unknown as RawRow, {
           brands: lookup.brandMap,
           taxonomies: lookup.taxonomyMap,
           designers: lookup.designerMap,
@@ -390,17 +390,18 @@ export async function getCreativeJobAccessRecord(jobId: string) {
     .eq("id", jobId)
     .is("deleted_at", null)
     .maybeSingle();
-  if (error || !data) return { access, job: null };
+  const rawData = data as unknown as RawRow | null;
+  if (error || !rawData) return { access, job: null };
   const subject = {
-    brandId: String(data.brand_id),
+    brandId: String(rawData.brand_id),
     assigneeMemberId:
-      typeof data.assignee_member_id === "string"
-        ? data.assignee_member_id
+      typeof rawData.assignee_member_id === "string"
+        ? rawData.assignee_member_id
         : null,
   };
   return {
     access,
-    job: canViewCreativeJob(access, subject) ? (data as RawRow) : null,
+    job: canViewCreativeJob(access, subject) ? rawData : null,
   };
 }
 
