@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { buildSubmittedSuccessRedirectUrl } from "../src/lib/data/brandDefaults";
 
 const formToken = "gos-compact-form-test";
@@ -16,6 +16,24 @@ function futureBookingDate(offsetDays: number) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+}
+
+async function selectFirstAvailableBookingDateFromOpenDialog(page: Page) {
+  const dialog = page.getByRole("dialog", { name: "選擇預約日期" });
+  await expect(dialog).toBeVisible();
+
+  const dayButton = dialog
+    .locator('[data-day] button:not([disabled]):visible')
+    .first();
+  await expect(dayButton).toBeVisible();
+
+  const bookingDate = await dayButton.evaluate((button) =>
+    button.closest("[data-day]")?.getAttribute("data-day") ?? ""
+  );
+  expect(bookingDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+
+  await dayButton.click();
+  return bookingDate;
 }
 
 function publicFormConfig() {
@@ -136,7 +154,7 @@ test("GOS compact form shows the configured item and submits the short booking f
   page,
 }) => {
   let submittedPayload: Record<string, unknown> | null = null;
-  const bookingDate = futureBookingDate(7);
+  let bookingDate = "";
 
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
     await route.fulfill({
@@ -212,7 +230,7 @@ test("GOS compact form shows the configured item and submits the short booking f
   await expect(
     page.getByRole("dialog", { name: "選擇預約日期" })
   ).toBeVisible();
-  await page.locator(`[data-day="${bookingDate}"] button`).first().click();
+  bookingDate = await selectFirstAvailableBookingDateFromOpenDialog(page);
   await expect(
     page.getByRole("dialog", { name: "選擇預約日期" })
   ).toHaveCount(0);
@@ -293,7 +311,7 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
   page,
 }) => {
   let submittedPayload: Record<string, unknown> | null = null;
-  const bookingDate = futureBookingDate(8);
+  let bookingDate = "";
   const customerChoiceBase = customerChoiceConfig();
   const customerChoiceRedirectConfig = {
     ...customerChoiceBase,
@@ -361,7 +379,7 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
   await page.getByLabel("姓名").fill("GOS Choice");
   await page.getByLabel("聯絡電話").fill("98765432");
   await page.getByLabel("預約日期").click();
-  await page.locator(`[data-day="${bookingDate}"] button`).first().click();
+  bookingDate = await selectFirstAvailableBookingDateFromOpenDialog(page);
   await page.getByRole("radio", { name: "18:00" }).click();
   await page
     .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
@@ -380,7 +398,7 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
 test("GOS form uses the brand Pixel from LaunchHub after a successful lead", async ({
   page,
 }) => {
-  const bookingDate = futureBookingDate(9);
+  let bookingDate = "";
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
     await route.fulfill({
       contentType: "application/json",
@@ -412,7 +430,7 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
   await page.getByLabel("姓名").fill("GOS Pixel");
   await page.getByLabel("聯絡電話").fill("92345678");
   await page.getByLabel("預約日期").click();
-  await page.locator(`[data-day="${bookingDate}"] button`).first().click();
+  bookingDate = await selectFirstAvailableBookingDateFromOpenDialog(page);
   await page.getByRole("radio", { name: "16:00" }).click();
   await page
     .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
