@@ -38,7 +38,9 @@ jobs:
           cache: npm
 
       - name: Finalise source contracts
-        run: python3 scripts/creative-bootstrap-patch.py
+        run: |
+          python3 scripts/creative-bootstrap-patch.py
+          python3 scripts/creative-aftercare-patch.py
 
       - name: Install focused rich Brief dependencies
         run: >-
