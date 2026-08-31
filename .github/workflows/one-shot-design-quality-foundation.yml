@@ -52,6 +52,8 @@ jobs:
               '`import type { ComponentProps } from "react";': '`"use client";\n\nimport type { ComponentProps } from "react";',
               'render: (args) => <SystemButton {...args}><Plus aria-hidden="true" />新增工作</SystemButton>,': 'render: (args: Parameters<typeof SystemButton>[0]) => <SystemButton {...args}><Plus aria-hidden="true" />新增工作</SystemButton>,',
               'render: (args) => <SystemButton {...args}><Download aria-hidden="true" />匯出報告</SystemButton>,': 'render: (args: Parameters<typeof SystemButton>[0]) => <SystemButton {...args}><Download aria-hidden="true" />匯出報告</SystemButton>,',
+              '}: SystemButtonProps) {\n  return (': '}: SystemButtonProps) {\n  const resolvedDensity: SystemButtonDensity =\n    density === "compact" || density === "comfortable" ? density : "default";\n\n  return (',
+              'className={cn(densityClasses[density], className)}': 'className={cn(densityClasses[resolvedDensity], className)}',
           }
           for old, new in replacements.items():
               if old not in text:
