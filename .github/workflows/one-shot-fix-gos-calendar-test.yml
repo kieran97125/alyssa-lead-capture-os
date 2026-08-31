@@ -1,0 +1,144 @@
+name: One-shot GOS Calendar Test Repair
+
+on:
+  push:
+    branches:
+      - feat/design-quality-foundation-v1
+
+permissions:
+  contents: write
+
+jobs:
+  repair-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    env:
+      CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/design-quality-foundation-v1
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Repair month-boundary-sensitive booking tests
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          path = Path("e2e/gos-compact-form.spec.ts")
+          text = path.read_text(encoding="utf-8")
+
+          old_import = 'import { expect, test } from "@playwright/test";'
+          new_import = 'import { expect, test, type Page } from "@playwright/test";'
+          if old_import in text:
+              text = text.replace(old_import, new_import, 1)
+          elif new_import not in text:
+              raise SystemExit("Playwright import marker missing")
+
+          helper_pattern = re.compile(
+              r'function futureBookingDate\(offsetDays: number\) \{.*?\n\}\n',
+              re.S,
+          )
+          helper = '''async function selectFirstAvailableBookingDateFromOpenDialog(
+            page: Page
+          ) {
+            const dialog = page.getByRole("dialog", { name: "選擇預約日期" });
+            await expect(dialog).toBeVisible();
+
+            const dayButton = dialog
+              .locator('[data-day] button:not([disabled])')
+              .filter({ visible: true })
+              .first();
+            await expect(dayButton).toBeVisible();
+
+            const bookingDate = await dayButton.evaluate((button) =>
+              button.closest("[data-day]")?.getAttribute("data-day") ?? ""
+            );
+            expect(bookingDate).toMatch(/^\\d{4}-\\d{2}-\\d{2}$/);
+
+            await dayButton.click();
+            return bookingDate;
+          }
+          '''
+
+          if helper_pattern.search(text):
+              text = helper_pattern.sub(helper, text, count=1)
+          elif "selectFirstAvailableBookingDateFromOpenDialog" not in text:
+              raise SystemExit("Legacy booking-date helper marker missing")
+
+          declaration_pattern = re.compile(
+              r'  const bookingDate = futureBookingDate\((?:7|8|9)\);'
+          )
+          declaration_count = len(declaration_pattern.findall(text))
+          if declaration_count:
+              text = declaration_pattern.sub('  let bookingDate = "";', text)
+          elif text.count('  let bookingDate = "";') < 3:
+              raise SystemExit("Expected three booking-date declarations")
+
+          click_pattern = re.compile(
+              r'  await page\.locator\(`\[data-day="\$\{bookingDate\}"\] button`\)\.first\(\)\.click\(\);'
+          )
+          click_count = len(click_pattern.findall(text))
+          if click_count:
+              text = click_pattern.sub(
+                  '  bookingDate = await selectFirstAvailableBookingDateFromOpenDialog(page);',
+                  text,
+              )
+          elif text.count(
+              '  bookingDate = await selectFirstAvailableBookingDateFromOpenDialog(page);'
+          ) < 3:
+              raise SystemExit("Expected three fixed calendar selectors")
+
+          if "futureBookingDate(" in text:
+              raise SystemExit("Legacy futureBookingDate usage remains")
+          if 'data-day="${bookingDate}"' in text:
+              raise SystemExit("Legacy fixed date selector remains")
+          if text.count(
+              'bookingDate = await selectFirstAvailableBookingDateFromOpenDialog(page);'
+          ) != 3:
+              raise SystemExit("Expected exactly three robust calendar selections")
+
+          path.write_text(text, encoding="utf-8")
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify production build
+        run: npm run build
+
+      - name: Verify GOS booking calendar acceptance
+        run: npx playwright test e2e/gos-compact-form.spec.ts
+
+      - name: Verify full application regression
+        run: npm run test:e2e
+
+      - name: Commit verified test repair
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add e2e/gos-compact-form.spec.ts
+          git diff --cached --check
+          git commit -m "Make GOS booking tests month-boundary safe"
+          git push origin HEAD:feat/design-quality-foundation-v1
