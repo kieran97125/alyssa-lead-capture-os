@@ -1,0 +1,84 @@
+name: Design Quality Gate
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/design-system.css"
+      - "src/app/globals.css"
+      - "src/components/ui/**"
+      - "src/components/system/**"
+      - "src/components/command-center/TrendModeToggle.tsx"
+      - ".storybook/**"
+      - "e2e/design-quality.spec.ts"
+      - "e2e/design-quality.spec.ts-snapshots/**"
+      - "design/**"
+      - "docs/design-system/**"
+      - "scripts/verify-design-system-contract.mjs"
+      - "components.json"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/design-quality.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  design-quality:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify design-system contract
+        run: npm run verify:design-system-contract
+
+      - name: Verify production build
+        run: npm run build
+
+      - name: Build component workshop
+        run: npm run build:storybook
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run visual and accessibility gate
+        run: npm run test:design
+
+      - name: Upload design report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-quality-report
+          path: playwright-report/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      - name: Upload visual diffs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: design-quality-diffs
+          path: test-results/
+          if-no-files-found: ignore
+          retention-days: 14
