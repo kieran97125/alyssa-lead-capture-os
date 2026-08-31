@@ -50,4 +50,41 @@ if old in text:
 elif new not in text:
     raise SystemExit("Creative Studio access-record typing marker missing")
 
-print("Creative Studio TypeScript aftercare patches completed.")
+
+def patch_navigation_test(path: str, anchor: str) -> None:
+    file = Path(path)
+    source = file.read_text(encoding="utf-8")
+    source = source.replace("toHaveCount(14);", "toHaveCount(15);", 1)
+    assertion = '''  await expect(
+    page
+      .getByRole("navigation", { name: "主要功能" })
+      .getByRole("link", { name: "設計工作" })
+  ).toBeVisible();
+'''
+    if 'getByRole("link", { name: "設計工作" })' not in source:
+        if anchor not in source:
+            raise SystemExit(f"{path}: navigation assertion anchor missing")
+        source = source.replace(anchor, assertion + anchor, 1)
+    if "toHaveCount(15);" not in source:
+        raise SystemExit(f"{path}: navigation count was not updated")
+    file.write_text(source, encoding="utf-8")
+
+
+patch_navigation_test(
+    "e2e/marketing-command-center.spec.ts",
+    '''  await expect(
+    navigation.getByRole("link", { name: "Dashboard" })
+  ).toBeVisible();
+''',
+)
+patch_navigation_test(
+    "e2e/settings-management.spec.ts",
+    '''  await expect(
+    page
+      .getByRole("navigation", { name: "主要功能" })
+      .getByRole("link", { name: "每日總覽" })
+  ).toBeVisible();
+''',
+)
+
+print("Creative Studio TypeScript and navigation aftercare patches completed.")
