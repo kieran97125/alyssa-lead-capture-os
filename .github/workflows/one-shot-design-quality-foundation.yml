@@ -50,6 +50,8 @@ jobs:
               '  const source = read(`src/components/system/${file}`);': '  const source = read("src/components/system/" + file);',
               '  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\\b/, `${file} contains raw hex colour`);': '  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\\b/, file + " contains raw hex colour");',
               '`import type { ComponentProps } from "react";': '`"use client";\n\nimport type { ComponentProps } from "react";',
+              'render: (args) => <SystemButton {...args}><Plus aria-hidden="true" />新增工作</SystemButton>,': 'render: (args: Parameters<typeof SystemButton>[0]) => <SystemButton {...args}><Plus aria-hidden="true" />新增工作</SystemButton>,',
+              'render: (args) => <SystemButton {...args}><Download aria-hidden="true" />匯出報告</SystemButton>,': 'render: (args: Parameters<typeof SystemButton>[0]) => <SystemButton {...args}><Download aria-hidden="true" />匯出報告</SystemButton>,',
           }
           for old, new in replacements.items():
               if old not in text:
