@@ -1,6 +1,6 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-async function openFixture(page: Parameters<typeof test>[0] extends never ? never : any) {
+async function openFixture(page: Page) {
   await page.goto("/e2e/creative-production", {
     waitUntil: "domcontentloaded",
   });
@@ -29,6 +29,7 @@ test("rich Brief supports long-form editing, headings and checklist content", as
   await expect(workspace).toBeVisible();
   const editor = workspace.locator(".ProseMirror");
   await expect(editor).toContainText("Campaign 目的");
+
   await editor.click();
   await page.keyboard.press("Control+End");
   await page.keyboard.press("Enter");
@@ -36,9 +37,15 @@ test("rich Brief supports long-form editing, headings and checklist content", as
     "這是一段用來驗證長篇 Creative Brief 可以直接輸入、編輯及自動儲存的內容。"
   );
   await expect(editor).toContainText("長篇 Creative Brief");
+
+  await page.keyboard.press("Enter");
   await workspace.getByRole("button", { name: "標題 2" }).click();
   await page.keyboard.type("畫面與 VO 要求");
-  await expect(editor.locator("h2")).toContainText("畫面與 VO 要求");
+  await expect(
+    editor.getByRole("heading", { name: "畫面與 VO 要求", exact: true })
+  ).toBeVisible();
+
+  await page.keyboard.press("Enter");
   await workspace.getByRole("button", { name: "Checklist" }).click();
   await page.keyboard.type("價錢及 CTA 已核對");
   await expect(editor.locator('ul[data-type="taskList"]')).toContainText(
