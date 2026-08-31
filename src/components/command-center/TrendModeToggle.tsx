@@ -75,7 +75,7 @@ export function TrendModeToggle({
       }`}
       data-testid="trend-mode-toggle"
     >
-      <span className="shrink-0 text-[10px] font-extrabold tracking-[0.04em] text-[#8d7180]">
+      <span className="shrink-0 text-[10px] font-extrabold tracking-[0.04em] text-[#745667]">
         顯示
       </span>
       <div
@@ -111,7 +111,7 @@ export function TrendModeToggle({
         className={
           compact
             ? "sr-only"
-            : "max-w-md text-[10px] font-semibold leading-4 text-[#8b7180]"
+            : "max-w-md text-[10px] font-semibold leading-4 text-[#745667]"
         }
         aria-live="polite"
       >
