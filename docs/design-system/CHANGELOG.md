@@ -1,5 +1,21 @@
 # Design System Change Log
 
+## 2026-08-31 — Token namespace and contrast hotfix
+
+### Fixed
+
+- Removed collision-prone global shadcn colour variables such as `--muted`, `--primary`, `--secondary`, `--accent`, `--border`, `--input` and `--ring` from the Alyssa application root.
+- Moved Design Quality Foundation colours to the `--system-*` namespace and updated source-owned Button, Badge, Separator, Skeleton and specimen utilities accordingly.
+- Added an explicit Dashboard compatibility boundary so labels and helper text resolve to readable Alyssa text colours.
+- Added a production-screen regression test that checks representative Dashboard helper text against WCAG AA contrast.
+- Strengthened the design-system contract to reject generic global colour tokens and generic semantic utility classes inside owned system primitives.
+
+### Unchanged
+
+- Lead, Book, Show, attribution, CRM, Calendar, Task, Spend and reporting business logic.
+- Database schema, stored data and API contracts.
+- Dashboard structure, values and interaction behavior.
+
 ## 2026-08-31 — Foundation v1
 
 Issue: #74
