@@ -79,8 +79,12 @@ for (const token of [
   assert.match(tokens, new RegExp(token));
 }
 
-const declaredTokenNames = Array.from(
-  tokens.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gim),
+const globalThemeBlocks = Array.from(
+  tokens.matchAll(/(?:^|\n)\s*(?::root|\.dark)\s*\{([\s\S]*?)\}/g),
+  (match) => match[1]
+).join("\n");
+const globallyDeclaredTokenNames = Array.from(
+  globalThemeBlocks.matchAll(/^\s*(--[a-z0-9-]+)\s*:/gim),
   (match) => match[1]
 );
 const forbiddenGlobalTokenNames = [
@@ -106,8 +110,8 @@ const forbiddenGlobalTokenNames = [
 ];
 for (const tokenName of forbiddenGlobalTokenNames) {
   assert.ok(
-    !declaredTokenNames.includes(tokenName),
-    `Design system must not declare legacy global token ${tokenName}; use --system-* instead.`
+    !globallyDeclaredTokenNames.includes(tokenName),
+    `Design system must not declare legacy global token ${tokenName} in :root or .dark; use --system-* instead.`
   );
 }
 
