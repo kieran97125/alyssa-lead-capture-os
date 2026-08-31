@@ -102,6 +102,25 @@ jobs:
           node scripts/migrations/2026-08-31-design-quality-foundation.mjs manifest
           rm -f design-shadcn-info.json
 
+      - name: Raise compact helper-text contrast to WCAG AA
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("src/components/command-center/TrendModeToggle.tsx")
+          text = path.read_text(encoding="utf-8")
+          replacements = {
+              "text-[#8d7180]": "text-[#745667]",
+              "text-[#8b7180]": "text-[#745667]",
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"contrast target missing: {old}")
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+
       - name: Verify design system contract
         run: npm run verify:design-system-contract
 
