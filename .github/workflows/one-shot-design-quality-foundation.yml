@@ -15,6 +15,7 @@ jobs:
     timeout-minutes: 30
     env:
       CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
       E2E_ADMIN_PASSWORD: playwright-ci-password
       LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
       LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
