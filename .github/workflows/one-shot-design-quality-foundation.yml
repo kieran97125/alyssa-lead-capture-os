@@ -1,0 +1,119 @@
+name: One-shot Design Quality Foundation v1
+
+on:
+  push:
+    branches:
+      - feat/design-quality-foundation-v1
+
+permissions:
+  contents: write
+
+jobs:
+  bootstrap-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      CI: "true"
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/design-quality-foundation-v1
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Repair migration source templates
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/migrations/2026-08-31-design-quality-foundation.mjs")
+          text = path.read_text(encoding="utf-8")
+          replacements = {
+              'import { expect, test } from "@playwright/test";': 'import { expect, test, type Page } from "@playwright/test";',
+              'async function openSpecimen(page: Parameters<typeof test>[0] extends never ? never : any) {': 'async function openSpecimen(page: Page) {',
+              'requiredFiles.forEach((file) => assert.ok(exists(file), `Missing design system file: ${file}`));': 'requiredFiles.forEach((file) => assert.ok(exists(file), "Missing design system file: " + file));',
+              '  assert.match(globals, new RegExp(requiredImport.replace(/[.*+?^${}()|[\\]\\\\]/g, "\\\\$&")));': '  assert.ok(globals.includes(requiredImport), "Missing global CSS import: " + requiredImport);',
+              '  const source = read(`src/components/system/${file}`);': '  const source = read("src/components/system/" + file);',
+              '  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\\b/, `${file} contains raw hex colour`);': '  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\\b/, file + " contains raw hex colour");',
+              '`import type { ComponentProps } from "react";': '`"use client";\n\nimport type { ComponentProps } from "react";',
+          }
+          for old, new in replacements.items():
+              if old not in text:
+                  raise SystemExit(f"migration repair target missing: {old}")
+              text = text.replace(old, new, 1)
+          path.write_text(text, encoding="utf-8")
+          PY
+          node --check scripts/migrations/2026-08-31-design-quality-foundation.mjs
+
+      - name: Install current dependencies
+        run: npm ci
+
+      - name: Prepare Base UI and semantic token foundation
+        run: node scripts/migrations/2026-08-31-design-quality-foundation.mjs prepare
+
+      - name: Install reviewed shadcn Base UI primitives
+        shell: bash
+        run: |
+          npm install --save-dev shadcn@latest
+          npm install tw-animate-css@latest
+          npx shadcn@latest add button badge separator skeleton --yes
+          npx shadcn@latest info --json > design-shadcn-info.json
+
+      - name: Install Storybook and accessibility tooling
+        run: >-
+          npm install --save-dev
+          storybook@latest
+          @storybook/nextjs-vite@latest
+          @storybook/addon-docs@latest
+          @storybook/addon-a11y@latest
+          @axe-core/playwright@latest
+
+      - name: Finalize design quality architecture and records
+        run: |
+          node scripts/migrations/2026-08-31-design-quality-foundation.mjs finalize
+          node scripts/migrations/2026-08-31-design-quality-foundation.mjs manifest
+          rm -f design-shadcn-info.json
+
+      - name: Verify design system contract
+        run: npm run verify:design-system-contract
+
+      - name: Verify production build
+        run: npm run build
+
+      - name: Verify Storybook static build
+        run: npm run build:storybook
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate Linux visual baselines and verify focused UI behavior
+        run: >-
+          npx playwright test
+          e2e/design-quality.spec.ts
+          e2e/connected-marketing-ops.spec.ts
+          --update-snapshots
+
+      - name: Record verified implementation
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git diff --cached --check
+          git status --short
+          git commit -m "Add Design Quality Foundation v1"
+          git push origin HEAD:feat/design-quality-foundation-v1
