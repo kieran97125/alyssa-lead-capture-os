@@ -1,0 +1,18 @@
+{
+  "$schema": "./registry-allowlist.schema.json",
+  "policy": "deny-by-default",
+  "approved": [
+    {
+      "id": "@shadcn",
+      "source": "https://ui.shadcn.com",
+      "scope": "official primitives only",
+      "reviewRequiredPerInstall": true
+    }
+  ],
+  "blockedUntilReviewed": [
+    "community registries",
+    "visual effect libraries",
+    "dashboard block packs",
+    "AI-generated remote registries"
+  ]
+}

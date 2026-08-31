@@ -276,7 +276,9 @@ export default preview;`
 
   write(
     "src/components/system/SystemButton.tsx",
-    `import type { ComponentProps } from "react";
+    `"use client";
+
+import type { ComponentProps } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
@@ -297,10 +299,13 @@ export function SystemButton({
   className,
   ...props
 }: SystemButtonProps) {
+  const resolvedDensity: SystemButtonDensity =
+    density === "compact" || density === "comfortable" ? density : "default";
+
   return (
     <Button
       data-slot="system-button"
-      className={cn(densityClasses[density], className)}
+      className={cn(densityClasses[resolvedDensity], className)}
       {...props}
     />
   );
@@ -437,11 +442,11 @@ type Story = StoryObj<typeof meta>;
 export const Primary: Story = {};
 export const Compact: Story = {
   args: { density: "compact", children: "新增工作" },
-  render: (args) => <SystemButton {...args}><Plus aria-hidden="true" />新增工作</SystemButton>,
+  render: (args: Parameters<typeof SystemButton>[0]) => <SystemButton {...args}><Plus aria-hidden="true" />新增工作</SystemButton>,
 };
 export const Secondary: Story = {
   args: { variant: "secondary", children: "匯出報告" },
-  render: (args) => <SystemButton {...args}><Download aria-hidden="true" />匯出報告</SystemButton>,
+  render: (args: Parameters<typeof SystemButton>[0]) => <SystemButton {...args}><Download aria-hidden="true" />匯出報告</SystemButton>,
 };
 export const Outline: Story = { args: { variant: "outline", children: "編輯設定" } };
 export const Disabled: Story = { args: { disabled: true, children: "處理中" } };
@@ -499,7 +504,7 @@ export const Foundation: Story = {};
   );
 
   write(
-    "src/app/__design-system/page.tsx",
+    "src/app/e2e/design-system/page.tsx",
     `import { notFound } from "next/navigation";
 import { DesignSystemSpecimen } from "@/components/system/DesignSystemSpecimen";
 
@@ -514,10 +519,10 @@ export default function DesignSystemFixturePage() {
   write(
     "e2e/design-quality.spec.ts",
     `import AxeBuilder from "@axe-core/playwright";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
-async function openSpecimen(page: Parameters<typeof test>[0] extends never ? never : any) {
-  await page.goto("/__design-system", { waitUntil: "networkidle" });
+async function openSpecimen(page: Page) {
+  await page.goto("/e2e/design-system", { waitUntil: "networkidle" });
   await expect(page.getByTestId("design-system-specimen")).toBeVisible();
 }
 
@@ -566,6 +571,7 @@ const requiredFiles = [
   "src/app/design-system.css",
   "src/components/system/SystemButton.tsx",
   "src/components/system/DesignSystemSpecimen.tsx",
+  "src/app/e2e/design-system/page.tsx",
   ".storybook/main.ts",
   ".storybook/preview.ts",
   "e2e/design-quality.spec.ts",
@@ -575,7 +581,7 @@ const requiredFiles = [
   "docs/design-system/decisions/ADR-001-design-quality-foundation.md",
   "docs/design-system/rollback/2026-08-31-foundation-v1.md",
 ];
-requiredFiles.forEach((file) => assert.ok(exists(file), `Missing design system file: ${file}`));
+requiredFiles.forEach((file) => assert.ok(exists(file), "Missing design system file: " + file));
 
 const config = JSON.parse(read("components.json"));
 assert.equal(config.style, "base-nova");
@@ -595,7 +601,7 @@ for (const requiredImport of [
   '@import "shadcn/tailwind.css";',
   '@import "./design-system.css";',
 ]) {
-  assert.match(globals, new RegExp(requiredImport.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.ok(globals.includes(requiredImport), "Missing global CSS import: " + requiredImport);
 }
 
 const tokens = read("src/app/design-system.css");
@@ -617,8 +623,8 @@ const systemFiles = fs
   .readdirSync(path.join(root, "src/components/system"))
   .filter((file) => file.endsWith(".tsx") && !file.endsWith(".stories.tsx"));
 for (const file of systemFiles) {
-  const source = read(`src/components/system/${file}`);
-  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b/, `${file} contains raw hex colour`);
+  const source = read("src/components/system/" + file);
+  assert.doesNotMatch(source, /#[0-9a-fA-F]{3,8}\b/, file + " contains raw hex colour");
 }
 
 assert.match(read("AGENTS.md"), /Design Quality Gate/);
@@ -981,6 +987,7 @@ Revert the Foundation v1 merge commit. The release record must name the exact me
 - src/app/design-system.css
 - src/components/ui/* initial primitives
 - src/components/system/*
+- src/app/e2e/design-system/page.tsx
 - .storybook/*
 - e2e/design-quality.spec.ts and snapshots
 - .github/workflows/design-quality.yml

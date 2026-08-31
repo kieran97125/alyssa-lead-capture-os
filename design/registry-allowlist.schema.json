@@ -1,0 +1,10 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": ["policy", "approved", "blockedUntilReviewed"],
+  "properties": {
+    "policy": { "const": "deny-by-default" },
+    "approved": { "type": "array" },
+    "blockedUntilReviewed": { "type": "array" }
+  }
+}
