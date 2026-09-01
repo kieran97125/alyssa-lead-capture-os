@@ -72,14 +72,26 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Bootstrap expected visual baseline paths
+      - name: Seed valid expected visual baseline paths
         run: |
-          mkdir -p e2e/creative-production.spec.ts-snapshots
-          : > e2e/creative-production.spec.ts-snapshots/creative-job-delete-confirmation-desktop-chromium-linux.png
-          : > e2e/creative-production.spec.ts-snapshots/creative-job-delete-confirmation-mobile-chromium-linux.png
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64
+
+          snapshot_dir = Path("e2e/creative-production.spec.ts-snapshots")
+          snapshot_dir.mkdir(parents=True, exist_ok=True)
+          pixel = base64.b64decode(
+              "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+          )
+          for name in (
+              "creative-job-delete-confirmation-desktop-chromium-linux.png",
+              "creative-job-delete-confirmation-mobile-chromium-linux.png",
+          ):
+              (snapshot_dir / name).write_bytes(pixel)
+          PY
 
       - name: Generate deterministic Creative deletion baselines
-        run: npx playwright test e2e/creative-production.spec.ts --update-snapshots
+        run: npx playwright test e2e/creative-production.spec.ts --update-snapshots=all
 
       - name: Verify production build and contracts
         run: npm run build
