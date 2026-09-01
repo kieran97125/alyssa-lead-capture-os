@@ -6,6 +6,7 @@ import {
   type CreativeBriefEditorHandle,
 } from "@/components/creative/CreativeBriefEditor";
 import { CreativeJobCreateDialog } from "@/components/creative/CreativeJobCreateDialog";
+import { CreativeJobDeleteControl } from "@/components/creative/CreativeJobDeleteControl";
 import type { BrandSetting } from "@/lib/data/configuration";
 import type {
   CreativeDesignerProfile,
@@ -107,14 +108,22 @@ export function CreativeProductionFixture() {
             </p>
             <h1 className="mt-1 text-3xl font-black">設計工作</h1>
           </div>
-          <CreativeJobCreateDialog
-            brands={fixtureBrands}
-            designers={fixtureDesigners}
-            taxonomies={fixtureTaxonomies}
-            defaultBrandId="fixture-brand"
-            today="2026-09-01"
-            fixtureMode
-          />
+          <div className="flex items-center gap-2">
+            <CreativeJobDeleteControl
+              jobId="fixture-job"
+              title="GOS KOL 脫毛廣告片"
+              placement="header"
+              fixtureMode
+            />
+            <CreativeJobCreateDialog
+              brands={fixtureBrands}
+              designers={fixtureDesigners}
+              taxonomies={fixtureTaxonomies}
+              defaultBrandId="fixture-brand"
+              today="2026-09-01"
+              fixtureMode
+            />
+          </div>
         </header>
 
         <section
@@ -128,7 +137,8 @@ export function CreativeProductionFixture() {
             <span>時間</span>
             <span>狀態</span>
           </div>
-          <div className="grid min-w-0 grid-cols-1 gap-4 px-4 py-4 text-[11px] font-semibold md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center">
+          <div className="relative">
+            <div className="grid min-w-0 grid-cols-1 gap-4 px-4 py-4 pr-14 text-[11px] font-semibold md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center">
             <div className="min-w-0">
               <strong className="block truncate text-sm">
                 GOS KOL 脫毛廣告片
@@ -167,9 +177,19 @@ export function CreativeProductionFixture() {
                 <small className="block text-[#927987]">Publish</small>6/9
               </span>
             </div>
-            <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[9px] font-black">
-              製作中
-            </span>
+              <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[9px] font-black">
+                製作中
+              </span>
+            </div>
+            <div className="absolute right-3 top-3 xl:top-1/2 xl:-translate-y-1/2">
+              <CreativeJobDeleteControl
+                jobId="fixture-job"
+                title="GOS KOL 脫毛廣告片"
+                returnPath="/creative-jobs?brand=fixture-brand&view=review"
+                placement="list"
+                fixtureMode
+              />
+            </div>
           </div>
         </section>
 

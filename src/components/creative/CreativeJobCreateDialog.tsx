@@ -12,10 +12,8 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import {
-  createCreativeJobAction,
-  initialCreativeJobCreateState,
-} from "@/app/creative-jobs/createAction";
+import { createCreativeJobAction } from "@/app/creative-jobs/createAction";
+import { initialCreativeJobCreateState } from "@/lib/creative/createState";
 import type { BrandSetting } from "@/lib/data/configuration";
 import type {
   CreativeDesignerProfile,

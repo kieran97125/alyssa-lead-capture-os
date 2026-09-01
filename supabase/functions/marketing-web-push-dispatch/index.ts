@@ -202,6 +202,31 @@ Deno.serve(async (request: Request) => {
     }
   }
 
+
+const creativeJobIds = [
+  ...new Set(
+    [...notifications.values()]
+      .map((row) => row.creative_job_id)
+      .filter((value): value is string => Boolean(value))
+  ),
+];
+const activeCreativeJobIds = new Set<string>();
+if (creativeJobIds.length > 0) {
+  const creativeJobsResult = await supabase
+    .from("creative_jobs")
+    .select("id,deleted_at")
+    .in("id", creativeJobIds);
+  if (creativeJobsResult.error) {
+    return new Response(
+      JSON.stringify({ error: "creative_job_state_query_failed" }),
+      { status: 500, headers: jsonHeaders }
+    );
+  }
+  for (const row of creativeJobsResult.data ?? []) {
+    if (!row.deleted_at) activeCreativeJobIds.add(String(row.id));
+  }
+}
+
   const counts = { processed: 0, sent: 0, retry: 0, gone: 0, failed: 0 };
   for (const delivery of deliveries) {
     counts.processed += 1;
@@ -219,6 +244,31 @@ Deno.serve(async (request: Request) => {
       counts.gone += 1;
       continue;
     }
+
+
+if (
+  notification.creative_job_id &&
+  !activeCreativeJobIds.has(notification.creative_job_id)
+) {
+  const retiredAt = new Date().toISOString();
+  await Promise.all([
+    supabase
+      .from("marketing_web_push_deliveries")
+      .update({
+        status: "failed",
+        next_attempt_at: retiredAt,
+        last_error: "creative_job_deleted",
+        updated_at: retiredAt,
+      })
+      .eq("id", delivery.id),
+    supabase
+      .from("marketing_notifications")
+      .update({ is_read: true, read_at: retiredAt })
+      .eq("id", notification.id),
+  ]);
+  counts.failed += 1;
+  continue;
+}
 
     let url = notification.action_url || "/tasks";
     if (!notification.action_url && notification.task_id) {

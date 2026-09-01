@@ -755,6 +755,13 @@ export async function markCreativeNotificationReadAction(formData: FormData) {
 export async function deleteCreativeJobAction(formData: FormData) {
   const access = await requireCreativeAction();
   const jobId = readString(formData, "jobId");
+  const requestedReturnPath = safeCreativePath(
+    readString(formData, "returnPath"),
+    "/creative-jobs"
+  );
+  const returnPath = requestedReturnPath.startsWith(`/creative-jobs/${jobId}`)
+    ? "/creative-jobs"
+    : requestedReturnPath;
   const record = await getCreativeJobAccessRecord(jobId);
   if (
     !record.job ||
@@ -766,22 +773,68 @@ export async function deleteCreativeJobAction(formData: FormData) {
           : null,
     })
   ) {
-    redirectWithMessage("/creative-jobs", false, "你未獲授權刪除呢張工作。" );
+    redirectWithMessage(returnPath, false, "你未獲授權刪除呢張工作。" );
   }
+
   const supabase = createSupabaseAdminClient();
-  const { error } = await supabase
-    .from("creative_jobs")
-    .update({ deleted_at: new Date().toISOString() })
-    .eq("id", jobId);
-  if (error) redirectWithMessage("/creative-jobs", false, "未能刪除設計工作。" );
+  const { data, error } = await supabase.rpc(
+    "soft_delete_creative_job_and_retire_notifications",
+    { p_job_id: jobId }
+  );
+  if (error) {
+    console.warn("creative_job_delete_failed", {
+      code: error.code,
+      message: error.message,
+      jobId,
+    });
+    const message = error.message.includes(
+      "creative_job_not_found_or_already_deleted"
+    )
+      ? "呢張設計工作已經被刪除。"
+      : "未能刪除設計工作，資料未有改動。";
+    redirectWithMessage(returnPath, false, message);
+  }
+
+  const deletion = Array.isArray(data) ? data[0] : data;
+  const deletedAt =
+    deletion && typeof deletion.deleted_at === "string"
+      ? deletion.deleted_at
+      : new Date().toISOString();
+  const retiredNotificationCount = Number(
+    deletion?.retired_notification_count || 0
+  );
+  const cancelledDeliveryCount = Number(
+    deletion?.cancelled_delivery_count || 0
+  );
+  const calendarItemRemoved = deletion?.calendar_item_removed === true;
+  const publishedCalendarPreserved =
+    deletion?.published_calendar_preserved === true;
+
   await writeCreativeAudit({
     jobId,
     access,
     action: "creative_job.deleted",
-    before: { title: record.job.title, status: record.job.status },
+    before: {
+      title: record.job.title,
+      status: record.job.status,
+      calendarItemId: record.job.calendar_item_id,
+    },
+    after: {
+      deletedAt,
+      retiredNotificationCount,
+      cancelledDeliveryCount,
+      calendarItemRemoved,
+      publishedCalendarPreserved,
+    },
   });
   revalidateCreative(jobId);
-  redirectWithMessage("/creative-jobs", true, "設計工作已移至系統封存。" );
+  redirectWithMessage(
+    returnPath,
+    true,
+    publishedCalendarPreserved
+      ? "設計工作已刪除；未送出提醒已取消，已 Published 日曆紀錄同 Audit 仍然保留。"
+      : "設計工作已刪除；未送出提醒已取消，活動、版本同 Audit 紀錄仍然保留。"
+  );
 }
 
 async function requireCreativeSettings() {

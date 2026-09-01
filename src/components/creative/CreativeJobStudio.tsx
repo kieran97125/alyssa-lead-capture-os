@@ -36,10 +36,10 @@ import {
   CreativeBriefEditor,
   type CreativeBriefEditorHandle,
 } from "@/components/creative/CreativeBriefEditor";
+import { CreativeJobDeleteControl } from "@/components/creative/CreativeJobDeleteControl";
 import {
   addCreativeCommentAction,
   addCreativeLinkAssetAction,
-  deleteCreativeJobAction,
   markCreativeNotificationReadAction,
   removeCreativeAssetAction,
   updateCreativeJobAction,
@@ -239,6 +239,13 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
           <div className="flex items-center gap-2 text-[10px] font-bold text-[#806174]">
             <Clock3 size={13} /> 最後更新 {prettyDateTime(props.job.updatedAt)}
           </div>
+          {props.canEditMetadata ? (
+            <CreativeJobDeleteControl
+              jobId={props.job.id}
+              title={props.job.title}
+              placement="header"
+            />
+          ) : null}
           {props.canManageSettings ? (
             <Link
               href="/settings/creative"
@@ -642,18 +649,6 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
             </form>
           ) : null}
 
-          {props.canEditMetadata ? (
-            <form action={deleteCreativeJobAction}>
-              <input type="hidden" name="jobId" value={props.job.id} />
-              <ConfirmSubmitButton
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-[#e5c5c8] bg-white px-3 text-xs font-black text-[#a43b50]"
-                pendingLabel="封存中…"
-                confirmMessage={`確定封存「${props.job.title}」？日後可由 Database audit 回溯。`}
-              >
-                <Trash2 size={14} /> 封存呢張 Job
-              </ConfirmSubmitButton>
-            </form>
-          ) : null}
         </aside>
 
         <section className="order-1 min-w-0 xl:order-2">
