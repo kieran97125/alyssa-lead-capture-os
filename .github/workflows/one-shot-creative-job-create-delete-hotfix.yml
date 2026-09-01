@@ -1,0 +1,583 @@
+name: One-shot Creative Job Create and Delete Hotfix
+
+on:
+  push:
+    branches:
+      - fix/creative-job-create-delete-hotfix
+
+permissions:
+  contents: write
+
+jobs:
+  patch-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      E2E_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+
+    steps:
+      - name: Checkout hotfix branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/creative-job-create-delete-hotfix
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply runtime and delete UX hotfix
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          def replace_once(path: str, old: str, new: str) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              count = text.count(old)
+              if count != 1:
+                  raise SystemExit(f"{path}: expected one match, found {count}: {old[:120]!r}")
+              file.write_text(text.replace(old, new, 1), encoding="utf-8")
+
+          # 1. Fix the production crash: a `use server` module may export only async runtime functions.
+          create_action_path = Path("src/app/creative-jobs/createAction.ts")
+          create_action = create_action_path.read_text(encoding="utf-8")
+          create_action = create_action.replace(
+              'export type CreativeJobCreateState = {\n',
+              'type CreativeJobCreateState = {\n',
+              1,
+          )
+          initial_state = '''export const initialCreativeJobCreateState: CreativeJobCreateState = {
+            status: "idle",
+            message: "",
+          };
+
+          '''
+          if initial_state not in create_action:
+              raise SystemExit("createAction.ts: exported initial state marker missing")
+          create_action = create_action.replace(initial_state, "", 1)
+          if re.search(r'export\s+(?:const|let|var|class)\s+', create_action):
+              raise SystemExit("createAction.ts still exports a non-function runtime value")
+          create_action_path.write_text(create_action, encoding="utf-8")
+
+          dialog_path = Path("src/components/creative/CreativeJobCreateDialog.tsx")
+          dialog = dialog_path.read_text(encoding="utf-8")
+          old_import = '''import {
+            createCreativeJobAction,
+            initialCreativeJobCreateState,
+          } from "@/app/creative-jobs/createAction";
+          '''
+          new_import = '''import { createCreativeJobAction } from "@/app/creative-jobs/createAction";
+          '''
+          if old_import not in dialog:
+              raise SystemExit("CreativeJobCreateDialog.tsx: server state import marker missing")
+          dialog = dialog.replace(old_import, new_import, 1)
+          props_marker = '''type CreativeJobCreateDialogProps = {
+            brands: BrandSetting[];
+            designers: CreativeDesignerProfile[];
+            taxonomies: CreativeTaxonomyItem[];
+            defaultBrandId?: string;
+            today: string;
+            fixtureMode?: boolean;
+          };
+
+          '''
+          local_state = '''type CreativeJobCreateState = {
+            status: "idle" | "error";
+            message: string;
+          };
+
+          const initialCreativeJobCreateState: CreativeJobCreateState = {
+            status: "idle",
+            message: "",
+          };
+
+          '''
+          if props_marker not in dialog:
+              raise SystemExit("CreativeJobCreateDialog.tsx: props marker missing")
+          dialog = dialog.replace(props_marker, props_marker + local_state, 1)
+          dialog_path.write_text(dialog, encoding="utf-8")
+
+          # 2. Create one reusable, clearly labelled delete control.
+          delete_component = '''"use client";
+
+          import { Trash2 } from "lucide-react";
+          import { deleteCreativeJobAction } from "@/app/creative-jobs/actions";
+          import { ConfirmSubmitButton } from "@/components/alyssa/ConfirmSubmitButton";
+
+          export function CreativeJobDeleteButton({
+            jobId,
+            title,
+            compact = false,
+            fullWidth = false,
+            fixtureMode = false,
+          }: {
+            jobId: string;
+            title: string;
+            compact?: boolean;
+            fullWidth?: boolean;
+            fixtureMode?: boolean;
+          }) {
+            const label = compact ? `刪除 ${title}` : "刪除 Job";
+            const buttonClass = compact
+              ? "inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[#e5c5c8] bg-white px-2.5 text-[10px] font-black text-[#a43b50] transition hover:border-[#cf969d] hover:bg-[#fff5f5] xl:w-8 xl:px-0"
+              : `inline-flex h-9 items-center justify-center gap-2 rounded-xl border border-[#e5c5c8] bg-white px-3 text-xs font-black text-[#a43b50] transition hover:border-[#cf969d] hover:bg-[#fff5f5] ${fullWidth ? "w-full" : ""}`;
+
+            return (
+              <form
+                action={fixtureMode ? undefined : deleteCreativeJobAction}
+                onSubmit={fixtureMode ? (event) => event.preventDefault() : undefined}
+                className={fullWidth ? "w-full" : ""}
+              >
+                <input type="hidden" name="jobId" value={jobId} />
+                <ConfirmSubmitButton
+                  className={buttonClass}
+                  pendingLabel="刪除中…"
+                  confirmMessage={`確定刪除「${title}」？工作會從 Job List 移除；Audit 紀錄仍然保留。`}
+                  aria-label={label}
+                  title="刪除 Job"
+                >
+                  <Trash2 size={13} />
+                  <span className={compact ? "xl:sr-only" : ""}>刪除 Job</span>
+                </ConfirmSubmitButton>
+              </form>
+            );
+          }
+          '''
+          Path("src/components/creative/CreativeJobDeleteButton.tsx").write_text(
+              delete_component,
+              encoding="utf-8",
+          )
+
+          # 3. Put delete directly in Job List without nesting a button inside a link.
+          page_path = Path("src/app/creative-jobs/page.tsx")
+          page = page_path.read_text(encoding="utf-8")
+          page_import = 'import { CreativeJobCreateDialog } from "@/components/creative/CreativeJobCreateDialog";\n'
+          if page_import not in page:
+              raise SystemExit("Creative Jobs page: create dialog import missing")
+          page = page.replace(
+              page_import,
+              page_import + 'import { CreativeJobDeleteButton } from "@/components/creative/CreativeJobDeleteButton";\n',
+              1,
+          )
+          old_header = '''                    <div className="hidden grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] gap-4 border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174] xl:grid">
+                      <span>Job</span>
+                      <span>負責</span>
+                      <span>製作規格</span>
+                      <span>時間</span>
+                      <span>狀態</span>
+                    </div>
+          '''
+          new_header = '''                    <div className="hidden grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)_44px] gap-4 border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174] xl:grid">
+                      <span>Job</span>
+                      <span>負責</span>
+                      <span>製作規格</span>
+                      <span>時間</span>
+                      <span>狀態</span>
+                      <span className="sr-only">操作</span>
+                    </div>
+          '''
+          if old_header not in page:
+              raise SystemExit("Creative Jobs page: list header marker missing")
+          page = page.replace(old_header, new_header, 1)
+
+          old_row_open = '''                      return (
+                        <Link
+                          key={job.id}
+                          href={`/creative-jobs/${job.id}`}
+                          className="grid min-w-0 grid-cols-1 gap-4 border-b border-[#f0e7e2] px-4 py-4 text-[11px] font-semibold transition last:border-b-0 hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center"
+                        >
+          '''
+          new_row_open = '''                      return (
+                        <article
+                          key={job.id}
+                          className="grid min-w-0 grid-cols-1 border-b border-[#f0e7e2] transition last:border-b-0 hover:bg-[#fff9fb] xl:grid-cols-[minmax(0,1fr)_44px] xl:items-stretch xl:gap-4"
+                        >
+                          <Link
+                            href={`/creative-jobs/${job.id}`}
+                            className="grid min-w-0 grid-cols-1 gap-4 px-4 py-4 text-[11px] font-semibold md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center"
+                          >
+          '''
+          if old_row_open not in page:
+              raise SystemExit("Creative Jobs page: row opening marker missing")
+          page = page.replace(old_row_open, new_row_open, 1)
+
+          old_row_close = '''                          <div className="flex items-center xl:justify-start">
+                            <StatusBadge status={job.status} />
+                          </div>
+                        </Link>
+                      );
+          '''
+          new_row_close = '''                            <div className="flex items-center xl:justify-start">
+                              <StatusBadge status={job.status} />
+                            </div>
+                          </Link>
+                          {snapshot.canCreate ? (
+                            <div className="flex items-center justify-end px-4 pb-4 xl:px-0 xl:pb-0 xl:pr-3">
+                              <CreativeJobDeleteButton
+                                jobId={job.id}
+                                title={job.title}
+                                compact
+                              />
+                            </div>
+                          ) : null}
+                        </article>
+                      );
+          '''
+          if old_row_close not in page:
+              raise SystemExit("Creative Jobs page: row closing marker missing")
+          page = page.replace(old_row_close, new_row_close, 1)
+          page_path.write_text(page, encoding="utf-8")
+
+          # 4. Make delete visible in the Job header and keep the existing bottom danger action clear.
+          studio_path = Path("src/components/creative/CreativeJobStudio.tsx")
+          studio = studio_path.read_text(encoding="utf-8")
+          studio_import = 'import { ConfirmSubmitButton } from "@/components/alyssa/ConfirmSubmitButton";\n'
+          if studio_import not in studio:
+              raise SystemExit("CreativeJobStudio: ConfirmSubmitButton import marker missing")
+          studio = studio.replace(
+              studio_import,
+              studio_import + 'import { CreativeJobDeleteButton } from "@/components/creative/CreativeJobDeleteButton";\n',
+              1,
+          )
+          studio = studio.replace('  deleteCreativeJobAction,\n', '', 1)
+          settings_block = '''          {props.canManageSettings ? (
+            <Link
+              href="/settings/creative"
+              className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#dfcdc4] bg-white px-3 text-xs font-black text-[#6d4a5c] hover:border-[#caa9b7]"
+            >
+              <Settings2 size={15} /> 分類及 Designer
+            </Link>
+          ) : null}
+          '''
+          if settings_block not in studio:
+              raise SystemExit("CreativeJobStudio: settings header marker missing")
+          studio = studio.replace(
+              settings_block,
+              settings_block + '''          {props.canEditMetadata ? (
+            <CreativeJobDeleteButton jobId={props.job.id} title={props.job.title} />
+          ) : null}
+          ''',
+              1,
+          )
+          old_bottom_delete = '''          {props.canEditMetadata ? (
+            <form action={deleteCreativeJobAction}>
+              <input type="hidden" name="jobId" value={props.job.id} />
+              <ConfirmSubmitButton
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-[#e5c5c8] bg-white px-3 text-xs font-black text-[#a43b50]"
+                pendingLabel="封存中…"
+                confirmMessage={`確定封存「${props.job.title}」？日後可由 Database audit 回溯。`}
+              >
+                <Trash2 size={14} /> 封存呢張 Job
+              </ConfirmSubmitButton>
+            </form>
+          ) : null}
+          '''
+          if old_bottom_delete not in studio:
+              raise SystemExit("CreativeJobStudio: bottom delete marker missing")
+          studio = studio.replace(
+              old_bottom_delete,
+              '''          {props.canEditMetadata ? (
+            <CreativeJobDeleteButton
+              jobId={props.job.id}
+              title={props.job.title}
+              fullWidth
+            />
+          ) : null}
+          ''',
+              1,
+          )
+          studio_path.write_text(studio, encoding="utf-8")
+
+          # 5. Preserve published calendar history; remove an unpublished linked item when deleting a Job.
+          actions_path = Path("src/app/creative-jobs/actions.ts")
+          actions = actions_path.read_text(encoding="utf-8")
+          delete_pattern = re.compile(
+              r'export async function deleteCreativeJobAction\(formData: FormData\) \{.*?\n\}\n\nasync function requireCreativeSettings',
+              re.S,
+          )
+          replacement = '''export async function deleteCreativeJobAction(formData: FormData) {
+            const access = await requireCreativeAction();
+            const jobId = readString(formData, "jobId");
+            const record = await getCreativeJobAccessRecord(jobId);
+            if (
+              !record.job ||
+              !canEditCreativeJobMetadata(access, {
+                brandId: String(record.job.brand_id),
+                assigneeMemberId:
+                  typeof record.job.assignee_member_id === "string"
+                    ? record.job.assignee_member_id
+                    : null,
+              })
+            ) {
+              redirectWithMessage("/creative-jobs", false, "你未獲授權刪除呢張工作。" );
+            }
+
+            const supabase = createSupabaseAdminClient();
+            const calendarItemId =
+              typeof record.job.calendar_item_id === "string"
+                ? record.job.calendar_item_id
+                : "";
+            let calendarItemRemoved = false;
+            let publishedCalendarPreserved = false;
+
+            if (calendarItemId) {
+              const { data: calendarItem, error: calendarReadError } = await supabase
+                .from("marketing_calendar_items")
+                .select("status")
+                .eq("id", calendarItemId)
+                .maybeSingle();
+              if (calendarReadError) {
+                redirectWithMessage(
+                  "/creative-jobs",
+                  false,
+                  "未能確認已連結嘅營銷日曆事項，Job 尚未刪除。"
+                );
+              }
+              if (calendarItem && String(calendarItem.status).toLowerCase() === "published") {
+                publishedCalendarPreserved = true;
+              } else if (calendarItem) {
+                const { error: calendarDeleteError } = await supabase
+                  .from("marketing_calendar_items")
+                  .delete()
+                  .eq("id", calendarItemId);
+                if (calendarDeleteError) {
+                  redirectWithMessage(
+                    "/creative-jobs",
+                    false,
+                    "未能移除尚未出街嘅日曆事項，Job 尚未刪除。"
+                  );
+                }
+                calendarItemRemoved = true;
+              }
+            }
+
+            const deletedAt = new Date().toISOString();
+            const { error } = await supabase
+              .from("creative_jobs")
+              .update({ deleted_at: deletedAt })
+              .eq("id", jobId)
+              .is("deleted_at", null);
+            if (error) {
+              redirectWithMessage("/creative-jobs", false, "未能刪除設計工作。" );
+            }
+
+            await writeCreativeAudit({
+              jobId,
+              access,
+              action: "creative_job.deleted",
+              before: {
+                title: record.job.title,
+                status: record.job.status,
+                calendarItemId: calendarItemId || null,
+              },
+              after: {
+                deletedAt,
+                calendarItemRemoved,
+                publishedCalendarPreserved,
+              },
+            });
+            revalidateCreative(jobId);
+            redirectWithMessage(
+              "/creative-jobs",
+              true,
+              publishedCalendarPreserved
+                ? "設計工作已刪除；已 Published 嘅日曆紀錄會保留。"
+                : "設計工作已刪除；Audit 紀錄仍然保留。"
+            );
+          }
+
+          async function requireCreativeSettings'''
+          actions, count = delete_pattern.subn(replacement, actions, count=1)
+          if count != 1:
+              raise SystemExit(f"actions.ts: expected one delete action, replaced {count}")
+          actions_path.write_text(actions, encoding="utf-8")
+
+          # 6. Keep fixture and acceptance coverage aligned with production.
+          fixture_path = Path("src/components/creative/CreativeProductionFixture.tsx")
+          fixture = fixture_path.read_text(encoding="utf-8")
+          fixture_import = 'import { CreativeJobCreateDialog } from "@/components/creative/CreativeJobCreateDialog";\n'
+          if fixture_import not in fixture:
+              raise SystemExit("CreativeProductionFixture: create dialog import missing")
+          fixture = fixture.replace(
+              fixture_import,
+              fixture_import + 'import { CreativeJobDeleteButton } from "@/components/creative/CreativeJobDeleteButton";\n',
+              1,
+          )
+          fixture = fixture.replace(
+              'grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)]',
+              'grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)_44px]',
+              2,
+          )
+          fixture_header = '''            <span>時間</span>
+            <span>狀態</span>
+          </div>
+          '''
+          if fixture_header not in fixture:
+              raise SystemExit("CreativeProductionFixture: header marker missing")
+          fixture = fixture.replace(
+              fixture_header,
+              '''            <span>時間</span>
+            <span>狀態</span>
+            <span className="sr-only">操作</span>
+          </div>
+          ''',
+              1,
+          )
+          fixture_status = '''            <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[9px] font-black">
+              製作中
+            </span>
+          </div>
+          '''
+          if fixture_status not in fixture:
+              raise SystemExit("CreativeProductionFixture: status marker missing")
+          fixture = fixture.replace(
+              fixture_status,
+              '''            <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[9px] font-black">
+              製作中
+            </span>
+            <CreativeJobDeleteButton
+              jobId="fixture-job"
+              title="GOS KOL 脫毛廣告片"
+              compact
+              fixtureMode
+            />
+          </div>
+          ''',
+              1,
+          )
+          fixture_path.write_text(fixture, encoding="utf-8")
+
+          test_path = Path("e2e/creative-production.spec.ts")
+          tests = test_path.read_text(encoding="utf-8")
+          first_assertion = '  await expect(list).toContainText("Video");\n'
+          if first_assertion not in tests:
+              raise SystemExit("creative-production.spec.ts: first test marker missing")
+          tests = tests.replace(
+              first_assertion,
+              first_assertion + '''  await expect(
+            list.getByRole("button", { name: "刪除 GOS KOL 脫毛廣告片" })
+          ).toBeVisible();
+          ''',
+              1,
+          )
+          route_test_marker = 'test("new Creative Job opens in a focused dialog and keeps date guidance contextual", async ({\n'
+          if route_test_marker not in tests:
+              raise SystemExit("creative-production.spec.ts: dialog test marker missing")
+          route_test = '''test("Creative Jobs route loads without invalid use-server exports", async ({ page }) => {
+            const response = await page.goto("/creative-jobs", {
+              waitUntil: "domcontentloaded",
+            });
+            expect(response?.status() ?? 500).toBeLessThan(500);
+            await expect(page.getByRole("heading", { name: "設計工作" })).toBeVisible();
+          });
+
+          '''
+          tests = tests.replace(route_test_marker, route_test + route_test_marker, 1)
+          test_path.write_text(tests, encoding="utf-8")
+
+          contract_path = Path("scripts/verify-creative-production-contract.mjs")
+          contract = contract_path.read_text(encoding="utf-8")
+          action_read_marker = 'const actions = read("src/app/creative-jobs/actions.ts");\n'
+          if action_read_marker not in contract:
+              raise SystemExit("Creative contract: actions read marker missing")
+          contract = contract.replace(
+              action_read_marker,
+              action_read_marker + 'const createAction = read("src/app/creative-jobs/createAction.ts");\nconst createDialog = read("src/components/creative/CreativeJobCreateDialog.tsx");\nconst deleteButton = read("src/components/creative/CreativeJobDeleteButton.tsx");\n',
+              1,
+          )
+          assertion_marker = 'assert.match(actions, /createCreativeDraftAction/);\n'
+          if assertion_marker not in contract:
+              raise SystemExit("Creative contract: action assertion marker missing")
+          contract = contract.replace(
+              assertion_marker,
+              assertion_marker + '''assert.doesNotMatch(createAction, /export\\s+(?:const|let|var|class)\\s+/);
+          assert.match(createAction, /export async function createCreativeJobAction/);
+          assert.match(createDialog, /const initialCreativeJobCreateState/);
+          assert.match(deleteButton, /deleteCreativeJobAction/);
+          assert.match(deleteButton, /Audit 紀錄仍然保留/);
+          ''',
+              1,
+          )
+          list_assertion = 'assert.match(listPage, /Designer/);\n'
+          if list_assertion not in contract:
+              raise SystemExit("Creative contract: list assertion marker missing")
+          contract = contract.replace(
+              list_assertion,
+              list_assertion + 'assert.match(listPage, /CreativeJobDeleteButton/);\nassert.match(studio, /CreativeJobDeleteButton/);\nassert.match(actions, /publishedCalendarPreserved/);\n',
+              1,
+          )
+          contract_path.write_text(contract, encoding="utf-8")
+
+          learning = '''# Creative Job 建立失敗與刪除入口修正
+
+          ## 問題
+
+          新增設計 Job 後，Production 顯示伺服器錯誤。Vercel Runtime Error 指向：`A "use server" file can only export async functions, found object.`
+
+          同時，Job List 冇直接刪除入口；原有軟刪除操作只放喺 Job 詳情頁底部，而且文字寫成「封存」，使用者難以發現。
+
+          ## 根因
+
+          `src/app/creative-jobs/createAction.ts` 係 `use server` 模組，但除咗 async Server Action 外，亦 export 咗 `initialCreativeJobCreateState` object。Next.js Production runtime 會拒絕載入呢類非 async runtime export。
+
+          ## 修正
+
+          - Initial action state 移回 Client component，Server Action 模組只保留 async runtime export。
+          - Job List 每行加入清晰「刪除 Job」入口，並避免將 button 放入 Link。
+          - Job 詳情頁頂部及設定區保留同一個共用刪除控制。
+          - 刪除仍採用 soft delete，工作會從日常 Job List 移除，但 Audit 紀錄保留。
+          - 未 Published 嘅連結日曆事項會一併移除；已 Published 紀錄保留作歷史證據。
+          - 加入實際 `/creative-jobs` route runtime acceptance，防止 Build 綠燈但 Production module evaluation 失敗。
+
+          ## 可重用規則
+
+          1. `use server` 檔案不得 export object、array、class 或其他 runtime value；共享 initial state 應放 Client／neutral module。
+          2. 破壞性操作要喺使用者管理資料嘅主要列表或頁首清晰可見，不應只藏喺長頁底部。
+          3. 刪除有跨系統連結時，要同時處理未發生嘅排程，但保留已 Published 歷史。
+          4. Server Action 相關改動除咗 Build，必須實際載入引用該 Action 嘅 Production route。
+          '''
+          Path("docs/product-learning/entries/2026-09-01-creative-job-create-delete-hotfix.md").write_text(
+              learning,
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify production build and contracts
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify Creative Jobs runtime, delete control and rich Brief
+        run: npm run test:creative
+
+      - name: Verify full application regression
+        run: npm run test:e2e
+
+      - name: Commit verified hotfix
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git diff --cached --check
+          git status --short
+          git commit -m "Fix Creative Job creation and add clear delete controls"
+          git push origin HEAD:fix/creative-job-create-delete-hotfix
