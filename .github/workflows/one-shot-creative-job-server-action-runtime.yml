@@ -47,12 +47,18 @@ jobs:
 
           path = Path("e2e/creative-production.spec.ts")
           source = path.read_text(encoding="utf-8")
-          source = source.replace(
-              '  await expect(page.getByRole("heading", { name: "設計工作" })).toBeVisible();\n',
-              "",
-              1,
+          old = (
+              '  expect(response?.status() ?? 500).toBeLessThan(500);\n'
+              '  await expect(page.getByRole("heading", { name: "設計工作" })).toBeVisible();\n'
+              '  await expect(page.locator("body")).not.toContainText(\n'
           )
-          path.write_text(source, encoding="utf-8")
+          new = (
+              '  expect(response?.status() ?? 500).toBeLessThan(500);\n'
+              '  await expect(page.locator("body")).not.toContainText(\n'
+          )
+          if old not in source:
+              raise SystemExit("Creative route assertion marker missing")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
           PY
 
       - name: Install dependencies
