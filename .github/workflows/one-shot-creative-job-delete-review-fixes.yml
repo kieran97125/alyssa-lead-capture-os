@@ -1,0 +1,78 @@
+name: One-shot Creative Job Delete Review Fixes
+
+on:
+  push:
+    branches:
+      - fix/creative-job-delete-discoverability
+
+permissions:
+  contents: write
+
+jobs:
+  remediate-verify-and-commit:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 50
+    env:
+      CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      E2E_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+
+    steps:
+      - name: Checkout deletion UX branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/creative-job-delete-discoverability
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply review remediation
+        run: python3 scripts/apply-creative-job-delete-review-fixes.py
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Generate deterministic Creative deletion baselines
+        run: npx playwright test e2e/creative-production.spec.ts --update-snapshots
+
+      - name: Verify production build and contracts
+        run: npm run build
+
+      - name: Verify Storybook evidence
+        run: npm run build:storybook
+
+      - name: Verify Creative interactions and baselines
+        run: npm run test:creative
+
+      - name: Verify Design Quality gates
+        run: npm run test:design
+
+      - name: Verify full application regression
+        run: npm run test:e2e
+
+      - name: Commit verified review remediation
+        shell: bash
+        run: |
+          rm -f scripts/apply-creative-job-delete-review-fixes.py
+          rm -f .github/workflows/one-shot-creative-job-delete-review-fixes.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git diff --cached --check
+          git status --short
+          git commit -m "Complete Creative Job deletion UX evidence"
+          git push origin HEAD:fix/creative-job-delete-discoverability
