@@ -10,6 +10,8 @@ const requiredFiles = [
   "components.json",
   "src/app/design-system.css",
   "src/components/system/SystemButton.tsx",
+  "src/components/system/SystemConfirmationDialog.tsx",
+  "src/components/system/SystemConfirmationDialog.stories.tsx",
   "src/components/system/DesignSystemSpecimen.tsx",
   "src/app/e2e/design-system/page.tsx",
   ".storybook/main.ts",
@@ -19,7 +21,11 @@ const requiredFiles = [
   "docs/design-system/README.md",
   "docs/design-system/CHANGELOG.md",
   "docs/design-system/decisions/ADR-001-design-quality-foundation.md",
+  "docs/design-system/decisions/ADR-002-system-confirmation-dialog.md",
   "docs/design-system/rollback/2026-08-31-foundation-v1.md",
+  "docs/design-system/rollback/2026-09-01-creative-job-delete-confirmation.md",
+  "e2e/creative-production.spec.ts-snapshots/creative-job-delete-confirmation-desktop-chromium-linux.png",
+  "e2e/creative-production.spec.ts-snapshots/creative-job-delete-confirmation-mobile-chromium-linux.png",
 ];
 requiredFiles.forEach((file) =>
   assert.ok(exists(file), "Missing design system file: " + file)
@@ -168,8 +174,32 @@ for (const relativeFile of componentFiles) {
   }
 }
 
+const confirmationDialog = read(
+  "src/components/system/SystemConfirmationDialog.tsx"
+);
+const confirmationStory = read(
+  "src/components/system/SystemConfirmationDialog.stories.tsx"
+);
+const creativeVisualTest = read("e2e/creative-production.spec.ts");
+assert.match(confirmationDialog, /@base-ui\/react\/dialog/);
+assert.match(confirmationDialog, /buttonVariants/);
+assert.match(confirmationDialog, /Dialog\.Description/);
+assert.match(confirmationStory, /OpenDanger/);
+assert.match(confirmationStory, /IconTrigger/);
+assert.match(
+  creativeVisualTest,
+  /creative-job-delete-confirmation-desktop\.png/
+);
+assert.match(
+  creativeVisualTest,
+  /creative-job-delete-confirmation-mobile\.png/
+);
 assert.match(read("AGENTS.md"), /Design Quality Gate/);
 assert.match(read("docs/design-system/CHANGELOG.md"), /Foundation v1/);
+assert.match(
+  read("docs/design-system/CHANGELOG.md"),
+  /Creative Job deletion confirmation/
+);
 console.log(
   "Design system contract verified: namespaced tokens, Base UI, Storybook, visual and accessibility gates are present without legacy global collisions."
 );

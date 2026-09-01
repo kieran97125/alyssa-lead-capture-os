@@ -17,6 +17,7 @@ const store = read("src/lib/creative/store.ts");
 const editor = read("src/components/creative/CreativeBriefEditor.tsx");
 const studio = read("src/components/creative/CreativeJobStudio.tsx");
 const listPage = read("src/app/creative-jobs/page.tsx");
+const deleteControl = read("src/components/creative/CreativeJobDeleteControl.tsx");
 const edgeFunction = read(
   "supabase/functions/marketing-web-push-dispatch/index.ts"
 );
@@ -87,10 +88,16 @@ assert.match(studio, /Publish Day/);
 assert.match(listPage, /Source/);
 assert.match(listPage, /媒體格式/);
 assert.match(listPage, /Designer/);
-assert.match(listPage, /deleteCreativeJobAction/);
-assert.match(listPage, /creative-job-list-delete-button/);
-assert.match(studio, /creative-job-delete-button/);
-assert.match(studio, /刪除 Job/);
+assert.match(listPage, /CreativeJobDeleteControl/);
+assert.match(listPage, /listReturnPath/);
+assert.match(listPage, /returnPath=\{listReturnPath\}/);
+assert.match(deleteControl, /SystemConfirmationDialog/);
+assert.match(deleteControl, /deleteCreativeJobAction/);
+assert.match(deleteControl, /creative-job-list-delete-button/);
+assert.match(deleteControl, /creative-job-delete-button/);
+assert.match(studio, /CreativeJobDeleteControl/);
+assert.match(actions, /readString\(formData, "returnPath"\)/);
+assert.match(actions, /redirectWithMessage\(\s*returnPath/);
 assert.match(actions, /設計工作已從 Job List 刪除/);
 
 assert.match(edgeFunction, /creative_job_id/);

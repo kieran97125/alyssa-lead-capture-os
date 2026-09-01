@@ -755,6 +755,13 @@ export async function markCreativeNotificationReadAction(formData: FormData) {
 export async function deleteCreativeJobAction(formData: FormData) {
   const access = await requireCreativeAction();
   const jobId = readString(formData, "jobId");
+  const requestedReturnPath = safeCreativePath(
+    readString(formData, "returnPath"),
+    "/creative-jobs"
+  );
+  const returnPath = requestedReturnPath.startsWith(`/creative-jobs/${jobId}`)
+    ? "/creative-jobs"
+    : requestedReturnPath;
   const record = await getCreativeJobAccessRecord(jobId);
   if (
     !record.job ||
@@ -766,14 +773,16 @@ export async function deleteCreativeJobAction(formData: FormData) {
           : null,
     })
   ) {
-    redirectWithMessage("/creative-jobs", false, "你未獲授權刪除呢張工作。" );
+    redirectWithMessage(returnPath, false, "你未獲授權刪除呢張工作。" );
   }
   const supabase = createSupabaseAdminClient();
   const { error } = await supabase
     .from("creative_jobs")
     .update({ deleted_at: new Date().toISOString() })
     .eq("id", jobId);
-  if (error) redirectWithMessage("/creative-jobs", false, "未能刪除設計工作。" );
+  if (error) {
+    redirectWithMessage(returnPath, false, "未能刪除設計工作。" );
+  }
   await writeCreativeAudit({
     jobId,
     access,
@@ -782,7 +791,7 @@ export async function deleteCreativeJobAction(formData: FormData) {
   });
   revalidateCreative(jobId);
   redirectWithMessage(
-    "/creative-jobs",
+    returnPath,
     true,
     "設計工作已從 Job List 刪除；系統 Audit 記錄仍然保留。"
   );

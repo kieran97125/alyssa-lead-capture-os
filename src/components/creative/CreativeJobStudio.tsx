@@ -36,10 +36,10 @@ import {
   CreativeBriefEditor,
   type CreativeBriefEditorHandle,
 } from "@/components/creative/CreativeBriefEditor";
+import { CreativeJobDeleteControl } from "@/components/creative/CreativeJobDeleteControl";
 import {
   addCreativeCommentAction,
   addCreativeLinkAssetAction,
-  deleteCreativeJobAction,
   markCreativeNotificationReadAction,
   removeCreativeAssetAction,
   updateCreativeJobAction,
@@ -240,17 +240,11 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
             <Clock3 size={13} /> 最後更新 {prettyDateTime(props.job.updatedAt)}
           </div>
           {props.canEditMetadata ? (
-            <form action={deleteCreativeJobAction}>
-              <input type="hidden" name="jobId" value={props.job.id} />
-              <ConfirmSubmitButton
-                data-testid="creative-job-delete-button"
-                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#e5c5c8] bg-white px-3 text-xs font-black text-[#a43b50] transition hover:border-[#d59aa2] hover:bg-[#fff4f4]"
-                pendingLabel="刪除中…"
-                confirmMessage={`確定刪除「${props.job.title}」？刪除後會即時由 Job List 消失；系統 Audit 仍會保留記錄。`}
-              >
-                <Trash2 size={15} /> 刪除 Job
-              </ConfirmSubmitButton>
-            </form>
+            <CreativeJobDeleteControl
+              jobId={props.job.id}
+              title={props.job.title}
+              placement="header"
+            />
           ) : null}
           {props.canManageSettings ? (
             <Link

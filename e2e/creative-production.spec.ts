@@ -48,6 +48,57 @@ test("new Creative Job opens in a focused dialog and keeps date guidance context
   await expect(dialog).toBeHidden();
 });
 
+
+test("Creative Job deletion uses an app-owned confirmation at list and detail placements", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1180, height: 900 });
+  await openFixture(page);
+  await expect(page.getByTestId("creative-job-delete-button")).toBeVisible();
+  await expect(page.getByTestId("creative-job-list-delete-button")).toBeVisible();
+
+  await page.getByTestId("creative-job-list-delete-button").click();
+  const dialog = page.getByTestId("creative-job-delete-confirmation");
+  await expect(dialog).toBeVisible();
+  await expect(
+    dialog.getByRole("heading", {
+      name: "刪除「GOS KOL 脫毛廣告片」？",
+    })
+  ).toBeVisible();
+  await expect(dialog).toContainText("系統 Audit 仍會保留操作記錄");
+  await expect(dialog.getByRole("button", { name: "確認刪除" })).toBeVisible();
+  await dialog.getByRole("button", { name: "取消" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+test("Creative Job delete confirmation desktop visual baseline", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openFixture(page);
+  await page.getByTestId("creative-job-list-delete-button").click();
+  await expect(page.getByTestId("creative-job-delete-confirmation")).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await expect(page).toHaveScreenshot(
+    "creative-job-delete-confirmation-desktop.png",
+    { animations: "disabled", caret: "hide" }
+  );
+});
+
+test("Creative Job delete confirmation mobile visual baseline", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await openFixture(page);
+  await page.getByTestId("creative-job-list-delete-button").click();
+  await expect(page.getByTestId("creative-job-delete-confirmation")).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await expect(page).toHaveScreenshot(
+    "creative-job-delete-confirmation-mobile.png",
+    { animations: "disabled", caret: "hide" }
+  );
+});
+
 test("desktop navigation can collapse to an icon rail and remembers the choice", async ({
   page,
 }) => {
