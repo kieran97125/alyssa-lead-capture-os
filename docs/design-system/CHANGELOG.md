@@ -1,4 +1,3 @@
-
 # Design System Change Log
 
 ## 2026-09-01 — Creative Job deletion confirmation
@@ -23,6 +22,7 @@ Issue: #79
 
 - Storybook: `System/Overlays/SystemConfirmationDialog`.
 - Visual baselines: `creative-job-delete-confirmation-desktop` and `creative-job-delete-confirmation-mobile`.
+- Production build, Creative interaction, Design Quality and full regression gates passed on the release branch.
 - Decision: `ADR-002-system-confirmation-dialog.md`.
 - Rollback: `2026-09-01-creative-job-delete-confirmation.md`.
 
