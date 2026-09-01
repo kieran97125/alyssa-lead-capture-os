@@ -5,6 +5,12 @@ import {
   CreativeBriefEditor,
   type CreativeBriefEditorHandle,
 } from "@/components/creative/CreativeBriefEditor";
+import { CreativeJobCreateDialog } from "@/components/creative/CreativeJobCreateDialog";
+import type { BrandSetting } from "@/lib/data/configuration";
+import type {
+  CreativeDesignerProfile,
+  CreativeTaxonomyItem,
+} from "@/lib/creative/types";
 
 const sampleDocument = {
   type: "doc",
@@ -41,48 +47,129 @@ const sampleDocument = {
   ],
 };
 
+const fixtureBrands: BrandSetting[] = [
+  {
+    id: "fixture-brand",
+    name: "GOS",
+    slug: "gos",
+    primaryColor: "#d66a22",
+    secondaryColor: "#fff4eb",
+    whatsappNumber: null,
+    defaultThankYouUrl: null,
+  },
+];
+
+const fixtureDesigners: CreativeDesignerProfile[] = [
+  {
+    id: "fixture-designer",
+    displayName: "Amber",
+    linkedMemberId: null,
+    linkedMemberName: null,
+    linkedMemberEmail: null,
+    isActive: true,
+    sortOrder: 10,
+  },
+];
+
+const fixtureTaxonomies: CreativeTaxonomyItem[] = [
+  {
+    id: "fixture-source",
+    category: "source",
+    name: "KOL 拍攝 Raw Footage",
+    isActive: true,
+    sortOrder: 10,
+  },
+  {
+    id: "fixture-usage",
+    category: "usage",
+    name: "Meta AD",
+    isActive: true,
+    sortOrder: 10,
+  },
+  {
+    id: "fixture-format",
+    category: "media_format",
+    name: "Video",
+    isActive: true,
+    sortOrder: 10,
+  },
+];
+
 export function CreativeProductionFixture() {
   const editorRef = useRef<CreativeBriefEditorHandle | null>(null);
   return (
-    <main className="min-h-screen bg-[#fbf7f5] p-8 text-[#321428]">
+    <main className="min-h-screen bg-[#fbf7f5] p-4 text-[#321428] sm:p-8">
       <section className="mx-auto max-w-[1500px]">
-        <header>
-          <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a5d76]">
-            Creative production fixture
-          </p>
-          <h1 className="mt-1 text-3xl font-black">設計工作</h1>
+        <header className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a5d76]">
+              Creative production fixture
+            </p>
+            <h1 className="mt-1 text-3xl font-black">設計工作</h1>
+          </div>
+          <CreativeJobCreateDialog
+            brands={fixtureBrands}
+            designers={fixtureDesigners}
+            taxonomies={fixtureTaxonomies}
+            defaultBrandId="fixture-brand"
+            today="2026-09-01"
+            fixtureMode
+          />
         </header>
 
-        <section className="mt-6 overflow-hidden rounded-2xl border border-[#e8dcd5] bg-white" data-testid="creative-job-list-fixture">
-          <div className="grid grid-cols-[2fr_repeat(10,1fr)] gap-2 border-b border-[#eadfd9] bg-[#fbf9f7] px-4 py-3 text-[10px] font-black">
-            {[
-              "Job",
-              "品牌",
-              "Designer",
-              "Source",
-              "用途",
-              "媒體格式",
-              "優先",
-              "Start",
-              "Due",
-              "出街／日曆",
-              "狀態",
-            ].map((label) => (
-              <span key={label}>{label}</span>
-            ))}
+        <section
+          className="mt-6 min-w-0 overflow-hidden rounded-2xl border border-[#e8dcd5] bg-white"
+          data-testid="creative-job-list-fixture"
+        >
+          <div className="hidden grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] gap-4 border-b border-[#eadfd9] bg-[#fbf9f7] px-4 py-3 text-[10px] font-black xl:grid">
+            <span>Job</span>
+            <span>負責</span>
+            <span>製作規格</span>
+            <span>時間</span>
+            <span>狀態</span>
           </div>
-          <div className="grid grid-cols-[2fr_repeat(10,1fr)] gap-2 px-4 py-4 text-[11px] font-semibold">
-            <strong>GOS KOL 脫毛廣告片</strong>
-            <span>GOS</span>
-            <span>Amber</span>
-            <span>KOL 拍攝</span>
-            <span>Meta AD</span>
-            <span>Video</span>
-            <span>優先</span>
-            <span>1/9</span>
-            <span>4/9</span>
-            <span>6/9</span>
-            <span>製作中</span>
+          <div className="grid min-w-0 grid-cols-1 gap-4 px-4 py-4 text-[11px] font-semibold md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center">
+            <div className="min-w-0">
+              <strong className="block truncate text-sm">
+                GOS KOL 脫毛廣告片
+              </strong>
+              <span className="mt-1 block text-[9px] text-[#927987]">
+                3 件 · M workload · 優先
+              </span>
+            </div>
+            <div className="grid gap-1.5">
+              <span>
+                <small className="mr-2 text-[#927987]">品牌</small>GOS
+              </span>
+              <span>
+                <small className="mr-2 text-[#927987]">Designer</small>Amber
+              </span>
+            </div>
+            <div className="grid min-w-0 gap-1.5">
+              <span className="truncate">
+                <small className="mr-2 text-[#927987]">Source</small>KOL 拍攝 Raw Footage
+              </span>
+              <span>
+                <small className="mr-2 text-[#927987]">用途</small>Meta AD
+              </span>
+              <span>
+                <small className="mr-2 text-[#927987]">媒體格式</small>Video
+              </span>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              <span className="rounded-xl bg-[#f8f4f2] p-2">
+                <small className="block text-[#927987]">Start</small>1/9
+              </span>
+              <span className="rounded-xl bg-[#f8f4f2] p-2">
+                <small className="block text-[#927987]">Due</small>4/9
+              </span>
+              <span className="rounded-xl bg-[#f8f4f2] p-2">
+                <small className="block text-[#927987]">Publish</small>6/9
+              </span>
+            </div>
+            <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[9px] font-black">
+              製作中
+            </span>
           </div>
         </section>
 

@@ -1,0 +1,177 @@
+.collapseButton {
+  position: absolute;
+  top: 1.45rem;
+  right: -0.78rem;
+  z-index: 4;
+  display: grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  place-items: center;
+  border: 1px solid var(--command-border);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.98);
+  color: var(--command-primary);
+  box-shadow: 0 8px 24px rgba(90, 35, 72, 0.14);
+  transition:
+    transform 160ms ease,
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.collapseButton:hover {
+  transform: translateY(-1px);
+  border-color: #cda9bb;
+  background: #fff8fb;
+}
+
+.collapseButton:focus-visible {
+  outline: 3px solid var(--command-focus);
+  outline-offset: 2px;
+}
+
+:global(.command-sidebar),
+:global(.alyssa-shell),
+:global(.system-page-loading) {
+  transition:
+    width 180ms ease,
+    padding-left 180ms ease;
+}
+
+:global(html[data-command-sidebar="collapsed"]) {
+  --command-sidebar-width: 82px;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-brand) {
+  padding: 1.25rem 0.65rem 0.9rem;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-brand-link) {
+  justify-content: center;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-brand-copy),
+:global(html[data-command-sidebar="collapsed"] .command-nav-label),
+:global(html[data-command-sidebar="collapsed"] .command-nav-chevron),
+:global(html[data-command-sidebar="collapsed"] .command-nav-group > p),
+:global(html[data-command-sidebar="collapsed"] .command-account-copy),
+:global(html[data-command-sidebar="collapsed"] .command-account-card > svg),
+:global(html[data-command-sidebar="collapsed"] .command-logout-button > span),
+:global(html[data-command-sidebar="collapsed"] .command-nav-item > .intent-link-status) {
+  display: none;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-navigation) {
+  padding: 0.15rem 0.55rem 1rem;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-nav-group + .command-nav-group) {
+  margin-top: 0.7rem;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-nav-item) {
+  position: relative;
+  justify-content: center;
+  gap: 0;
+  padding-inline: 0.65rem;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-nav-item:hover) {
+  transform: none;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-nav-badge) {
+  position: absolute;
+  top: 0.2rem;
+  right: 0.2rem;
+  display: grid;
+  min-width: 1.05rem;
+  height: 1.05rem;
+  place-items: center;
+  margin: 0;
+  padding: 0 0.25rem;
+  border: 2px solid white;
+  background: var(--command-primary);
+  color: white;
+  font-size: 0.48rem;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-sidebar-footer) {
+  padding: 0.65rem 0.55rem;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-account-card) {
+  justify-content: center;
+  padding: 0.45rem;
+}
+
+:global(html[data-command-sidebar="collapsed"] .command-logout-button) {
+  width: 100%;
+  padding-inline: 0.55rem;
+}
+
+@media (max-width: 1024px) {
+  .collapseButton {
+    display: none;
+  }
+
+  :global(html[data-command-sidebar="collapsed"]) {
+    --command-sidebar-width: 272px;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-brand) {
+    padding: 1.35rem 1.2rem 1rem;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-brand-link),
+  :global(html[data-command-sidebar="collapsed"] .command-account-card),
+  :global(html[data-command-sidebar="collapsed"] .command-nav-item) {
+    justify-content: flex-start;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-brand-copy),
+  :global(html[data-command-sidebar="collapsed"] .command-nav-label),
+  :global(html[data-command-sidebar="collapsed"] .command-account-copy),
+  :global(html[data-command-sidebar="collapsed"] .command-account-card > svg),
+  :global(html[data-command-sidebar="collapsed"] .command-logout-button > span),
+  :global(html[data-command-sidebar="collapsed"] .command-nav-chevron),
+  :global(html[data-command-sidebar="collapsed"] .command-nav-group > p) {
+    display: block;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-navigation) {
+    padding: 0.15rem 0.85rem 1rem;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-nav-group + .command-nav-group) {
+    margin-top: 1.05rem;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-nav-item) {
+    gap: 0.7rem;
+    padding: 0.62rem 0.72rem;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-sidebar-footer) {
+    padding: 0.85rem;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-account-card) {
+    padding: 0.65rem;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-logout-button) {
+    padding: 0.65rem 0.7rem;
+  }
+
+  :global(html[data-command-sidebar="collapsed"] .command-nav-badge) {
+    position: static;
+    display: inline-flex;
+    min-width: 0;
+    height: auto;
+    margin-left: auto;
+    border: 0;
+    background: var(--command-primary-soft);
+    color: var(--command-accent-strong);
+    font-size: 0.58rem;
+  }
+}

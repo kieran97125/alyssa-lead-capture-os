@@ -1,16 +1,14 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import {
   AlertTriangle,
+  BellRing,
   CalendarCheck2,
   CheckCircle2,
   Clock3,
   Filter,
   ImagePlus,
   Layers3,
-  ListFilter,
   Palette,
-  Plus,
   Settings2,
   Sparkles,
   UserRound,
@@ -18,6 +16,7 @@ import {
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { DesktopNotificationControl } from "@/components/command-center/DesktopNotificationControl";
+import { CreativeJobCreateDialog } from "@/components/creative/CreativeJobCreateDialog";
 import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 import { getCreativeListSnapshot } from "@/lib/creative/store";
 import {
@@ -26,7 +25,6 @@ import {
   creativePriorities,
   creativePriorityLabels,
 } from "@/lib/creative/types";
-import { createCreativeDraftAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -44,10 +42,7 @@ function prettyDate(value: string | null) {
   }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
-function viewHref(
-  current: Record<string, string>,
-  view: string
-) {
+function viewHref(current: Record<string, string>, view: string) {
   const params = new URLSearchParams(current);
   if (view) params.set("view", view);
   else params.delete("view");
@@ -92,7 +87,10 @@ export default async function CreativeJobsPage({
 
   const query = (await searchParams) ?? {};
   const filters = {
-    scope: firstParam(query.scope) === "mine" ? ("mine" as const) : ("all" as const),
+    scope:
+      firstParam(query.scope) === "mine"
+        ? ("mine" as const)
+        : ("all" as const),
     brandId: firstParam(query.brand),
     status: firstParam(query.status),
     priority: firstParam(query.priority),
@@ -110,12 +108,42 @@ export default async function CreativeJobsPage({
   const commandStatus = firstParam(query.creative_status);
 
   const quickViews = [
-    { value: "", label: "全部進行中", count: snapshot.stats.open, icon: Layers3 },
-    { value: "waiting", label: "等素材", count: snapshot.stats.waiting, icon: Clock3 },
-    { value: "review", label: "待 Review／修改", count: snapshot.stats.review, icon: Sparkles },
-    { value: "overdue", label: "已逾期", count: snapshot.stats.overdue, icon: AlertTriangle },
-    { value: "publish", label: "即將出街", count: null, icon: CalendarCheck2 },
-    { value: "completed", label: "已完成", count: null, icon: CheckCircle2 },
+    {
+      value: "",
+      label: "全部進行中",
+      count: snapshot.stats.open,
+      icon: Layers3,
+    },
+    {
+      value: "waiting",
+      label: "等素材",
+      count: snapshot.stats.waiting,
+      icon: Clock3,
+    },
+    {
+      value: "review",
+      label: "待 Review／修改",
+      count: snapshot.stats.review,
+      icon: Sparkles,
+    },
+    {
+      value: "overdue",
+      label: "已逾期",
+      count: snapshot.stats.overdue,
+      icon: AlertTriangle,
+    },
+    {
+      value: "publish",
+      label: "即將出街",
+      count: null,
+      icon: CalendarCheck2,
+    },
+    {
+      value: "completed",
+      label: "已完成",
+      count: null,
+      icon: CheckCircle2,
+    },
   ];
 
   return (
@@ -128,29 +156,34 @@ export default async function CreativeJobsPage({
               <p className="command-page-kicker">Creative production</p>
               <h1 className="command-page-title">設計工作</h1>
               <p className="command-page-subtitle">
-                Marketer 派 Job 畀 Designer；Job List 跟 Start Day，截止跟 Due Day，勾選同步後出街及營銷日曆跟 Publish Day。
+                Marketer 派 Job、Designer 製作、Review、修改、Final 同出街日程集中管理。
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2">
               {snapshot.canManageSettings ? (
-                <Link href="/settings/creative" className="command-secondary-button">
+                <Link
+                  href="/settings/creative"
+                  className="command-secondary-button"
+                >
                   <Settings2 size={15} /> 分類及 Designer
                 </Link>
               ) : null}
+              <details className="group relative">
+                <summary className="command-secondary-button list-none [&::-webkit-details-marker]:hidden">
+                  <BellRing size={15} /> 通知設定
+                </summary>
+                <div className="absolute right-0 top-full z-40 mt-2 w-[min(360px,calc(100vw-2rem))]">
+                  <DesktopNotificationControl />
+                </div>
+              </details>
               {snapshot.canCreate ? (
-                <form action={createCreativeDraftAction}>
-                  <input
-                    type="hidden"
-                    name="brandId"
-                    value={filters.brandId || snapshot.brands[0]?.id || ""}
-                  />
-                  <SubmitButton
-                    className="command-primary-button"
-                    pendingLabel="建立中…"
-                  >
-                    <Plus size={16} /> 新增設計 Job
-                  </SubmitButton>
-                </form>
+                <CreativeJobCreateDialog
+                  brands={snapshot.brands}
+                  designers={snapshot.designers}
+                  taxonomies={snapshot.taxonomies}
+                  defaultBrandId={filters.brandId || snapshot.brands[0]?.id}
+                  today={snapshot.today}
+                />
               ) : null}
             </div>
           </header>
@@ -168,14 +201,19 @@ export default async function CreativeJobsPage({
           {!snapshot.schemaReady ? (
             <section className="command-surface p-8 text-center">
               <AlertTriangle className="mx-auto text-[#a43b50]" size={28} />
-              <h2 className="mt-3 text-lg font-black">Creative Studio Database 尚未完成設定</h2>
+              <h2 className="mt-3 text-lg font-black">
+                Creative Studio Database 尚未完成設定
+              </h2>
               <p className="mt-2 text-sm font-semibold text-[#806174]">
                 頁面已準備好，但要先套用 Creative Production migration。
               </p>
             </section>
           ) : (
             <>
-              <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-6" aria-label="設計工作快速檢視">
+              <section
+                className="grid gap-3 md:grid-cols-3 xl:grid-cols-6"
+                aria-label="設計工作快速檢視"
+              >
                 {quickViews.map((view) => {
                   const Icon = view.icon;
                   const active = filters.view === view.value;
@@ -195,7 +233,11 @@ export default async function CreativeJobsPage({
                           <strong className="text-xl">{view.count}</strong>
                         ) : null}
                       </div>
-                      <span className={`mt-3 block text-[11px] font-black ${active ? "text-white" : "text-[#6d4a5c]"}`}>
+                      <span
+                        className={`mt-3 block text-[11px] font-black ${
+                          active ? "text-white" : "text-[#6d4a5c]"
+                        }`}
+                      >
                         {view.label}
                       </span>
                     </Link>
@@ -203,179 +245,197 @@ export default async function CreativeJobsPage({
                 })}
               </section>
 
-              <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
-                <div className="min-w-0">
-                  <section className="command-surface overflow-hidden">
-                    <header className="flex flex-col gap-3 border-b border-[#ead9cf] p-4 lg:flex-row lg:items-end lg:justify-between">
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#9a5d76]">
-                          Job list
-                        </p>
-                        <h2 className="mt-1 text-lg font-black">
-                          {snapshot.jobs.length} 項設計工作
-                        </h2>
-                        <p className="mt-1 text-[11px] font-semibold text-[#806174]">
-                          同日工作先按緊急／優先排序，再按 Start Day 及 Due Day 排列。
-                        </p>
-                      </div>
-                      <form method="get" className="flex flex-wrap items-end gap-2">
-                        <input type="hidden" name="view" value={filters.view} />
-                        <FilterSelect
-                          label="範圍"
-                          name="scope"
-                          value={filters.scope}
-                          options={[
-                            ["all", "全部工作"],
-                            ["mine", "與我有關"],
-                          ]}
-                        />
-                        <FilterSelect
-                          label="品牌"
-                          name="brand"
-                          value={filters.brandId}
-                          options={[
-                            ["", "全部品牌"],
-                            ...snapshot.brands.map((brand) => [brand.id, brand.name] as [string, string]),
-                          ]}
-                        />
-                        <FilterSelect
-                          label="Designer"
-                          name="designer"
-                          value={filters.designerId}
-                          options={[
-                            ["", "全部 Designer"],
-                            ...snapshot.designers.map((designer) => [designer.id, designer.displayName] as [string, string]),
-                          ]}
-                        />
-                        <FilterSelect
-                          label="狀態"
-                          name="status"
-                          value={filters.status}
-                          options={[
-                            ["", "全部狀態"],
-                            ...creativeJobStatuses.map((status) => [status, creativeJobStatusLabels[status]] as [string, string]),
-                          ]}
-                        />
-                        <FilterSelect
-                          label="優先級"
-                          name="priority"
-                          value={filters.priority}
-                          options={[
-                            ["", "全部"],
-                            ...creativePriorities.map((priority) => [priority, creativePriorityLabels[priority]] as [string, string]),
-                          ]}
-                        />
-                        <SubmitButton
-                          className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#5a2348] px-3 text-[10px] font-black text-white"
-                          pendingLabel="載入中…"
-                        >
-                          <Filter size={13} /> 套用
-                        </SubmitButton>
-                      </form>
-                    </header>
+              <section className="command-surface mt-4 min-w-0 overflow-hidden">
+                <header className="flex flex-col gap-4 border-b border-[#ead9cf] p-4 xl:flex-row xl:items-end xl:justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#9a5d76]">
+                      Job list
+                    </p>
+                    <h2 className="mt-1 text-lg font-black">
+                      {snapshot.jobs.length} 項設計工作
+                    </h2>
+                    <p className="mt-1 text-[11px] font-semibold text-[#806174]">
+                      先按 Start Day；同日再按緊急／優先，最後按 Due Day。
+                    </p>
+                  </div>
+                  <form
+                    method="get"
+                    className="flex w-full flex-wrap items-end gap-2 xl:w-auto xl:justify-end"
+                  >
+                    <input type="hidden" name="view" value={filters.view} />
+                    <FilterSelect
+                      label="範圍"
+                      name="scope"
+                      value={filters.scope}
+                      options={[
+                        ["all", "全部工作"],
+                        ["mine", "與我有關"],
+                      ]}
+                    />
+                    <FilterSelect
+                      label="品牌"
+                      name="brand"
+                      value={filters.brandId}
+                      options={[
+                        ["", "全部品牌"],
+                        ...snapshot.brands.map(
+                          (brand) => [brand.id, brand.name] as [string, string]
+                        ),
+                      ]}
+                    />
+                    <FilterSelect
+                      label="Designer"
+                      name="designer"
+                      value={filters.designerId}
+                      options={[
+                        ["", "全部 Designer"],
+                        ...snapshot.designers.map(
+                          (designer) =>
+                            [designer.id, designer.displayName] as [string, string]
+                        ),
+                      ]}
+                    />
+                    <FilterSelect
+                      label="狀態"
+                      name="status"
+                      value={filters.status}
+                      options={[
+                        ["", "全部狀態"],
+                        ...creativeJobStatuses.map(
+                          (status) =>
+                            [status, creativeJobStatusLabels[status]] as [
+                              string,
+                              string,
+                            ]
+                        ),
+                      ]}
+                    />
+                    <FilterSelect
+                      label="優先級"
+                      name="priority"
+                      value={filters.priority}
+                      options={[
+                        ["", "全部"],
+                        ...creativePriorities.map(
+                          (priority) =>
+                            [priority, creativePriorityLabels[priority]] as [
+                              string,
+                              string,
+                            ]
+                        ),
+                      ]}
+                    />
+                    <SubmitButton
+                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#5a2348] px-3 text-[10px] font-black text-white"
+                      pendingLabel="載入中…"
+                    >
+                      <Filter size={13} /> 套用
+                    </SubmitButton>
+                  </form>
+                </header>
 
-                    {snapshot.jobs.length ? (
-                      <div className="overflow-x-auto">
-                        <div className="min-w-[1320px]">
-                          <div className="grid grid-cols-[minmax(270px,1.9fr)_130px_120px_150px_120px_140px_90px_115px_115px_130px_120px] border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174]">
-                            <span>Job</span>
-                            <span>品牌</span>
-                            <span>Designer</span>
-                            <span>Source</span>
-                            <span>用途</span>
-                            <span>媒體格式</span>
-                            <span>優先</span>
-                            <span>Start</span>
-                            <span>Due</span>
-                            <span>出街／日曆</span>
-                            <span>狀態</span>
-                          </div>
-                          {snapshot.jobs.map((job) => (
-                            <Link
-                              key={job.id}
-                              href={`/creative-jobs/${job.id}`}
-                              className="grid grid-cols-[minmax(270px,1.9fr)_130px_120px_150px_120px_140px_90px_115px_115px_130px_120px] items-center border-b border-[#f0e7e2] px-4 py-3 text-[11px] font-semibold transition last:border-b-0 hover:bg-[#fff9fb]"
-                            >
-                              <span className="min-w-0 pr-3">
-                                <strong className="block truncate text-xs text-[#321428]">
-                                  {job.title}
-                                </strong>
-                                <small className="mt-1 block text-[9px] font-bold text-[#927987]">
-                                  {job.quantity} 件 · {job.workload} workload
-                                  {job.materialStatus === "waiting" ? " · 等素材" : ""}
-                                </small>
-                              </span>
-                              <span className="truncate font-black text-[#6d4a5c]">
-                                {job.brandName}
-                              </span>
-                              <span className="truncate">
-                                {job.assigneeProfileName || "未派"}
-                              </span>
-                              <span className="truncate">{job.sourceName || "—"}</span>
-                              <span className="truncate">{job.usageName || "—"}</span>
-                              <span className="truncate">{job.mediaFormatName || "—"}</span>
-                              <span>
-                                <PriorityBadge value={job.priority} />
-                              </span>
-                              <span>{prettyDate(job.startDate)}</span>
-                              <span className={job.dueDate && job.dueDate < snapshot.today && !["completed", "cancelled"].includes(job.status) ? "font-black text-[#a43b50]" : ""}>
-                                {prettyDate(job.dueDate)}
-                              </span>
-                              <span>
-                                {job.syncCalendar ? (
-                                  <span className="inline-flex items-center gap-1 font-bold text-[#53677e]">
-                                    <CalendarCheck2 size={12} /> {prettyDate(job.publishDate)}
-                                  </span>
-                                ) : (
-                                  <span className="text-[#927987]">不同步</span>
-                                )}
-                              </span>
-                              <span>
-                                <StatusBadge status={job.status} />
-                              </span>
-                            </Link>
-                          ))}
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="p-12 text-center">
-                        <ImagePlus className="mx-auto text-[#a17b8d]" size={28} />
-                        <h3 className="mt-3 text-sm font-black">暫時冇符合條件嘅設計工作</h3>
-                        <p className="mt-1 text-xs font-semibold text-[#806174]">
-                          Marketer 可以按右上角「新增設計 Job」開始派工作。
-                        </p>
-                      </div>
-                    )}
-                  </section>
-                </div>
-
-                <aside className="grid h-fit gap-4 xl:sticky xl:top-5">
-                  <section className="command-surface overflow-hidden">
-                    <header className="border-b border-[#ead9cf] bg-[#fffaf7] p-4">
-                      <div className="flex items-center gap-2">
-                        <ListFilter size={16} className="text-[#7c365f]" />
-                        <div>
-                          <strong className="block text-xs">派 Job 規則</strong>
-                          <small className="text-[10px] font-semibold text-[#806174]">
-                            三個日期各有明確用途
-                          </small>
-                        </div>
-                      </div>
-                    </header>
-                    <div className="grid gap-3 p-4 text-[10px] font-semibold leading-4 text-[#6d4a5c]">
-                      <Rule icon={Clock3} title="Start Day">
-                        預設香港今日，可改；決定 Job List 顯示及開始提醒。
-                      </Rule>
-                      <Rule icon={AlertTriangle} title="Due Day">
-                        Designer 交稿截止；控制 24 小時提醒同逾期。
-                      </Rule>
-                      <Rule icon={CalendarCheck2} title="Publish Day">
-                        只有勾選同步日曆先啟用；決定實際出街日期。
-                      </Rule>
+                {snapshot.jobs.length ? (
+                  <div data-testid="creative-job-list">
+                    <div className="hidden grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] gap-4 border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174] xl:grid">
+                      <span>Job</span>
+                      <span>負責</span>
+                      <span>製作規格</span>
+                      <span>時間</span>
+                      <span>狀態</span>
                     </div>
-                  </section>
-                  <DesktopNotificationControl />
-                </aside>
+                    {snapshot.jobs.map((job) => {
+                      const overdue =
+                        Boolean(job.dueDate) &&
+                        job.dueDate! < snapshot.today &&
+                        !["completed", "cancelled"].includes(job.status);
+                      return (
+                        <Link
+                          key={job.id}
+                          href={`/creative-jobs/${job.id}`}
+                          className="grid min-w-0 grid-cols-1 gap-4 border-b border-[#f0e7e2] px-4 py-4 text-[11px] font-semibold transition last:border-b-0 hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex min-w-0 items-center gap-2">
+                              <strong className="min-w-0 flex-1 truncate text-sm text-[#321428]">
+                                {job.title}
+                              </strong>
+                              <PriorityBadge value={job.priority} />
+                            </div>
+                            <small className="mt-1.5 block text-[9px] font-bold text-[#927987]">
+                              {job.quantity} 件 · {job.workload} workload
+                              {job.materialStatus === "waiting"
+                                ? " · 等素材"
+                                : ""}
+                            </small>
+                          </div>
+
+                          <div className="grid min-w-0 gap-2">
+                            <ListMeta
+                              label="品牌"
+                              value={job.brandName}
+                              strong
+                            />
+                            <ListMeta
+                              label="Designer"
+                              value={job.assigneeProfileName || "未派"}
+                              icon
+                            />
+                          </div>
+
+                          <div className="grid min-w-0 gap-1.5">
+                            <ListMeta
+                              label="Source"
+                              value={job.sourceName || "—"}
+                            />
+                            <ListMeta
+                              label="用途"
+                              value={job.usageName || "—"}
+                            />
+                            <ListMeta
+                              label="媒體格式"
+                              value={job.mediaFormatName || "—"}
+                            />
+                          </div>
+
+                          <div className="grid min-w-0 grid-cols-3 gap-2">
+                            <ScheduleMeta
+                              label="Start"
+                              value={prettyDate(job.startDate)}
+                            />
+                            <ScheduleMeta
+                              label="Due"
+                              value={prettyDate(job.dueDate)}
+                              alert={overdue}
+                            />
+                            <ScheduleMeta
+                              label="Publish"
+                              value={
+                                job.syncCalendar
+                                  ? prettyDate(job.publishDate)
+                                  : "—"
+                              }
+                              calendar={job.syncCalendar}
+                            />
+                          </div>
+
+                          <div className="flex items-center xl:justify-start">
+                            <StatusBadge status={job.status} />
+                          </div>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <div className="p-12 text-center">
+                    <ImagePlus className="mx-auto text-[#a17b8d]" size={28} />
+                    <h3 className="mt-3 text-sm font-black">
+                      暫時冇符合條件嘅設計工作
+                    </h3>
+                    <p className="mt-1 text-xs font-semibold text-[#806174]">
+                      Marketer 可以按右上角「新增設計 Job」開始派工作。
+                    </p>
+                  </div>
+                )}
               </section>
             </>
           )}
@@ -397,12 +457,12 @@ function FilterSelect({
   options: Array<[string, string]>;
 }) {
   return (
-    <label className="grid gap-1">
+    <label className="grid min-w-[118px] flex-1 gap-1 sm:flex-none">
       <span className="text-[9px] font-black text-[#806174]">{label}</span>
       <select
         name={name}
         defaultValue={value}
-        className="h-9 rounded-xl border border-[#dfcdc4] bg-white px-2.5 text-[10px] font-bold text-[#4d2d40]"
+        className="h-9 min-w-0 rounded-xl border border-[#dfcdc4] bg-white px-2.5 text-[10px] font-bold text-[#4d2d40]"
       >
         {options.map(([optionValue, optionLabel]) => (
           <option key={`${name}-${optionValue || "all"}`} value={optionValue}>
@@ -414,24 +474,91 @@ function FilterSelect({
   );
 }
 
-function PriorityBadge({ value }: { value: "normal" | "priority" | "urgent" }) {
+function ListMeta({
+  label,
+  value,
+  strong = false,
+  icon = false,
+}: {
+  label: string;
+  value: string;
+  strong?: boolean;
+  icon?: boolean;
+}) {
+  return (
+    <div className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] items-center gap-2">
+      <span className="text-[8px] font-black uppercase tracking-[0.05em] text-[#9a818d]">
+        {label}
+      </span>
+      <span
+        className={`flex min-w-0 items-center gap-1 truncate ${
+          strong ? "font-black text-[#6d4a5c]" : "text-[#4d3945]"
+        }`}
+        title={value}
+      >
+        {icon ? <UserRound className="shrink-0" size={11} /> : null}
+        <span className="truncate">{value}</span>
+      </span>
+    </div>
+  );
+}
+
+function ScheduleMeta({
+  label,
+  value,
+  alert = false,
+  calendar = false,
+}: {
+  label: string;
+  value: string;
+  alert?: boolean;
+  calendar?: boolean;
+}) {
+  return (
+    <span className="min-w-0 rounded-xl bg-[#f8f4f2] px-2 py-2">
+      <small className="block text-[8px] font-black uppercase tracking-[0.05em] text-[#9a818d]">
+        {label}
+      </small>
+      <strong
+        className={`mt-1 flex min-w-0 items-center gap-1 truncate text-[9px] ${
+          alert ? "text-[#a43b50]" : "text-[#4d3945]"
+        }`}
+      >
+        {calendar ? <CalendarCheck2 className="shrink-0" size={10} /> : null}
+        <span className="truncate">{value}</span>
+      </strong>
+    </span>
+  );
+}
+
+function PriorityBadge({
+  value,
+}: {
+  value: "normal" | "priority" | "urgent";
+}) {
   const styles = {
     normal: "bg-[#f5f1ef] text-[#806174]",
     priority: "bg-[#fff7e8] text-[#94611f]",
     urgent: "bg-[#fff0ef] text-[#a43b50]",
   };
   return (
-    <span className={`inline-flex rounded-full px-2 py-1 text-[9px] font-black ${styles[value]}`}>
+    <span
+      className={`inline-flex shrink-0 rounded-full px-2 py-1 text-[9px] font-black ${styles[value]}`}
+    >
       {creativePriorityLabels[value]}
     </span>
   );
 }
 
-function StatusBadge({ status }: { status: keyof typeof creativeJobStatusLabels }) {
+function StatusBadge({
+  status,
+}: {
+  status: keyof typeof creativeJobStatusLabels;
+}) {
   const active = ["review", "revision", "blocked"].includes(status);
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-1 text-[9px] font-black ${
+      className={`inline-flex rounded-full px-2.5 py-1.5 text-[9px] font-black ${
         active
           ? "bg-[#fff0f5] text-[#7c365f]"
           : status === "completed"
@@ -441,27 +568,5 @@ function StatusBadge({ status }: { status: keyof typeof creativeJobStatusLabels 
     >
       {creativeJobStatusLabels[status]}
     </span>
-  );
-}
-
-function Rule({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: typeof Clock3;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex gap-2.5">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#fff0f5] text-[#7c365f]">
-        <Icon size={14} />
-      </span>
-      <div>
-        <strong className="block text-[10px] text-[#321428]">{title}</strong>
-        <p className="mt-0.5">{children}</p>
-      </div>
-    </div>
   );
 }
