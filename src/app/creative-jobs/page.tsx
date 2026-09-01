@@ -11,12 +11,15 @@ import {
   Palette,
   Settings2,
   Sparkles,
+  Trash2,
   UserRound,
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { ConfirmSubmitButton } from "@/components/alyssa/ConfirmSubmitButton";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { DesktopNotificationControl } from "@/components/command-center/DesktopNotificationControl";
 import { CreativeJobCreateDialog } from "@/components/creative/CreativeJobCreateDialog";
+import { deleteCreativeJobAction } from "@/app/creative-jobs/actions";
 import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 import { getCreativeListSnapshot } from "@/lib/creative/store";
 import {
@@ -349,10 +352,10 @@ export default async function CreativeJobsPage({
                         job.dueDate! < snapshot.today &&
                         !["completed", "cancelled"].includes(job.status);
                       return (
-                        <Link
-                          key={job.id}
-                          href={`/creative-jobs/${job.id}`}
-                          className="grid min-w-0 grid-cols-1 gap-4 border-b border-[#f0e7e2] px-4 py-4 text-[11px] font-semibold transition last:border-b-0 hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center"
+                        <div key={job.id} className="relative">
+                          <Link
+                            href={`/creative-jobs/${job.id}`}
+                          className="grid min-w-0 grid-cols-1 gap-4 border-b border-[#f0e7e2] px-4 py-4 pr-14 text-[11px] font-semibold transition last:border-b-0 hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center"
                         >
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2">
@@ -421,7 +424,26 @@ export default async function CreativeJobsPage({
                           <div className="flex items-center xl:justify-start">
                             <StatusBadge status={job.status} />
                           </div>
-                        </Link>
+                          </Link>
+                          {snapshot.canCreate ? (
+                            <form
+                              action={deleteCreativeJobAction}
+                              className="absolute right-3 top-3 xl:top-1/2 xl:-translate-y-1/2"
+                            >
+                              <input type="hidden" name="jobId" value={job.id} />
+                              <ConfirmSubmitButton
+                                data-testid="creative-job-list-delete-button"
+                                aria-label={`刪除 ${job.title}`}
+                                title={`刪除 ${job.title}`}
+                                className="h-9 w-9 rounded-xl border border-[#e5c5c8] bg-white p-0 text-[#a43b50] shadow-sm transition hover:border-[#d59aa2] hover:bg-[#fff4f4]"
+                                pendingLabel="…"
+                                confirmMessage={`確定刪除「${job.title}」？刪除後會即時由 Job List 消失；系統 Audit 仍會保留記錄。`}
+                              >
+                                <Trash2 size={14} />
+                              </ConfirmSubmitButton>
+                            </form>
+                          ) : null}
+                        </div>
                       );
                     })}
                   </div>

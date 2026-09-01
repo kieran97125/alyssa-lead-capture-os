@@ -781,7 +781,11 @@ export async function deleteCreativeJobAction(formData: FormData) {
     before: { title: record.job.title, status: record.job.status },
   });
   revalidateCreative(jobId);
-  redirectWithMessage("/creative-jobs", true, "設計工作已移至系統封存。" );
+  redirectWithMessage(
+    "/creative-jobs",
+    true,
+    "設計工作已從 Job List 刪除；系統 Audit 記錄仍然保留。"
+  );
 }
 
 async function requireCreativeSettings() {

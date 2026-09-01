@@ -239,6 +239,19 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
           <div className="flex items-center gap-2 text-[10px] font-bold text-[#806174]">
             <Clock3 size={13} /> 最後更新 {prettyDateTime(props.job.updatedAt)}
           </div>
+          {props.canEditMetadata ? (
+            <form action={deleteCreativeJobAction}>
+              <input type="hidden" name="jobId" value={props.job.id} />
+              <ConfirmSubmitButton
+                data-testid="creative-job-delete-button"
+                className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-[#e5c5c8] bg-white px-3 text-xs font-black text-[#a43b50] transition hover:border-[#d59aa2] hover:bg-[#fff4f4]"
+                pendingLabel="刪除中…"
+                confirmMessage={`確定刪除「${props.job.title}」？刪除後會即時由 Job List 消失；系統 Audit 仍會保留記錄。`}
+              >
+                <Trash2 size={15} /> 刪除 Job
+              </ConfirmSubmitButton>
+            </form>
+          ) : null}
           {props.canManageSettings ? (
             <Link
               href="/settings/creative"
@@ -642,18 +655,6 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
             </form>
           ) : null}
 
-          {props.canEditMetadata ? (
-            <form action={deleteCreativeJobAction}>
-              <input type="hidden" name="jobId" value={props.job.id} />
-              <ConfirmSubmitButton
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-[#e5c5c8] bg-white px-3 text-xs font-black text-[#a43b50]"
-                pendingLabel="封存中…"
-                confirmMessage={`確定封存「${props.job.title}」？日後可由 Database audit 回溯。`}
-              >
-                <Trash2 size={14} /> 封存呢張 Job
-              </ConfirmSubmitButton>
-            </form>
-          ) : null}
         </aside>
 
         <section className="order-1 min-w-0 xl:order-2">
