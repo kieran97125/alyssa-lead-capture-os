@@ -17,6 +17,7 @@ import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { DesktopNotificationControl } from "@/components/command-center/DesktopNotificationControl";
 import { CreativeJobCreateDialog } from "@/components/creative/CreativeJobCreateDialog";
+import { CreativeJobDeleteButton } from "@/components/creative/CreativeJobDeleteButton";
 import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 import { getCreativeListSnapshot } from "@/lib/creative/store";
 import {
@@ -336,12 +337,13 @@ export default async function CreativeJobsPage({
 
                 {snapshot.jobs.length ? (
                   <div data-testid="creative-job-list">
-                    <div className="hidden grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] gap-4 border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174] xl:grid">
+                    <div className="hidden grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)_44px] gap-4 border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174] xl:grid">
                       <span>Job</span>
                       <span>負責</span>
                       <span>製作規格</span>
                       <span>時間</span>
                       <span>狀態</span>
+                      <span className="sr-only">操作</span>
                     </div>
                     {snapshot.jobs.map((job) => {
                       const overdue =
@@ -349,10 +351,13 @@ export default async function CreativeJobsPage({
                         job.dueDate! < snapshot.today &&
                         !["completed", "cancelled"].includes(job.status);
                       return (
-                        <Link
+                        <article
                           key={job.id}
+                          className="grid min-w-0 grid-cols-1 border-b border-[#f0e7e2] transition last:border-b-0 hover:bg-[#fff9fb] xl:grid-cols-[minmax(0,1fr)_44px] xl:items-stretch xl:gap-4"
+                        >
+                        <Link
                           href={`/creative-jobs/${job.id}`}
-                          className="grid min-w-0 grid-cols-1 gap-4 border-b border-[#f0e7e2] px-4 py-4 text-[11px] font-semibold transition last:border-b-0 hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center"
+                          className="grid min-w-0 grid-cols-1 gap-4 px-4 py-4 text-[11px] font-semibold md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center"
                         >
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-2">
@@ -422,6 +427,16 @@ export default async function CreativeJobsPage({
                             <StatusBadge status={job.status} />
                           </div>
                         </Link>
+                          {snapshot.canCreate ? (
+                            <div className="flex items-center justify-end px-4 pb-4 xl:px-0 xl:pb-0 xl:pr-3">
+                              <CreativeJobDeleteButton
+                                jobId={job.id}
+                                title={job.title}
+                                compact
+                              />
+                            </div>
+                          ) : null}
+                        </article>
                       );
                     })}
                   </div>

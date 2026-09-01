@@ -6,6 +6,7 @@ import {
   type CreativeBriefEditorHandle,
 } from "@/components/creative/CreativeBriefEditor";
 import { CreativeJobCreateDialog } from "@/components/creative/CreativeJobCreateDialog";
+import { CreativeJobDeleteButton } from "@/components/creative/CreativeJobDeleteButton";
 import type { BrandSetting } from "@/lib/data/configuration";
 import type {
   CreativeDesignerProfile,
@@ -167,9 +168,17 @@ export function CreativeProductionFixture() {
                 <small className="block text-[#927987]">Publish</small>6/9
               </span>
             </div>
-            <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[9px] font-black">
-              製作中
-            </span>
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[9px] font-black">
+                製作中
+              </span>
+              <CreativeJobDeleteButton
+                jobId="fixture-job"
+                title="GOS KOL 脫毛廣告片"
+                compact
+                fixtureMode
+              />
+            </div>
           </div>
         </section>
 

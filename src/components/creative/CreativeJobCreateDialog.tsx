@@ -12,10 +12,7 @@ import {
   Plus,
   X,
 } from "lucide-react";
-import {
-  createCreativeJobAction,
-  initialCreativeJobCreateState,
-} from "@/app/creative-jobs/createAction";
+import { createCreativeJobAction } from "@/app/creative-jobs/createAction";
 import type { BrandSetting } from "@/lib/data/configuration";
 import type {
   CreativeDesignerProfile,
@@ -29,6 +26,17 @@ type CreativeJobCreateDialogProps = {
   defaultBrandId?: string;
   today: string;
   fixtureMode?: boolean;
+};
+
+
+type CreativeJobCreateState = {
+  status: "idle" | "error";
+  message: string;
+};
+
+const initialCreativeJobCreateState: CreativeJobCreateState = {
+  status: "idle",
+  message: "",
 };
 
 const fieldClass =

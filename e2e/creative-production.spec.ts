@@ -20,10 +20,20 @@ test("creative Job List keeps source, usage and media format separate without ho
   await expect(list).toContainText("KOL 拍攝");
   await expect(list).toContainText("Meta AD");
   await expect(list).toContainText("Video");
+  await expect(
+    list.getByRole("button", { name: "刪除 GOS KOL 脫毛廣告片" })
+  ).toBeVisible();
   const fitsWithoutHorizontalScroll = await list.evaluate(
     (element) => element.scrollWidth <= element.clientWidth
   );
   expect(fitsWithoutHorizontalScroll).toBe(true);
+});
+
+test("Creative Job dialog module loads without invalid use-server exports", async ({ page }) => {
+  await openFixture(page);
+  await expect(
+    page.getByRole("button", { name: "新增設計 Job" })
+  ).toBeVisible();
 });
 
 test("new Creative Job opens in a focused dialog and keeps date guidance contextual", async ({

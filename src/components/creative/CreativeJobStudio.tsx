@@ -31,6 +31,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { ConfirmSubmitButton } from "@/components/alyssa/ConfirmSubmitButton";
+import { CreativeJobDeleteButton } from "@/components/creative/CreativeJobDeleteButton";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   CreativeBriefEditor,
@@ -39,7 +40,6 @@ import {
 import {
   addCreativeCommentAction,
   addCreativeLinkAssetAction,
-  deleteCreativeJobAction,
   markCreativeNotificationReadAction,
   removeCreativeAssetAction,
   updateCreativeJobAction,
@@ -246,6 +246,9 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
             >
               <Settings2 size={15} /> 分類及 Designer
             </Link>
+          ) : null}
+          {props.canEditMetadata ? (
+            <CreativeJobDeleteButton jobId={props.job.id} title={props.job.title} />
           ) : null}
         </div>
       </header>
@@ -643,16 +646,11 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
           ) : null}
 
           {props.canEditMetadata ? (
-            <form action={deleteCreativeJobAction}>
-              <input type="hidden" name="jobId" value={props.job.id} />
-              <ConfirmSubmitButton
-                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-[#e5c5c8] bg-white px-3 text-xs font-black text-[#a43b50]"
-                pendingLabel="封存中…"
-                confirmMessage={`確定封存「${props.job.title}」？日後可由 Database audit 回溯。`}
-              >
-                <Trash2 size={14} /> 封存呢張 Job
-              </ConfirmSubmitButton>
-            </form>
+            <CreativeJobDeleteButton
+              jobId={props.job.id}
+              title={props.job.title}
+              fullWidth
+            />
           ) : null}
         </aside>
 

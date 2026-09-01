@@ -20,14 +20,9 @@ import {
   creativeWorkloads,
 } from "@/lib/creative/types";
 
-export type CreativeJobCreateState = {
+type CreativeJobCreateState = {
   status: "idle" | "error";
   message: string;
-};
-
-export const initialCreativeJobCreateState: CreativeJobCreateState = {
-  status: "idle",
-  message: "",
 };
 
 function fail(message: string): CreativeJobCreateState {
