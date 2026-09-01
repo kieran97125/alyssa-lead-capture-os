@@ -13,6 +13,9 @@ const migration = read(
   "supabase/migrations/20260901020000_creative_production_studio.sql"
 );
 const actions = read("src/app/creative-jobs/actions.ts");
+const createAction = read("src/app/creative-jobs/createAction.ts");
+const createState = read("src/lib/creative/createState.ts");
+const createDialog = read("src/components/creative/CreativeJobCreateDialog.tsx");
 const store = read("src/lib/creative/store.ts");
 const editor = read("src/components/creative/CreativeBriefEditor.tsx");
 const studio = read("src/components/creative/CreativeJobStudio.tsx");
@@ -56,6 +59,18 @@ assert.match(migration, /restore_creative_brief_version/);
 assert.match(migration, /creative-job-assets/);
 
 assert.match(actions, /createCreativeDraftAction/);
+assert.match(createAction, /^"use server";/);
+assert.match(createAction, /export async function createCreativeJobAction/);
+assert.doesNotMatch(
+  createAction,
+  /^export\s+(?:const|let|var|class)\s+/m
+);
+assert.match(createState, /initialCreativeJobCreateState/);
+assert.match(createDialog, /@\/lib\/creative\/createState/);
+assert.doesNotMatch(
+  createDialog,
+  /initialCreativeJobCreateState,[\s\S]*?createAction/
+);
 assert.match(actions, /updateCreativeJobAction/);
 assert.match(actions, /isCreativeOperationsRole/);
 assert.match(actions, /creative_assigned/);

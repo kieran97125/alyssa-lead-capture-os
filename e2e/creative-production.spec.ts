@@ -7,6 +7,18 @@ async function openFixture(page: Page) {
   await expect(page.getByRole("heading", { name: "設計工作" })).toBeVisible();
 }
 
+test("Creative Jobs production route evaluates without invalid server exports", async ({
+  page,
+}) => {
+  const response = await page.goto("/creative-jobs", {
+    waitUntil: "domcontentloaded",
+  });
+  expect(response?.status() ?? 500).toBeLessThan(500);
+  await expect(page.locator("body")).not.toContainText(
+    'A "use server" file can only export async functions'
+  );
+});
+
 test("creative Job List keeps source, usage and media format separate without horizontal scrolling", async ({
   page,
 }) => {
