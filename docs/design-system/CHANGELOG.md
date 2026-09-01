@@ -15,6 +15,8 @@ Issue: #79
 ### Safety
 
 - Delete remains permission-gated and uses soft deletion; Audit evidence is retained.
+- Soft deletion atomically retires unread Creative notifications and pending Web Push deliveries.
+- Unpublished linked Calendar items are removed; Published history is preserved.
 - Browser-native `window.confirm` is not used for this workflow.
 - No database schema, Lead, CRM, Calendar, Spend or reporting calculation is changed.
 

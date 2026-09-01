@@ -23,3 +23,11 @@ Creative Job deletion is a high-impact interaction. The first implementation exp
 - Feature code cannot silently replace the confirmation hierarchy with browser-native prompts.
 - The same System dialog may be reused by future destructive actions, while product wording and authorization stay feature-specific.
 - No database migration or existing production row is changed.
+
+## Operational deletion lifecycle
+
+The confirmation wording is backed by an atomic database function. It soft-deletes the Job, retires linked unread notifications, marks pending/retry/sending Web Push deliveries as failed with `creative_job_deleted`, removes an unpublished linked Calendar item and preserves a Published Calendar item. The Push dispatcher also rechecks Creative Job state after claiming deliveries.
+
+## Product Learning Sync
+
+Reusable confirmation, soft-delete, notification-retirement and Server Action runtime-boundary learning is recorded in the canonical `kieran97125/leadhub-source-os` entry `2026-09-01-app-owned-destructive-action-lifecycle.md`. Client identity, users, domains, credentials and production records remain isolated.

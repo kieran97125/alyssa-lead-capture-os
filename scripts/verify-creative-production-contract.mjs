@@ -13,6 +13,9 @@ const migration = read(
   "supabase/migrations/20260901020000_creative_production_studio.sql"
 );
 const actions = read("src/app/creative-jobs/actions.ts");
+const safeDeleteMigration = read(
+  "supabase/migrations/20260901104500_creative_job_safe_delete_and_push_guard.sql"
+);
 const createAction = read("src/app/creative-jobs/createAction.ts");
 const createState = read("src/lib/creative/createState.ts");
 const createDialog = read("src/components/creative/CreativeJobCreateDialog.tsx");
@@ -113,11 +116,26 @@ assert.match(deleteControl, /creative-job-delete-button/);
 assert.match(studio, /CreativeJobDeleteControl/);
 assert.match(actions, /readString\(formData, "returnPath"\)/);
 assert.match(actions, /redirectWithMessage\(\s*returnPath/);
-assert.match(actions, /設計工作已從 Job List 刪除/);
+assert.match(actions, /soft_delete_creative_job_and_retire_notifications/);
+assert.match(actions, /cancelledDeliveryCount/);
+assert.match(actions, /publishedCalendarPreserved/);
+assert.match(actions, /未送出提醒已取消/);
+assert.match(
+  safeDeleteMigration,
+  /soft_delete_creative_job_and_retire_notifications/
+);
+assert.match(safeDeleteMigration, /delivery\.status in \('pending', 'retry', 'sending'\)/);
+assert.match(safeDeleteMigration, /last_error = 'creative_job_deleted'/);
+assert.match(safeDeleteMigration, /notification\.is_read = false/);
+assert.match(safeDeleteMigration, /v_calendar_status = 'published'/);
+assert.match(safeDeleteMigration, /claim_marketing_web_push_deliveries/);
 
 assert.match(edgeFunction, /creative_job_id/);
 assert.match(edgeFunction, /action_url/);
 assert.match(edgeFunction, /creative_overdue/);
+assert.match(edgeFunction, /activeCreativeJobIds/);
+assert.match(edgeFunction, /creative_job_state_query_failed/);
+assert.match(edgeFunction, /last_error: "creative_job_deleted"/);
 
 for (const dependency of [
   "@tiptap/react",
