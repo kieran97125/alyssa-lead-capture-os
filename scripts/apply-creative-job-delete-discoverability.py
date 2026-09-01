@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 
 
 def read(path: str) -> str:
@@ -121,12 +120,25 @@ studio = replace_once(
 ''',
     "Sticky header delete action",
 )
-old_bottom_pattern = re.compile(
-    r'''\n          \{props\.canEditMetadata \? \(\n            <form action=\{deleteCreativeJobAction\}>[\s\S]*?<Trash2 size=\{14\} /> 封存呢張 Job[\s\S]*?</form>\n          \) : null\}\n        </aside>'''
+studio = replace_once(
+    studio,
+    '''
+          {props.canEditMetadata ? (
+            <form action={deleteCreativeJobAction}>
+              <input type="hidden" name="jobId" value={props.job.id} />
+              <ConfirmSubmitButton
+                className="inline-flex h-9 w-full items-center justify-center gap-2 rounded-xl border border-[#e5c5c8] bg-white px-3 text-xs font-black text-[#a43b50]"
+                pendingLabel="封存中…"
+                confirmMessage={`確定封存「${props.job.title}」？日後可由 Database audit 回溯。`}
+              >
+                <Trash2 size={14} /> 封存呢張 Job
+              </ConfirmSubmitButton>
+            </form>
+          ) : null}
+''',
+    "\n",
+    "buried archive action",
 )
-studio, count = old_bottom_pattern.subn("\n        </aside>", studio, count=1)
-if count != 1:
-    raise SystemExit("Missing patch marker: buried archive action")
 write(studio_path, studio)
 
 
