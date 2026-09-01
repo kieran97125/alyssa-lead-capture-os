@@ -1,5 +1,4 @@
 import Link from "next/link";
-import type { ReactNode } from "react";
 import {
   AlertTriangle,
   CalendarCheck2,
@@ -8,16 +7,12 @@ import {
   Filter,
   ImagePlus,
   Layers3,
-  ListFilter,
   Palette,
-  Plus,
-  Settings2,
   Sparkles,
-  UserRound,
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
-import { DesktopNotificationControl } from "@/components/command-center/DesktopNotificationControl";
+import { CreativeJobHeaderActions } from "@/components/creative/CreativeJobHeaderActions";
 import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 import { getCreativeListSnapshot } from "@/lib/creative/store";
 import {
@@ -26,7 +21,6 @@ import {
   creativePriorities,
   creativePriorityLabels,
 } from "@/lib/creative/types";
-import { createCreativeDraftAction } from "./actions";
 
 export const dynamic = "force-dynamic";
 
@@ -131,29 +125,16 @@ export default async function CreativeJobsPage({
                 Marketer 派 Job 畀 Designer；Job List 跟 Start Day，截止跟 Due Day，勾選同步後出街及營銷日曆跟 Publish Day。
               </p>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
-              {snapshot.canManageSettings ? (
-                <Link href="/settings/creative" className="command-secondary-button">
-                  <Settings2 size={15} /> 分類及 Designer
-                </Link>
-              ) : null}
-              {snapshot.canCreate ? (
-                <form action={createCreativeDraftAction}>
-                  <input
-                    type="hidden"
-                    name="brandId"
-                    value={filters.brandId || snapshot.brands[0]?.id || ""}
-                  />
-                  <SubmitButton
-                    className="command-primary-button"
-                    pendingLabel="建立中…"
-                  >
-                    <Plus size={16} /> 新增設計 Job
-                  </SubmitButton>
-                </form>
-              ) : null}
-            </div>
-          </header>
+  <CreativeJobHeaderActions
+    canCreate={snapshot.canCreate}
+    canManageSettings={snapshot.canManageSettings}
+    brands={snapshot.brands}
+    designers={snapshot.designers}
+    taxonomies={snapshot.taxonomies}
+    today={snapshot.today}
+    defaultBrandId={filters.brandId || snapshot.brands[0]?.id || ""}
+  />
+</header>
 
           {message ? (
             <p
@@ -203,7 +184,7 @@ export default async function CreativeJobsPage({
                 })}
               </section>
 
-              <section className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+              <section className="mt-4">
                 <div className="min-w-0">
                   <section className="command-surface overflow-hidden">
                     <header className="flex flex-col gap-3 border-b border-[#ead9cf] p-4 lg:flex-row lg:items-end lg:justify-between">
@@ -215,7 +196,7 @@ export default async function CreativeJobsPage({
                           {snapshot.jobs.length} 項設計工作
                         </h2>
                         <p className="mt-1 text-[11px] font-semibold text-[#806174]">
-                          同日工作先按緊急／優先排序，再按 Start Day 及 Due Day 排列。
+                          先按 Start Day；同日再按緊急／優先排序，最後按 Due Day。
                         </p>
                       </div>
                       <form method="get" className="flex flex-wrap items-end gap-2">
@@ -275,66 +256,110 @@ export default async function CreativeJobsPage({
                     </header>
 
                     {snapshot.jobs.length ? (
-                      <div className="overflow-x-auto">
-                        <div className="min-w-[1320px]">
-                          <div className="grid grid-cols-[minmax(270px,1.9fr)_130px_120px_150px_120px_140px_90px_115px_115px_130px_120px] border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174]">
-                            <span>Job</span>
-                            <span>品牌</span>
-                            <span>Designer</span>
-                            <span>Source</span>
-                            <span>用途</span>
-                            <span>媒體格式</span>
-                            <span>優先</span>
-                            <span>Start</span>
-                            <span>Due</span>
-                            <span>出街／日曆</span>
-                            <span>狀態</span>
-                          </div>
-                          {snapshot.jobs.map((job) => (
-                            <Link
-                              key={job.id}
-                              href={`/creative-jobs/${job.id}`}
-                              className="grid grid-cols-[minmax(270px,1.9fr)_130px_120px_150px_120px_140px_90px_115px_115px_130px_120px] items-center border-b border-[#f0e7e2] px-4 py-3 text-[11px] font-semibold transition last:border-b-0 hover:bg-[#fff9fb]"
-                            >
-                              <span className="min-w-0 pr-3">
-                                <strong className="block truncate text-xs text-[#321428]">
-                                  {job.title}
-                                </strong>
-                                <small className="mt-1 block text-[9px] font-bold text-[#927987]">
-                                  {job.quantity} 件 · {job.workload} workload
-                                  {job.materialStatus === "waiting" ? " · 等素材" : ""}
-                                </small>
-                              </span>
-                              <span className="truncate font-black text-[#6d4a5c]">
-                                {job.brandName}
-                              </span>
-                              <span className="truncate">
-                                {job.assigneeProfileName || "未派"}
-                              </span>
-                              <span className="truncate">{job.sourceName || "—"}</span>
-                              <span className="truncate">{job.usageName || "—"}</span>
-                              <span className="truncate">{job.mediaFormatName || "—"}</span>
-                              <span>
-                                <PriorityBadge value={job.priority} />
-                              </span>
-                              <span>{prettyDate(job.startDate)}</span>
-                              <span className={job.dueDate && job.dueDate < snapshot.today && !["completed", "cancelled"].includes(job.status) ? "font-black text-[#a43b50]" : ""}>
-                                {prettyDate(job.dueDate)}
-                              </span>
-                              <span>
-                                {job.syncCalendar ? (
-                                  <span className="inline-flex items-center gap-1 font-bold text-[#53677e]">
-                                    <CalendarCheck2 size={12} /> {prettyDate(job.publishDate)}
+                      <div data-testid="creative-job-list" className="min-w-0">
+                        <div className="hidden grid-cols-[minmax(210px,1.5fr)_minmax(125px,.78fr)_minmax(140px,.85fr)_minmax(180px,1fr)_72px_96px] gap-x-3 border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174] xl:grid">
+                          <span>Job／Source</span>
+                          <span>品牌／Designer</span>
+                          <span>用途／媒體格式</span>
+                          <span>Start／Due／Publish</span>
+                          <span>優先</span>
+                          <span>狀態</span>
+                        </div>
+                        <div className="divide-y divide-[#f0e7e2]">
+                          {snapshot.jobs.map((job) => {
+                            const overdue =
+                              Boolean(job.dueDate) &&
+                              job.dueDate! < snapshot.today &&
+                              !["completed", "cancelled"].includes(job.status);
+                            return (
+                              <Link
+                                key={job.id}
+                                href={`/creative-jobs/${job.id}`}
+                                className="grid min-w-0 gap-3 px-4 py-4 text-[11px] font-semibold transition hover:bg-[#fff9fb] xl:grid-cols-[minmax(210px,1.5fr)_minmax(125px,.78fr)_minmax(140px,.85fr)_minmax(180px,1fr)_72px_96px] xl:items-center xl:gap-x-3"
+                              >
+                                <span className="min-w-0">
+                                  <strong className="block truncate text-xs text-[#321428]">
+                                    {job.title}
+                                  </strong>
+                                  <small className="mt-1 block text-[9px] font-bold text-[#927987]">
+                                    {job.quantity} 件 · {job.workload} workload
+                                    {job.materialStatus === "waiting"
+                                      ? " · 等素材"
+                                      : ""}
+                                  </small>
+                                  <span className="mt-2 inline-flex max-w-full items-center gap-1 rounded-full bg-[#f7f1f4] px-2 py-1 text-[9px] font-bold text-[#806174]">
+                                    <span className="shrink-0 text-[#9a5d76]">Source</span>
+                                    <span className="truncate">{job.sourceName || "未設定"}</span>
                                   </span>
-                                ) : (
-                                  <span className="text-[#927987]">不同步</span>
-                                )}
-                              </span>
-                              <span>
-                                <StatusBadge status={job.status} />
-                              </span>
-                            </Link>
-                          ))}
+                                </span>
+
+                                <span className="min-w-0">
+                                  <small className="mb-1 block text-[9px] font-black uppercase tracking-[0.08em] text-[#a88d99] xl:hidden">
+                                    品牌／Designer
+                                  </small>
+                                  <strong className="block truncate text-[11px] text-[#6d4a5c]">
+                                    {job.brandName}
+                                  </strong>
+                                  <span className="mt-1 block truncate text-[10px] text-[#806174]">
+                                    {job.assigneeProfileName || "未派 Designer"}
+                                  </span>
+                                </span>
+
+                                <span className="min-w-0">
+                                  <small className="mb-1 block text-[9px] font-black uppercase tracking-[0.08em] text-[#a88d99] xl:hidden">
+                                    用途／媒體格式
+                                  </small>
+                                  <strong className="block truncate text-[11px] text-[#4d2d40]">
+                                    {job.usageName || "未設定用途"}
+                                  </strong>
+                                  <span className="mt-1 block truncate text-[10px] text-[#806174]">
+                                    {job.mediaFormatName || "未設定格式"}
+                                  </span>
+                                </span>
+
+                                <span className="min-w-0">
+                                  <small className="mb-1 block text-[9px] font-black uppercase tracking-[0.08em] text-[#a88d99] xl:hidden">
+                                    排期
+                                  </small>
+                                  <span className="flex flex-wrap items-center gap-1.5 text-[10px] text-[#6d4a5c]">
+                                    <span>
+                                      <b className="text-[#9a5d76]">Start</b>{" "}
+                                      {prettyDate(job.startDate)}
+                                    </span>
+                                    <span aria-hidden="true" className="text-[#b9a8b1]">
+                                      →
+                                    </span>
+                                    <span className={overdue ? "font-black text-[#a43b50]" : ""}>
+                                      <b>Due</b> {prettyDate(job.dueDate)}
+                                    </span>
+                                  </span>
+                                  <span className="mt-1.5 flex items-center gap-1 text-[9px] font-bold text-[#927987]">
+                                    {job.syncCalendar ? (
+                                      <>
+                                        <CalendarCheck2 size={11} /> Publish {prettyDate(job.publishDate)}
+                                      </>
+                                    ) : (
+                                      "未同步日曆"
+                                    )}
+                                  </span>
+                                </span>
+
+                                <span>
+                                  <small className="mb-1 block text-[9px] font-black uppercase tracking-[0.08em] text-[#a88d99] xl:hidden">
+                                    優先級
+                                  </small>
+                                  <PriorityBadge value={job.priority} />
+                                </span>
+
+                                <span>
+                                  <small className="mb-1 block text-[9px] font-black uppercase tracking-[0.08em] text-[#a88d99] xl:hidden">
+                                    狀態
+                                  </small>
+                                  <StatusBadge status={job.status} />
+                                </span>
+                              </Link>
+                            );
+                          })}
                         </div>
                       </div>
                     ) : (
@@ -349,33 +374,6 @@ export default async function CreativeJobsPage({
                   </section>
                 </div>
 
-                <aside className="grid h-fit gap-4 xl:sticky xl:top-5">
-                  <section className="command-surface overflow-hidden">
-                    <header className="border-b border-[#ead9cf] bg-[#fffaf7] p-4">
-                      <div className="flex items-center gap-2">
-                        <ListFilter size={16} className="text-[#7c365f]" />
-                        <div>
-                          <strong className="block text-xs">派 Job 規則</strong>
-                          <small className="text-[10px] font-semibold text-[#806174]">
-                            三個日期各有明確用途
-                          </small>
-                        </div>
-                      </div>
-                    </header>
-                    <div className="grid gap-3 p-4 text-[10px] font-semibold leading-4 text-[#6d4a5c]">
-                      <Rule icon={Clock3} title="Start Day">
-                        預設香港今日，可改；決定 Job List 顯示及開始提醒。
-                      </Rule>
-                      <Rule icon={AlertTriangle} title="Due Day">
-                        Designer 交稿截止；控制 24 小時提醒同逾期。
-                      </Rule>
-                      <Rule icon={CalendarCheck2} title="Publish Day">
-                        只有勾選同步日曆先啟用；決定實際出街日期。
-                      </Rule>
-                    </div>
-                  </section>
-                  <DesktopNotificationControl />
-                </aside>
               </section>
             </>
           )}
@@ -441,27 +439,5 @@ function StatusBadge({ status }: { status: keyof typeof creativeJobStatusLabels 
     >
       {creativeJobStatusLabels[status]}
     </span>
-  );
-}
-
-function Rule({
-  icon: Icon,
-  title,
-  children,
-}: {
-  icon: typeof Clock3;
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <div className="flex gap-2.5">
-      <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-[#fff0f5] text-[#7c365f]">
-        <Icon size={14} />
-      </span>
-      <div>
-        <strong className="block text-[10px] text-[#321428]">{title}</strong>
-        <p className="mt-0.5">{children}</p>
-      </div>
-    </div>
   );
 }

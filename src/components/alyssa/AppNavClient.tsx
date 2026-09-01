@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import {
   BarChart3,
   CalendarRange,
@@ -20,12 +20,15 @@ import {
   Menu,
   MessageCircleMore,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings2,
   ShieldAlert,
   Table2,
   X,
 } from "lucide-react";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
+import styles from "./AppNavClient.module.css";
 import type { InternalAccessContext } from "@/lib/security/internalAccess";
 import {
   hasWorkspaceModulePermission,
@@ -156,10 +159,12 @@ function NavItem({
   item,
   pathname,
   onNavigate,
+  collapsed,
 }: {
   item: NavigationItem;
   pathname: string;
   onNavigate: () => void;
+  collapsed: boolean;
 }) {
   const active = isActive(pathname, item);
   const IconComponent = item.icon;
@@ -169,6 +174,8 @@ function NavItem({
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
+      aria-label={collapsed ? item.label : undefined}
+      title={collapsed ? item.label : undefined}
       className={`command-nav-item ${active ? "is-active" : ""}`}
     >
       <IconComponent size={18} strokeWidth={active ? 2.4 : 1.9} />
@@ -186,6 +193,8 @@ function SidebarContent({
   leadAuditAlertCount,
   workNotificationCount,
   creativeNotificationCount,
+  collapsed,
+  onToggleCollapse,
 }: {
   pathname: string;
   onNavigate: () => void;
@@ -193,6 +202,8 @@ function SidebarContent({
   leadAuditAlertCount: number;
   workNotificationCount: number;
   creativeNotificationCount: number;
+  collapsed: boolean;
+  onToggleCollapse: () => void;
 }) {
   const isMaster = access.accessLevel === "master";
   const isEmailMember = access.source === "supabase_auth";
@@ -255,21 +266,32 @@ function SidebarContent({
 
   return (
     <>
-      <div className="command-brand">
-        <IntentPrefetchLink
-          href="/dashboard"
-          onClick={onNavigate}
-          className="command-brand-link"
-        >
-          <span className="command-brand-mark" aria-hidden="true">
-            GO
-          </span>
-          <span className="min-w-0">
-            <span className="command-brand-eyebrow">Alyssa Growth OS</span>
-            <span className="command-brand-title">營運中心</span>
-          </span>
-        </IntentPrefetchLink>
-      </div>
+<div className="command-brand">
+  <IntentPrefetchLink
+    href="/dashboard"
+    onClick={onNavigate}
+    className="command-brand-link"
+    aria-label={collapsed ? "Alyssa Growth OS 營運中心" : undefined}
+    title={collapsed ? "Alyssa Growth OS 營運中心" : undefined}
+  >
+    <span className="command-brand-mark" aria-hidden="true">
+      GO
+    </span>
+    <span className="min-w-0">
+      <span className="command-brand-eyebrow">Alyssa Growth OS</span>
+      <span className="command-brand-title">營運中心</span>
+    </span>
+  </IntentPrefetchLink>
+  <button
+    type="button"
+    className={styles.collapseButton}
+    onClick={onToggleCollapse}
+    aria-label={collapsed ? "展開主功能欄" : "收起主功能欄"}
+    title={collapsed ? "展開主功能欄" : "收起主功能欄"}
+  >
+    {collapsed ? <PanelLeftOpen size={14} /> : <PanelLeftClose size={14} />}
+  </button>
+</div>
 
       <nav aria-label="主要功能" className="command-navigation">
         {visibleNavigationGroups.map((group) => (
@@ -282,6 +304,7 @@ function SidebarContent({
                   item={item}
                   pathname={pathname}
                   onNavigate={onNavigate}
+                  collapsed={collapsed}
                 />
               ))}
             </div>
@@ -331,8 +354,26 @@ export function AppNavClient({
   workNotificationCount?: number;
   creativeNotificationCount?: number;
 }) {
-  const pathname = usePathname();
-  const [open, setOpen] = useState(false);
+const pathname = usePathname();
+const [open, setOpen] = useState(false);
+const [collapsed, setCollapsed] = useState(false);
+
+useEffect(() => {
+  if (window.localStorage.getItem("alyssa-command-sidebar-collapsed") === "1") {
+    setCollapsed(true);
+  }
+}, []);
+
+useEffect(() => {
+  document.documentElement.classList.toggle(
+    "command-sidebar-collapsed",
+    collapsed
+  );
+  window.localStorage.setItem(
+    "alyssa-command-sidebar-collapsed",
+    collapsed ? "1" : "0"
+  );
+}, [collapsed]);
 
   return (
     <>
@@ -360,7 +401,10 @@ export function AppNavClient({
         />
       ) : null}
 
-      <aside className={`command-sidebar ${open ? "is-open" : ""}`}>
+      <aside
+        className={`${styles.sidebarHost} command-sidebar ${open ? "is-open" : ""}`}
+        data-collapsed={collapsed ? "true" : "false"}
+      >
         <SidebarContent
           pathname={pathname}
           onNavigate={() => setOpen(false)}
@@ -368,6 +412,8 @@ export function AppNavClient({
           leadAuditAlertCount={leadAuditAlertCount}
           workNotificationCount={workNotificationCount}
           creativeNotificationCount={creativeNotificationCount}
+          collapsed={collapsed}
+          onToggleCollapse={() => setCollapsed((current) => !current)}
         />
       </aside>
     </>

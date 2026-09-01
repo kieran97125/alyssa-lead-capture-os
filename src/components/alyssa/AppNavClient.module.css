@@ -1,0 +1,112 @@
+    .sidebarHost {
+      transition: width 180ms ease, transform 180ms ease, box-shadow 180ms ease;
+    }
+
+    .sidebarHost :global(.command-brand) {
+      position: relative;
+    }
+
+    .collapseButton {
+      position: absolute;
+      top: 1.62rem;
+      right: -0.78rem;
+      z-index: 4;
+      display: grid;
+      width: 1.7rem;
+      height: 1.7rem;
+      place-items: center;
+      border: 1px solid #dfcdc4;
+      border-radius: 999px;
+      background: #fff;
+      color: #6d4a5c;
+      box-shadow: 0 8px 20px rgba(50, 20, 40, 0.14);
+      transition: transform 150ms ease, border-color 150ms ease, color 150ms ease;
+    }
+
+    .collapseButton:hover {
+      transform: translateY(-1px);
+      border-color: #b98da2;
+      color: #5a2348;
+    }
+
+    .collapseButton:focus-visible {
+      outline: 3px solid rgba(90, 35, 72, 0.2);
+      outline-offset: 2px;
+    }
+
+    :global(.alyssa-shell),
+    :global(.system-page-loading) {
+      transition: padding-left 180ms ease;
+    }
+
+    @media (min-width: 1025px) {
+      :global(html.command-sidebar-collapsed) {
+        --command-sidebar-width: 76px;
+      }
+
+      :global(html.command-sidebar-collapsed .command-brand) {
+        padding-inline: 0.7rem;
+      }
+
+      :global(html.command-sidebar-collapsed .command-brand-link) {
+        justify-content: center;
+      }
+
+      :global(html.command-sidebar-collapsed .command-brand-link > .min-w-0),
+      :global(html.command-sidebar-collapsed .command-nav-group > p),
+      :global(html.command-sidebar-collapsed .command-nav-item > span:not(.command-nav-badge):not(.intent-link-status)),
+      :global(html.command-sidebar-collapsed .command-nav-item > .ml-auto),
+      :global(html.command-sidebar-collapsed .command-account-card > .min-w-0),
+      :global(html.command-sidebar-collapsed .command-account-card > svg),
+      :global(html.command-sidebar-collapsed .command-logout-button > span) {
+        display: none;
+      }
+
+      :global(html.command-sidebar-collapsed .command-navigation) {
+        padding-inline: 0.5rem;
+      }
+
+      :global(html.command-sidebar-collapsed .command-nav-group + .command-nav-group) {
+        margin-top: 0.55rem;
+      }
+
+      :global(html.command-sidebar-collapsed .command-nav-item) {
+        position: relative;
+        justify-content: center;
+        gap: 0;
+        padding-inline: 0.55rem;
+      }
+
+      :global(html.command-sidebar-collapsed .command-nav-item:hover) {
+        transform: none;
+      }
+
+      :global(html.command-sidebar-collapsed .command-nav-badge) {
+        position: absolute;
+        top: 0.22rem;
+        right: 0.18rem;
+        min-width: 1rem;
+        margin: 0;
+        padding: 0.08rem 0.25rem;
+        text-align: center;
+      }
+
+      :global(html.command-sidebar-collapsed .command-sidebar-footer) {
+        padding: 0.5rem;
+      }
+
+      :global(html.command-sidebar-collapsed .command-account-card) {
+        justify-content: center;
+        padding-inline: 0.45rem;
+      }
+
+      :global(html.command-sidebar-collapsed .command-logout-button) {
+        padding-inline: 0.45rem;
+      }
+    }
+
+    @media (max-width: 1024px) {
+      .collapseButton {
+        display: none;
+      }
+    }

@@ -17,6 +17,8 @@ const store = read("src/lib/creative/store.ts");
 const editor = read("src/components/creative/CreativeBriefEditor.tsx");
 const studio = read("src/components/creative/CreativeJobStudio.tsx");
 const listPage = read("src/app/creative-jobs/page.tsx");
+const headerActions = read("src/components/creative/CreativeJobHeaderActions.tsx");
+const sidebarCss = read("src/components/alyssa/AppNavClient.module.css");
 const edgeFunction = read(
   "supabase/functions/marketing-web-push-dispatch/index.ts"
 );
@@ -87,6 +89,17 @@ assert.match(studio, /Publish Day/);
 assert.match(listPage, /Source/);
 assert.match(listPage, /媒體格式/);
 assert.match(listPage, /Designer/);
+assert.doesNotMatch(listPage, /overflow-x-auto/);
+assert.doesNotMatch(listPage, /min-w-\[1320px\]/);
+assert.match(listPage, /data-testid="creative-job-list"/);
+assert.match(headerActions, /showModal\(\)/);
+assert.match(headerActions, /新增設計 Job/);
+assert.match(headerActions, /操作指引/);
+assert.match(headerActions, /DesktopNotificationControl/);
+assert.match(actions, /設計工作已建立並派發/);
+assert.match(nav, /command-sidebar-collapsed/);
+assert.match(nav, /收起主功能欄/);
+assert.match(sidebarCss, /--command-sidebar-width: 76px/);
 
 assert.match(edgeFunction, /creative_job_id/);
 assert.match(edgeFunction, /action_url/);

@@ -85,80 +85,346 @@ function revalidateCreative(jobId?: string) {
   if (jobId) revalidatePath(`/creative-jobs/${jobId}`);
 }
 
-export async function createCreativeDraftAction(formData: FormData) {
-  const access = await requireCreativeAction();
-  if (!isCreativeOperationsRole(access)) {
-    redirectWithMessage(
-      "/creative-jobs",
-      false,
-      "只有 Marketer、Manager、Admin 或系統擁有人可以新增設計工作。"
-    );
-  }
+    export async function createCreativeDraftAction(formData: FormData) {
+      const access = await requireCreativeAction();
+      if (!isCreativeOperationsRole(access)) {
+        redirectWithMessage(
+          "/creative-jobs",
+          false,
+          "只有 Marketer、Manager、Admin 或系統擁有人可以新增設計工作。"
+        );
+      }
 
-  const config = await getConfigurationData();
-  const requestedBrandId = readString(formData, "brandId");
-  const brand = config.brands.find((item) => item.id === requestedBrandId) ??
-    config.brands[0];
-  if (!brand) {
-    redirectWithMessage(
-      "/creative-jobs",
-      false,
-      "你目前未獲授權管理任何品牌。"
-    );
-  }
+      const today = getHongKongToday();
+      const title = readString(formData, "title") || "未命名設計工作";
+      const startDate = readString(formData, "startDate") || today;
+      const dueDate = readString(formData, "dueDate");
+      const priority = readString(formData, "priority") || "normal";
+      const workload = readString(formData, "workload") || "M";
+      const quantity = Number(readString(formData, "quantity") || 1);
+      const sourceTaxonomyId = readString(formData, "sourceTaxonomyId");
+      const usageTaxonomyId = readString(formData, "usageTaxonomyId");
+      const mediaFormatTaxonomyId = readString(
+        formData,
+        "mediaFormatTaxonomyId"
+      );
+      const assigneeProfileId = readString(formData, "assigneeProfileId");
+      const materialStatus =
+        readString(formData, "materialStatus") === "waiting"
+          ? "waiting"
+          : "ready";
 
-  const supabase = createSupabaseAdminClient();
-  const today = getHongKongToday();
-  const { data, error } = await supabase
-    .from("creative_jobs")
-    .insert({
-      brand_id: brand.id,
-      title: "未命名設計工作",
-      status: "draft",
-      priority: "normal",
-      workload: "M",
-      start_date: today,
-      requester_member_id: access.memberId ?? null,
-      requester_email:
-        access.email ||
-        (access.accessLevel === "master" ? "master" : "shared_admin"),
-      brief_document: {
-        type: "doc",
-        content: [
-          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Campaign 目的" }] },
-          { type: "paragraph", content: [{ type: "text", text: "寫低今次內容／廣告要解決嘅問題，同埋成功標準。" }] },
-          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "Deliverables／輸出要求" }] },
-          { type: "taskList", content: [{ type: "taskItem", attrs: { checked: false }, content: [{ type: "paragraph", content: [{ type: "text", text: "列明數量、尺寸、片長、平台、字幕、VO 同版本要求" }] }] }] },
-          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "畫面及 Reference" }] },
-          { type: "paragraph", content: [{ type: "text", text: "可直接 Ctrl + V 貼 Screenshot，或者由右邊素材庫插入圖片及 Google Drive 連結。" }] },
-          { type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: "必須遵守／不可出現" }] },
-          { type: "bulletList", content: [{ type: "listItem", content: [{ type: "paragraph", content: [{ type: "text", text: "價錢、CTA、Logo、合規字眼及品牌要求" }] }] }] },
-        ],
-      },
-      brief_plain_text: "Campaign 目的\nDeliverables／輸出要求\n畫面及 Reference\n必須遵守／不可出現",
-    })
-    .select("id")
-    .single();
-  if (error || !data?.id) {
-    console.warn("creative_job_draft_create_failed", {
-      code: error?.code,
-      message: error?.message,
-    });
-    redirectWithMessage(
-      "/creative-jobs",
-      false,
-      "未能建立設計工作，請確認 Creative Studio Database 已完成設定。"
-    );
-  }
+      if (
+        !title ||
+        title.length > 240 ||
+        !/^\d{4}-\d{2}-\d{2}$/.test(startDate) ||
+        (dueDate && !/^\d{4}-\d{2}-\d{2}$/.test(dueDate)) ||
+        !creativePriorities.includes(priority as never) ||
+        !creativeWorkloads.includes(workload as never) ||
+        !Number.isInteger(quantity) ||
+        quantity < 1 ||
+        quantity > 999
+      ) {
+        redirectWithMessage(
+          "/creative-jobs",
+          false,
+          "請檢查 Job 名稱、日期、優先級、工作量同數量。"
+        );
+      }
+      if (dueDate && dueDate < startDate) {
+        redirectWithMessage(
+          "/creative-jobs",
+          false,
+          "Due Day 唔可以早過 Start Day。"
+        );
+      }
 
-  await writeCreativeAudit({
-    jobId: data.id,
-    access,
-    action: "creative_job.created",
-    after: { brandId: brand.id, startDate: today, status: "draft" },
-  });
-  redirect(`/creative-jobs/${data.id}`);
-}
+      const config = await getConfigurationData();
+      const requestedBrandId = readString(formData, "brandId");
+      const brand =
+        config.brands.find((item) => item.id === requestedBrandId) ??
+        config.brands[0];
+      if (!brand) {
+        redirectWithMessage(
+          "/creative-jobs",
+          false,
+          "你目前未獲授權管理任何品牌。"
+        );
+      }
+
+      const supabase = createSupabaseAdminClient();
+      const taxonomyIds = [
+        sourceTaxonomyId,
+        usageTaxonomyId,
+        mediaFormatTaxonomyId,
+      ].filter(Boolean);
+      const taxonomyResult = taxonomyIds.length
+        ? await supabase
+            .from("creative_taxonomy_items")
+            .select("id,category,name,is_active")
+            .in("id", taxonomyIds)
+        : { data: [], error: null };
+      if (taxonomyResult.error) {
+        redirectWithMessage(
+          "/creative-jobs",
+          false,
+          "未能讀取設計分類。"
+        );
+      }
+      const taxonomyMap = new Map(
+        (taxonomyResult.data ?? []).map((item) => [String(item.id), item])
+      );
+      const expectedCategories = [
+        [sourceTaxonomyId, "source"],
+        [usageTaxonomyId, "usage"],
+        [mediaFormatTaxonomyId, "media_format"],
+      ] as const;
+      if (
+        expectedCategories.some(
+          ([id, category]) =>
+            id &&
+            (!taxonomyMap.has(id) ||
+              taxonomyMap.get(id)?.category !== category ||
+              taxonomyMap.get(id)?.is_active !== true)
+        )
+      ) {
+        redirectWithMessage(
+          "/creative-jobs",
+          false,
+          "Source、用途或媒體格式選項無效。"
+        );
+      }
+
+      if (assigneeProfileId) {
+        if (title === "未命名設計工作") {
+          redirectWithMessage(
+            "/creative-jobs",
+            false,
+            "派 Job 前請先填寫清晰 Job 名稱。"
+          );
+        }
+        if (!dueDate) {
+          redirectWithMessage(
+            "/creative-jobs",
+            false,
+            "派 Job 畀 Designer 前必須設定 Due Day。"
+          );
+        }
+        if (!sourceTaxonomyId || !usageTaxonomyId || !mediaFormatTaxonomyId) {
+          redirectWithMessage(
+            "/creative-jobs",
+            false,
+            "派 Job 前必須分別選擇 Source、用途同媒體格式。"
+          );
+        }
+      }
+
+      let assigneeMemberId = "";
+      let assigneeEmail = "";
+      let assigneeProfileName = "";
+      if (assigneeProfileId) {
+        const { data: profile } = await supabase
+          .from("creative_designer_profiles")
+          .select("id,display_name,linked_member_id,is_active")
+          .eq("id", assigneeProfileId)
+          .maybeSingle();
+        if (!profile || profile.is_active !== true) {
+          redirectWithMessage(
+            "/creative-jobs",
+            false,
+            "所選 Designer 已停用或不存在。"
+          );
+        }
+        assigneeProfileName = String(profile.display_name);
+        assigneeMemberId =
+          typeof profile.linked_member_id === "string"
+            ? profile.linked_member_id
+            : "";
+        if (assigneeMemberId) {
+          const { data: member } = await supabase
+            .from("workspace_members")
+            .select("email,status")
+            .eq("id", assigneeMemberId)
+            .maybeSingle();
+          if (member?.status === "active" || member?.status === "invited") {
+            assigneeEmail = String(member.email || "");
+          } else {
+            assigneeMemberId = "";
+          }
+        }
+      }
+
+      const status = assigneeProfileId
+        ? materialStatus === "waiting"
+          ? "waiting_assets"
+          : "assigned"
+        : "draft";
+      const { data, error } = await supabase
+        .from("creative_jobs")
+        .insert({
+          brand_id: brand.id,
+          title,
+          status,
+          priority,
+          workload,
+          start_date: startDate,
+          due_date: dueDate || null,
+          source_taxonomy_id: sourceTaxonomyId || null,
+          usage_taxonomy_id: usageTaxonomyId || null,
+          media_format_taxonomy_id: mediaFormatTaxonomyId || null,
+          assignee_profile_id: assigneeProfileId || null,
+          assignee_member_id: assigneeMemberId || null,
+          material_status: materialStatus,
+          quantity,
+          requester_member_id: access.memberId ?? null,
+          requester_email:
+            access.email ||
+            (access.accessLevel === "master" ? "master" : "shared_admin"),
+          brief_document: {
+            type: "doc",
+            content: [
+              {
+                type: "heading",
+                attrs: { level: 2 },
+                content: [{ type: "text", text: "Campaign 目的" }],
+              },
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "寫低今次內容／廣告要解決嘅問題，同埋成功標準。",
+                  },
+                ],
+              },
+              {
+                type: "heading",
+                attrs: { level: 2 },
+                content: [{ type: "text", text: "Deliverables／輸出要求" }],
+              },
+              {
+                type: "taskList",
+                content: [
+                  {
+                    type: "taskItem",
+                    attrs: { checked: false },
+                    content: [
+                      {
+                        type: "paragraph",
+                        content: [
+                          {
+                            type: "text",
+                            text: "列明數量、尺寸、片長、平台、字幕、VO 同版本要求",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                type: "heading",
+                attrs: { level: 2 },
+                content: [{ type: "text", text: "畫面及 Reference" }],
+              },
+              {
+                type: "paragraph",
+                content: [
+                  {
+                    type: "text",
+                    text: "可直接 Ctrl + V 貼 Screenshot，或者由右邊素材庫插入圖片及 Google Drive 連結。",
+                  },
+                ],
+              },
+              {
+                type: "heading",
+                attrs: { level: 2 },
+                content: [{ type: "text", text: "必須遵守／不可出現" }],
+              },
+              {
+                type: "bulletList",
+                content: [
+                  {
+                    type: "listItem",
+                    content: [
+                      {
+                        type: "paragraph",
+                        content: [
+                          {
+                            type: "text",
+                            text: "價錢、CTA、Logo、合規字眼及品牌要求",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+          brief_plain_text:
+            "Campaign 目的\nDeliverables／輸出要求\n畫面及 Reference\n必須遵守／不可出現",
+        })
+        .select("id")
+        .single();
+      if (error || !data?.id) {
+        console.warn("creative_job_draft_create_failed", {
+          code: error?.code,
+          message: error?.message,
+        });
+        redirectWithMessage(
+          "/creative-jobs",
+          false,
+          "未能建立設計工作，請重新載入後再試。"
+        );
+      }
+
+      await writeCreativeAudit({
+        jobId: data.id,
+        access,
+        action: "creative_job.created",
+        after: {
+          brandId: brand.id,
+          title,
+          status,
+          priority,
+          workload,
+          startDate,
+          dueDate: dueDate || null,
+          sourceTaxonomyId: sourceTaxonomyId || null,
+          usageTaxonomyId: usageTaxonomyId || null,
+          mediaFormatTaxonomyId: mediaFormatTaxonomyId || null,
+          assigneeProfileId: assigneeProfileId || null,
+        },
+      });
+
+      if (assigneeMemberId) {
+        await queueCreativeNotification({
+          recipientMemberId: assigneeMemberId,
+          recipientEmail: assigneeEmail,
+          brandId: brand.id,
+          jobId: data.id,
+          type: "creative_assigned",
+          title:
+            priority === "urgent"
+              ? "緊急設計工作已派畀你"
+              : "新設計工作已派畀你",
+          body: `${title}${assigneeProfileName ? ` · ${assigneeProfileName}` : ""}`,
+          dedupeKey: `creative_assigned:${data.id}:${assigneeMemberId}:${Date.now()}`,
+        });
+      }
+
+      revalidateCreative(data.id);
+      redirectWithMessage(
+        `/creative-jobs/${data.id}`,
+        true,
+        assigneeProfileId && !assigneeMemberId
+          ? "設計工作已建立；Designer 尚未連結個人帳戶，所以暫時唔會收到桌面通知。"
+          : assigneeProfileId
+            ? "設計工作已建立並派發。"
+            : "設計工作草稿已建立。"
+      );
+    }
 
 export async function updateCreativeJobAction(formData: FormData) {
   const access = await requireCreativeAction();

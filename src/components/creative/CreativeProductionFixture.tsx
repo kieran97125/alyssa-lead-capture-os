@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef } from "react";
+import { CreativeJobHeaderActions } from "@/components/creative/CreativeJobHeaderActions";
 import {
   CreativeBriefEditor,
   type CreativeBriefEditorHandle,
@@ -53,35 +54,91 @@ export function CreativeProductionFixture() {
           <h1 className="mt-1 text-3xl font-black">設計工作</h1>
         </header>
 
-        <section className="mt-6 overflow-hidden rounded-2xl border border-[#e8dcd5] bg-white" data-testid="creative-job-list-fixture">
-          <div className="grid grid-cols-[2fr_repeat(10,1fr)] gap-2 border-b border-[#eadfd9] bg-[#fbf9f7] px-4 py-3 text-[10px] font-black">
-            {[
-              "Job",
-              "品牌",
-              "Designer",
-              "Source",
-              "用途",
-              "媒體格式",
-              "優先",
-              "Start",
-              "Due",
-              "出街／日曆",
-              "狀態",
-            ].map((label) => (
-              <span key={label}>{label}</span>
-            ))}
-          </div>
-          <div className="grid grid-cols-[2fr_repeat(10,1fr)] gap-2 px-4 py-4 text-[11px] font-semibold">
-            <strong>GOS KOL 脫毛廣告片</strong>
-            <span>GOS</span>
-            <span>Amber</span>
-            <span>KOL 拍攝</span>
-            <span>Meta AD</span>
-            <span>Video</span>
+        <div className="mt-4 flex justify-end">
+          <CreativeJobHeaderActions
+            canCreate
+            canManageSettings={false}
+            today="2026-09-01"
+            defaultBrandId="fixture-brand"
+            brands={[
+              {
+                id: "fixture-brand",
+                name: "GOS",
+                slug: "gos",
+                primaryColor: "#f27a23",
+                secondaryColor: "#fff7ed",
+                whatsappNumber: null,
+                defaultThankYouUrl: null,
+              },
+            ]}
+            designers={[
+              {
+                id: "fixture-designer",
+                displayName: "Amber",
+                linkedMemberId: null,
+                linkedMemberName: null,
+                linkedMemberEmail: null,
+                isActive: true,
+                sortOrder: 10,
+              },
+            ]}
+            taxonomies={[
+              {
+                id: "fixture-source",
+                category: "source",
+                name: "KOL 拍攝",
+                isActive: true,
+                sortOrder: 10,
+              },
+              {
+                id: "fixture-usage",
+                category: "usage",
+                name: "Meta AD",
+                isActive: true,
+                sortOrder: 10,
+              },
+              {
+                id: "fixture-format",
+                category: "media_format",
+                name: "Video",
+                isActive: true,
+                sortOrder: 10,
+              },
+            ]}
+          />
+        </div>
+
+        <section
+          className="mt-6 overflow-hidden rounded-2xl border border-[#e8dcd5] bg-white"
+          data-testid="creative-job-list-fixture"
+        >
+          <div className="hidden grid-cols-[1.5fr_.78fr_.85fr_1fr_72px_96px] gap-3 border-b border-[#eadfd9] bg-[#fbf9f7] px-4 py-3 text-[10px] font-black xl:grid">
+            <span>Job／Source</span>
+            <span>品牌／Designer</span>
+            <span>用途／媒體格式</span>
+            <span>Start／Due／Publish</span>
             <span>優先</span>
-            <span>1/9</span>
-            <span>4/9</span>
-            <span>6/9</span>
+            <span>狀態</span>
+          </div>
+          <div className="grid min-w-0 gap-3 px-4 py-4 text-[11px] font-semibold xl:grid-cols-[1.5fr_.78fr_.85fr_1fr_72px_96px] xl:items-center">
+            <span className="min-w-0">
+              <strong className="block truncate">GOS KOL 脫毛廣告片</strong>
+              <small className="mt-1 block">1 件 · M workload</small>
+              <span className="mt-2 block truncate">Source · KOL 拍攝</span>
+            </span>
+            <span>
+              <strong className="block">GOS</strong>
+              <span className="block">Amber</span>
+            </span>
+            <span>
+              <strong className="block">Meta AD</strong>
+              <span className="block">Video</span>
+            </span>
+            <span>
+              <strong className="block">Start 1/9 → Due 4/9</strong>
+              <span className="block">Publish 6/9</span>
+            </span>
+            <span>優先</span>
             <span>製作中</span>
           </div>
         </section>
