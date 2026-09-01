@@ -37,6 +37,11 @@ patch = patch.replace(
     "        nav_item_replacement,\n        text,",
     "        lambda _match: nav_item_replacement,\n        text,",
 )
+
+# The fixture's Tailwind arbitrary-value syntax makes an escaped regex brittle.
+# Skip that one helper and replace the fixture by stable JSX boundary markers
+# after the main patch has completed.
+patch = patch.replace("patch_fixture()\npatch_tests()", "patch_tests()")
 patch_path.write_text(patch, encoding="utf-8")
 
 nav_path = Path("src/components/alyssa/AppNavClient.tsx")
@@ -75,7 +80,34 @@ if indented_brand in nav:
     nav = nav.replace(indented_brand, dedented_brand, 1)
 nav_path.write_text(nav, encoding="utf-8")
 
-runpy.run_path(str(patch_path), run_name="__main__")
+namespace = runpy.run_path(str(patch_path), run_name="__main__")
+
+# Stable fixture replacement used by the interaction and no-overflow tests.
+fixture_path = Path("src/components/creative/CreativeProductionFixture.tsx")
+fixture = fixture_path.read_text(encoding="utf-8")
+fixture_import = (
+    'import { CreativeJobHeaderActions } from '
+    '"@/components/creative/CreativeJobHeaderActions";\n'
+)
+if fixture_import not in fixture:
+    fixture = fixture.replace(
+        'import { useRef } from "react";\n',
+        'import { useRef } from "react";\n' + fixture_import,
+        1,
+    )
+start_marker = '        <section className="mt-6 overflow-hidden rounded-2xl border border-[#e8dcd5] bg-white" data-testid="creative-job-list-fixture">'
+end_marker = '        <section className="mt-6" data-testid="creative-rich-brief-fixture">'
+start = fixture.find(start_marker)
+end = fixture.find(end_marker, start + 1)
+if start < 0 or end < 0:
+    raise SystemExit("Stable Creative Production fixture boundaries not found")
+fixture = (
+    fixture[:start]
+    + namespace["FIXTURE_LIST"].rstrip()
+    + "\n\n"
+    + fixture[end:]
+)
+fixture_path.write_text(fixture, encoding="utf-8")
 
 nav = nav_path.read_text(encoding="utf-8")
 bad_aside = '<aside\\n        className={`${styles.sidebarHost} command-sidebar ${open ? "is-open" : ""}`}\\n        data-collapsed={collapsed ? "true" : "false"}\\n      >'
