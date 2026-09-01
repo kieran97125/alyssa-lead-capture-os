@@ -136,6 +136,29 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          targets = [
+              "src/app/creative-jobs/actions.ts",
+              "src/app/creative-jobs/page.tsx",
+              "src/components/alyssa/AppNavClient.tsx",
+              "src/components/alyssa/AppNavClient.module.css",
+              "src/components/creative/CreativeJobHeaderActions.tsx",
+              "src/components/creative/CreativeJobHeaderActions.module.css",
+              "src/components/creative/CreativeProductionFixture.tsx",
+              "e2e/creative-production.spec.ts",
+              "scripts/verify-creative-production-contract.mjs",
+          ]
+          for target in targets:
+              path = Path(target)
+              if not path.exists():
+                  continue
+              path.write_text(
+                  path.read_text(encoding="utf-8").rstrip() + "\n",
+                  encoding="utf-8",
+              )
+          PY
           git add --all
           git diff --cached --check
           git status --short
