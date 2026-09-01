@@ -37,6 +37,57 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Stabilize generated UX acceptance source
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/creative-list-ux-refinement.py")
+          source = path.read_text(encoding="utf-8")
+          source = source.replace("用途／格式", "用途／媒體格式")
+
+          old = '''              const sidebar = page.locator(".command-sidebar");
+              const before = await sidebar.evaluate((element) => element.clientWidth);
+              await page.getByRole("button", { name: "收起主功能欄" }).click();
+              await expect(page.locator("html")).toHaveClass(/command-sidebar-collapsed/);
+              await expect(page.getByRole("button", { name: "展開主功能欄" })).toBeVisible();
+              const after = await sidebar.evaluate((element) => element.clientWidth);
+              expect(after).toBeLessThan(before);
+
+              await page.getByRole("button", { name: "展開主功能欄" }).click();
+              await expect(page.locator("html")).not.toHaveClass(/command-sidebar-collapsed/);'''
+          new = '''              const sidebar = page.locator(".command-sidebar");
+              const collapseButton = page.getByRole("button", {
+                name: "收起主功能欄",
+              });
+              await expect(collapseButton).toBeVisible();
+              await page.waitForFunction(() => {
+                const element = document.querySelector(".command-sidebar");
+                return element instanceof HTMLElement && element.clientWidth > 200;
+              });
+              const before = await sidebar.evaluate((element) => element.clientWidth);
+
+              await collapseButton.click();
+              await expect(page.locator("html")).toHaveClass(/command-sidebar-collapsed/);
+              await expect(page.getByRole("button", { name: "展開主功能欄" })).toBeVisible();
+              await page.waitForFunction(() => {
+                const element = document.querySelector(".command-sidebar");
+                return element instanceof HTMLElement && element.clientWidth < 100;
+              });
+              const after = await sidebar.evaluate((element) => element.clientWidth);
+              expect(after).toBeLessThan(before);
+
+              await page.getByRole("button", { name: "展開主功能欄" }).click();
+              await expect(page.locator("html")).not.toHaveClass(/command-sidebar-collapsed/);
+              await page.waitForFunction(() => {
+                const element = document.querySelector(".command-sidebar");
+                return element instanceof HTMLElement && element.clientWidth > 200;
+              });'''
+          if old not in source:
+              raise SystemExit("Sidebar acceptance source marker missing")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Apply production UX refinement
         run: python3 scripts/run-creative-list-ux-refinement.py
 
