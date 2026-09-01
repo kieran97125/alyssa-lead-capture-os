@@ -119,6 +119,27 @@ if bad_aside in nav:
     nav = nav.replace(bad_aside, good_aside, 1)
 nav_path.write_text(nav, encoding="utf-8")
 
+# Raw triple-quoted templates intentionally preserve TypeScript backslashes, but
+# their first-line sentinel is also preserved as a standalone "\\" line. Strip
+# only standalone sentinel lines; never alter regex literals or escaped strings.
+for generated_path in [
+    "src/components/creative/CreativeJobHeaderActions.tsx",
+    "src/components/creative/CreativeJobHeaderActions.module.css",
+    "src/components/alyssa/AppNavClient.module.css",
+    "src/app/creative-jobs/actions.ts",
+    "src/app/creative-jobs/page.tsx",
+    "src/components/alyssa/AppNavClient.tsx",
+    "src/components/creative/CreativeProductionFixture.tsx",
+    "e2e/creative-production.spec.ts",
+    "scripts/verify-creative-production-contract.mjs",
+]:
+    generated = Path(generated_path)
+    content = generated.read_text(encoding="utf-8")
+    cleaned = "".join(
+        line for line in content.splitlines(keepends=True) if line.strip() != "\\"
+    )
+    generated.write_text(cleaned, encoding="utf-8")
+
 runner = Path("scripts/run-creative-list-ux-refinement.py")
 if runner.exists():
     runner.unlink()
