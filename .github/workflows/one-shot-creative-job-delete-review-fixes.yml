@@ -46,6 +46,12 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
+      - name: Bootstrap expected visual baseline paths
+        run: |
+          mkdir -p e2e/creative-production.spec.ts-snapshots
+          : > e2e/creative-production.spec.ts-snapshots/creative-job-delete-confirmation-desktop-chromium-linux.png
+          : > e2e/creative-production.spec.ts-snapshots/creative-job-delete-confirmation-mobile-chromium-linux.png
+
       - name: Generate deterministic Creative deletion baselines
         run: npx playwright test e2e/creative-production.spec.ts --update-snapshots
 
