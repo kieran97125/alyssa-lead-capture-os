@@ -46,46 +46,68 @@ jobs:
           source = path.read_text(encoding="utf-8")
           source = source.replace("用途／格式", "用途／媒體格式")
 
-          old = '''              const sidebar = page.locator(".command-sidebar");
-              const before = await sidebar.evaluate((element) => element.clientWidth);
-              await page.getByRole("button", { name: "收起主功能欄" }).click();
-              await expect(page.locator("html")).toHaveClass(/command-sidebar-collapsed/);
-              await expect(page.getByRole("button", { name: "展開主功能欄" })).toBeVisible();
-              const after = await sidebar.evaluate((element) => element.clientWidth);
-              expect(after).toBeLessThan(before);
+          first_marker = (
+              '              const sidebar = page.locator(".command-sidebar");\n'
+              '              const before = await sidebar.evaluate((element) => element.clientWidth);\n'
+          )
+          first_replacement = (
+              '              const sidebar = page.locator(".command-sidebar");\n'
+              '              const collapseButton = page.getByRole("button", {\n'
+              '                name: "收起主功能欄",\n'
+              '              });\n'
+              '              await expect(collapseButton).toBeVisible();\n'
+              '              await page.waitForFunction(() => {\n'
+              '                const element = document.querySelector(".command-sidebar");\n'
+              '                return element instanceof HTMLElement && element.clientWidth > 200;\n'
+              '              });\n'
+              '              const before = await sidebar.evaluate((element) => element.clientWidth);\n'
+          )
+          if first_marker not in source:
+              raise SystemExit("Sidebar initial-width acceptance marker missing")
+          source = source.replace(first_marker, first_replacement, 1)
 
-              await page.getByRole("button", { name: "展開主功能欄" }).click();
-              await expect(page.locator("html")).not.toHaveClass(/command-sidebar-collapsed/);'''
-          new = '''              const sidebar = page.locator(".command-sidebar");
-              const collapseButton = page.getByRole("button", {
-                name: "收起主功能欄",
-              });
-              await expect(collapseButton).toBeVisible();
-              await page.waitForFunction(() => {
-                const element = document.querySelector(".command-sidebar");
-                return element instanceof HTMLElement && element.clientWidth > 200;
-              });
-              const before = await sidebar.evaluate((element) => element.clientWidth);
+          collapse_marker = (
+              '              await page.getByRole("button", { name: "收起主功能欄" }).click();\n'
+          )
+          if collapse_marker not in source:
+              raise SystemExit("Sidebar collapse click marker missing")
+          source = source.replace(
+              collapse_marker,
+              '              await collapseButton.click();\n',
+              1,
+          )
 
-              await collapseButton.click();
-              await expect(page.locator("html")).toHaveClass(/command-sidebar-collapsed/);
-              await expect(page.getByRole("button", { name: "展開主功能欄" })).toBeVisible();
-              await page.waitForFunction(() => {
-                const element = document.querySelector(".command-sidebar");
-                return element instanceof HTMLElement && element.clientWidth < 100;
-              });
-              const after = await sidebar.evaluate((element) => element.clientWidth);
-              expect(after).toBeLessThan(before);
+          collapsed_marker = (
+              '              await expect(page.getByRole("button", { name: "展開主功能欄" })).toBeVisible();\n'
+              '              const after = await sidebar.evaluate((element) => element.clientWidth);\n'
+          )
+          collapsed_replacement = (
+              '              await expect(page.getByRole("button", { name: "展開主功能欄" })).toBeVisible();\n'
+              '              await page.waitForFunction(() => {\n'
+              '                const element = document.querySelector(".command-sidebar");\n'
+              '                return element instanceof HTMLElement && element.clientWidth < 100;\n'
+              '              });\n'
+              '              const after = await sidebar.evaluate((element) => element.clientWidth);\n'
+          )
+          if collapsed_marker not in source:
+              raise SystemExit("Sidebar collapsed-width acceptance marker missing")
+          source = source.replace(collapsed_marker, collapsed_replacement, 1)
 
-              await page.getByRole("button", { name: "展開主功能欄" }).click();
-              await expect(page.locator("html")).not.toHaveClass(/command-sidebar-collapsed/);
-              await page.waitForFunction(() => {
-                const element = document.querySelector(".command-sidebar");
-                return element instanceof HTMLElement && element.clientWidth > 200;
-              });'''
-          if old not in source:
-              raise SystemExit("Sidebar acceptance source marker missing")
-          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+          restored_marker = (
+              '              await expect(page.locator("html")).not.toHaveClass(/command-sidebar-collapsed/);\n'
+          )
+          restored_replacement = (
+              '              await expect(page.locator("html")).not.toHaveClass(/command-sidebar-collapsed/);\n'
+              '              await page.waitForFunction(() => {\n'
+              '                const element = document.querySelector(".command-sidebar");\n'
+              '                return element instanceof HTMLElement && element.clientWidth > 200;\n'
+              '              });\n'
+          )
+          if restored_marker not in source:
+              raise SystemExit("Sidebar restored-width acceptance marker missing")
+          source = source.replace(restored_marker, restored_replacement, 1)
+
+          path.write_text(source, encoding="utf-8")
           PY
 
       - name: Apply production UX refinement
