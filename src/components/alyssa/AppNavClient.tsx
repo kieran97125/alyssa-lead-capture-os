@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useState, type ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import {
   BarChart3,
   CalendarRange,
@@ -20,6 +20,8 @@ import {
   Menu,
   MessageCircleMore,
   Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
   Settings2,
   ShieldAlert,
   Table2,
@@ -32,6 +34,7 @@ import {
   normalizeWorkspaceRole,
   type WorkspaceModuleKey,
 } from "@/lib/security/workspacePermissions";
+import styles from "./AppNavClient.module.css";
 
 type Icon = ComponentType<{ size?: number; strokeWidth?: number }>;
 
@@ -50,6 +53,8 @@ type NavigationGroup = {
   label: string;
   items: NavigationItem[];
 };
+
+const sidebarPreferenceKey = "alyssa-growth-os:sidebar-collapsed";
 
 const navigationGroups: NavigationGroup[] = [
   {
@@ -156,10 +161,12 @@ function NavItem({
   item,
   pathname,
   onNavigate,
+  collapsed,
 }: {
   item: NavigationItem;
   pathname: string;
   onNavigate: () => void;
+  collapsed: boolean;
 }) {
   const active = isActive(pathname, item);
   const IconComponent = item.icon;
@@ -169,12 +176,16 @@ function NavItem({
       href={item.href}
       onClick={onNavigate}
       aria-current={active ? "page" : undefined}
+      aria-label={collapsed ? item.label : undefined}
+      title={collapsed ? item.label : undefined}
       className={`command-nav-item ${active ? "is-active" : ""}`}
     >
       <IconComponent size={18} strokeWidth={active ? 2.4 : 1.9} />
-      <span>{item.label}</span>
+      <span className="command-nav-label">{item.label}</span>
       {item.badge ? <span className="command-nav-badge">{item.badge}</span> : null}
-      {active ? <ChevronRight className="ml-auto" size={15} /> : null}
+      {active ? (
+        <ChevronRight className="command-nav-chevron ml-auto" size={15} />
+      ) : null}
     </IntentPrefetchLink>
   );
 }
@@ -186,6 +197,7 @@ function SidebarContent({
   leadAuditAlertCount,
   workNotificationCount,
   creativeNotificationCount,
+  collapsed,
 }: {
   pathname: string;
   onNavigate: () => void;
@@ -193,6 +205,7 @@ function SidebarContent({
   leadAuditAlertCount: number;
   workNotificationCount: number;
   creativeNotificationCount: number;
+  collapsed: boolean;
 }) {
   const isMaster = access.accessLevel === "master";
   const isEmailMember = access.source === "supabase_auth";
@@ -212,40 +225,40 @@ function SidebarContent({
   const visibleNavigationGroups = navigationGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter((item) => {
-        if (item.masterOnly && !isMaster) return false;
-        if (item.module === "lead_audit" && !isMaster && !isEmailMember) {
-          return false;
-        }
-        if (!isEmailMember) return true;
-        return hasWorkspaceModulePermission(
-          {
-            isMaster,
-            workspaceRole: normalizeWorkspaceRole(access.workspaceRole),
-            modulePermissions: access.modulePermissions ?? {},
-          },
-          item.module
-        );
-      }).map((item) => {
-        if (item.module === "lead_audit" && leadAuditAlertCount > 0) {
-          return { ...item, badge: String(leadAuditAlertCount) };
-        }
-        if (item.href === "/tasks" && workNotificationCount > 0) {
-          return { ...item, badge: String(workNotificationCount) };
-        }
-        if (item.href === "/creative-jobs" && creativeNotificationCount > 0) {
-          return { ...item, badge: String(creativeNotificationCount) };
-        }
-        return item;
-      }),
+      items: group.items
+        .filter((item) => {
+          if (item.masterOnly && !isMaster) return false;
+          if (item.module === "lead_audit" && !isMaster && !isEmailMember) {
+            return false;
+          }
+          if (!isEmailMember) return true;
+          return hasWorkspaceModulePermission(
+            {
+              isMaster,
+              workspaceRole: normalizeWorkspaceRole(access.workspaceRole),
+              modulePermissions: access.modulePermissions ?? {},
+            },
+            item.module
+          );
+        })
+        .map((item) => {
+          if (item.module === "lead_audit" && leadAuditAlertCount > 0) {
+            return { ...item, badge: String(leadAuditAlertCount) };
+          }
+          if (item.href === "/tasks" && workNotificationCount > 0) {
+            return { ...item, badge: String(workNotificationCount) };
+          }
+          if (item.href === "/creative-jobs" && creativeNotificationCount > 0) {
+            return { ...item, badge: String(creativeNotificationCount) };
+          }
+          return item;
+        }),
     }))
     .filter((group) => group.items.length > 0);
   const accountCard = (
     <>
-      <span className="command-account-avatar">
-        {avatarLabel}
-      </span>
-      <span className="min-w-0 flex-1">
+      <span className="command-account-avatar">{avatarLabel}</span>
+      <span className="command-account-copy min-w-0 flex-1">
         <span className="command-account-name">{accountName}</span>
         <span className="command-account-email">{accountDetail}</span>
       </span>
@@ -260,11 +273,13 @@ function SidebarContent({
           href="/dashboard"
           onClick={onNavigate}
           className="command-brand-link"
+          aria-label={collapsed ? "Alyssa Growth OS 營運中心" : undefined}
+          title={collapsed ? "Alyssa Growth OS 營運中心" : undefined}
         >
           <span className="command-brand-mark" aria-hidden="true">
             GO
           </span>
-          <span className="min-w-0">
+          <span className="command-brand-copy min-w-0">
             <span className="command-brand-eyebrow">Alyssa Growth OS</span>
             <span className="command-brand-title">營運中心</span>
           </span>
@@ -282,6 +297,7 @@ function SidebarContent({
                   item={item}
                   pathname={pathname}
                   onNavigate={onNavigate}
+                  collapsed={collapsed}
                 />
               ))}
             </div>
@@ -297,11 +313,16 @@ function SidebarContent({
               onClick={onNavigate}
               className="command-account-card"
               aria-label={`管理 ${accountName} 權限`}
+              title={collapsed ? accountName : undefined}
             >
               {accountCard}
             </IntentPrefetchLink>
           ) : (
-            <div className="command-account-card" aria-label={accountName}>
+            <div
+              className="command-account-card"
+              aria-label={accountName}
+              title={collapsed ? accountName : undefined}
+            >
               {accountCard}
             </div>
           )}
@@ -333,6 +354,26 @@ export function AppNavClient({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
+
+  useEffect(() => {
+    const saved = window.localStorage.getItem(sidebarPreferenceKey) === "1";
+    setCollapsed(saved);
+    document.documentElement.dataset.commandSidebar = saved
+      ? "collapsed"
+      : "expanded";
+  }, []);
+
+  function toggleDesktopSidebar() {
+    setCollapsed((current) => {
+      const next = !current;
+      window.localStorage.setItem(sidebarPreferenceKey, next ? "1" : "0");
+      document.documentElement.dataset.commandSidebar = next
+        ? "collapsed"
+        : "expanded";
+      return next;
+    });
+  }
 
   return (
     <>
@@ -360,7 +401,20 @@ export function AppNavClient({
         />
       ) : null}
 
-      <aside className={`command-sidebar ${open ? "is-open" : ""}`}>
+      <aside
+        className={`command-sidebar ${open ? "is-open" : ""}`}
+        data-collapsed={collapsed ? "true" : "false"}
+      >
+        <button
+          type="button"
+          onClick={toggleDesktopSidebar}
+          className={styles.collapseButton}
+          aria-label={collapsed ? "展開主選單" : "縮小主選單"}
+          aria-pressed={collapsed}
+          title={collapsed ? "展開主選單" : "縮小主選單"}
+        >
+          {collapsed ? <PanelLeftOpen size={15} /> : <PanelLeftClose size={15} />}
+        </button>
         <SidebarContent
           pathname={pathname}
           onNavigate={() => setOpen(false)}
@@ -368,6 +422,7 @@ export function AppNavClient({
           leadAuditAlertCount={leadAuditAlertCount}
           workNotificationCount={workNotificationCount}
           creativeNotificationCount={creativeNotificationCount}
+          collapsed={collapsed}
         />
       </aside>
     </>
