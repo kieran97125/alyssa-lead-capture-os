@@ -13,6 +13,30 @@ patch = patch.replace(
     r'border border\\[#e8dcd5\\] bg-white',
     r'border border-\[#e8dcd5\] bg-white',
 )
+
+# Code replacements contain TypeScript regex literals such as \d. Passing those
+# strings directly as Python re replacement templates interprets the backslash.
+# Use replacement callbacks so generated source is written verbatim.
+patch = patch.replace(
+    "text, count = re.subn(pattern, replacement, text, count=1)",
+    "text, count = re.subn(pattern, lambda _match: replacement, text, count=1)",
+)
+patch = patch.replace(
+    "text, count = header_pattern.subn(header_replacement, text, count=1)",
+    "text, count = header_pattern.subn(lambda _match: header_replacement, text, count=1)",
+)
+patch = patch.replace(
+    "text, count = list_pattern.subn(list_replacement, text, count=1)",
+    "text, count = list_pattern.subn(lambda _match: list_replacement, text, count=1)",
+)
+patch = patch.replace(
+    "text, count = pattern.subn(replacement, text, count=1)",
+    "text, count = pattern.subn(lambda _match: replacement, text, count=1)",
+)
+patch = patch.replace(
+    "        nav_item_replacement,\n        text,",
+    "        lambda _match: nav_item_replacement,\n        text,",
+)
 patch_path.write_text(patch, encoding="utf-8")
 
 nav_path = Path("src/components/alyssa/AppNavClient.tsx")
