@@ -21,6 +21,8 @@ const packageJson = JSON.parse(read("package.json"));
 assert.match(action, /updateCalendarItemAction/);
 assert.match(action, /requireModuleAccess\("calendar"\)/);
 assert.match(action, /canAccessInternalBrand/);
+assert.match(action, /existingBrandId/);
+assert.match(action, /marketing_calendar_items/);
 assert.match(action, /expectedUpdatedAt/);
 assert.match(action, /update_marketing_calendar_item_with_links/);
 assert.match(dialog, /編輯日曆事項/);
@@ -40,11 +42,13 @@ assert.match(migration, /update public\.creative_jobs/);
 assert.match(migration, /creative_job_audit/);
 assert.match(migration, /marketing_command_center_audit/);
 assert.match(migration, /calendar_before_creative_due/);
+assert.match(migration, /calendar_assignee_brand_access/);
+assert.match(migration, /calendar_linked_designer_brand_access/);
 assert.match(test, /calendar item can be fully edited/);
 assert.match(test, /toHaveScreenshot/);
 assert.match(test, /AxeBuilder/);
 assert.ok(packageJson.scripts?.["verify:calendar-edit-contract"]);
 
 console.log(
-  "Editable Calendar dialog, atomic linked-record sync, concurrency, audit and visual acceptance contracts verified."
+  "Editable Calendar dialog, dual-brand authorization, linked-record sync, concurrency, audit and visual acceptance contracts verified."
 );
