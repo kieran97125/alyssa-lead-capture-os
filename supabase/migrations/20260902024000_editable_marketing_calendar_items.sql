@@ -98,6 +98,43 @@ begin
     v_treatment_label := null;
   end if;
 
+  if v_assignee_email is not null and exists (
+    select 1
+    from public.workspace_members member
+    where lower(member.email) = v_assignee_email
+      and member.status = 'active'
+      and not member.is_master
+      and not exists (
+        select 1
+        from public.workspace_member_brand_access access
+        where access.member_id = member.id
+          and access.brand_id = v_brand_id
+          and access.status = 'active'
+      )
+  ) then
+    raise exception using errcode = '23514', message = 'calendar_assignee_brand_access';
+  end if;
+
+  if v_brand_id is distinct from v_existing.brand_id and exists (
+    select 1
+    from public.creative_jobs job
+    join public.workspace_members member
+      on member.id = job.assignee_member_id
+    where job.calendar_item_id = p_item_id
+      and job.deleted_at is null
+      and member.status = 'active'
+      and not member.is_master
+      and not exists (
+        select 1
+        from public.workspace_member_brand_access access
+        where access.member_id = member.id
+          and access.brand_id = v_brand_id
+          and access.status = 'active'
+      )
+  ) then
+    raise exception using errcode = '23514', message = 'calendar_linked_designer_brand_access';
+  end if;
+
   if exists (
     select 1
     from public.marketing_task_calendar_links link
