@@ -20,6 +20,9 @@ import {
   deleteCalendarItemAction,
   moveCalendarItemAction,
 } from "@/app/command-center/actions";
+import { updateCalendarItemAction } from "@/app/calendar/updateAction";
+import { CalendarItemEditDialog } from "@/components/command-center/CalendarItemEditDialog";
+import type { CalendarTreatmentOption } from "@/lib/marketing/calendarEdit";
 import type { CalendarItem } from "@/lib/marketing/commandCenter";
 
 type CalendarBrand = {
@@ -27,6 +30,8 @@ type CalendarBrand = {
   name: string;
   color: string;
 };
+
+type CalendarTreatment = CalendarTreatmentOption;
 
 const weekdays = ["一", "二", "三", "四", "五", "六", "日"];
 const MAX_VISIBLE_ITEMS_PER_DAY = 3;
@@ -67,15 +72,23 @@ function statusLabel(status: CalendarItem["status"]) {
 function CalendarTaskCard({
   item,
   brand,
+  brands = [],
+  treatments = [],
   overlay = false,
   deleting = false,
+  fixtureMode = false,
   onDelete,
+  onUpdated,
 }: {
   item: CalendarItem;
   brand: CalendarBrand | undefined;
+  brands?: CalendarBrand[];
+  treatments?: CalendarTreatment[];
   overlay?: boolean;
   deleting?: boolean;
+  fixtureMode?: boolean;
   onDelete?: (item: CalendarItem) => void;
+  onUpdated?: (item: CalendarItem, message: string) => void;
 }) {
   const draggable = useDraggable({
     id: item.id,
@@ -110,6 +123,17 @@ function CalendarTaskCard({
           {itemTypeLabel(item.itemType)}
           {item.channel ? ` · ${item.channel}` : ""}
         </small>
+        {!overlay && onUpdated ? (
+          <CalendarItemEditDialog
+            item={item}
+            brands={brands}
+            treatments={treatments}
+            saveAction={updateCalendarItemAction}
+            onSaved={onUpdated}
+            disabled={deleting}
+            fixtureMode={fixtureMode}
+          />
+        ) : null}
         <GripVertical className="calendar-task-grip" size={11} aria-hidden="true" />
       </div>
 
@@ -162,7 +186,7 @@ function CalendarTaskCard({
             </p>
           ) : null}
           {item.notes ? <p className="calendar-task-preview-notes">{item.notes}</p> : null}
-          <p className="calendar-task-preview-hint">拖放可更改日期</p>
+          <p className="calendar-task-preview-hint">鉛筆可完整編輯；拖放可快速改日期</p>
         </div>
       ) : null}
     </article>
@@ -174,17 +198,23 @@ function CalendarDay({
   day,
   items,
   brands,
+  treatments,
   today,
   deletingId,
+  fixtureMode,
   onDelete,
+  onUpdated,
 }: {
   date: string;
   day: number;
   items: CalendarItem[];
   brands: CalendarBrand[];
+  treatments: CalendarTreatment[];
   today: string;
   deletingId: string | null;
+  fixtureMode: boolean;
   onDelete: (item: CalendarItem) => void;
+  onUpdated: (item: CalendarItem, message: string) => void;
 }) {
   const { isOver, setNodeRef } = useDroppable({ id: date });
   const visibleItems = items.slice(0, MAX_VISIBLE_ITEMS_PER_DAY);
@@ -208,8 +238,12 @@ function CalendarDay({
             key={item.id}
             item={item}
             brand={brands.find((brand) => brand.id === item.brandId)}
+            brands={brands}
+            treatments={treatments}
             deleting={deletingId === item.id}
+            fixtureMode={fixtureMode}
             onDelete={onDelete}
+            onUpdated={onUpdated}
           />
         ))}
         {overflowItems.length ? (
@@ -232,8 +266,12 @@ function CalendarDay({
                     key={item.id}
                     item={item}
                     brand={brands.find((brand) => brand.id === item.brandId)}
+                    brands={brands}
+                    treatments={treatments}
                     deleting={deletingId === item.id}
+                    fixtureMode={fixtureMode}
                     onDelete={onDelete}
+                    onUpdated={onUpdated}
                   />
                 ))}
               </div>
@@ -248,17 +286,21 @@ function CalendarDay({
 export function MarketingCalendarBoard({
   initialItems,
   brands,
+  treatments,
   year,
   month,
   daysInMonth,
   today,
+  fixtureMode = false,
 }: {
   initialItems: CalendarItem[];
   brands: CalendarBrand[];
+  treatments: CalendarTreatment[];
   year: number;
   month: number;
   daysInMonth: number;
   today: string;
+  fixtureMode?: boolean;
 }) {
   const [items, setItems] = useState(initialItems);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -317,8 +359,32 @@ export function MarketingCalendarBoard({
               : item
           )
         );
+      } else if (result.updatedAt) {
+        setItems((current) =>
+          current.map((item) =>
+            item.id === itemId ? { ...item, updatedAt: result.updatedAt } : item
+          )
+        );
       }
     });
+  }
+
+  function handleUpdated(item: CalendarItem, message: string) {
+    const visibleMonth = `${year}-${String(month).padStart(2, "0")}`;
+    setItems((current) =>
+      current
+        .map((currentItem) => (currentItem.id === item.id ? item : currentItem))
+        .sort(
+          (left, right) =>
+            left.scheduledDate.localeCompare(right.scheduledDate) ||
+            left.sortOrder - right.sortOrder
+        )
+    );
+    setNotice(
+      item.scheduledDate.startsWith(visibleMonth)
+        ? message
+        : `${message} 事項已移到 ${item.scheduledDate.slice(0, 7)}。`
+    );
   }
 
   function handleDelete(item: CalendarItem) {
@@ -382,7 +448,7 @@ export function MarketingCalendarBoard({
           display: grid !important;
           min-width: 0;
           height: 1.56rem;
-          grid-template-columns: auto minmax(0, 1fr) auto auto;
+          grid-template-columns: auto minmax(0, 1fr) auto auto auto;
           gap: 0.28rem !important;
           align-items: center !important;
           padding: 0.26rem 0.32rem;
@@ -415,6 +481,31 @@ export function MarketingCalendarBoard({
           line-height: 1 !important;
           text-overflow: ellipsis;
           white-space: nowrap;
+        }
+        .calendar-task-edit {
+          display: inline-grid;
+          width: 1.3rem;
+          height: 1.3rem;
+          flex: 0 0 auto;
+          place-items: center;
+          border: 1px solid transparent;
+          border-radius: 0.34rem;
+          background: transparent;
+          color: var(--system-muted-foreground);
+          cursor: pointer;
+          transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
+          touch-action: manipulation;
+        }
+        .calendar-task-edit:hover,
+        .calendar-task-edit:focus-visible {
+          border-color: var(--system-border);
+          background: var(--system-accent);
+          color: var(--system-primary);
+          outline: none;
+        }
+        .calendar-task-edit:disabled {
+          cursor: not-allowed;
+          opacity: 0.45;
         }
         .calendar-task-grip {
           color: #b4bac7;
@@ -630,7 +721,7 @@ export function MarketingCalendarBoard({
         }
         @media (max-width: 760px) {
           .calendar-task-summary {
-            grid-template-columns: auto minmax(0, 1fr) auto;
+            grid-template-columns: auto minmax(0, 1fr) auto auto;
           }
           .calendar-task-summary > small {
             display: none;
@@ -668,9 +759,12 @@ export function MarketingCalendarBoard({
                 date={calendarDate(year, month, day)}
                 items={itemsByDate.get(calendarDate(year, month, day)) ?? []}
                 brands={brands}
+                treatments={treatments}
                 today={today}
                 deletingId={deletingId}
+                fixtureMode={fixtureMode}
                 onDelete={handleDelete}
+                onUpdated={handleUpdated}
               />
             ) : (
               <div key={`blank-${index}`} className="calendar-day is-blank" />

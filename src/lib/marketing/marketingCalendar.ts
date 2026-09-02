@@ -55,6 +55,8 @@ function mapRows(
     assigneeEmail: textValue(row.assignee_email),
     notes: textValue(row.notes),
     sortOrder: numberValue(row.sort_order),
+    showOnPerformanceTimeline: row.show_on_performance_timeline !== false,
+    updatedAt: textValue(row.updated_at),
   }));
 }
 
@@ -64,8 +66,8 @@ function fixtureItems(month: HkMonthContext, brandId: string): CalendarItem[] {
     {
       id: "10000000-0000-4000-8000-000000000001",
       brandId,
-      treatmentId: null,
-      treatmentLabel: null,
+      treatmentId: "90000000-0000-4000-8000-000000000099",
+      treatmentLabel: "歷史療程",
       title: "DEP Reels 上線",
       itemType: "post",
       channel: "IG",
@@ -76,6 +78,8 @@ function fixtureItems(month: HkMonthContext, brandId: string): CalendarItem[] {
       assigneeEmail: null,
       notes: "素材及投放同日上線",
       sortOrder: 0,
+      showOnPerformanceTimeline: true,
+      updatedAt: `${month.today}T02:00:00.000Z`,
     },
   ];
 }
@@ -124,7 +128,7 @@ export async function getMarketingCalendarSnapshot(
     const extended = await supabase
       .from("marketing_calendar_items")
       .select(
-        "id,brand_id,treatment_id,treatment_label,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+        "id,brand_id,treatment_id,treatment_label,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order,show_on_performance_timeline,updated_at"
       )
       .in("brand_id", visibleBrandIds)
       .gte("scheduled_date", month.monthStart)
@@ -151,7 +155,7 @@ export async function getMarketingCalendarSnapshot(
     const legacy = await supabase
       .from("marketing_calendar_items")
       .select(
-        "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+        "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order,updated_at"
       )
       .in("brand_id", visibleBrandIds)
       .gte("scheduled_date", month.monthStart)
