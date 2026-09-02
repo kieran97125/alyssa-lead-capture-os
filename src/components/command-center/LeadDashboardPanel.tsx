@@ -296,7 +296,10 @@ export function LeadDashboardPanel({
           </div>
           <span>可切換單日／累積；橙色波點代表當日日曆活動</span>
         </div>
-        <LeadDashboardTrendChartLazy series={snapshot.trendSeries} />
+        <LeadDashboardTrendChartLazy
+          series={snapshot.trendSeries}
+          costAvailability={snapshot.costs.availability}
+        />
       </section>
 
       <section

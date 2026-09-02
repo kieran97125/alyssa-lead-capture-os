@@ -45,6 +45,7 @@ export type ComparisonPeriod = {
 };
 
 export type CanonicalComparisonMetricRow = ComparisonBaseMetrics & {
+  spendRecorded?: boolean;
   brandId: string;
   metricDate: string;
 };
@@ -172,7 +173,10 @@ export function buildDailyComparisonTrend(input: {
   annotations?: OperationalAnnotation[];
   treatmentFacts?: TreatmentTrendFact[];
 }): PerformanceTrendPoint[] {
-  const byDate = new Map<string, ComparisonBaseMetrics>();
+  const byDate = new Map<
+    string,
+    ComparisonBaseMetrics & { spendRecorded: boolean }
+  >();
   for (const row of input.rows) {
     if (input.brandIds && !input.brandIds.has(row.brandId)) continue;
     const existing = byDate.get(row.metricDate) ?? {
@@ -180,8 +184,10 @@ export function buildDailyComparisonTrend(input: {
       leads: 0,
       bookings: 0,
       shows: 0,
+      spendRecorded: false,
     };
     existing.spend += finiteNonNegative(row.spend);
+    existing.spendRecorded ||= row.spendRecorded === true;
     existing.leads += finiteNonNegative(row.leads);
     existing.bookings += finiteNonNegative(row.bookings);
     existing.shows += finiteNonNegative(row.shows);
@@ -219,6 +225,7 @@ export function buildDailyComparisonTrend(input: {
       calculatePerformanceTrendPoint(
         {
           spend: metric?.spend ?? 0,
+          spendRecorded: metric?.spendRecorded ?? false,
           leads: metric?.leads ?? 0,
           bookings: metric?.bookings ?? 0,
           shows: metric?.shows ?? 0,

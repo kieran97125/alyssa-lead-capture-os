@@ -20,6 +20,7 @@ export type PerformanceTrendMetricKey =
 
 export type PerformanceTrendBaseMetrics = {
   spend: number;
+  spendRecorded?: boolean;
   leads: number;
   bookings: number;
   shows: number;
@@ -27,7 +28,11 @@ export type PerformanceTrendBaseMetrics = {
   pendingShows: number;
 };
 
-export type PerformanceTrendPoint = PerformanceTrendBaseMetrics & {
+export type PerformanceTrendPoint = Omit<
+  PerformanceTrendBaseMetrics,
+  "spendRecorded"
+> & {
+  spendRecorded: boolean;
   day: number;
   date: string;
   cpl: number | null;
@@ -79,6 +84,12 @@ const treatmentPalette = [
   "#826AA4",
 ];
 
+export const costTrendMetricKeys: PerformanceTrendMetricKey[] = [
+  "cpl",
+  "costPerBooking",
+  "costPerShow",
+];
+
 export const brandTrendMetricKeys: PerformanceTrendMetricKey[] = [
   "spend",
   "leads",
@@ -118,6 +129,7 @@ function finiteNonNegative(value: number) {
 export function emptyPerformanceTrendBase(): PerformanceTrendBaseMetrics {
   return {
     spend: 0,
+    spendRecorded: false,
     leads: 0,
     bookings: 0,
     shows: 0,
@@ -132,6 +144,8 @@ export function accumulatePerformanceTrendPoints(
   const cumulative = emptyPerformanceTrendBase();
   return points.map((point) => {
     cumulative.spend += finiteNonNegative(point.spend);
+    cumulative.spendRecorded =
+      Boolean(cumulative.spendRecorded) || point.spendRecorded;
     cumulative.leads += finiteNonNegative(point.leads);
     cumulative.bookings += finiteNonNegative(point.bookings);
     cumulative.shows += finiteNonNegative(point.shows);
@@ -163,6 +177,7 @@ export function calculatePerformanceTrendPoint(
   }
 ): PerformanceTrendPoint {
   const spend = finiteNonNegative(input.spend);
+  const spendRecorded = input.spendRecorded ?? true;
   const leads = finiteNonNegative(input.leads);
   const bookings = finiteNonNegative(input.bookings);
   const shows = finiteNonNegative(input.shows);
@@ -172,14 +187,15 @@ export function calculatePerformanceTrendPoint(
     day: context.day,
     date: context.date,
     spend,
+    spendRecorded,
     leads,
     bookings,
     shows,
     noShows,
     pendingShows,
-    cpl: safeRatio(spend, leads),
-    costPerBooking: safeRatio(spend, bookings),
-    costPerShow: safeRatio(spend, shows),
+    cpl: spendRecorded ? safeRatio(spend, leads) : null,
+    costPerBooking: spendRecorded ? safeRatio(spend, bookings) : null,
+    costPerShow: spendRecorded ? safeRatio(spend, shows) : null,
     leadToBookRate: safeRatio(bookings, leads),
     bookToShowRate: safeRatio(shows, bookings),
     leadToShowRate: safeRatio(shows, leads),
@@ -198,6 +214,97 @@ function addFactToBase(
   if (fact.metricKind === "show") base.shows += value;
   if (fact.metricKind === "no_show") base.noShows += value;
   if (fact.metricKind === "pending_show") base.pendingShows += value;
+}
+
+export type PerformanceTrendSpendFact = {
+  brandId: string;
+  spendDate: string;
+  amount: number;
+};
+
+function spendFactKey(brandId: string, spendDate: string) {
+  return `${brandId}:${spendDate}`;
+}
+
+export function attachDailySpendToPerformanceTrendSeries(input: {
+  series: PerformanceTrendSeries[];
+  spendFacts: PerformanceTrendSpendFact[];
+  attributable?: boolean;
+}) {
+  if (input.attributable === false) return input.series;
+
+  const spendByBrandDate = new Map<string, number>();
+  for (const fact of input.spendFacts) {
+    const key = spendFactKey(fact.brandId, fact.spendDate);
+    spendByBrandDate.set(
+      key,
+      (spendByBrandDate.get(key) ?? 0) + finiteNonNegative(fact.amount)
+    );
+  }
+
+  return input.series.map((item): PerformanceTrendSeries => ({
+    ...item,
+    points: item.points.map((point) => {
+      const key = item.brandId
+        ? spendFactKey(item.brandId, point.date)
+        : "";
+      const spendRecorded = Boolean(key && spendByBrandDate.has(key));
+      return calculatePerformanceTrendPoint(
+        {
+          spend: spendRecorded ? spendByBrandDate.get(key) ?? 0 : 0,
+          spendRecorded,
+          leads: point.leads,
+          bookings: point.bookings,
+          shows: point.shows,
+          noShows: point.noShows,
+          pendingShows: point.pendingShows,
+        },
+        {
+          day: point.day,
+          date: point.date,
+          annotations: point.annotations,
+        }
+      );
+    }),
+  }));
+}
+
+export function buildDailyBrandTrendFromTreatmentFacts(input: {
+  facts: TreatmentTrendFact[];
+  annotations: OperationalAnnotation[];
+  startDate: string;
+  endDate: string;
+  brands: Array<{ id: string; name: string; color: string }>;
+}) {
+  const factsByBrandDate = new Map<string, TreatmentTrendFact[]>();
+  for (const fact of input.facts) {
+    const key = spendFactKey(fact.brandId, fact.metricDate);
+    factsByBrandDate.set(key, [
+      ...(factsByBrandDate.get(key) ?? []),
+      fact,
+    ]);
+  }
+  const dates = isoDates(input.startDate, input.endDate);
+  return input.brands.map((brand): PerformanceTrendSeries => ({
+    key: `brand-cost:${brand.id}`,
+    label: brand.name,
+    color: brand.color,
+    brandId: brand.id,
+    points: dates.map((date, dateIndex) => {
+      const base = emptyPerformanceTrendBase();
+      for (const fact of factsByBrandDate.get(spendFactKey(brand.id, date)) ?? []) {
+        addFactToBase(base, fact);
+      }
+      return calculatePerformanceTrendPoint(base, {
+        day: dateIndex + 1,
+        date,
+        annotations: input.annotations.filter(
+          (annotation) =>
+            annotation.date === date && annotation.brandId === brand.id
+        ),
+      });
+    }),
+  }));
 }
 
 function isoDates(startDate: string, endDate: string) {

@@ -77,3 +77,11 @@ The release PR, merge commit, Vercel deployment and test run are appended after 
 - Preserved compact row density and drag-and-drop as the fast date-only action.
 - Added desktop/mobile visual baselines and focused accessibility acceptance.
 - Rollback: revert the editable-calendar source PR; the additive database RPC can remain dormant.
+
+## 2026-09-02 — Cost-per-funnel trend controls
+
+- Added compact `CPLead`, `CPBook` and `CPShow` controls to the shared performance trend chart.
+- Cost mode reuses the existing chart interaction and typography contract; no parallel control system was introduced.
+- Missing daily spend renders as an honest gap, while unallocated treatment/source/campaign views explain the boundary instead of displaying a fabricated zero.
+- Added Storybook states plus deterministic Dashboard and Treatment Performance visual baselines.
+- Rollback: revert the source PR; no database migration is required.

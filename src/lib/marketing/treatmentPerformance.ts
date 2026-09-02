@@ -8,6 +8,8 @@ import { getHkMonthContext } from "@/lib/marketing/pacing";
 import { getOperationalAnnotations } from "@/lib/marketing/operationalAnnotationStore";
 import type { OperationalAnnotation } from "@/lib/marketing/operationalAnnotations";
 import {
+  attachDailySpendToPerformanceTrendSeries,
+  buildDailyBrandTrendFromTreatmentFacts,
   buildDailyTreatmentTrend,
   type PerformanceTrendSeries,
   type TreatmentTrendFact,
@@ -88,6 +90,7 @@ export type TreatmentPerformanceSnapshot = {
   brandColors: Record<string, string>;
   insights: TreatmentPerformanceInsight[];
   trendSeries: PerformanceTrendSeries[];
+  costTrendSeries: PerformanceTrendSeries[];
   trendSeriesCount: number;
   trendSeriesShown: number;
   sourceStatus: string;
@@ -608,17 +611,18 @@ function buildSnapshot(input: {
       right.bookings - left.bookings ||
       right.shows - left.shows
   );
+  const trendFacts = filteredFacts.map(
+    (fact): TreatmentTrendFact => ({
+      brandId: fact.brand_id,
+      brandName: fact.brand_label,
+      metricDate: fact.metric_date,
+      metricKind: fact.metric_kind,
+      treatmentLabel: fact.treatment_label,
+      metricCount: numeric(fact.metric_count),
+    })
+  );
   const trend = buildDailyTreatmentTrend({
-    facts: filteredFacts.map(
-      (fact): TreatmentTrendFact => ({
-        brandId: fact.brand_id,
-        brandName: fact.brand_label,
-        metricDate: fact.metric_date,
-        metricKind: fact.metric_kind,
-        treatmentLabel: fact.treatment_label,
-        metricCount: numeric(fact.metric_count),
-      })
-    ),
+    facts: trendFacts,
     annotations: input.annotations ?? [],
     startDate: input.filters.startDate,
     endDate: input.filters.endDate,
@@ -629,6 +633,28 @@ function buildSnapshot(input: {
       ])
     ),
     maxSeries: input.filters.treatment ? 1 : 6,
+  });
+  const costAttributable = !(
+    input.filters.treatment ||
+    input.filters.source ||
+    input.filters.campaign
+  );
+  const costTrendSeries = attachDailySpendToPerformanceTrendSeries({
+    series: buildDailyBrandTrendFromTreatmentFacts({
+      facts: trendFacts,
+      annotations: input.annotations ?? [],
+      startDate: input.filters.startDate,
+      endDate: input.filters.endDate,
+      brands: brandsForScope(input.brands, input.filters.brandId).map(
+        (brand) => ({
+          id: brand.id,
+          name: brand.name,
+          color: brand.primary_color || "#5a2348",
+        })
+      ),
+    }),
+    spendFacts: input.spendFacts ?? [],
+    attributable: costAttributable,
   });
 
   return {
@@ -649,6 +675,7 @@ function buildSnapshot(input: {
     ),
     insights: buildInsights(totals, treatmentRows, filteredFacts),
     trendSeries: trend.series,
+    costTrendSeries,
     trendSeriesCount: trend.totalSeriesCount,
     trendSeriesShown: trend.shownSeriesCount,
     sourceStatus:

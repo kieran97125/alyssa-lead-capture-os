@@ -18,12 +18,13 @@ import {
   type OperationalAnnotation,
 } from "@/lib/marketing/operationalAnnotations";
 import {
+  costTrendMetricKeys,
   performanceTrendPointsForMode,
-  treatmentTrendMetricKeys,
   type PerformanceTrendMetricKey,
   type PerformanceTrendMode,
   type PerformanceTrendSeries,
 } from "@/lib/marketing/performanceTrend";
+import type { PerformanceCostAvailability } from "@/lib/marketing/performanceCostMath";
 
 const metricOptions: Array<{
   key: PerformanceTrendMetricKey;
@@ -35,12 +36,18 @@ const metricOptions: Array<{
   { key: "shows", label: "Show", compactLabel: "Show" },
   { key: "noShows", label: "No Show", compactLabel: "No Show" },
   { key: "pendingShows", label: "待到店", compactLabel: "待到店" },
+  { key: "cpl", label: "每個 Lead 成本", compactLabel: "CPLead" },
+  { key: "costPerBooking", label: "每個 Book 成本", compactLabel: "CPBook" },
+  { key: "costPerShow", label: "每個 Show 成本", compactLabel: "CPShow" },
   { key: "leadToBookRate", label: "Lead → Book", compactLabel: "L→B" },
   { key: "bookToShowRate", label: "Book → Show", compactLabel: "B→S" },
   { key: "leadToShowRate", label: "Lead → Show", compactLabel: "L→S" },
   { key: "noShowRate", label: "No-show Rate", compactLabel: "No-show %" },
 ];
 
+const currencyMetrics = new Set<PerformanceTrendMetricKey>(
+  costTrendMetricKeys
+);
 const rateMetrics = new Set<PerformanceTrendMetricKey>([
   "leadToBookRate",
   "bookToShowRate",
@@ -56,6 +63,13 @@ type ChartDatum = Record<string, number | string | null | OperationalAnnotation[
 
 function formatValue(value: number | null, metric: PerformanceTrendMetricKey) {
   if (value === null || !Number.isFinite(value)) return "—";
+  if (currencyMetrics.has(metric)) {
+    return new Intl.NumberFormat("zh-HK", {
+      style: "currency",
+      currency: "HKD",
+      maximumFractionDigits: 0,
+    }).format(value);
+  }
   if (rateMetrics.has(metric)) {
     return new Intl.NumberFormat("zh-HK", {
       style: "percent",
@@ -180,10 +194,14 @@ function TrendTooltip({
 
 export function TreatmentPerformanceTrendChart({
   series,
+  costSeries = series,
+  costAvailability,
   defaultMode = "daily",
   preferenceKey = "treatment-performance",
 }: {
   series: PerformanceTrendSeries[];
+  costSeries?: PerformanceTrendSeries[];
+  costAvailability?: PerformanceCostAvailability;
   defaultMode?: PerformanceTrendMode;
   preferenceKey?: string;
 }) {
@@ -194,9 +212,28 @@ export function TreatmentPerformanceTrendChart({
   });
   const selectedMetric =
     metricOptions.find((option) => option.key === metric) ?? metricOptions[0];
-  const available = new Set(treatmentTrendMetricKeys);
+  const isCostMetric = currencyMetrics.has(metric);
+  const activeSeries = isCostMetric ? costSeries : series;
+  const resolvedCostAvailability =
+    costAvailability ??
+    (costSeries.some((item) =>
+      item.points.some((point) => point.spendRecorded)
+    )
+      ? "available"
+      : "missing");
+  const costUnavailable =
+    isCostMetric &&
+    (resolvedCostAvailability === "missing" ||
+      resolvedCostAvailability === "unallocated");
+  const costCoverage = useMemo(() => {
+    const points = costSeries.flatMap((item) => item.points);
+    return {
+      recorded: points.filter((point) => point.spendRecorded).length,
+      expected: points.length,
+    };
+  }, [costSeries]);
   const chartData = useMemo(() => {
-    const displaySeries = series.map((item) => ({
+    const displaySeries = activeSeries.map((item) => ({
       ...item,
       points: performanceTrendPointsForMode(item.points, mode),
     }));
@@ -226,7 +263,7 @@ export function TreatmentPerformanceTrendChart({
       row.annotationY = row.annotations.length > 0 ? maximum : null;
       return row;
     });
-  }, [metric, mode, series]);
+  }, [activeSeries, metric, mode]);
 
   if (series.length === 0) {
     return <div className="period-chart-loading">所選期間未有可繪製嘅療程走勢。</div>;
@@ -241,9 +278,7 @@ export function TreatmentPerformanceTrendChart({
         </span>
       </div>
       <div className="period-chart-controls" aria-label="療程走勢指標">
-        {metricOptions
-          .filter((option) => available.has(option.key))
-          .map((option) => (
+        {metricOptions.map((option) => (
             <button
               key={option.key}
               type="button"
@@ -254,6 +289,28 @@ export function TreatmentPerformanceTrendChart({
             </button>
           ))}
       </div>
+      {isCostMetric ? (
+        <p className="treatment-trend-note" data-testid="trend-cost-coverage">
+          {resolvedCostAvailability === "unallocated"
+            ? "現有廣告費只屬品牌層；療程、來源或 Campaign 篩選下不會推算成本。"
+            : resolvedCostAvailability === "missing"
+              ? "所選期間未有廣告費記錄，暫未能計算 CPLead／CPBook／CPShow。"
+              : resolvedCostAvailability === "partial"
+                ? `只顯示已記錄嘅品牌廣告費；已覆蓋 ${costCoverage.recorded}/${costCoverage.expected} 個品牌日。`
+                : `按已記錄廣告費重新計算；已覆蓋 ${costCoverage.recorded}/${costCoverage.expected} 個品牌日，未記錄日顯示空白。`}
+        </p>
+      ) : null}
+      {costUnavailable ? (
+        <div
+          className="period-chart-canvas period-chart-loading"
+          role="status"
+          data-testid="trend-cost-unavailable"
+        >
+          {resolvedCostAvailability === "unallocated"
+            ? "成本未分配到目前篩選維度；清除療程、來源或 Campaign 篩選後查看品牌成本走勢。"
+            : "未有足夠廣告費記錄繪製成本走勢。"}
+        </div>
+      ) : (
       <div
         className="period-chart-canvas"
         role="img"
@@ -286,7 +343,7 @@ export function TreatmentPerformanceTrendChart({
               content={<TrendTooltip metric={metric} mode={mode} />}
             />
             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: "11px", fontWeight: 700, paddingTop: 8 }} />
-            {series.map((item, index) => (
+            {activeSeries.map((item, index) => (
               <Line
                 key={item.key}
                 type={mode === "cumulative" ? "monotone" : "linear"}
@@ -314,6 +371,7 @@ export function TreatmentPerformanceTrendChart({
           </LineChart>
         </ResponsiveContainer>
       </div>
+      )}
     </div>
   );
 }

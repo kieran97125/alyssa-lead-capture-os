@@ -78,6 +78,11 @@ assert.match(treatmentTrendChart, /成效事件/);
 assert.match(treatmentTrendChart, /TrendModeToggle/);
 assert.match(treatmentTrendChart, /performanceTrendPointsForMode/);
 assert.match(treatmentTrendChart, /preferenceKey/);
+assert.match(treatmentTrendChart, /CPLead/);
+assert.match(treatmentTrendChart, /CPBook/);
+assert.match(treatmentTrendChart, /CPShow/);
+assert.match(treatmentTrendChart, /costSeries/);
+assert.match(treatmentTrendChart, /trend-cost-unavailable/);
 assert.match(
   files["src/components/command-center/TreatmentPerformanceTrendChartLazy.tsx"],
   /preferenceKey="treatment-performance"/
@@ -96,6 +101,9 @@ assert.match(trendMath, /export type PerformanceTrendMode = "daily" \| "cumulati
 assert.match(trendMath, /accumulatePerformanceTrendPoints/);
 assert.match(trendMath, /performanceTrendPointsForMode/);
 assert.match(trendMath, /buildDailyTreatmentTrendPoints/);
+assert.match(trendMath, /spendRecorded/);
+assert.match(trendMath, /attachDailySpendToPerformanceTrendSeries/);
+assert.match(trendMath, /buildDailyBrandTrendFromTreatmentFacts/);
 assert.match(
   files["src/lib/marketing/periodComparisonMath.ts"],
   /buildDailyComparisonTrend/
@@ -117,7 +125,10 @@ assert.match(
   /marketing_daily_spend_entries/
 );
 assert.match(files["src/lib/marketing/leadDashboard.ts"], /costs:/);
+assert.match(files["src/lib/marketing/leadDashboard.ts"], /costAttributable/);
 assert.match(files["src/lib/marketing/treatmentPerformance.ts"], /costs,/);
+assert.match(files["src/lib/marketing/treatmentPerformance.ts"], /costTrendSeries/);
+assert.match(files["src/lib/marketing/treatmentPerformance.ts"], /costAttributable/);
 assert.match(
   files["src/components/command-center/LeadDashboardPanel.tsx"],
   /PerformanceCostSummary costs=\{snapshot\.costs\}/
@@ -154,5 +165,5 @@ assert.match(migration, /where treatment_id is not null/);
 assert.doesNotMatch(migration, /\bgrant\b|\bpolicy\b/i);
 
 console.log(
-  "Reporting daily/cumulative mode, aggregate-first trend math, per-surface preference, cost metrics, connected events, calendar annotation, and Manager KPI contracts verified."
+  "Reporting daily/cumulative mode, aggregate-first CPLead/CPBook/CPShow trends, spend-presence gaps, per-surface preference, connected events, calendar annotation, and Manager KPI contracts verified."
 );
