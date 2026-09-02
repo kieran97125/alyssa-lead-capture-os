@@ -33,6 +33,12 @@ One database RPC owns the write transaction. It updates:
 
 Brand names, treatment names, users, Calendar content and production rows remain Alyssa-only configuration/data and must never be copied into Growth OS Core.
 
+## Source evidence
+
+- Source PR: `kieran97125/alyssa-lead-capture-os#81`
+- Initial verified implementation: `bf6ce79dd8db2cd347f531cf4874b3ad05462004`
+- Authorization and performance hardening are included in the same PR before release.
+
 ## Verification
 
 - production build and TypeScript;

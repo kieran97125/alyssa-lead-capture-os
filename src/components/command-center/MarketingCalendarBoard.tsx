@@ -491,16 +491,16 @@ export function MarketingCalendarBoard({
           border: 1px solid transparent;
           border-radius: 0.34rem;
           background: transparent;
-          color: #8c7280;
+          color: var(--system-muted-foreground);
           cursor: pointer;
           transition: border-color 120ms ease, background 120ms ease, color 120ms ease;
           touch-action: manipulation;
         }
         .calendar-task-edit:hover,
         .calendar-task-edit:focus-visible {
-          border-color: #dbc8d2;
-          background: #fff3f7;
-          color: #5a2348;
+          border-color: var(--system-border);
+          background: var(--system-accent);
+          color: var(--system-primary);
           outline: none;
         }
         .calendar-task-edit:disabled {

@@ -38,6 +38,32 @@ test("calendar item can be fully edited without leaving the calendar", async ({
   await expect(page.getByText("日曆事項已更新。")).toBeVisible();
 });
 
+test("unrelated edits preserve an inactive treatment link", async ({ page }) => {
+  const { dialog } = await openCalendarEdit(page);
+  const treatment = dialog.getByLabel("影響療程（可選）");
+  await expect(treatment).toHaveValue(
+    "90000000-0000-4000-8000-000000000099"
+  );
+  await expect(
+    treatment.locator('option[value="90000000-0000-4000-8000-000000000099"]')
+  ).toContainText("歷史療程（目前已停用）");
+
+  await dialog.getByLabel("事項名稱").fill("只改名稱並保留療程");
+  await dialog.getByTestId("calendar-edit-save").click();
+  await expect(dialog).toHaveCount(0);
+
+  const updatedTask = page
+    .locator('[data-calendar-task-title="只改名稱並保留療程"]')
+    .first();
+  await updatedTask
+    .getByRole("button", { name: "編輯事項：只改名稱並保留療程" })
+    .click();
+  const reopened = page.getByTestId("calendar-edit-dialog");
+  await expect(reopened.getByLabel("影響療程（可選）")).toHaveValue(
+    "90000000-0000-4000-8000-000000000099"
+  );
+});
+
 test("calendar edit dialog desktop visual baseline", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1000 });
   const { dialog } = await openCalendarEdit(page);

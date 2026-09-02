@@ -121,10 +121,31 @@ export function CalendarItemEditDialog({
   const [draft, setDraft] = useState<Draft>(() => draftFromItem(item));
   const [error, setError] = useState<string | null>(null);
   const [isPending, startTransition] = useTransition();
-  const eligibleTreatments = useMemo(
-    () => treatments.filter((treatment) => treatment.brandId === draft.brandId),
-    [draft.brandId, treatments]
-  );
+  const eligibleTreatments = useMemo(() => {
+    const activeOptions = treatments.filter(
+      (treatment) => treatment.brandId === draft.brandId
+    );
+    const currentTreatmentMissing =
+      item.treatmentId &&
+      item.brandId === draft.brandId &&
+      !activeOptions.some((treatment) => treatment.id === item.treatmentId);
+    return currentTreatmentMissing
+      ? [
+          {
+            id: item.treatmentId as string,
+            brandId: item.brandId,
+            name: `${item.treatmentLabel || "現有療程"}（目前已停用）`,
+          },
+          ...activeOptions,
+        ]
+      : activeOptions;
+  }, [
+    draft.brandId,
+    item.brandId,
+    item.treatmentId,
+    item.treatmentLabel,
+    treatments,
+  ]);
 
   useEffect(() => {
     if (open) {
@@ -141,12 +162,14 @@ export function CalendarItemEditDialog({
     setDraft((current) => ({
       ...current,
       brandId,
-      treatmentId: treatments.some(
-        (treatment) =>
-          treatment.id === current.treatmentId && treatment.brandId === brandId
-      )
-        ? current.treatmentId
-        : "",
+      treatmentId:
+        treatments.some(
+          (treatment) =>
+            treatment.id === current.treatmentId && treatment.brandId === brandId
+        ) ||
+        (brandId === item.brandId && current.treatmentId === item.treatmentId)
+          ? current.treatmentId
+          : "",
     }));
   }
 
@@ -159,10 +182,17 @@ export function CalendarItemEditDialog({
       return;
     }
 
-    const treatment = treatments.find(
+    const treatment = eligibleTreatments.find(
       (option) =>
         option.id === draft.treatmentId && option.brandId === draft.brandId
     );
+    const currentInactiveTreatmentSelected =
+      treatment?.id === item.treatmentId &&
+      Boolean(item.treatmentLabel) &&
+      !treatments.some((option) => option.id === item.treatmentId);
+    const selectedTreatmentLabel = currentInactiveTreatmentSelected
+      ? item.treatmentLabel
+      : treatment?.name || null;
     const input: CalendarItemUpdateInput = {
       itemId: item.id,
       expectedUpdatedAt: item.updatedAt || null,
@@ -184,7 +214,7 @@ export function CalendarItemEditDialog({
         {
           ...item,
           ...input,
-          treatmentLabel: treatment?.name || null,
+          treatmentLabel: selectedTreatmentLabel,
           sortOrder: item.sortOrder,
           updatedAt: new Date().toISOString(),
         },

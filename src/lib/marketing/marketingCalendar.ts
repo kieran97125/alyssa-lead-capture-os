@@ -66,8 +66,8 @@ function fixtureItems(month: HkMonthContext, brandId: string): CalendarItem[] {
     {
       id: "10000000-0000-4000-8000-000000000001",
       brandId,
-      treatmentId: null,
-      treatmentLabel: null,
+      treatmentId: "90000000-0000-4000-8000-000000000099",
+      treatmentLabel: "歷史療程",
       title: "DEP Reels 上線",
       itemType: "post",
       channel: "IG",
