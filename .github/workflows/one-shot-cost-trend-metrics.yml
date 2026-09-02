@@ -41,8 +41,39 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Apply cost trend implementation
-        run: python3 scripts/implement-cost-trend-metrics.py
+      - name: Fix and apply cost trend implementation
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("scripts/implement-cost-trend-metrics.py")
+          text = path.read_text(encoding="utf-8")
+          old = '''path = "src/lib/marketing/leadDashboard.ts"
+          replace_all(
+              path,
+              "      annotations,\\n    }),",
+              "      annotations,\\n      spendFacts,\\n      costAttributable: !filters.treatment,\\n    }),",
+              minimum=2,
+          )
+          '''
+          new = '''path = "src/lib/marketing/leadDashboard.ts"
+          replace_exact(
+              path,
+              "      annotations,\\n    }),",
+              "      annotations,\\n      spendFacts,\\n      costAttributable: !filters.treatment,\\n    }),",
+          )
+          replace_exact(
+              path,
+              "        annotations,\\n      }),",
+              "        annotations,\\n        spendFacts,\\n        costAttributable: !filters.treatment,\\n      }),",
+          )
+          '''
+          if old not in text:
+              raise SystemExit("Lead Dashboard cost-trend patch block not found")
+          path.write_text(text.replace(old, new), encoding="utf-8")
+          PY
+          python3 scripts/implement-cost-trend-metrics.py
 
       - name: Install dependencies
         run: npm ci
