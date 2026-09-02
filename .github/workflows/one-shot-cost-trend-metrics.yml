@@ -114,11 +114,15 @@ jobs:
 
           # Canonical comparison fixtures explicitly declare that their spend rows exist.
           for amount in (100, 300, 200):
-              replace_exact(
-                  "e2e/marketing-command-center.spec.ts",
-                  f"      spend: {amount},\\n      leads:",
-                  f"      spend: {amount},\\n      spendRecorded: true,\\n      leads:",
+              old = f"      spend: {amount}," + chr(10) + "      leads:"
+              new = (
+                  f"      spend: {amount},"
+                  + chr(10)
+                  + "      spendRecorded: true,"
+                  + chr(10)
+                  + "      leads:"
               )
+              replace_exact("e2e/marketing-command-center.spec.ts", old, new)
           PY
 
       - name: Install dependencies
