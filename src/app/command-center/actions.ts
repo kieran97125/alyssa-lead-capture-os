@@ -38,6 +38,7 @@ import { workspaceModuleKeys } from "@/lib/security/workspaceAuth";
 type ActionResult = {
   ok: boolean;
   message: string;
+  updatedAt?: string;
 };
 
 const creatableDataSourceProviders = new Set([
@@ -183,7 +184,7 @@ async function getCalendarItemForMutation(itemId: string) {
   const extended = await supabase
     .from("marketing_calendar_items")
     .select(
-      "id,brand_id,treatment_id,treatment_label,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+      "id,brand_id,treatment_id,treatment_label,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order,show_on_performance_timeline,updated_at"
     )
     .eq("id", itemId)
     .maybeSingle();
@@ -193,7 +194,7 @@ async function getCalendarItemForMutation(itemId: string) {
   return supabase
     .from("marketing_calendar_items")
     .select(
-      "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order"
+      "id,brand_id,title,item_type,channel,status,scheduled_date,scheduled_time,assignee_email,notes,sort_order,updated_at"
     )
     .eq("id", itemId)
     .maybeSingle();
@@ -855,40 +856,72 @@ export async function moveCalendarItemAction(
   ) {
     return { ok: false, message: "你未獲授權移動呢個日曆事項。" };
   }
-  const { data, error } = await supabase
-    .from("marketing_calendar_items")
-    .update({
-      scheduled_date: scheduledDate,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", itemId)
-    .select("id,brand_id")
-    .single();
+
+  const { data, error } = await supabase.rpc(
+    "update_marketing_calendar_item_with_links",
+    {
+      p_item_id: itemId,
+      p_expected_updated_at: existing.updated_at || null,
+      p_payload: {
+        brandId: existing.brand_id,
+        treatmentId:
+          "treatment_id" in existing ? existing.treatment_id || "" : "",
+        title: existing.title,
+        itemType: existing.item_type,
+        channel: existing.channel || "",
+        status: existing.status,
+        scheduledDate,
+        scheduledTime: existing.scheduled_time || "",
+        assigneeEmail: existing.assignee_email || "",
+        notes: existing.notes || "",
+        showOnPerformanceTimeline:
+          "show_on_performance_timeline" in existing
+            ? existing.show_on_performance_timeline !== false
+            : true,
+      },
+      p_actor_member_id: access.memberId,
+      p_actor_email: access.actorIdentifier,
+    }
+  );
+
   if (error) {
     console.warn("marketing_calendar_item_move_failed", {
       code: error.code,
       message: error.message,
     });
-    return { ok: false, message: "未能移動日曆事項。" };
+    const message = error.message.includes("calendar_before_linked_task_start")
+      ? "新日期早過連結工作嘅 Start Day。"
+      : error.message.includes("calendar_before_creative_due")
+        ? "新日期早過連結設計 Job 嘅 Due Day。"
+        : error.message.includes("stale_calendar_item")
+          ? "事項已被另一位同事更新，請重新整理再試。"
+          : "未能移動日曆事項。";
+    return { ok: false, message };
   }
 
-  await writeAudit({
-    actorIdentifier:
-      access.accessLevel === "master" ? MASTER_ACCOUNT_EMAIL : "shared_admin",
-    action: "calendar_item.moved",
-    entityType: "marketing_calendar_item",
-    entityId: data?.id,
-    brandId: data?.brand_id,
-    after: { scheduledDate },
-  });
+  const result =
+    data && typeof data === "object" && !Array.isArray(data)
+      ? (data as Record<string, unknown>)
+      : {};
+  const item =
+    result.item && typeof result.item === "object" && !Array.isArray(result.item)
+      ? (result.item as Record<string, unknown>)
+      : {};
   revalidateCommandCenter(
     "/calendar",
+    "/tasks",
+    "/creative-jobs",
     "/dashboard",
     "/kpis",
     "/performance",
     "/performance/compare"
   );
-  return { ok: true, message: "日曆日期已更新。" };
+  return {
+    ok: true,
+    message: "日曆日期已更新，連結工作排期已同步。",
+    updatedAt:
+      typeof item.updatedAt === "string" ? item.updatedAt : undefined,
+  };
 }
 
 export async function deleteCalendarItemAction(

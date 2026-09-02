@@ -108,7 +108,7 @@ export default async function MarketingCalendarPage({
             </div>
             <p>
               <Info size={14} />
-              拖放更改日期；Scheduled 冇時間預設 12:00 HKT 發布
+              鉛筆可完整編輯；拖放快速改日期；Scheduled 冇時間預設 12:00 HKT 發布
             </p>
           </section>
 
@@ -120,6 +120,12 @@ export default async function MarketingCalendarPage({
                 name: brand.name,
                 color: brand.color,
               }))}
+              treatments={snapshot.treatments.map((treatment) => ({
+                id: treatment.id,
+                brandId: treatment.brandId,
+                name: treatment.name,
+              }))}
+              fixtureMode={process.env.ALYSSA_E2E_FIXTURES === "1"}
               year={snapshot.month.year}
               month={snapshot.month.month}
               daysInMonth={snapshot.month.daysInMonth}

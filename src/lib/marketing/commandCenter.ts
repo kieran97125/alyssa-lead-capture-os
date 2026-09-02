@@ -103,6 +103,8 @@ export type CalendarItem = {
   assigneeEmail: string | null;
   notes: string | null;
   sortOrder: number;
+  showOnPerformanceTimeline?: boolean;
+  updatedAt?: string | null;
 };
 
 export type WorkspaceMember = {

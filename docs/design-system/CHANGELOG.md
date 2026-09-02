@@ -69,3 +69,11 @@ Issue: #74
 ### Evidence
 
 The release PR, merge commit, Vercel deployment and test run are appended after release.
+
+## 2026-09-02 — Editable Marketing Calendar items
+
+- Added one compact, always-discoverable pencil control to Calendar cards.
+- Added a Base UI dialog for complete Calendar record editing without leaving the month view.
+- Preserved compact row density and drag-and-drop as the fast date-only action.
+- Added desktop/mobile visual baselines and focused accessibility acceptance.
+- Rollback: revert the editable-calendar source PR; the additive database RPC can remain dormant.

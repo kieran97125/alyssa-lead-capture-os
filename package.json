@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && npm run verify:work-ops-contract && npm run verify:design-system-contract && npm run verify:creative-production-contract && next build",
+    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && npm run verify:work-ops-contract && npm run verify:design-system-contract && npm run verify:creative-production-contract && npm run verify:calendar-edit-contract && next build",
     "start": "next start",
     "lint": "eslint",
     "verify:public-lead-contract": "node scripts/verify-public-lead-contract.mjs",
@@ -27,7 +27,8 @@
     "test:design:update": "playwright test e2e/design-quality.spec.ts --update-snapshots",
     "design:ci": "npm run verify:design-system-contract && npm run build:storybook && npm run test:design",
     "verify:creative-production-contract": "node scripts/verify-creative-production-contract.mjs",
-    "test:creative": "playwright test e2e/creative-production.spec.ts"
+    "test:creative": "playwright test e2e/creative-production.spec.ts",
+    "verify:calendar-edit-contract": "node scripts/verify-calendar-edit-contract.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",
