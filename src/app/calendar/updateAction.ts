@@ -70,6 +70,12 @@ function errorMessage(message: string) {
   if (message.includes("calendar_treatment_brand_mismatch")) {
     return "所選療程唔屬於呢個品牌。";
   }
+  if (message.includes("calendar_assignee_brand_access")) {
+    return "所選負責人未獲授權處理呢個品牌。";
+  }
+  if (message.includes("calendar_linked_designer_brand_access")) {
+    return "連結設計 Job 嘅 Designer 未獲授權處理新品牌；請先調整 Designer 或品牌權限。";
+  }
   if (message.includes("calendar_before_linked_task_start")) {
     return "新日期早過連結工作嘅 Start Day；請先調整工作開始日。";
   }
@@ -125,11 +131,24 @@ export async function updateCalendarItemAction(
     return { ok: false, message: "請檢查事項名稱、日期、時間及其他欄位。" };
   }
 
-  if (!canAccessInternalBrand(verified.access, input.brandId)) {
-    return { ok: false, message: "你未獲授權修改所選品牌嘅日曆。" };
+  const supabase = createSupabaseAdminClient();
+  const existing = await supabase
+    .from("marketing_calendar_items")
+    .select("id,brand_id")
+    .eq("id", input.itemId)
+    .maybeSingle();
+  if (existing.error || !existing.data) {
+    return { ok: false, message: "搵唔到呢個日曆事項，可能已經被刪除。" };
   }
 
-  const supabase = createSupabaseAdminClient();
+  const existingBrandId = String(existing.data.brand_id || "");
+  if (
+    !canAccessInternalBrand(verified.access, existingBrandId) ||
+    !canAccessInternalBrand(verified.access, input.brandId)
+  ) {
+    return { ok: false, message: "你未獲授權修改原有或所選品牌嘅日曆。" };
+  }
+
   if (input.treatmentId) {
     const treatment = await supabase
       .from("treatments")
@@ -172,13 +191,19 @@ export async function updateCalendarItemAction(
       code: error.code,
       message: error.message,
     });
-    return { ok: false, message: errorMessage(`${error.code || ""} ${error.message}`) };
+    return {
+      ok: false,
+      message: errorMessage(`${error.code || ""} ${error.message}`),
+    };
   }
 
   const result = recordValue(data);
   const item = parseCalendarItem(result.item);
   if (!item) {
-    return { ok: false, message: "日曆事項已儲存，但未能即時更新畫面；請重新整理。" };
+    return {
+      ok: false,
+      message: "日曆事項已儲存，但未能即時更新畫面；請重新整理。",
+    };
   }
 
   revalidatePath("/calendar");
