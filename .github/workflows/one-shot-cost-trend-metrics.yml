@@ -41,7 +41,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Fix and apply cost trend implementation
+      - name: Apply cost trend implementation and regression fixes
         shell: bash
         run: |
           python3 - <<'PY'
@@ -78,6 +78,75 @@ jobs:
           path.write_text(patched, encoding="utf-8")
           PY
           python3 scripts/implement-cost-trend-metrics.py
+          python3 - <<'PY'
+          from pathlib import Path
+
+          def replace_exact(path: str, old: str, new: str, count: int = 1) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              actual = text.count(old)
+              if actual < count:
+                  raise SystemExit(f"{path}: expected at least {count} occurrence(s), found {actual}: {old[:100]!r}")
+              file.write_text(text.replace(old, new, count), encoding="utf-8")
+
+          def replace_all(path: str, old: str, new: str, minimum: int = 1) -> None:
+              file = Path(path)
+              text = file.read_text(encoding="utf-8")
+              actual = text.count(old)
+              if actual < minimum:
+                  raise SystemExit(f"{path}: expected at least {minimum} occurrence(s), found {actual}: {old[:100]!r}")
+              file.write_text(text.replace(old, new), encoding="utf-8")
+
+          # Exact accessible names prevent Lead controls colliding with CPLead.
+          replace_all(
+              "e2e/connected-marketing-ops.spec.ts",
+              'card.getByRole("button", { name: "Lead" }).click();',
+              'card.getByRole("button", { name: "Lead", exact: true }).click();',
+              minimum=2,
+          )
+          replace_exact(
+              "e2e/marketing-command-center.spec.ts",
+              'const showCostTrend = page.getByRole("button", {\n    name: "CPA · Show",',
+              'const showCostTrend = page.getByRole("button", {\n    name: "CPShow",',
+          )
+
+          # Preserve recorded-zero vs missing-spend semantics in period trends.
+          replace_exact(
+              "src/lib/marketing/periodComparisonMath.ts",
+              'export type CanonicalComparisonMetricRow = ComparisonBaseMetrics & {\n  brandId: string;\n  metricDate: string;\n};',
+              'export type CanonicalComparisonMetricRow = ComparisonBaseMetrics & {\n  brandId: string;\n  metricDate: string;\n  spendRecorded?: boolean;\n};',
+          )
+          replace_exact(
+              "src/lib/marketing/periodComparisonMath.ts",
+              '  const byDate = new Map<string, ComparisonBaseMetrics>();\n  for (const row of input.rows) {',
+              '  const byDate = new Map<string, ComparisonBaseMetrics>();\n  const spendRecordedDates = new Set<string>();\n  for (const row of input.rows) {',
+          )
+          replace_exact(
+              "src/lib/marketing/periodComparisonMath.ts",
+              '    if (input.brandIds && !input.brandIds.has(row.brandId)) continue;\n    const existing = byDate.get(row.metricDate) ?? {',
+              '    if (input.brandIds && !input.brandIds.has(row.brandId)) continue;\n    if (row.spendRecorded ?? row.spend > 0) {\n      spendRecordedDates.add(row.metricDate);\n    }\n    const existing = byDate.get(row.metricDate) ?? {',
+          )
+          replace_exact(
+              "src/lib/marketing/periodComparisonMath.ts",
+              '          spend: metric?.spend ?? 0,\n          leads: metric?.leads ?? 0,',
+              '          spend: metric?.spend ?? 0,\n          spendRecorded: spendRecordedDates.has(date),\n          leads: metric?.leads ?? 0,',
+          )
+          replace_exact(
+              "src/lib/marketing/periodComparison.ts",
+              '        spend: entry.amount,\n        leads: 0,',
+              '        spend: entry.amount,\n        spendRecorded: true,\n        leads: 0,',
+          )
+          replace_exact(
+              "src/lib/marketing/periodComparison.ts",
+              '          spend: 0,\n          leads: metric.leads,',
+              '          spend: 0,\n          spendRecorded: false,\n          leads: metric.leads,',
+          )
+          replace_exact(
+              "src/lib/marketing/periodComparison.ts",
+              '        spend: 180 + brandIndex * 55 + monthIndex * 18 + day * 4,\n        leads: activity + (day % 2),',
+              '        spend: 180 + brandIndex * 55 + monthIndex * 18 + day * 4,\n        spendRecorded: true,\n        leads: activity + (day % 2),',
+          )
+          PY
 
       - name: Install dependencies
         run: npm ci
