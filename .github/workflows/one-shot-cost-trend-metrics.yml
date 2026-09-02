@@ -41,7 +41,7 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Apply cost trend implementation and regression fixes
+      - name: Apply cost trend implementation and acceptance alignment
         shell: bash
         run: |
           python3 - <<'PY'
@@ -104,48 +104,21 @@ jobs:
               'card.getByRole("button", { name: "Lead", exact: true }).click();',
               minimum=2,
           )
+
+          # Period Comparison now uses the same compact CP naming as other trend surfaces.
           replace_exact(
               "e2e/marketing-command-center.spec.ts",
               'const showCostTrend = page.getByRole("button", {\n    name: "CPA · Show",',
               'const showCostTrend = page.getByRole("button", {\n    name: "CPShow",',
           )
 
-          # Preserve recorded-zero vs missing-spend semantics in period trends.
-          replace_exact(
-              "src/lib/marketing/periodComparisonMath.ts",
-              'export type CanonicalComparisonMetricRow = ComparisonBaseMetrics & {\n  brandId: string;\n  metricDate: string;\n};',
-              'export type CanonicalComparisonMetricRow = ComparisonBaseMetrics & {\n  brandId: string;\n  metricDate: string;\n  spendRecorded?: boolean;\n};',
-          )
-          replace_exact(
-              "src/lib/marketing/periodComparisonMath.ts",
-              '  const byDate = new Map<string, ComparisonBaseMetrics>();\n  for (const row of input.rows) {',
-              '  const byDate = new Map<string, ComparisonBaseMetrics>();\n  const spendRecordedDates = new Set<string>();\n  for (const row of input.rows) {',
-          )
-          replace_exact(
-              "src/lib/marketing/periodComparisonMath.ts",
-              '    if (input.brandIds && !input.brandIds.has(row.brandId)) continue;\n    const existing = byDate.get(row.metricDate) ?? {',
-              '    if (input.brandIds && !input.brandIds.has(row.brandId)) continue;\n    if (row.spendRecorded ?? row.spend > 0) {\n      spendRecordedDates.add(row.metricDate);\n    }\n    const existing = byDate.get(row.metricDate) ?? {',
-          )
-          replace_exact(
-              "src/lib/marketing/periodComparisonMath.ts",
-              '          spend: metric?.spend ?? 0,\n          leads: metric?.leads ?? 0,',
-              '          spend: metric?.spend ?? 0,\n          spendRecorded: spendRecordedDates.has(date),\n          leads: metric?.leads ?? 0,',
-          )
-          replace_exact(
-              "src/lib/marketing/periodComparison.ts",
-              '        spend: entry.amount,\n        leads: 0,',
-              '        spend: entry.amount,\n        spendRecorded: true,\n        leads: 0,',
-          )
-          replace_exact(
-              "src/lib/marketing/periodComparison.ts",
-              '          spend: 0,\n          leads: metric.leads,',
-              '          spend: 0,\n          spendRecorded: false,\n          leads: metric.leads,',
-          )
-          replace_exact(
-              "src/lib/marketing/periodComparison.ts",
-              '        spend: 180 + brandIndex * 55 + monthIndex * 18 + day * 4,\n        leads: activity + (day % 2),',
-              '        spend: 180 + brandIndex * 55 + monthIndex * 18 + day * 4,\n        spendRecorded: true,\n        leads: activity + (day % 2),',
-          )
+          # Canonical comparison fixtures explicitly declare that their spend rows exist.
+          for amount in (100, 300, 200):
+              replace_exact(
+                  "e2e/marketing-command-center.spec.ts",
+                  f"      spend: {amount},\\n      leads:",
+                  f"      spend: {amount},\\n      spendRecorded: true,\\n      leads:",
+              )
           PY
 
       - name: Install dependencies
