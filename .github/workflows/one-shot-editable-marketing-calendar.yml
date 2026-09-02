@@ -38,7 +38,19 @@ jobs:
           cache: npm
 
       - name: Implement editable Calendar records
-        run: python3 scripts/implement-editable-marketing-calendar.py
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/implement-editable-marketing-calendar.py")
+          text = path.read_text(encoding="utf-8")
+          old = "next_text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)"
+          new = "next_text, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.S)"
+          if old not in text:
+              raise SystemExit("regex helper marker missing")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+          python3 scripts/implement-editable-marketing-calendar.py
 
       - name: Install dependencies
         run: npm ci
