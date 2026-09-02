@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { PerformanceTrendSeries } from "@/lib/marketing/performanceTrend";
+import type { PerformanceCostAvailability } from "@/lib/marketing/performanceCostMath";
 
 const LazyTreatmentPerformanceTrendChart = dynamic(
   () =>
@@ -20,12 +21,18 @@ const LazyTreatmentPerformanceTrendChart = dynamic(
 
 export function TreatmentPerformanceTrendChartLazy({
   series,
+  costSeries,
+  costAvailability,
 }: {
   series: PerformanceTrendSeries[];
+  costSeries: PerformanceTrendSeries[];
+  costAvailability: PerformanceCostAvailability;
 }) {
   return (
     <LazyTreatmentPerformanceTrendChart
       series={series}
+      costSeries={costSeries}
+      costAvailability={costAvailability}
       defaultMode="daily"
       preferenceKey="treatment-performance"
     />

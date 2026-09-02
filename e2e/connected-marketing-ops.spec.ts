@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import { getWorkspaceModuleForPath } from "../src/lib/security/workspacePermissions";
 import {
   accumulatePerformanceTrendPoints,
+  attachDailySpendToPerformanceTrendSeries,
   calculatePerformanceTrendPoint,
 } from "../src/lib/marketing/performanceTrend";
 
@@ -44,6 +45,43 @@ test("cumulative trend recomputes aggregate-first cost and rates from daily fact
     leadToShowRate: 0.5,
   });
   expect(daily[1].cpl).toBeNull();
+});
+
+test("cost trend attaches canonical daily spend and keeps missing days null", () => {
+  const baseSeries = [
+    {
+      key: "brand-a",
+      label: "Brand A",
+      color: "#000000",
+      brandId: "brand-a",
+      points: [
+        calculatePerformanceTrendPoint(
+          { spend: 0, spendRecorded: false, leads: 2, bookings: 1, shows: 1, noShows: 0, pendingShows: 0 },
+          { day: 1, date: "2026-08-01", annotations: [] }
+        ),
+        calculatePerformanceTrendPoint(
+          { spend: 0, spendRecorded: false, leads: 1, bookings: 0, shows: 0, noShows: 0, pendingShows: 0 },
+          { day: 2, date: "2026-08-02", annotations: [] }
+        ),
+      ],
+    },
+  ];
+  const [series] = attachDailySpendToPerformanceTrendSeries({
+    series: baseSeries,
+    spendFacts: [{ brandId: "brand-a", spendDate: "2026-08-01", amount: 300 }],
+  });
+  expect(series.points[0]).toMatchObject({
+    spendRecorded: true,
+    cpl: 150,
+    costPerBooking: 300,
+    costPerShow: 300,
+  });
+  expect(series.points[1]).toMatchObject({
+    spendRecorded: false,
+    cpl: null,
+    costPerBooking: null,
+    costPerShow: null,
+  });
 });
 
 test("Weekly Tasks reuses Calendar module access", () => {
@@ -147,6 +185,14 @@ test("Dashboard trend switches between single-day and cumulative views", async (
   await expect(
     card.getByRole("img", { name: /Lead單日走勢；橙色圓點代表已連結嘅成效事件/ })
   ).toBeVisible();
+  await expect(card.getByRole("button", { name: "CPLead" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "CPBook" })).toBeVisible();
+  await expect(card.getByRole("button", { name: "CPShow" })).toBeVisible();
+  await card.getByRole("button", { name: "CPLead" }).click();
+  await expect(
+    card.getByRole("img", { name: /每個 Lead 成本單日走勢/ })
+  ).toBeVisible();
+  await card.getByRole("button", { name: "Lead", exact: true }).click();
 
   await toggle.getByTestId("trend-mode-cumulative").click();
   await expect(
@@ -163,6 +209,12 @@ test("Treatment trend independently remembers its daily or cumulative view", asy
     "aria-pressed",
     "true"
   );
+  await expect(card.getByRole("button", { name: "CPLead" })).toBeVisible();
+  await card.getByRole("button", { name: "CPBook" }).click();
+  await expect(
+    card.getByRole("img", { name: /每個 Book 成本單日走勢/ })
+  ).toBeVisible();
+  await card.getByRole("button", { name: "Lead", exact: true }).click();
   await toggle.getByTestId("trend-mode-cumulative").click();
   await expect(
     card.getByRole("img", { name: /Lead累積走勢；橙色圓點代表已連結嘅成效事件/ })
@@ -179,6 +231,9 @@ test("Period comparison keeps monthly events in both cumulative and single-day v
   );
 
   const trendCard = page.locator(".period-trend-card");
+  await expect(trendCard.getByRole("button", { name: "CPLead" })).toBeVisible();
+  await expect(trendCard.getByRole("button", { name: "CPBook" })).toBeVisible();
+  await expect(trendCard.getByRole("button", { name: "CPShow" })).toBeVisible();
   const toggle = trendCard.getByTestId("trend-mode-toggle");
   await expect(toggle).toBeVisible({ timeout: 15_000 });
   await expect(toggle.getByTestId("trend-mode-cumulative")).toHaveAttribute(

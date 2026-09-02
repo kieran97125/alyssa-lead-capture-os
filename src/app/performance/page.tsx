@@ -414,7 +414,11 @@ export default async function TreatmentPerformancePage({
               description="可切換單日與累積；單日睇波動，累積睇整段期間進度。數字會跟上方篩選，橙色圓點代表當日日曆操作。"
               icon={Activity}
             />
-            <TreatmentPerformanceTrendChartLazy series={snapshot.trendSeries} />
+            <TreatmentPerformanceTrendChartLazy
+              series={snapshot.trendSeries}
+              costSeries={snapshot.costTrendSeries}
+              costAvailability={snapshot.costs.availability}
+            />
             {snapshot.trendSeriesCount > snapshot.trendSeriesShown ? (
               <p className="treatment-trend-note">
                 目前先顯示 Lead 數最高 {snapshot.trendSeriesShown} 個療程；用上方療程篩選可查看其餘走勢。

@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import type { PerformanceTrendSeries } from "@/lib/marketing/performanceTrend";
+import type { PerformanceCostAvailability } from "@/lib/marketing/performanceCostMath";
 
 const LazyTrendChart = dynamic(
   () =>
@@ -20,12 +21,15 @@ const LazyTrendChart = dynamic(
 
 export function LeadDashboardTrendChartLazy({
   series,
+  costAvailability,
 }: {
   series: PerformanceTrendSeries[];
+  costAvailability: PerformanceCostAvailability;
 }) {
   return (
     <LazyTrendChart
       series={series}
+      costAvailability={costAvailability}
       defaultMode="daily"
       preferenceKey="lead-dashboard"
     />

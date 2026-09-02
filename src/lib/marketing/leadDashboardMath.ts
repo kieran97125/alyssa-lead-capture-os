@@ -8,9 +8,11 @@ import {
   type OperationalAnnotation,
 } from "@/lib/marketing/operationalAnnotations";
 import {
+  attachDailySpendToPerformanceTrendSeries,
   calculatePerformanceTrendPoint,
   emptyPerformanceTrendBase,
   type PerformanceTrendSeries,
+  type PerformanceTrendSpendFact,
 } from "@/lib/marketing/performanceTrend";
 import {
   brandIdsForScope,
@@ -90,6 +92,8 @@ export function buildLeadDashboardTrend(input: {
   brands: SheetBrandReference[];
   brandColors: Record<string, string>;
   annotations: OperationalAnnotation[];
+  spendFacts?: PerformanceTrendSpendFact[];
+  costAttributable?: boolean;
 }): PerformanceTrendSeries[] {
   const selectedBrandIds = new Set(
     brandIdsForScope(input.brands, input.filters.brandId)
@@ -102,7 +106,7 @@ export function buildLeadDashboardTrend(input: {
   const seriesBrands = brandsForScope(input.brands, input.filters.brandId);
   const dates = dashboardDates(input.filters.startDate, input.filters.endDate);
 
-  return seriesBrands.map((brand) => {
+  const series = seriesBrands.map((brand) => {
     const brandGroups = groups.filter((group) => group.brandId === brand.id);
     return {
       key: brand.id,
@@ -150,6 +154,12 @@ export function buildLeadDashboardTrend(input: {
         });
       }),
     };
+  });
+
+  return attachDailySpendToPerformanceTrendSeries({
+    series,
+    spendFacts: input.spendFacts ?? [],
+    attributable: input.costAttributable !== false,
   });
 }
 

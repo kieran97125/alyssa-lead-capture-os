@@ -618,6 +618,7 @@ test("period comparison aggregates numerators before rates and builds cumulative
       brandId: "alyssa",
       metricDate: "2026-08-01",
       spend: 100,
+      spendRecorded: true,
       leads: 10,
       bookings: 4,
       shows: 2,
@@ -626,6 +627,7 @@ test("period comparison aggregates numerators before rates and builds cumulative
       brandId: "am",
       metricDate: "2026-08-01",
       spend: 300,
+      spendRecorded: true,
       leads: 10,
       bookings: 6,
       shows: 3,
@@ -634,6 +636,7 @@ test("period comparison aggregates numerators before rates and builds cumulative
       brandId: "alyssa",
       metricDate: "2026-08-02",
       spend: 200,
+      spendRecorded: true,
       leads: 20,
       bookings: 10,
       shows: 5,
@@ -1516,7 +1519,7 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
   const scopeSelect = page.getByLabel("分析範圍");
   await expect(scopeSelect).toBeVisible();
   const showCostTrend = page.getByRole("button", {
-    name: "CPA · Show",
+    name: "CPShow",
     exact: true,
   });
   await showCostTrend.click();
