@@ -1,0 +1,81 @@
+name: One-shot Calendar Edit Review Fixes
+
+on:
+  push:
+    branches:
+      - feat/editable-marketing-calendar-items
+
+permissions:
+  contents: write
+
+jobs:
+  fix-and-verify:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      E2E_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feat/editable-marketing-calendar-items
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply review fixes
+        run: python3 scripts/finalize-calendar-edit-review.py
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify production build and contracts
+        run: npm run build
+
+      - name: Build Storybook
+        run: npm run build:storybook
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Refresh Calendar edit visual baselines
+        run: npx playwright test e2e/marketing-calendar-edit.spec.ts --update-snapshots
+
+      - name: Re-run Calendar edit acceptance
+        run: npx playwright test e2e/marketing-calendar-edit.spec.ts
+
+      - name: Verify existing Calendar behavior
+        run: npx playwright test e2e/marketing-calendar-delete.spec.ts e2e/marketing-calendar-overflow.spec.ts
+
+      - name: Verify design quality
+        run: npm run test:design
+
+      - name: Verify full product regression
+        run: npm run test:e2e
+
+      - name: Commit verified review fixes
+        shell: bash
+        run: |
+          rm .github/workflows/one-shot-calendar-review-fixes.yml
+          rm scripts/finalize-calendar-edit-review.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git diff --cached --check
+          git status --short
+          git commit -m "Address editable Calendar review findings"
+          git push origin HEAD:feat/editable-marketing-calendar-items
