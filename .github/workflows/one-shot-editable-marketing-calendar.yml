@@ -44,11 +44,19 @@ jobs:
           from pathlib import Path
           path = Path("scripts/implement-editable-marketing-calendar.py")
           text = path.read_text(encoding="utf-8")
-          old = "next_text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)"
-          new = "next_text, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.S)"
-          if old not in text:
+          old_helper = "next_text, count = re.subn(pattern, replacement, text, count=1, flags=re.S)"
+          new_helper = "next_text, count = re.subn(pattern, lambda _match: replacement, text, count=1, flags=re.S)"
+          if old_helper in text:
+              text = text.replace(old_helper, new_helper, 1)
+          elif new_helper not in text:
               raise SystemExit("regex helper marker missing")
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          old_assertion = "assert.match(commandActions, /result\\.updatedAt/);"
+          new_assertion = "assert.match(commandActions, /item\\.updatedAt/);"
+          if old_assertion in text:
+              text = text.replace(old_assertion, new_assertion, 1)
+          elif new_assertion not in text:
+              raise SystemExit("Calendar move concurrency assertion marker missing")
+          path.write_text(text, encoding="utf-8")
           PY
           python3 scripts/implement-editable-marketing-calendar.py
 
