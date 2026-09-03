@@ -373,7 +373,7 @@ export default async function CreativeJobsPage({
                           <Link
                             href={`/creative-jobs/${job.id}`}
                             data-testid="creative-job-row"
-                            className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2 px-3 py-2.5 pr-11 text-[10px] font-semibold transition hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(220px,1.35fr)_minmax(150px,0.82fr)_minmax(220px,1.1fr)_minmax(205px,1fr)_minmax(86px,0.4fr)] xl:items-center"
+                            className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2 px-3 py-2 pr-11 text-[10px] font-semibold transition hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(220px,1.35fr)_minmax(150px,0.82fr)_minmax(220px,1.1fr)_minmax(205px,1fr)_minmax(86px,0.4fr)] xl:items-center"
                           >
                           <div className="min-w-0">
                             <div className="flex min-w-0 items-center gap-1.5">
@@ -382,7 +382,7 @@ export default async function CreativeJobsPage({
                               </strong>
                               <PriorityBadge value={job.priority} />
                             </div>
-                            <small className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[8px] font-bold leading-3 text-[#927987]">
+                            <small className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[9px] font-bold leading-4 text-[#927987]">
                               <span>{job.quantity} 件 · {job.workload}</span>
                               <span
                                 className="inline-flex min-w-0 items-center gap-1 truncate"
@@ -497,11 +497,11 @@ function FilterSelect({
 }) {
   return (
     <label className="grid min-w-[104px] flex-1 gap-0.5 sm:flex-none">
-      <span className="text-[8px] font-black text-[#806174]">{label}</span>
+      <span className="text-[9px] font-black text-[#806174]">{label}</span>
       <select
         name={name}
         defaultValue={value}
-        className="h-8 min-w-0 rounded-lg border border-[#dfcdc4] bg-white px-2 text-[9px] font-bold text-[#4d2d40]"
+        className="h-8 min-w-0 rounded-lg border border-[#dfcdc4] bg-white px-2 text-[11px] font-bold text-[#4d2d40]"
       >
         {options.map(([optionValue, optionLabel]) => (
           <option key={`${name}-${optionValue || "all"}`} value={optionValue}>
@@ -526,11 +526,12 @@ function ListMeta({
 }) {
   return (
     <div className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-1.5">
-      <span className="text-[7px] font-black uppercase tracking-[0.05em] text-[#9a818d]">
+      <span data-testid="creative-list-meta-label"
+        className="text-[9px] font-black uppercase tracking-[0.04em] text-[#9a818d]">
         {label}
       </span>
       <span
-        className={`flex min-w-0 items-center gap-1 truncate text-[10px] leading-3 ${
+        className={`flex min-w-0 items-center gap-1 truncate text-[11px] leading-4 ${
           strong ? "font-black text-[#6d4a5c]" : "text-[#4d3945]"
         }`}
         title={value}
@@ -555,11 +556,12 @@ function ScheduleMeta({
 }) {
   return (
     <span className="min-w-0 rounded-lg bg-[#f8f4f2] px-2 py-1.5">
-      <small className="block text-[7px] font-black uppercase tracking-[0.05em] text-[#9a818d]">
+      <small data-testid="creative-schedule-meta-label"
+        className="block text-[9px] font-black uppercase tracking-[0.04em] text-[#9a818d]">
         {label}
       </small>
       <strong
-        className={`mt-0.5 flex min-w-0 items-center gap-1 truncate text-[8px] leading-3 ${
+        className={`mt-0.5 flex min-w-0 items-center gap-1 truncate text-[10px] leading-4 ${
           alert ? "text-[#a43b50]" : "text-[#4d3945]"
         }`}
       >
@@ -582,7 +584,7 @@ function PriorityBadge({
   };
   return (
     <span
-      className={`inline-flex shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black ${styles[value]}`}
+      className={`inline-flex shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-black ${styles[value]}`}
     >
       {creativePriorityLabels[value]}
     </span>
@@ -597,7 +599,7 @@ function StatusBadge({
   const active = ["review", "revision", "blocked"].includes(status);
   return (
     <span
-      className={`inline-flex rounded-full px-2 py-1 text-[8px] font-black ${
+      className={`inline-flex rounded-full px-2 py-1 text-[9px] font-black ${
         active
           ? "bg-[#fff0f5] text-[#7c365f]"
           : status === "completed"

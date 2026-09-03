@@ -13,6 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { createCreativeJobAction } from "@/app/creative-jobs/createAction";
+import { SystemButton } from "@/components/system/SystemButton";
 import { initialCreativeJobCreateState } from "@/lib/creative/createState";
 import type { BrandSetting } from "@/lib/data/configuration";
 import type {
@@ -88,10 +89,12 @@ export function CreativeJobCreateDialog({
     <Dialog.Root>
       <Dialog.Trigger
         data-testid="creative-job-create-trigger"
-        className="command-primary-button !min-h-8 !rounded-lg !px-3 !py-1.5 !text-[10px]"
-      >
-        <Plus size={14} /> 新增設計 Job
-      </Dialog.Trigger>
+        render={
+          <SystemButton density="compact">
+            <Plus size={14} aria-hidden="true" /> 新增設計 Job
+          </SystemButton>
+        }
+      />
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[90] bg-[#321428]/40 backdrop-blur-[3px] transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />
         <Dialog.Popup

@@ -1,38 +1,52 @@
-# Creative Job density and requester provenance
+# Creative Job operational density, requester provenance and Brief workspace
 
 ## Problem
 
-The operational Job List used generous card and control sizing after the first Creative Production release. With real imported work, rows became visually heavy and managers could not immediately see who created each Job. The requester identity already existed in the database but was not projected as a human name.
+The first Creative Production release used generous display sizing and a permanent three-tab right rail. With real work imported, the Job List became visually heavy, creator ownership was hidden, metadata edits could appear to revert after a server validation/navigation, and explanatory Brief screenshots were mixed into the same visible area as production assets. Long Briefs also forced users to scroll back to formatting controls.
 
 ## Decision
 
-Creative Job rows use a compact desktop information hierarchy: title and priority first, creator provenance in the supporting line, then brand/designer, production taxonomy, schedule and status. Requester member ID is resolved through the workspace member directory and exposed as `requesterName`; email and system-import labels remain fallbacks. The same provenance appears in the Job detail header.
+Creative Job rows use a compact but readable hierarchy: title/priority, persisted creator provenance, brand/designer, production taxonomy, schedule and status. Creator and assigned Designer remain separate concepts. Operational labels stay at or above the approved readable scale; density comes from spacing, grouping and control height rather than microscopic text.
 
-Toolbar filters, quick views, action buttons, schedule tiles, badges and row delete controls use a smaller but still keyboard-focusable density. The long-form Job editor and creation form keep larger input targets because they are data-entry surfaces rather than scanning surfaces.
+Job settings use a controlled client draft keyed only by Job ID. Server success/error feedback appears inside the settings panel, and unrelated Brief interaction cannot replace the current draft with stale `defaultValue` state. A hard reload still projects canonical database values.
+
+The Brief workspace is the primary production surface. It reclaims the former right rail, keeps a bounded readable canvas, exposes a sticky formatting toolbar, and adds Tiptap text colour through the existing open-source text-style extension. Pasted/dropped screenshots remain private inline Brief attachments and are not presented as production materials. Version history is available through a compact same-page side sheet; asset/comment records and backend actions remain intact but are not permanent workspace panels.
 
 ## Guardrails
 
-- Creator means the persisted requester/creator of the Job, not the current Designer.
-- Existing requester ID and email remain the audit source of truth; display name is a projection.
-- Missing requester identity displays a transparent system-import fallback rather than guessing a colleague.
-- Compact desktop rows must not reintroduce horizontal scrolling.
-- Mobile remains stacked and readable.
-- No database migration or historical rewrite is required.
+- Creator means the persisted requester, never the current Designer.
+- Member display name is preferred; email local part and `system import` are transparent fallbacks.
+- Controlled form state is scoped to one Job ID and must not hide server validation feedback.
+- Database values remain the source of truth after reload.
+- Inline Brief images stay private and retrievable, but are not classified as production assets.
+- Removing asset/discussion panels is an information-architecture change, not data deletion.
+- Sticky controls must not introduce horizontal page overflow or unbounded line length.
+- Existing permissions, calendar sync, notifications, audit, versions, assets and comments remain intact.
+- No Lead, Book, Show, Spend, CRM, attribution or reporting logic changes.
 
 ## Classification
 
-- **Core**: creator provenance, separation of creator and assignee, compact operational-list density.
-- **Configurable**: exact density tokens, labels and responsive breakpoints.
-- **Needs evidence**: future requester filtering or workload reporting should be added only when operations require it.
+- **Core**: creator/assignee separation; stable controlled settings draft; inline-explanation versus production-asset separation; version history as an on-demand surface; readable operational density.
+- **Configurable**: exact density tokens, responsive breakpoints, colour palette defaults, editor canvas width and labels.
+- **Enterprise Extension**: role/brand permissions, audit, private attachment delivery, calendar synchronization and desktop notifications.
+- **Client-specific and isolated**: brand names, team member identities, campaign terminology, visual brand colours, real URLs and production Job content must never be copied into Growth OS Core or the canonical learning record.
+
+## Evidence
+
+- Source PR: `kieran97125/alyssa-lead-capture-os#83`.
+- Initial compact-list implementation commit: `b08afe214cb1e11e68baf7ae5594581c1d2d1e37`.
+- Final implementation, test and Production evidence are appended to PR #83 and the canonical private learning record after merge.
 
 ## Verification
 
-- Production build and Creative Production contract.
-- Deterministic compact-list visual baseline.
-- Maximum row, create-action and delete-action dimensions.
-- Existing create, delete, rich Brief, navigation and mobile acceptance.
-- Design/accessibility and full product regression.
+- Production build and TypeScript contracts.
+- Tiptap text-colour and sticky-toolbar acceptance.
+- Controlled Job settings persistence and inline feedback acceptance.
+- Version side-sheet and removal of permanent asset/discussion panels.
+- Creator provenance and minimum readable metadata sizing.
+- Compact desktop list visual baseline, no horizontal scrolling and mobile acceptance.
+- Design/accessibility suite and full product regression.
 
 ## Rollback
 
-Revert the source PR. Stored Jobs, requester identity, Brief versions, assets and audit records remain unchanged.
+Revert PR #83. No migration is required. Stored Jobs, settings, Brief documents, inline images, versions, production asset records, comments, notifications, requester identity and audit history remain unchanged.

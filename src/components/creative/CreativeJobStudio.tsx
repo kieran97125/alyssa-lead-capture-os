@@ -1,12 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  useMemo,
-  useRef,
-  useState,
-  type ChangeEvent,
-} from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -37,6 +32,7 @@ import {
   type CreativeBriefEditorHandle,
 } from "@/components/creative/CreativeBriefEditor";
 import { CreativeJobDeleteControl } from "@/components/creative/CreativeJobDeleteControl";
+import { CreativeBriefHistoryDialog } from "@/components/creative/CreativeBriefHistoryDialog";
 import {
   addCreativeCommentAction,
   addCreativeLinkAssetAction,
@@ -82,9 +78,77 @@ type CreativeJobStudioProps = {
   canUpdateStatus: boolean;
   canContributeAssets: boolean;
   canManageSettings: boolean;
+  feedback?: CreativeJobFeedback;
+  fixtureMode?: boolean;
 };
 
-type RightPanel = "assets" | "discussion" | "history";
+type CreativeJobSettingsDraft = {
+  title: string;
+  brandId: string;
+  treatmentId: string;
+  assigneeProfileId: string;
+  sourceTaxonomyId: string;
+  usageTaxonomyId: string;
+  mediaFormatTaxonomyId: string;
+  quantity: string;
+  workload: CreativeJobRow["workload"];
+  specifications: string;
+  startDate: string;
+  startTime: string;
+  dueDate: string;
+  dueTime: string;
+  priority: CreativeJobRow["priority"];
+  materialStatus: "ready" | "waiting";
+  syncCalendar: boolean;
+  publishDate: string;
+  publishTime: string;
+  sourceUrl: string;
+  referenceUrl: string;
+  status: CreativeJobRow["status"];
+};
+
+type CreativeJobFeedback = {
+  status: "success" | "error";
+  message: string;
+} | null;
+
+function createSettingsDraft(job: CreativeJobRow): CreativeJobSettingsDraft {
+  return {
+    title: job.title,
+    brandId: job.brandId,
+    treatmentId: job.treatmentId || "",
+    assigneeProfileId: job.assigneeProfileId || "",
+    sourceTaxonomyId: job.sourceTaxonomyId || "",
+    usageTaxonomyId: job.usageTaxonomyId || "",
+    mediaFormatTaxonomyId: job.mediaFormatTaxonomyId || "",
+    quantity: String(job.quantity),
+    workload: job.workload,
+    specifications: job.specifications || "",
+    startDate: job.startDate,
+    startTime: job.startTime || "",
+    dueDate: job.dueDate || "",
+    dueTime: job.dueTime || "",
+    priority: job.priority,
+    materialStatus: job.materialStatus,
+    syncCalendar: job.syncCalendar,
+    publishDate: job.publishDate || job.dueDate || "",
+    publishTime: job.publishTime || "",
+    sourceUrl: job.sourceUrl || "",
+    referenceUrl: job.referenceUrl || "",
+    status: job.status,
+  };
+}
+
+function requesterDisplayName(name: string | null, email: string | null) {
+  if (name?.trim()) return name.trim();
+  const localPart = email?.split("@")[0]?.trim();
+  if (!localPart) return "系統匯入";
+  return localPart
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
 
 function prettyDateTime(value: string) {
   const date = new Date(value);
@@ -114,97 +178,89 @@ function fieldClass() {
 }
 
 export function CreativeJobStudio(props: CreativeJobStudioProps) {
-  const [brandId, setBrandId] = useState(props.job.brandId);
-  const [syncCalendar, setSyncCalendar] = useState(props.job.syncCalendar);
-  const [rightPanel, setRightPanel] = useState<RightPanel>("assets");
-  const [assets, setAssets] = useState(props.assets);
-  const [uploading, setUploading] = useState(false);
-  const [uploadMessage, setUploadMessage] = useState("");
-  const [uploadPurpose, setUploadPurpose] = useState<CreativeAsset["purpose"]>(
-    "source"
+  const [draft, setDraft] = useState<CreativeJobSettingsDraft>(() =>
+    createSettingsDraft(props.job)
   );
-  const editorRef = useRef<CreativeBriefEditorHandle | null>(null);
+  const [fixtureFeedback, setFixtureFeedback] =
+    useState<CreativeJobFeedback>(null);
   const returnPath = `/creative-jobs/${props.job.id}`;
+  const feedback = fixtureFeedback ?? props.feedback ?? null;
+  const fixtureMode = props.fixtureMode === true;
+  const settingsDraftStorageKey = `creative-job-settings-draft:${props.job.id}`;
+
+  useEffect(() => {
+    try {
+      if (feedback?.status === "error") {
+        const savedDraft = window.sessionStorage.getItem(
+          settingsDraftStorageKey
+        );
+        if (savedDraft) {
+          const parsed = JSON.parse(
+            savedDraft
+          ) as Partial<CreativeJobSettingsDraft>;
+          setDraft((current) => ({ ...current, ...parsed }));
+        }
+      } else {
+        window.sessionStorage.removeItem(settingsDraftStorageKey);
+      }
+    } catch {
+      // Session storage is an optional handoff for failed validation only.
+    }
+
+    if (feedback) {
+      const url = new URL(window.location.href);
+      url.searchParams.delete("creative_status");
+      url.searchParams.delete("creative_message");
+      window.history.replaceState(
+        null,
+        "",
+        `${url.pathname}${url.search}${url.hash}`
+      );
+    }
+  }, [feedback, settingsDraftStorageKey]);
+
+
+  function updateDraft<K extends keyof CreativeJobSettingsDraft>(
+    key: K,
+    value: CreativeJobSettingsDraft[K]
+  ) {
+    setDraft((current) => ({ ...current, [key]: value }));
+  }
+
 
   const treatments = useMemo(
-    () => props.treatments.filter((item) => item.brandId === brandId),
-    [brandId, props.treatments]
+    () => props.treatments.filter((item) => item.brandId === draft.brandId),
+    [draft.brandId, props.treatments]
   );
   const activeTaxonomies = useMemo(() => {
     const currentIds = new Set([
       props.job.sourceTaxonomyId,
       props.job.usageTaxonomyId,
       props.job.mediaFormatTaxonomyId,
+      draft.sourceTaxonomyId,
+      draft.usageTaxonomyId,
+      draft.mediaFormatTaxonomyId,
     ]);
     return props.taxonomies.filter(
       (item) => item.isActive || currentIds.has(item.id)
     );
-  }, [props.job, props.taxonomies]);
+  }, [draft.mediaFormatTaxonomyId, draft.sourceTaxonomyId, draft.usageTaxonomyId, props.job, props.taxonomies]);
   const availableDesigners = useMemo(
     () =>
       props.designers.filter(
-        (item) => item.isActive || item.id === props.job.assigneeProfileId
+        (item) => item.isActive || item.id === draft.assigneeProfileId
       ),
-    [props.designers, props.job.assigneeProfileId]
+    [draft.assigneeProfileId, props.designers]
   );
   const selectedDesigner = availableDesigners.find(
-    (item) => item.id === props.job.assigneeProfileId
+    (item) => item.id === draft.assigneeProfileId
   );
 
-  async function uploadAssetFiles(event: ChangeEvent<HTMLInputElement>) {
-    const files = Array.from(event.target.files ?? []);
-    event.target.value = "";
-    if (files.length === 0) return;
-    setUploading(true);
-    setUploadMessage("");
-    try {
-      const created: CreativeAsset[] = [];
-      for (const file of files) {
-        const body = new FormData();
-        body.set("file", file);
-        body.set("purpose", uploadPurpose);
-        body.set("label", file.name || "Creative asset");
-        const response = await fetch(
-          `/api/creative-jobs/${props.job.id}/assets`,
-          { method: "POST", body }
-        );
-        const result = (await response.json().catch(() => ({}))) as {
-          asset?: CreativeAsset;
-          error?: string;
-        };
-        if (!response.ok || !result.asset) {
-          throw new Error(result.error || "upload_failed");
-        }
-        created.push(result.asset);
-      }
-      setAssets((current) => [
-        ...created,
-        ...current.filter(
-          (item) => !created.some((createdItem) => createdItem.id === item.id)
-        ),
-      ]);
-      setUploadMessage(`${created.length} 個素材已安全儲存。`);
-    } catch (error) {
-      setUploadMessage(
-        error instanceof Error && error.message === "file_too_large"
-          ? "圖片大過 25MB，請先壓縮。"
-          : "素材上載失敗，請稍後再試。"
-      );
-    } finally {
-      setUploading(false);
-    }
-  }
 
-  function handleBriefAssetCreated(asset: CreativeAsset) {
-    setAssets((current) => [
-      asset,
-      ...current.filter((item) => item.id !== asset.id),
-    ]);
-  }
 
   return (
     <div className="min-h-screen bg-[#fbf7f5] text-[#321428]">
-      <header className="sticky top-0 z-30 border-b border-[#ead9cf] bg-[#fffdfb]/95 px-4 py-3 backdrop-blur-xl sm:px-6">
+      <header className="border-b border-[#ead9cf] bg-[#fffdfb] px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-[1880px] flex-wrap items-center gap-3">
           <Link
             href="/creative-jobs"
@@ -241,7 +297,7 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
               className="inline-flex items-center gap-1"
               title={props.job.requesterEmail || undefined}
             >
-              <UserRound size={13} /> 建立者 {props.job.requesterName || props.job.requesterEmail || "系統匯入"}
+              <UserRound size={13} /> 建立者 {requesterDisplayName(props.job.requesterName, props.job.requesterEmail)}
             </span>
             <span className="inline-flex items-center gap-1">
               <Clock3 size={13} /> 最後更新 {prettyDateTime(props.job.updatedAt)}
@@ -252,6 +308,7 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
               jobId={props.job.id}
               title={props.job.title}
               placement="header"
+              fixtureMode={fixtureMode}
             />
           ) : null}
           {props.canManageSettings ? (
@@ -265,10 +322,29 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
         </div>
       </header>
 
-      <main className="mx-auto grid max-w-[1880px] gap-4 p-4 sm:p-6 xl:grid-cols-[310px_minmax(620px,1fr)_350px] xl:items-start">
-        <aside className="order-2 grid gap-4 xl:order-1">
+      <main className="mx-auto grid max-w-[1880px] gap-4 p-4 sm:p-6 xl:grid-cols-[288px_minmax(0,1fr)] xl:items-start">
+        <aside className="order-2 grid gap-4 xl:order-1 xl:sticky xl:top-4 xl:max-h-[calc(100vh-2rem)] xl:overflow-y-auto xl:pr-1">
           <form
-            action={updateCreativeJobAction}
+            action={fixtureMode ? undefined : updateCreativeJobAction}
+            onSubmit={(event) => {
+              if (fixtureMode) {
+                event.preventDefault();
+                setFixtureFeedback({
+                  status: "success",
+                  message: "設計工作已儲存；畫面設定保持不變。",
+                });
+                return;
+              }
+              try {
+                window.sessionStorage.setItem(
+                  settingsDraftStorageKey,
+                  JSON.stringify(draft)
+                );
+              } catch {
+                // Server validation remains authoritative when storage is unavailable.
+              }
+            }}
+            data-testid="creative-job-settings-form"
             className={`${sectionClass()} grid gap-0`}
           >
             <input type="hidden" name="jobId" value={props.job.id} />
@@ -280,6 +356,25 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
               <h2 className="mt-0.5 text-sm font-black">派 Job 設定</h2>
             </header>
 
+            {feedback ? (
+              <div
+                data-testid="creative-job-settings-feedback"
+                role={feedback.status === "error" ? "alert" : "status"}
+                className={`mx-3 mt-3 flex items-start gap-2 rounded-xl border px-3 py-2.5 text-[11px] font-bold leading-5 ${
+                  feedback.status === "error"
+                    ? "border-[#efc5c9] bg-[#fff4f5] text-[#a43b50]"
+                    : "border-[#cfe4d8] bg-[#f2faf6] text-[#3f7f5f]"
+                }`}
+              >
+                {feedback.status === "error" ? (
+                  <AlertTriangle className="mt-0.5 shrink-0" size={14} />
+                ) : (
+                  <CheckCircle2 className="mt-0.5 shrink-0" size={14} />
+                )}
+                <span>{feedback.message}</span>
+              </div>
+            ) : null}
+
             <details open className="group border-b border-[#eee3dd] p-4">
               <summary className="cursor-pointer list-none text-xs font-black">
                 基本資料
@@ -289,7 +384,8 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   Job 名稱
                   <input
                     name="title"
-                    defaultValue={props.job.title}
+                    value={draft.title}
+                    onChange={(event) => updateDraft("title", event.target.value)}
                     className={fieldClass()}
                     required
                     disabled={!props.canEditMetadata}
@@ -299,8 +395,21 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   品牌
                   <select
                     name="brandId"
-                    value={brandId}
-                    onChange={(event) => setBrandId(event.target.value)}
+                    value={draft.brandId}
+                    onChange={(event) => {
+                      const nextBrandId = event.target.value;
+                      setDraft((current) => ({
+                        ...current,
+                        brandId: nextBrandId,
+                        treatmentId: props.treatments.some(
+                          (item) =>
+                            item.id === current.treatmentId &&
+                            item.brandId === nextBrandId
+                        )
+                          ? current.treatmentId
+                          : "",
+                      }));
+                    }}
                     className={fieldClass()}
                     disabled={!props.canEditMetadata}
                   >
@@ -315,10 +424,9 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   療程／Campaign
                   <select
                     name="treatmentId"
-                    defaultValue={
-                      treatments.some((item) => item.id === props.job.treatmentId)
-                        ? props.job.treatmentId || ""
-                        : ""
+                    value={draft.treatmentId}
+                    onChange={(event) =>
+                      updateDraft("treatmentId", event.target.value)
                     }
                     className={fieldClass()}
                     disabled={!props.canEditMetadata}
@@ -335,7 +443,10 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   負責 Designer
                   <select
                     name="assigneeProfileId"
-                    defaultValue={props.job.assigneeProfileId || ""}
+                    value={draft.assigneeProfileId}
+                    onChange={(event) =>
+                      updateDraft("assigneeProfileId", event.target.value)
+                    }
                     className={fieldClass()}
                     disabled={!props.canEditMetadata}
                   >
@@ -376,13 +487,22 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                               ? "usage"
                               : "mediaFormat"
                         }TaxonomyId`}
-                        defaultValue={
+                        value={
                           category === "source"
-                            ? props.job.sourceTaxonomyId || ""
+                            ? draft.sourceTaxonomyId
                             : category === "usage"
-                              ? props.job.usageTaxonomyId || ""
-                              : props.job.mediaFormatTaxonomyId || ""
+                              ? draft.usageTaxonomyId
+                              : draft.mediaFormatTaxonomyId
                         }
+                        onChange={(event) => {
+                          if (category === "source") {
+                            updateDraft("sourceTaxonomyId", event.target.value);
+                          } else if (category === "usage") {
+                            updateDraft("usageTaxonomyId", event.target.value);
+                          } else {
+                            updateDraft("mediaFormatTaxonomyId", event.target.value);
+                          }
+                        }}
                         className={fieldClass()}
                         disabled={!props.canEditMetadata}
                       >
@@ -407,7 +527,8 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                       type="number"
                       min={1}
                       max={999}
-                      defaultValue={props.job.quantity}
+                      value={draft.quantity}
+                      onChange={(event) => updateDraft("quantity", event.target.value)}
                       className={fieldClass()}
                       disabled={!props.canEditMetadata}
                     />
@@ -416,7 +537,13 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                     工作量
                     <select
                       name="workload"
-                      defaultValue={props.job.workload}
+                      value={draft.workload}
+                      onChange={(event) =>
+                        updateDraft(
+                          "workload",
+                          event.target.value as CreativeJobRow["workload"]
+                        )
+                      }
                       className={fieldClass()}
                       disabled={!props.canEditMetadata}
                     >
@@ -432,7 +559,10 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   尺寸／片長／輸出規格
                   <textarea
                     name="specifications"
-                    defaultValue={props.job.specifications || ""}
+                    value={draft.specifications}
+                    onChange={(event) =>
+                      updateDraft("specifications", event.target.value)
+                    }
                     rows={4}
                     className={fieldClass()}
                     placeholder="例如：9:16 × 3、每條 20–30 秒、有字幕、保留 Logo 位"
@@ -453,7 +583,8 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                     <input
                       name="startDate"
                       type="date"
-                      defaultValue={props.job.startDate}
+                      value={draft.startDate}
+                      onChange={(event) => updateDraft("startDate", event.target.value)}
                       className={fieldClass()}
                       disabled={!props.canEditMetadata}
                       required
@@ -464,7 +595,8 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                     <input
                       name="startTime"
                       type="time"
-                      defaultValue={props.job.startTime || ""}
+                      value={draft.startTime}
+                      onChange={(event) => updateDraft("startTime", event.target.value)}
                       className={fieldClass()}
                       disabled={!props.canEditMetadata}
                     />
@@ -476,7 +608,8 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                     <input
                       name="dueDate"
                       type="date"
-                      defaultValue={props.job.dueDate || ""}
+                      value={draft.dueDate}
+                      onChange={(event) => updateDraft("dueDate", event.target.value)}
                       className={fieldClass()}
                       disabled={!props.canEditMetadata}
                     />
@@ -486,7 +619,8 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                     <input
                       name="dueTime"
                       type="time"
-                      defaultValue={props.job.dueTime || ""}
+                      value={draft.dueTime}
+                      onChange={(event) => updateDraft("dueTime", event.target.value)}
                       className={fieldClass()}
                       disabled={!props.canEditMetadata}
                     />
@@ -496,7 +630,13 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   優先處理
                   <select
                     name="priority"
-                    defaultValue={props.job.priority}
+                    value={draft.priority}
+                    onChange={(event) =>
+                      updateDraft(
+                        "priority",
+                        event.target.value as CreativeJobRow["priority"]
+                      )
+                    }
                     className={fieldClass()}
                     disabled={!props.canEditMetadata}
                   >
@@ -511,7 +651,13 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   素材狀態
                   <select
                     name="materialStatus"
-                    defaultValue={props.job.materialStatus}
+                    value={draft.materialStatus}
+                    onChange={(event) =>
+                      updateDraft(
+                        "materialStatus",
+                        event.target.value as "ready" | "waiting"
+                      )
+                    }
                     className={fieldClass()}
                     disabled={!props.canEditMetadata}
                   >
@@ -532,8 +678,10 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                     name="syncCalendar"
                     type="checkbox"
                     className="mt-0.5"
-                    checked={syncCalendar}
-                    onChange={(event) => setSyncCalendar(event.target.checked)}
+                    checked={draft.syncCalendar}
+                    onChange={(event) =>
+                      updateDraft("syncCalendar", event.target.checked)
+                    }
                     disabled={!props.canEditMetadata}
                   />
                   <span>
@@ -543,15 +691,16 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                     </small>
                   </span>
                 </label>
-                {syncCalendar ? (
+                {draft.syncCalendar ? (
                   <div className="grid grid-cols-2 gap-2 rounded-xl bg-[#f6fbfc] p-3">
                     <label className="text-[11px] font-black text-[#53677e]">
                       Publish Day
                       <input
                         name="publishDate"
                         type="date"
-                        defaultValue={
-                          props.job.publishDate || props.job.dueDate || ""
+                        value={draft.publishDate}
+                        onChange={(event) =>
+                          updateDraft("publishDate", event.target.value)
                         }
                         className={fieldClass()}
                         disabled={!props.canEditMetadata}
@@ -563,7 +712,10 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                       <input
                         name="publishTime"
                         type="time"
-                        defaultValue={props.job.publishTime || ""}
+                        value={draft.publishTime}
+                        onChange={(event) =>
+                          updateDraft("publishTime", event.target.value)
+                        }
                         className={fieldClass()}
                         disabled={!props.canEditMetadata}
                       />
@@ -573,7 +725,7 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
               </div>
             </details>
 
-            <details className="border-b border-[#eee3dd] p-4">
+            <details open className="border-b border-[#eee3dd] p-4">
               <summary className="cursor-pointer list-none text-xs font-black">
                 快速素材連結
               </summary>
@@ -583,7 +735,8 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   <input
                     name="sourceUrl"
                     type="url"
-                    defaultValue={props.job.sourceUrl || ""}
+                    value={draft.sourceUrl}
+                    onChange={(event) => updateDraft("sourceUrl", event.target.value)}
                     className={fieldClass()}
                     placeholder="https://drive.google.com/..."
                     disabled={!props.canEditMetadata}
@@ -594,7 +747,10 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   <input
                     name="referenceUrl"
                     type="url"
-                    defaultValue={props.job.referenceUrl || ""}
+                    value={draft.referenceUrl}
+                    onChange={(event) =>
+                      updateDraft("referenceUrl", event.target.value)
+                    }
                     className={fieldClass()}
                     placeholder="https://..."
                     disabled={!props.canEditMetadata}
@@ -603,12 +759,18 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
               </div>
             </details>
 
-            <div className="grid gap-3 p-4">
+            <div className="sticky bottom-0 z-10 grid gap-3 border-t border-[#eadfd9] bg-white/95 p-4 backdrop-blur">
               <label className="text-[11px] font-black text-[#6d4a5c]">
                 工作狀態
                 <select
                   name="status"
-                  defaultValue={props.job.status}
+                  value={draft.status}
+                  onChange={(event) =>
+                    updateDraft(
+                      "status",
+                      event.target.value as CreativeJobRow["status"]
+                    )
+                  }
                   className={fieldClass()}
                   disabled={!props.canEditMetadata}
                 >
@@ -631,7 +793,11 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
           </form>
 
           {props.canUpdateStatus && !props.canEditMetadata ? (
-            <form action={updateCreativeJobStatusAction} className={`${sectionClass()} p-4`}>
+            <form
+              action={fixtureMode ? undefined : updateCreativeJobStatusAction}
+              onSubmit={fixtureMode ? (event) => event.preventDefault() : undefined}
+              className={`${sectionClass()} p-4`}
+            >
               <input type="hidden" name="jobId" value={props.job.id} />
               <input type="hidden" name="returnPath" value={returnPath} />
               <label className="text-[11px] font-black text-[#6d4a5c]">
@@ -671,9 +837,9 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              {props.job.sourceUrl ? (
+              {draft.sourceUrl ? (
                 <a
-                  href={props.job.sourceUrl}
+                  href={draft.sourceUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#dfcdc4] bg-white px-2.5 text-[10px] font-black text-[#6d4a5c]"
@@ -681,9 +847,9 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   <FolderOpen size={13} /> Source Folder
                 </a>
               ) : null}
-              {props.job.referenceUrl ? (
+              {draft.referenceUrl ? (
                 <a
-                  href={props.job.referenceUrl}
+                  href={draft.referenceUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-[#dfcdc4] bg-white px-2.5 text-[10px] font-black text-[#6d4a5c]"
@@ -691,354 +857,23 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   <ExternalLink size={13} /> Reference
                 </a>
               ) : null}
+              <CreativeBriefHistoryDialog
+                jobId={props.job.id}
+                returnPath={returnPath}
+                versions={props.versions}
+                canRestore={props.canEditBrief}
+                fixtureMode={fixtureMode}
+              />
             </div>
           </div>
           <CreativeBriefEditor
-            ref={editorRef}
             jobId={props.job.id}
             initialDocument={props.job.briefDocument}
             editable={props.canEditBrief}
-            onAssetCreated={handleBriefAssetCreated}
+            persistenceEnabled={!fixtureMode}
           />
         </section>
 
-        <aside className="order-3 min-w-0 xl:sticky xl:top-[86px] xl:max-h-[calc(100vh-106px)]">
-          <section className={`${sectionClass()} flex max-h-[calc(100vh-106px)] min-h-[640px] flex-col`}>
-            <header className="border-b border-[#eadfd9] bg-[#fffaf7] p-3">
-              <div className="grid grid-cols-3 gap-1 rounded-xl bg-[#f5eeeb] p-1">
-                {(
-                  [
-                    ["assets", "素材", Paperclip],
-                    ["discussion", "討論", MessageSquareText],
-                    ["history", "版本", History],
-                  ] as const
-                ).map(([value, label, Icon]) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setRightPanel(value)}
-                    className={`inline-flex h-8 items-center justify-center gap-1 rounded-lg text-[10px] font-black transition ${
-                      rightPanel === value
-                        ? "bg-white text-[#5a2348] shadow-sm"
-                        : "text-[#806174] hover:text-[#5a2348]"
-                    }`}
-                  >
-                    <Icon size={13} /> {label}
-                  </button>
-                ))}
-              </div>
-            </header>
-
-            <div className="min-h-0 flex-1 overflow-y-auto p-3">
-              {rightPanel === "assets" ? (
-                <div className="grid gap-3">
-                  <div className="rounded-xl border border-[#eadfd9] bg-[#fffdfb] p-3">
-                    <div className="flex items-center gap-2">
-                      <UploadCloud size={16} className="text-[#7c365f]" />
-                      <div>
-                        <strong className="block text-xs">Job 素材庫</strong>
-                        <small className="text-[10px] font-semibold text-[#806174]">
-                          圖片可貼入 Brief；大型影片建議放 Google Drive Link。
-                        </small>
-                      </div>
-                    </div>
-                    {props.canContributeAssets ? (
-                      <div className="mt-3 grid gap-2">
-                        <select
-                          value={uploadPurpose}
-                          onChange={(event) =>
-                            setUploadPurpose(
-                              event.target.value as CreativeAsset["purpose"]
-                            )
-                          }
-                          className={fieldClass()}
-                        >
-                          {creativeAssetPurposes.map((purpose) => (
-                            <option key={purpose} value={purpose}>
-                              {creativeAssetPurposeLabels[purpose]}
-                            </option>
-                          ))}
-                        </select>
-                        <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-xl bg-[#5a2348] px-3 text-[10px] font-black text-white">
-                          <ImagePlus size={14} />
-                          {uploading ? "上載中…" : "上載圖片"}
-                          <input
-                            type="file"
-                            accept="image/jpeg,image/png,image/webp,image/gif"
-                            multiple
-                            hidden
-                            disabled={uploading}
-                            onChange={uploadAssetFiles}
-                          />
-                        </label>
-                        {uploadMessage ? (
-                          <p className="text-[10px] font-bold text-[#6d4a5c]">
-                            {uploadMessage}
-                          </p>
-                        ) : null}
-                      </div>
-                    ) : null}
-                  </div>
-
-                  {props.canContributeAssets ? (
-                    <form
-                      action={addCreativeLinkAssetAction}
-                      className="grid gap-2 rounded-xl border border-[#eadfd9] bg-white p-3"
-                    >
-                      <input type="hidden" name="jobId" value={props.job.id} />
-                      <input type="hidden" name="returnPath" value={returnPath} />
-                      <strong className="text-xs">加入 Google Drive／素材連結</strong>
-                      <input
-                        name="label"
-                        placeholder="素材名稱，例如 KOL Raw Footage"
-                        className={fieldClass()}
-                        required
-                      />
-                      <input
-                        name="url"
-                        type="url"
-                        placeholder="https://drive.google.com/..."
-                        className={fieldClass()}
-                        required
-                      />
-                      <select name="purpose" className={fieldClass()} defaultValue="source">
-                        {creativeAssetPurposes.map((purpose) => (
-                          <option key={purpose} value={purpose}>
-                            {creativeAssetPurposeLabels[purpose]}
-                          </option>
-                        ))}
-                      </select>
-                      <SubmitButton
-                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg border border-[#dfcdc4] bg-[#fffaf7] text-[10px] font-black text-[#5a2348]"
-                        pendingLabel="加入中…"
-                      >
-                        <Link2 size={13} /> 加入素材庫
-                      </SubmitButton>
-                    </form>
-                  ) : null}
-
-                  <div className="grid gap-2">
-                    {assets.length ? (
-                      assets.map((asset) => {
-                        const Icon = assetIcon(asset);
-                        return (
-                          <article
-                            key={asset.id}
-                            className="rounded-xl border border-[#eadfd9] bg-white p-3"
-                          >
-                            <div className="flex items-start gap-2">
-                              <span className="grid h-8 w-8 shrink-0 place-items-center rounded-lg bg-[#fff0f5] text-[#7c365f]">
-                                <Icon size={15} />
-                              </span>
-                              <div className="min-w-0 flex-1">
-                                <strong className="block truncate text-[11px]">
-                                  {asset.label}
-                                </strong>
-                                <small className="mt-0.5 block text-[9px] font-bold text-[#927987]">
-                                  {creativeAssetPurposeLabels[asset.purpose]} · {prettyDateTime(asset.createdAt)}
-                                </small>
-                              </div>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              <a
-                                href={asset.url}
-                                target="_blank"
-                                rel="noreferrer"
-                                className="inline-flex h-7 items-center gap-1 rounded-lg border border-[#dfcdc4] px-2 text-[9px] font-black text-[#6d4a5c]"
-                              >
-                                <ExternalLink size={11} /> 開啟
-                              </a>
-                              {props.canEditBrief ? (
-                                <button
-                                  type="button"
-                                  onClick={() => editorRef.current?.insertAsset(asset)}
-                                  className="inline-flex h-7 items-center gap-1 rounded-lg bg-[#5a2348] px-2 text-[9px] font-black text-white"
-                                >
-                                  <Paperclip size={11} /> 插入 Workspace
-                                </button>
-                              ) : null}
-                              {props.canContributeAssets ? (
-                                <form action={removeCreativeAssetAction}>
-                                  <input type="hidden" name="jobId" value={props.job.id} />
-                                  <input type="hidden" name="assetId" value={asset.id} />
-                                  <input type="hidden" name="returnPath" value={returnPath} />
-                                  <ConfirmSubmitButton
-                                    className="inline-flex h-7 items-center gap-1 rounded-lg border border-[#e5c5c8] px-2 text-[9px] font-black text-[#a43b50]"
-                                    pendingLabel="移除中…"
-                                    confirmMessage="只會解除呢張 Job 嘅連結；Google Drive 原檔唔會被刪除。確定移除？"
-                                  >
-                                    <Trash2 size={11} /> 移除
-                                  </ConfirmSubmitButton>
-                                </form>
-                              ) : null}
-                            </div>
-                          </article>
-                        );
-                      })
-                    ) : (
-                      <div className="rounded-xl border border-dashed border-[#dfc5d0] bg-[#fff9fb] p-6 text-center">
-                        <Paperclip className="mx-auto text-[#a17b8d]" size={20} />
-                        <p className="mt-2 text-[10px] font-bold text-[#806174]">
-                          暫時未有素材。可直接貼圖入 Brief，或喺上面加入 Drive Link。
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ) : null}
-
-              {rightPanel === "discussion" ? (
-                <div className="grid gap-3">
-                  {props.canContributeAssets ? (
-                    <form
-                      action={addCreativeCommentAction}
-                      className="grid gap-2 rounded-xl border border-[#eadfd9] bg-white p-3"
-                    >
-                      <input type="hidden" name="jobId" value={props.job.id} />
-                      <input type="hidden" name="returnPath" value={returnPath} />
-                      <label className="text-xs font-black">
-                        留言／修改要求
-                        <textarea
-                          name="body"
-                          rows={4}
-                          className={fieldClass()}
-                          placeholder="寫低問題、欠缺素材、修改內容或 Review 意見…"
-                          required
-                        />
-                      </label>
-                      <SubmitButton
-                        className="inline-flex h-8 items-center justify-center gap-1.5 rounded-lg bg-[#5a2348] text-[10px] font-black text-white"
-                        pendingLabel="送出中…"
-                      >
-                        <Send size={12} /> 送出留言
-                      </SubmitButton>
-                    </form>
-                  ) : null}
-                  {props.comments.length ? (
-                    props.comments.map((comment) => (
-                      <article
-                        key={comment.id}
-                        className="rounded-xl border border-[#eadfd9] bg-white p-3"
-                      >
-                        <div className="flex items-center gap-2">
-                          <span className="grid h-7 w-7 place-items-center rounded-full bg-[#fff0f5] text-[#7c365f]">
-                            <UserRound size={13} />
-                          </span>
-                          <div>
-                            <strong className="block text-[10px]">
-                              {comment.authorName || comment.authorEmail || "團隊成員"}
-                            </strong>
-                            <small className="text-[9px] text-[#927987]">
-                              {prettyDateTime(comment.createdAt)}
-                            </small>
-                          </div>
-                        </div>
-                        <p className="mt-2 whitespace-pre-wrap text-[11px] font-semibold leading-5 text-[#5f4052]">
-                          {comment.body}
-                        </p>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="p-6 text-center text-[10px] font-bold text-[#806174]">
-                      暫時未有討論。
-                    </p>
-                  )}
-                </div>
-              ) : null}
-
-              {rightPanel === "history" ? (
-                <div className="grid gap-3">
-                  <div className="rounded-xl bg-[#fffaf7] p-3">
-                    <strong className="text-xs">Brief 版本</strong>
-                    <p className="mt-1 text-[10px] font-semibold leading-4 text-[#806174]">
-                      系統每隔一段時間自動留底；重大改動可喺 Brief 工具列按「儲存版本」。
-                    </p>
-                  </div>
-                  {props.versions.length ? (
-                    props.versions.map((version) => (
-                      <article
-                        key={version.id}
-                        className="rounded-xl border border-[#eadfd9] bg-white p-3"
-                      >
-                        <div className="flex items-center justify-between gap-2">
-                          <div>
-                            <strong className="block text-[11px]">
-                              Version {version.versionNo}
-                            </strong>
-                            <small className="text-[9px] font-bold text-[#927987]">
-                              {prettyDateTime(version.createdAt)} · {version.createdByEmail || "系統"}
-                            </small>
-                          </div>
-                          {props.canEditBrief ? (
-                            <form action={restoreCreativeBriefVersionAction}>
-                              <input type="hidden" name="jobId" value={props.job.id} />
-                              <input type="hidden" name="versionId" value={version.id} />
-                              <input type="hidden" name="returnPath" value={returnPath} />
-                              <ConfirmSubmitButton
-                                className="rounded-lg border border-[#dfcdc4] px-2 py-1 text-[9px] font-black text-[#5a2348]"
-                                pendingLabel="恢復中…"
-                                confirmMessage={`確定恢復 Version ${version.versionNo}？目前版本仍會保留。`}
-                              >
-                                恢復
-                              </ConfirmSubmitButton>
-                            </form>
-                          ) : null}
-                        </div>
-                      </article>
-                    ))
-                  ) : (
-                    <p className="p-6 text-center text-[10px] font-bold text-[#806174]">
-                      完成第一次自動儲存後會出現版本。
-                    </p>
-                  )}
-
-                  <div className="border-t border-[#eadfd9] pt-3">
-                    <strong className="text-xs">我的通知</strong>
-                    <div className="mt-2 grid gap-2">
-                      {props.notifications.length ? (
-                        props.notifications.map((notification) => (
-                          <article
-                            key={notification.id}
-                            className={`rounded-xl border p-3 ${
-                              notification.isRead
-                                ? "border-[#eadfd9] bg-white"
-                                : "border-[#d9a9bd] bg-[#fff7fa]"
-                            }`}
-                          >
-                            <strong className="block text-[10px]">
-                              {notification.title}
-                            </strong>
-                            {notification.body ? (
-                              <p className="mt-1 text-[10px] font-semibold text-[#6d4a5c]">
-                                {notification.body}
-                              </p>
-                            ) : null}
-                            {!notification.isRead ? (
-                              <form
-                                action={markCreativeNotificationReadAction}
-                                className="mt-2"
-                              >
-                                <input type="hidden" name="notificationId" value={notification.id} />
-                                <input type="hidden" name="returnPath" value={returnPath} />
-                                <button className="text-[9px] font-black text-[#7c365f]">
-                                  標記已讀
-                                </button>
-                              </form>
-                            ) : null}
-                          </article>
-                        ))
-                      ) : (
-                        <p className="text-[10px] font-semibold text-[#927987]">
-                          暫時冇通知。
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          </section>
-        </aside>
       </main>
     </div>
   );

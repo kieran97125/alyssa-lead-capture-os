@@ -5,6 +5,10 @@ async function openFixture(page: Page) {
     waitUntil: "domcontentloaded",
   });
   await expect(page.getByRole("heading", { name: "設計工作" })).toBeVisible();
+  await expect(page.getByTestId("creative-fixture-ready")).toHaveAttribute(
+    "data-ready",
+    "true"
+  );
 }
 
 test("Creative Jobs production route evaluates without invalid server exports", async ({
@@ -47,10 +51,17 @@ test("Creative Job list keeps compact desktop density and proportionate controls
 
   const list = page.getByTestId("creative-job-list-fixture");
   const row = list.getByTestId("creative-job-row");
+  await expect(row).toBeVisible();
   await expect(row).toContainText("建立者：Kieran Kwok");
+  await row.scrollIntoViewIfNeeded();
 
   const rowBox = await row.boundingBox();
-  expect(rowBox?.height ?? 999).toBeLessThanOrEqual(86);
+  expect(rowBox?.height ?? 999).toBeLessThanOrEqual(90);
+
+  const labelFontSize = await list
+    .getByTestId("creative-list-meta-label")
+    .evaluate((element) => Number.parseFloat(getComputedStyle(element).fontSize));
+  expect(labelFontSize).toBeGreaterThanOrEqual(9);
 
   const createBox = await page.getByTestId("creative-job-create-trigger").boundingBox();
   expect(createBox?.height ?? 999).toBeLessThanOrEqual(34);
@@ -74,7 +85,9 @@ test("new Creative Job opens in a focused dialog and keeps date guidance context
   page,
 }) => {
   await openFixture(page);
-  await page.getByRole("button", { name: "新增設計 Job" }).click();
+  const trigger = page.getByTestId("creative-job-create-trigger");
+  await expect(trigger).toBeVisible();
+  await trigger.click();
 
   const dialog = page.getByTestId("creative-job-create-dialog");
   await expect(dialog).toBeVisible();
@@ -98,7 +111,10 @@ test("Creative Job deletion uses an app-owned confirmation at list and detail pl
 }) => {
   await page.setViewportSize({ width: 1180, height: 900 });
   await openFixture(page);
-  await expect(page.getByTestId("creative-job-delete-button")).toBeVisible();
+  const studio = page.getByTestId("creative-rich-brief-fixture");
+  await expect(
+    studio.getByTestId("creative-job-delete-button")
+  ).toBeVisible();
   await expect(page.getByTestId("creative-job-list-delete-button")).toBeVisible();
 
   await page.getByTestId("creative-job-list-delete-button").click();
@@ -195,6 +211,73 @@ test("rich Brief supports long-form editing, headings and checklist content", as
   );
   await expect(editor).toContainText("長篇 Creative Brief");
   await expect(workspace).toContainText("已儲存");
+});
+
+
+test("Job setting draft stays stable through Brief interaction and save feedback", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openFixture(page);
+  const studio = page.getByTestId("creative-rich-brief-fixture");
+  const form = studio.getByTestId("creative-job-settings-form");
+  const title = form.getByLabel("Job 名稱");
+  await title.fill("GOS Inbox 好評合集｜新版設定");
+  await form.getByLabel("優先處理").selectOption("urgent");
+
+  const workspace = studio.getByTestId("creative-brief-workspace");
+  await workspace.getByRole("button", { name: "粗體" }).click();
+  await expect(title).toHaveValue("GOS Inbox 好評合集｜新版設定");
+  await expect(form.getByLabel("優先處理")).toHaveValue("urgent");
+
+  await form.getByRole("button", { name: "儲存 Job 設定" }).click();
+  await expect(form.getByTestId("creative-job-settings-feedback")).toContainText(
+    "畫面設定保持不變"
+  );
+  await expect(title).toHaveValue("GOS Inbox 好評合集｜新版設定");
+  await expect(form.getByLabel("優先處理")).toHaveValue("urgent");
+});
+
+test("Brief workspace offers text colour, sticky tools and version-only side sheet", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 560 });
+  await openFixture(page);
+  const studio = page.getByTestId("creative-rich-brief-fixture");
+  const workspace = studio.getByTestId("creative-brief-workspace");
+  const toolbar = workspace.getByTestId("creative-brief-toolbar");
+
+  await expect(
+    workspace.getByTestId("brief-text-color-control")
+  ).toBeVisible();
+  await expect(
+    workspace.getByRole("button", { name: "還原文字顏色", exact: true })
+  ).toBeVisible();
+  await workspace.getByTestId("brief-text-color-control").fill("#a43b50");
+  await expect(workspace.getByTestId("brief-text-color-control")).toHaveValue("#a43b50");
+
+  const position = await toolbar.evaluate((element) => getComputedStyle(element).position);
+  expect(position).toBe("sticky");
+  await toolbar.scrollIntoViewIfNeeded();
+  await toolbar.evaluate((element) => {
+  const target =
+    element.getBoundingClientRect().top + window.scrollY + 180;
+  window.scrollTo(0, target);
+});
+await expect
+  .poll(async () => (await toolbar.boundingBox())?.y ?? 999)
+  .toBeLessThanOrEqual(2);
+
+  await expect(studio.getByText("Job 素材庫", { exact: true })).toHaveCount(0);
+  await expect(studio.getByText("留言／修改要求", { exact: true })).toHaveCount(0);
+  await expect(workspace).toContainText("不會列入正式素材");
+
+  await studio.getByTestId("creative-brief-version-trigger").click();
+  const dialog = page.getByTestId("creative-brief-version-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Version 2");
+  await dialog.getByRole("button", { name: "關閉版本紀錄" }).click();
+  await expect(dialog).toBeHidden();
 });
 
 test("creative workspace remains usable on mobile without horizontal page overflow", async ({

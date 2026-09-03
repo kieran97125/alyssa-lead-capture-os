@@ -93,3 +93,12 @@ The release PR, merge commit, Vercel deployment and test run are appended after 
 - Kept the existing no-horizontal-scroll responsive layout and full-size form controls inside the detailed Brief workspace.
 - Added deterministic list visual acceptance plus explicit maximum row/action dimensions.
 - Rollback: revert the source PR; no database migration or stored-data rewrite is required.
+
+
+## 2026-09-03 — Creative Job operational workspace refinement
+
+- Rebalanced Creative Job density with readable metadata, shared compact controls and explicit creator provenance.
+- Converted Job settings to a stable controlled draft with visible server feedback.
+- Expanded the Brief into the reclaimed workspace width, added sticky Tiptap text-colour controls, and separated explanatory screenshots from production-material UI.
+- Replaced the permanent asset/discussion rail with an on-demand version-history side sheet while preserving all underlying records and actions.
+- Rollback: revert PR #83; no database migration or historical data rewrite is required.

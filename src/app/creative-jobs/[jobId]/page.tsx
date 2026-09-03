@@ -7,13 +7,32 @@ import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
 
+function firstParam(value: string | string[] | undefined) {
+  return Array.isArray(value) ? value[0] : value || "";
+}
+
 export default async function CreativeJobDetailPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ jobId: string }>;
+  searchParams?: Promise<{
+    creative_status?: string | string[];
+    creative_message?: string | string[];
+  }>;
 }) {
   const moduleAccess = await requireModuleAccess("creative_jobs");
   const { jobId } = await params;
+  const query = (await searchParams) ?? {};
+  const message = firstParam(query.creative_message);
+  const feedback = message
+    ? {
+        status: firstParam(query.creative_status) === "error"
+          ? ("error" as const)
+          : ("success" as const),
+        message,
+      }
+    : null;
   const detail = moduleAccess.allowed ? await getCreativeJobDetail(jobId) : null;
 
   if (!detail) {
@@ -48,6 +67,7 @@ export default async function CreativeJobDetailPage({
       <AppNav access={detail.access} />
       <div className="command-page p-0">
         <CreativeJobStudio
+          key={detail.job.id}
           job={detail.job}
           assets={detail.assets}
           comments={detail.comments}
@@ -62,6 +82,7 @@ export default async function CreativeJobDetailPage({
           canUpdateStatus={detail.canUpdateStatus}
           canContributeAssets={detail.canContributeAssets}
           canManageSettings={detail.canManageSettings}
+          feedback={feedback}
         />
       </div>
     </main>
