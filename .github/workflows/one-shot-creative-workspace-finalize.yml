@@ -48,6 +48,20 @@ jobs:
       - name: Remove obsolete permanent asset-panel contract
         run: sed -i '/assert\.match(studio, \/插入 Workspace\//d' scripts/verify-creative-production-contract.mjs
 
+      - name: Remove unnecessary colour-label rewrite
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/apply-creative-release-corrections.py")
+          text = path.read_text(encoding="utf-8")
+          start_marker = '\n\neditor_path = "src/components/creative/CreativeBriefEditor.tsx"'
+          end_marker = '\n\nfixture_path = "src/components/creative/CreativeProductionFixture.tsx"'
+          start = text.index(start_marker)
+          end = text.index(end_marker, start)
+          path.write_text(text[:start] + text[end:], encoding="utf-8")
+          PY
+
       - name: Apply release corrections and stable draft handoff
         run: python3 scripts/apply-creative-release-corrections.py
 
