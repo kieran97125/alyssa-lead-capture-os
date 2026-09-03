@@ -8,7 +8,9 @@ import { CreativeJobDeleteControl } from "@/components/creative/CreativeJobDelet
 import { CreativeJobStudio } from "@/components/creative/CreativeJobStudio";
 import type { BrandSetting } from "@/lib/data/configuration";
 import type {
+  CreativeAsset,
   CreativeBriefVersion,
+  CreativeComment,
   CreativeDesignerProfile,
   CreativeJobRow,
   CreativeTaxonomyItem,
@@ -103,6 +105,48 @@ const fixtureTaxonomies: CreativeTaxonomyItem[] = [
     name: "Video",
     isActive: true,
     sortOrder: 10,
+  },
+];
+
+const fixtureAssets: CreativeAsset[] = [
+  {
+    id: "fixture-final-asset",
+    jobId: "fixture-job",
+    assetKind: "link",
+    purpose: "final",
+    label: "Final V1 Drive Link",
+    externalUrl: "https://drive.google.com/example-final",
+    storagePath: null,
+    mimeType: null,
+    fileSize: null,
+    createdByEmail: "designer@example.test",
+    createdAt: "2026-09-03T05:10:00.000Z",
+    url: "https://drive.google.com/example-final",
+  },
+  {
+    id: "fixture-brief-image",
+    jobId: "fixture-job",
+    assetKind: "upload",
+    purpose: "brief",
+    label: "Brief Screenshot Only",
+    externalUrl: null,
+    storagePath: "creative-jobs/fixture-job/brief.png",
+    mimeType: "image/png",
+    fileSize: 1024,
+    createdByEmail: "marketer@example.test",
+    createdAt: "2026-09-03T05:05:00.000Z",
+    url: "/api/creative-jobs/fixture-job/assets/fixture-brief-image",
+  },
+];
+
+const fixtureComments: CreativeComment[] = [
+  {
+    id: "fixture-comment",
+    authorMemberId: "fixture-designer-member",
+    authorName: "Amber",
+    authorEmail: "designer@example.test",
+    body: "已提交 Final V1，請確認字幕同 CTA。",
+    createdAt: "2026-09-03T05:15:00.000Z",
   },
 ];
 
@@ -273,8 +317,8 @@ export function CreativeProductionFixture() {
         <section className="mt-8" data-testid="creative-rich-brief-fixture">
           <CreativeJobStudio
             job={fixtureJob}
-            assets={[]}
-            comments={[]}
+            assets={fixtureAssets}
+            comments={fixtureComments}
             versions={fixtureVersions}
             notifications={[]}
             brands={fixtureBrands}

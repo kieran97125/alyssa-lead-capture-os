@@ -26,6 +26,9 @@ const studio = read("src/components/creative/CreativeJobStudio.tsx");
 const listPage = read("src/app/creative-jobs/page.tsx");
 const deleteControl = read("src/components/creative/CreativeJobDeleteControl.tsx");
 const historyDialog = read("src/components/creative/CreativeBriefHistoryDialog.tsx");
+const collaborationDialog = read(
+  "src/components/creative/CreativeJobCollaborationDialog.tsx"
+);
 const editorStyles = read("src/components/creative/CreativeBriefEditor.module.css");
 const detailPage = read("src/app/creative-jobs/[jobId]/page.tsx");
 const edgeFunction = read(
@@ -134,6 +137,7 @@ assert.match(deleteControl, /icon-sm/);
 assert.match(studio, /建立者/);
 assert.match(studio, /CreativeJobDeleteControl/);
 assert.match(studio, /CreativeBriefHistoryDialog/);
+assert.match(studio, /CreativeJobCollaborationDialog/);
 assert.match(studio, /creative-job-settings-form/);
 assert.match(studio, /value=\{draft\.title\}/);
 assert.match(studio, /creative-job-settings-feedback/);
@@ -145,6 +149,13 @@ assert.doesNotMatch(studio, /Job 素材庫/);
 assert.doesNotMatch(studio, /留言／修改要求/);
 assert.match(historyDialog, /SystemButton/);
 assert.match(historyDialog, /creative-brief-version-dialog/);
+assert.match(collaborationDialog, /SystemButton/);
+assert.match(collaborationDialog, /creative-collaboration-dialog/);
+assert.match(collaborationDialog, /addCreativeLinkAssetAction/);
+assert.match(collaborationDialog, /removeCreativeAssetAction/);
+assert.match(collaborationDialog, /addCreativeCommentAction/);
+assert.match(collaborationDialog, /asset\.purpose !== "brief"/);
+assert.match(collaborationDialog, /Brief Screenshot 只作解釋/);
 assert.match(detailPage, /key=\{detail\.job\.id\}/);
 assert.match(detailPage, /creative_message/);
 assert.match(actions, /readString\(formData, "returnPath"\)/);

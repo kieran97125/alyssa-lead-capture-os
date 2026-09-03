@@ -238,7 +238,7 @@ test("Job setting draft stays stable through Brief interaction and save feedback
   await expect(form.getByLabel("優先處理")).toHaveValue("urgent");
 });
 
-test("Brief workspace offers text colour, sticky tools and version-only side sheet", async ({
+test("Brief workspace offers text colour, sticky tools and on-demand side sheets", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 1440, height: 560 });
@@ -277,6 +277,36 @@ await expect
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Version 2");
   await dialog.getByRole("button", { name: "關閉版本紀錄" }).click();
+  await expect(dialog).toBeHidden();
+});
+
+
+test("Designer handoff and discussion stay available on demand without a permanent rail", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 800 });
+  await openFixture(page);
+  const studio = page.getByTestId("creative-rich-brief-fixture");
+
+  await expect(studio.getByText("Job 素材庫", { exact: true })).toHaveCount(0);
+  await expect(studio.getByText("留言／修改要求", { exact: true })).toHaveCount(0);
+
+  const trigger = studio.getByTestId("creative-collaboration-trigger");
+  await expect(trigger).toBeVisible();
+  await trigger.click();
+
+  const dialog = page.getByTestId("creative-collaboration-dialog");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toContainText("Brief Screenshot 只作解釋");
+  await expect(dialog).toContainText("Final V1 Drive Link");
+  await expect(dialog).not.toContainText("Brief Screenshot Only");
+  await expect(dialog.getByText("加入 Google Drive／交付連結")).toBeVisible();
+
+  await dialog.getByTestId("creative-comments-tab").click();
+  await expect(dialog.getByText("留言／修改要求", { exact: true })).toBeVisible();
+  await expect(dialog).toContainText("已提交 Final V1");
+
+  await dialog.getByRole("button", { name: "關閉交付與留言" }).click();
   await expect(dialog).toBeHidden();
 });
 

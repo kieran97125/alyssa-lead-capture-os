@@ -5,46 +5,24 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
-  CalendarDays,
   CheckCircle2,
   Clock3,
   ExternalLink,
-  FileImage,
-  FileText,
   FolderOpen,
-  History,
-  ImagePlus,
-  Link2,
-  MessageSquareText,
-  Paperclip,
   Save,
-  Send,
   Settings2,
-  Sparkles,
-  Trash2,
-  UploadCloud,
   UserRound,
 } from "lucide-react";
-import { ConfirmSubmitButton } from "@/components/alyssa/ConfirmSubmitButton";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
-import {
-  CreativeBriefEditor,
-  type CreativeBriefEditorHandle,
-} from "@/components/creative/CreativeBriefEditor";
+import { CreativeBriefEditor } from "@/components/creative/CreativeBriefEditor";
 import { CreativeJobDeleteControl } from "@/components/creative/CreativeJobDeleteControl";
 import { CreativeBriefHistoryDialog } from "@/components/creative/CreativeBriefHistoryDialog";
+import { CreativeJobCollaborationDialog } from "@/components/creative/CreativeJobCollaborationDialog";
 import {
-  addCreativeCommentAction,
-  addCreativeLinkAssetAction,
-  markCreativeNotificationReadAction,
-  removeCreativeAssetAction,
   updateCreativeJobAction,
   updateCreativeJobStatusAction,
 } from "@/app/creative-jobs/actions";
-import { restoreCreativeBriefVersionAction } from "@/app/creative-jobs/versionActions";
 import {
-  creativeAssetPurposeLabels,
-  creativeAssetPurposes,
   creativeJobStatusLabels,
   creativeJobStatuses,
   creativePriorities,
@@ -163,11 +141,6 @@ function prettyDateTime(value: string) {
   }).format(date);
 }
 
-function assetIcon(asset: CreativeAsset) {
-  if (asset.mimeType?.startsWith("image/")) return FileImage;
-  if (asset.purpose === "final" || asset.purpose === "draft") return FileText;
-  return Link2;
-}
 
 function sectionClass() {
   return "overflow-hidden rounded-2xl border border-[#e8dcd5] bg-white shadow-[0_10px_32px_rgba(90,35,72,0.045)]";
@@ -857,6 +830,14 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
                   <ExternalLink size={13} /> Reference
                 </a>
               ) : null}
+              <CreativeJobCollaborationDialog
+                jobId={props.job.id}
+                returnPath={returnPath}
+                assets={props.assets}
+                comments={props.comments}
+                canContribute={props.canContributeAssets}
+                fixtureMode={fixtureMode}
+              />
               <CreativeBriefHistoryDialog
                 jobId={props.job.id}
                 returnPath={returnPath}
