@@ -36,10 +36,12 @@ The Brief workspace is the primary production surface. It reclaims the former ri
 
 - Source PR: `kieran97125/alyssa-lead-capture-os#83`.
 - Initial compact-list implementation commit: `b08afe214cb1e11e68baf7ae5594581c1d2d1e37`.
-- Final verified implementation commit: `d37b44716416d9e505039e8c73ae0b087d6f0390`.
-- Verification workflow: GitHub Actions run `33722436828`.
-- Verification result: production build and TypeScript passed; Storybook passed; Creative Production `13/13` passed twice; design/accessibility `5/5` passed; full product regression `135/135` passed.
-- Vercel Preview for the final implementation commit reached Ready before merge.
+- Core workspace implementation commit: `d37b44716416d9e505039e8c73ae0b087d6f0390`.
+- Final on-demand deliverable/discussion implementation commit: `0a5dffd08dcd08ae3ca0fafbb1026ee26224dc39`.
+- Core verification workflow: GitHub Actions run `33722436828`.
+- Final collaboration verification workflow: GitHub Actions run `33724773181`.
+- Final verification result: production build and TypeScript passed; Creative Production contract passed; Storybook passed; Creative Production `14/14` passed; design/accessibility `5/5` passed; full product regression `136/136` passed.
+- Final head also passed the normal Design Quality Gate and Alyssa CRM Playwright checks before merge; Vercel Preview reached Ready.
 
 ## Verification
 
@@ -47,6 +49,7 @@ The Brief workspace is the primary production surface. It reclaims the former ri
 - Tiptap text-colour and sticky-toolbar acceptance.
 - Controlled Job settings persistence, failed-validation handoff and inline feedback acceptance.
 - Version side-sheet, on-demand deliverable/discussion sheet and removal of permanent rails.
+- Production deliverables remain available to assigned Designers while Brief-only screenshots stay excluded.
 - Creator provenance and minimum readable metadata sizing.
 - Compact desktop list visual baseline, no horizontal scrolling and mobile acceptance.
 - Design/accessibility suite and full product regression.
