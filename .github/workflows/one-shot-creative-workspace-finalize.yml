@@ -65,6 +65,30 @@ jobs:
       - name: Apply release corrections and stable draft handoff
         run: python3 scripts/apply-creative-release-corrections.py
 
+      - name: Verify sticky toolbar at its actual scroll threshold
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("e2e/creative-production.spec.ts")
+          text = path.read_text(encoding="utf-8")
+          old = '''  await page.evaluate(() => window.scrollBy(0, 500));
+          const toolbarBox = await toolbar.boundingBox();
+          expect(toolbarBox?.y ?? 999).toBeLessThanOrEqual(2);'''
+          new = '''  await toolbar.evaluate((element) => {
+            const target = element.getBoundingClientRect().top + window.scrollY + 180;
+            window.scrollTo({ top: target, behavior: "instant" });
+          });
+          await expect
+            .poll(async () => (await toolbar.boundingBox())?.y ?? 999)
+            .toBeLessThanOrEqual(2);'''
+          if text.count(old) != 1:
+              raise RuntimeError(
+                  f"sticky toolbar threshold: expected one match, found {text.count(old)}"
+              )
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Refresh package lock
         run: npm install --package-lock-only --ignore-scripts
 
