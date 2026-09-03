@@ -301,6 +301,13 @@ test("Designer handoff and discussion stay available on demand without a permane
   await expect(dialog).toContainText("Final V1 Drive Link");
   await expect(dialog).not.toContainText("Brief Screenshot Only");
   await expect(dialog.getByText("加入 Google Drive／交付連結")).toBeVisible();
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await expect(dialog).toHaveScreenshot(
+    "creative-collaboration-dialog-desktop.png",
+    { animations: "disabled", caret: "hide" }
+  );
 
   await dialog.getByTestId("creative-comments-tab").click();
   await expect(dialog.getByText("留言／修改要求", { exact: true })).toBeVisible();

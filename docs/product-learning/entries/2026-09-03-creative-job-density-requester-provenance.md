@@ -23,6 +23,7 @@ The Brief workspace is the primary production surface. It reclaims the former ri
 - Removing permanent asset/discussion panels is an information-architecture change, not data deletion; Designer handoff and revision discussion must remain available on demand.
 - Sticky controls must not introduce horizontal page overflow or unbounded line length.
 - Existing permissions, calendar sync, notifications, audit, versions, assets and comments remain intact.
+- Historic and newly created Jobs render through the same two-column Studio component; this layout change is not gated by Job age or migration state.
 - No Lead, Book, Show, Spend, CRM, attribution or reporting logic changes.
 
 ## Classification

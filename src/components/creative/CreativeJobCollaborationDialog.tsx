@@ -67,6 +67,7 @@ type CreativeJobCollaborationDialogProps = {
   comments: CreativeComment[];
   canContribute: boolean;
   fixtureMode?: boolean;
+  defaultOpen?: boolean;
 };
 
 export function CreativeJobCollaborationDialog({
@@ -76,6 +77,7 @@ export function CreativeJobCollaborationDialog({
   comments,
   canContribute,
   fixtureMode = false,
+  defaultOpen = false,
 }: CreativeJobCollaborationDialogProps) {
   const [activePanel, setActivePanel] =
     useState<CollaborationPanel>("deliverables");
@@ -141,7 +143,7 @@ export function CreativeJobCollaborationDialog({
   }
 
   return (
-    <Dialog.Root>
+    <Dialog.Root defaultOpen={defaultOpen}>
       <Dialog.Trigger
         render={
           <SystemButton
