@@ -70,23 +70,30 @@ jobs:
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
+
           path = Path("e2e/creative-production.spec.ts")
           text = path.read_text(encoding="utf-8")
-          old = '''  await page.evaluate(() => window.scrollBy(0, 500));
-          const toolbarBox = await toolbar.boundingBox();
-          expect(toolbarBox?.y ?? 999).toBeLessThanOrEqual(2);'''
-          new = '''  await toolbar.evaluate((element) => {
-            const target = element.getBoundingClientRect().top + window.scrollY + 180;
-            window.scrollTo({ top: target, behavior: "instant" });
+          pattern = re.compile(
+              r"^[ \t]*await page\.evaluate\(\(\) => window\.scrollBy\(0, 500\)\);\s*"
+              r"^[ \t]*const toolbarBox = await toolbar\.boundingBox\(\);\s*"
+              r"^[ \t]*expect\(toolbarBox\?\.y \?\? 999\)\.toBeLessThanOrEqual\(2\);",
+              re.MULTILINE,
+          )
+          replacement = '''  await toolbar.evaluate((element) => {
+            const target =
+              element.getBoundingClientRect().top + window.scrollY + 180;
+            window.scrollTo(0, target);
           });
           await expect
             .poll(async () => (await toolbar.boundingBox())?.y ?? 999)
             .toBeLessThanOrEqual(2);'''
-          if text.count(old) != 1:
+          text, count = pattern.subn(replacement, text, count=1)
+          if count != 1:
               raise RuntimeError(
-                  f"sticky toolbar threshold: expected one match, found {text.count(old)}"
+                  f"sticky toolbar threshold: expected one regex match, found {count}"
               )
-          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          path.write_text(text, encoding="utf-8")
           PY
 
       - name: Refresh package lock
