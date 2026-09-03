@@ -201,6 +201,13 @@ for (const dependency of [
 assert.ok(packageJson.scripts?.["verify:creative-production-contract"]);
 assert.match(packageJson.scripts.build, /verify:creative-production-contract/);
 
+
+assert.match(workspaceSource, /CreativeBriefHistoryDialog/);
+assert.doesNotMatch(workspaceSource, /activePanel === ["']assets["']/);
+assert.doesNotMatch(workspaceSource, /activePanel === ["']discussion["']/);
+assert.match(editorSource, /Brief 解釋圖/);
+assert.match(editorSource, /@tiptap\/extension-text-style/);
+assert.match(editorSource, /unsetColor/);
 console.log(
   "Creative Production Studio schema, permissions, navigation, rich brief, calendar, audit and Web Push contracts verified."
 );
