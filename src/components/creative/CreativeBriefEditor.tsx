@@ -19,6 +19,7 @@ import TaskItem from "@tiptap/extension-task-item";
 import Placeholder from "@tiptap/extension-placeholder";
 import FileHandler from "@tiptap/extension-file-handler";
 import Underline from "@tiptap/extension-underline";
+import { Color, TextStyle } from "@tiptap/extension-text-style";
 import {
   Bold,
   Check,
@@ -34,7 +35,9 @@ import {
   ListChecks,
   ListOrdered,
   Minus,
+  Palette,
   Quote,
+  RotateCcw,
   Redo2,
   Save,
   Underline as UnderlineIcon,
@@ -88,7 +91,6 @@ export const CreativeBriefEditor = forwardRef<
     jobId: string;
     initialDocument: Record<string, unknown>;
     editable: boolean;
-    onAssetCreated?: (asset: CreativeAsset) => void;
     persistenceEnabled?: boolean;
   }
 >(function CreativeBriefEditor(
@@ -96,7 +98,6 @@ export const CreativeBriefEditor = forwardRef<
     jobId,
     initialDocument,
     editable,
-    onAssetCreated,
     persistenceEnabled = true,
   },
   ref
@@ -184,10 +185,9 @@ export const CreativeBriefEditor = forwardRef<
       if (!response.ok || !result.asset) {
         throw new Error(result.error || "upload_failed");
       }
-      onAssetCreated?.(result.asset);
       return result.asset;
     },
-    [jobId, onAssetCreated]
+    [jobId]
   );
 
   const insertFiles = useCallback(
@@ -231,6 +231,8 @@ export const CreativeBriefEditor = forwardRef<
         heading: { levels: [1, 2, 3] },
       }),
       Underline,
+      TextStyle,
+      Color.configure({ types: ["textStyle"] }),
       Link.configure({
         openOnClick: !editable,
         autolink: true,
@@ -387,7 +389,12 @@ export const CreativeBriefEditor = forwardRef<
   return (
     <div className={styles.shell} data-testid="creative-brief-workspace">
       {editable ? (
-        <div className={styles.toolbar} role="toolbar" aria-label="Brief 編輯工具">
+        <div
+          className={styles.toolbar}
+          role="toolbar"
+          aria-label="Brief 編輯工具"
+          data-testid="creative-brief-toolbar"
+        >
           <div className={styles.toolbarGroup}>
             <ToolbarButton
               label="標題 2"
@@ -433,6 +440,48 @@ export const CreativeBriefEditor = forwardRef<
               }
             >
               <Eraser size={15} />
+            </ToolbarButton>
+          </div>
+          <div className={styles.toolbarGroup}>
+            <label
+              className={styles.colorControl}
+              title="文字顏色"
+              aria-label="文字顏色"
+            >
+              <Palette size={15} aria-hidden="true" />
+              <span
+                className={styles.colorSwatch}
+                style={{
+                  backgroundColor: /^#[0-9a-f]{6}$/i.test(
+                    String(editor.getAttributes("textStyle").color || "")
+                  )
+                    ? String(editor.getAttributes("textStyle").color)
+                    : "#321428",
+                }}
+                aria-hidden="true"
+              />
+              <input
+                data-testid="brief-text-color-control"
+                type="color"
+                value={
+                  /^#[0-9a-f]{6}$/i.test(
+                    String(editor.getAttributes("textStyle").color || "")
+                  )
+                    ? String(editor.getAttributes("textStyle").color)
+                    : "#321428"
+                }
+                aria-label="文字顏色"
+                onChange={(event) =>
+                  editor.chain().focus().setColor(event.target.value).run()
+                }
+              />
+            </label>
+            <ToolbarButton
+              label="還原文字顏色"
+              disabled={!editor.getAttributes("textStyle").color}
+              onClick={() => editor.chain().focus().unsetColor().run()}
+            >
+              <RotateCcw size={15} />
             </ToolbarButton>
           </div>
           <div className={styles.toolbarGroup}>
@@ -537,7 +586,7 @@ export const CreativeBriefEditor = forwardRef<
         </div>
       ) : (
         <div className={styles.readOnlyBanner}>
-          Marketer Brief 為唯讀；Designer 可以喺右邊素材庫交 Draft／Final，同埋留言提出問題。
+          Marketer Brief 為唯讀；Designer 可以查看完整指示，再由工作狀態回報製作進度。
         </div>
       )}
 
@@ -548,7 +597,7 @@ export const CreativeBriefEditor = forwardRef<
         {editable ? (
           <div className={styles.dropHint}>
             <ImagePlus size={14} />
-            可直接 Ctrl + V 貼 Screenshot，或將圖片拖入 Brief 任意位置；圖片會安全儲存到 Job 素材庫。
+            可直接 Ctrl + V 貼 Screenshot，或將圖片拖入 Brief 任意位置；圖片只作 Brief 解釋，不會列入正式素材。
           </div>
         ) : null}
       </div>

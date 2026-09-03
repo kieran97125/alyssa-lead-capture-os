@@ -138,6 +138,10 @@ function mapJob(
   const assigneeMember = assigneeMemberId
     ? lookups.members.get(assigneeMemberId)
     : null;
+  const requesterMemberId = asNullableString(row.requester_member_id);
+  const requesterMember = requesterMemberId
+    ? lookups.members.get(requesterMemberId)
+    : null;
   return {
     id: asString(row.id),
     brandId: asString(row.brand_id),
@@ -173,8 +177,13 @@ function mapJob(
     assigneeEmail: assigneeMember
       ? asNullableString(assigneeMember.email)
       : null,
-    requesterMemberId: asNullableString(row.requester_member_id),
-    requesterEmail: asNullableString(row.requester_email),
+    requesterMemberId,
+    requesterName: requesterMember
+      ? asNullableString(requesterMember.full_name)
+      : null,
+    requesterEmail:
+      asNullableString(row.requester_email) ||
+      (requesterMember ? asNullableString(requesterMember.email) : null),
     materialStatus:
       asString(row.material_status, "ready") === "waiting"
         ? "waiting"

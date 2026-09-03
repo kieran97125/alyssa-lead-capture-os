@@ -120,6 +120,7 @@ export type CreativeJobRow = {
   assigneeMemberId: string | null;
   assigneeEmail: string | null;
   requesterMemberId: string | null;
+  requesterName: string | null;
   requesterEmail: string | null;
   materialStatus: "ready" | "waiting";
   quantity: number;

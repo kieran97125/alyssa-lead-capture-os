@@ -20,10 +20,21 @@ const createAction = read("src/app/creative-jobs/createAction.ts");
 const createState = read("src/lib/creative/createState.ts");
 const createDialog = read("src/components/creative/CreativeJobCreateDialog.tsx");
 const store = read("src/lib/creative/store.ts");
+const creativeTypes = read("src/lib/creative/types.ts");
 const editor = read("src/components/creative/CreativeBriefEditor.tsx");
 const studio = read("src/components/creative/CreativeJobStudio.tsx");
 const listPage = read("src/app/creative-jobs/page.tsx");
 const deleteControl = read("src/components/creative/CreativeJobDeleteControl.tsx");
+const historyDialog = read("src/components/creative/CreativeBriefHistoryDialog.tsx");
+const collaborationDialog = read(
+  "src/components/creative/CreativeJobCollaborationDialog.tsx"
+);
+const collaborationStory = read(
+  "src/components/creative/CreativeJobCollaborationDialog.stories.tsx"
+);
+const creativeE2e = read("e2e/creative-production.spec.ts");
+const editorStyles = read("src/components/creative/CreativeBriefEditor.module.css");
+const detailPage = read("src/app/creative-jobs/[jobId]/page.tsx");
 const edgeFunction = read(
   "supabase/functions/marketing-web-push-dispatch/index.ts"
 );
@@ -70,6 +81,7 @@ assert.doesNotMatch(
 );
 assert.match(createState, /initialCreativeJobCreateState/);
 assert.match(createDialog, /@\/lib\/creative\/createState/);
+assert.match(createDialog, /SystemButton/);
 assert.doesNotMatch(
   createDialog,
   /initialCreativeJobCreateState,[\s\S]*?createAction/
@@ -80,6 +92,8 @@ assert.match(actions, /creative_assigned/);
 assert.match(actions, /save_creative_job_with_calendar/);
 assert.match(store, /getCreativeWorkspaceRole\(access\) === "designer"/);
 assert.match(store, /assignee_member_id/);
+assert.match(store, /requesterName/);
+assert.match(creativeTypes, /requesterName: string \| null/);
 const sortContract = store.match(/function sortJobs[\s\S]*?\n}\n/)?.[0] ?? "";
 assert.ok(
   sortContract.indexOf("const start =") < sortContract.indexOf("const priority ="),
@@ -92,13 +106,21 @@ assert.match(migration, /workspace_member_module_permissions_key_check/);
 assert.match(migration, /creative_calendar_already_published/);
 
 assert.match(editor, /@tiptap\/react/);
+assert.match(editor, /@tiptap\/extension-text-style/);
+assert.match(editor, /Color, TextStyle/);
+assert.match(editor, /setColor/);
+assert.match(editor, /unsetColor/);
+assert.doesNotMatch(editor, /onAssetCreated/);
+assert.match(editor, /不會列入正式素材/);
+assert.match(editor, /creative-brief-toolbar/);
+assert.match(editorStyles, /position: sticky/);
+assert.match(editorStyles, /overflow: visible/);
 assert.match(editor, /FileHandler\.configure/);
 assert.match(editor, /onDrop:/);
 assert.match(editor, /onPaste:/);
 assert.match(editor, /Ctrl \+ V/);
 assert.match(editor, /\/api\/creative-jobs\/\$\{jobId\}\/brief/);
 assert.match(editor, /persistenceEnabled/);
-assert.match(studio, /插入 Workspace/);
 assert.match(studio, /同步營銷日曆/);
 assert.match(studio, /Start Day/);
 assert.match(studio, /Due Day/);
@@ -106,6 +128,8 @@ assert.match(studio, /Publish Day/);
 assert.match(listPage, /Source/);
 assert.match(listPage, /媒體格式/);
 assert.match(listPage, /Designer/);
+assert.match(listPage, /建立者：/);
+assert.match(listPage, /creative-job-row/);
 assert.match(listPage, /CreativeJobDeleteControl/);
 assert.match(listPage, /listReturnPath/);
 assert.match(listPage, /returnPath=\{listReturnPath\}/);
@@ -113,7 +137,39 @@ assert.match(deleteControl, /SystemConfirmationDialog/);
 assert.match(deleteControl, /deleteCreativeJobAction/);
 assert.match(deleteControl, /creative-job-list-delete-button/);
 assert.match(deleteControl, /creative-job-delete-button/);
+assert.match(deleteControl, /icon-sm/);
+assert.match(studio, /建立者/);
 assert.match(studio, /CreativeJobDeleteControl/);
+assert.match(studio, /CreativeBriefHistoryDialog/);
+assert.match(studio, /CreativeJobCollaborationDialog/);
+assert.match(studio, /creative-job-settings-form/);
+assert.match(studio, /value=\{draft\.title\}/);
+assert.match(studio, /creative-job-settings-feedback/);
+assert.match(studio, /creative-job-settings-draft:/);
+assert.match(studio, /sessionStorage\.setItem/);
+assert.match(studio, /sessionStorage\.getItem/);
+assert.doesNotMatch(studio, /type RightPanel/);
+assert.doesNotMatch(studio, /Job 素材庫/);
+assert.doesNotMatch(studio, /留言／修改要求/);
+assert.match(historyDialog, /SystemButton/);
+assert.match(historyDialog, /creative-brief-version-dialog/);
+assert.match(collaborationDialog, /SystemButton/);
+assert.match(collaborationDialog, /creative-collaboration-dialog/);
+assert.match(collaborationDialog, /addCreativeLinkAssetAction/);
+assert.match(collaborationDialog, /removeCreativeAssetAction/);
+assert.match(collaborationDialog, /addCreativeCommentAction/);
+assert.match(collaborationDialog, /asset\.purpose !== "brief"/);
+assert.match(collaborationDialog, /Brief Screenshot 只作解釋/);
+assert.match(collaborationDialog, /defaultOpen/);
+assert.match(collaborationStory, /OpenDeliverables/);
+assert.match(collaborationStory, /defaultOpen: true/);
+assert.match(creativeE2e, /creative-collaboration-dialog-desktop\.png/);
+assert.match(
+  editorStyles,
+  /\.colorControl[\s\S]*?var\(--system-muted-foreground\)/
+);
+assert.match(detailPage, /key=\{detail\.job\.id\}/);
+assert.match(detailPage, /creative_message/);
 assert.match(actions, /readString\(formData, "returnPath"\)/);
 assert.match(actions, /redirectWithMessage\(\s*returnPath/);
 assert.match(actions, /soft_delete_creative_job_and_retire_notifications/);
@@ -147,6 +203,7 @@ for (const dependency of [
   "@tiptap/extension-placeholder",
   "@tiptap/extension-file-handler",
   "@tiptap/extension-underline",
+  "@tiptap/extension-text-style",
 ]) {
   assert.ok(
     packageJson.dependencies?.[dependency],
@@ -155,6 +212,7 @@ for (const dependency of [
 }
 assert.ok(packageJson.scripts?.["verify:creative-production-contract"]);
 assert.match(packageJson.scripts.build, /verify:creative-production-contract/);
+
 
 console.log(
   "Creative Production Studio schema, permissions, navigation, rich brief, calendar, audit and Web Push contracts verified."
