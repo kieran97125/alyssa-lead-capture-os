@@ -236,8 +236,16 @@ export function CreativeJobStudio(props: CreativeJobStudioProps) {
               {props.job.title}
             </h1>
           </div>
-          <div className="flex items-center gap-2 text-[10px] font-bold text-[#806174]">
-            <Clock3 size={13} /> 最後更新 {prettyDateTime(props.job.updatedAt)}
+          <div className="flex flex-wrap items-center justify-end gap-x-3 gap-y-1 text-[10px] font-bold text-[#806174]">
+            <span
+              className="inline-flex items-center gap-1"
+              title={props.job.requesterEmail || undefined}
+            >
+              <UserRound size={13} /> 建立者 {props.job.requesterName || props.job.requesterEmail || "系統匯入"}
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <Clock3 size={13} /> 最後更新 {prettyDateTime(props.job.updatedAt)}
+            </span>
           </div>
           {props.canEditMetadata ? (
             <CreativeJobDeleteControl

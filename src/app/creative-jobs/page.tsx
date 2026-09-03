@@ -43,6 +43,17 @@ function prettyDate(value: string | null) {
   }).format(new Date(`${value}T00:00:00.000Z`));
 }
 
+function requesterDisplayName(name: string | null, email: string | null) {
+  if (name?.trim()) return name.trim();
+  const localPart = email?.split("@")[0]?.trim();
+  if (!localPart) return "系統匯入";
+  return localPart
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ");
+}
+
 function viewHref(current: Record<string, string>, view: string) {
   const params = new URLSearchParams(current);
   if (view) params.set("view", view);
@@ -161,18 +172,18 @@ export default async function CreativeJobsPage({
                 Marketer 派 Job、Designer 製作、Review、修改、Final 同出街日程集中管理。
               </p>
             </div>
-            <div className="flex flex-wrap items-center justify-end gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
               {snapshot.canManageSettings ? (
                 <Link
                   href="/settings/creative"
-                  className="command-secondary-button"
+                  className="command-secondary-button !min-h-8 !rounded-lg !px-2.5 !py-1.5 !text-[10px]"
                 >
-                  <Settings2 size={15} /> 分類及 Designer
+                  <Settings2 size={13} /> 分類及 Designer
                 </Link>
               ) : null}
               <details className="group relative">
-                <summary className="command-secondary-button list-none [&::-webkit-details-marker]:hidden">
-                  <BellRing size={15} /> 通知設定
+                <summary className="command-secondary-button !min-h-8 !rounded-lg !px-2.5 !py-1.5 !text-[10px] list-none [&::-webkit-details-marker]:hidden">
+                  <BellRing size={13} /> 通知設定
                 </summary>
                 <div className="absolute right-0 top-full z-40 mt-2 w-[min(360px,calc(100vw-2rem))]">
                   <DesktopNotificationControl />
@@ -213,7 +224,7 @@ export default async function CreativeJobsPage({
           ) : (
             <>
               <section
-                className="grid gap-3 md:grid-cols-3 xl:grid-cols-6"
+                className="grid gap-2 md:grid-cols-3 xl:grid-cols-6"
                 aria-label="設計工作快速檢視"
               >
                 {quickViews.map((view) => {
@@ -223,20 +234,20 @@ export default async function CreativeJobsPage({
                     <Link
                       key={view.value || "open"}
                       href={viewHref(currentParams, view.value)}
-                      className={`rounded-2xl border p-4 transition ${
+                      className={`rounded-xl border px-3 py-2.5 transition ${
                         active
-                          ? "border-[#7c365f] bg-[#5a2348] text-white shadow-[0_12px_30px_rgba(90,35,72,0.16)]"
+                          ? "border-[#7c365f] bg-[#5a2348] text-white shadow-[0_8px_20px_rgba(90,35,72,0.14)]"
                           : "border-[#e8dcd5] bg-white text-[#321428] hover:border-[#cfaebe]"
                       }`}
                     >
                       <div className="flex items-center justify-between gap-2">
-                        <Icon size={17} />
+                        <Icon size={15} />
                         {view.count !== null ? (
-                          <strong className="text-xl">{view.count}</strong>
+                          <strong className="text-lg leading-none">{view.count}</strong>
                         ) : null}
                       </div>
                       <span
-                        className={`mt-3 block text-[11px] font-black ${
+                        className={`mt-2 block text-[10px] font-black ${
                           active ? "text-white" : "text-[#6d4a5c]"
                         }`}
                       >
@@ -248,21 +259,21 @@ export default async function CreativeJobsPage({
               </section>
 
               <section className="command-surface mt-4 min-w-0 overflow-hidden">
-                <header className="flex flex-col gap-4 border-b border-[#ead9cf] p-4 xl:flex-row xl:items-end xl:justify-between">
+                <header className="flex flex-col gap-3 border-b border-[#ead9cf] p-3 xl:flex-row xl:items-end xl:justify-between">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-[#9a5d76]">
                       Job list
                     </p>
-                    <h2 className="mt-1 text-lg font-black">
+                    <h2 className="mt-1 text-base font-black">
                       {snapshot.jobs.length} 項設計工作
                     </h2>
-                    <p className="mt-1 text-[11px] font-semibold text-[#806174]">
+                    <p className="mt-1 text-[10px] font-semibold text-[#806174]">
                       先按 Start Day；同日再按緊急／優先，最後按 Due Day。
                     </p>
                   </div>
                   <form
                     method="get"
-                    className="flex w-full flex-wrap items-end gap-2 xl:w-auto xl:justify-end"
+                    className="flex w-full flex-wrap items-end gap-1.5 xl:w-auto xl:justify-end"
                   >
                     <input type="hidden" name="view" value={filters.view} />
                     <FilterSelect
@@ -328,17 +339,17 @@ export default async function CreativeJobsPage({
                       ]}
                     />
                     <SubmitButton
-                      className="inline-flex h-9 items-center gap-1.5 rounded-xl bg-[#5a2348] px-3 text-[10px] font-black text-white"
+                      className="inline-flex h-8 items-center gap-1 rounded-lg bg-[#5a2348] px-2.5 text-[9px] font-black text-white"
                       pendingLabel="載入中…"
                     >
-                      <Filter size={13} /> 套用
+                      <Filter size={12} /> 套用
                     </SubmitButton>
                   </form>
                 </header>
 
                 {snapshot.jobs.length ? (
                   <div data-testid="creative-job-list">
-                    <div className="hidden grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] gap-4 border-b border-[#eee3dd] bg-[#fbf9f7] px-4 py-2.5 text-[9px] font-black uppercase tracking-[0.06em] text-[#806174] xl:grid">
+                    <div className="hidden grid-cols-[minmax(220px,1.35fr)_minmax(150px,0.82fr)_minmax(220px,1.1fr)_minmax(205px,1fr)_minmax(86px,0.4fr)] gap-3 border-b border-[#eee3dd] bg-[#fbf9f7] px-3 py-2 text-[8px] font-black uppercase tracking-[0.06em] text-[#806174] xl:grid">
                       <span>Job</span>
                       <span>負責</span>
                       <span>製作規格</span>
@@ -350,6 +361,10 @@ export default async function CreativeJobsPage({
                         Boolean(job.dueDate) &&
                         job.dueDate! < snapshot.today &&
                         !["completed", "cancelled"].includes(job.status);
+                      const requester = requesterDisplayName(
+                        job.requesterName,
+                        job.requesterEmail
+                      );
                       return (
                         <div
                           key={job.id}
@@ -357,24 +372,32 @@ export default async function CreativeJobsPage({
                         >
                           <Link
                             href={`/creative-jobs/${job.id}`}
-                            className="grid min-w-0 grid-cols-1 gap-4 px-4 py-4 pr-14 text-[11px] font-semibold transition hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center"
+                            data-testid="creative-job-row"
+                            className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2 px-3 py-2.5 pr-11 text-[10px] font-semibold transition hover:bg-[#fff9fb] md:grid-cols-2 xl:grid-cols-[minmax(220px,1.35fr)_minmax(150px,0.82fr)_minmax(220px,1.1fr)_minmax(205px,1fr)_minmax(86px,0.4fr)] xl:items-center"
                           >
                           <div className="min-w-0">
-                            <div className="flex min-w-0 items-center gap-2">
-                              <strong className="min-w-0 flex-1 truncate text-sm text-[#321428]">
+                            <div className="flex min-w-0 items-center gap-1.5">
+                              <strong className="min-w-0 flex-1 truncate text-[12px] leading-4 text-[#321428]">
                                 {job.title}
                               </strong>
                               <PriorityBadge value={job.priority} />
                             </div>
-                            <small className="mt-1.5 block text-[9px] font-bold text-[#927987]">
-                              {job.quantity} 件 · {job.workload} workload
-                              {job.materialStatus === "waiting"
-                                ? " · 等素材"
-                                : ""}
+                            <small className="mt-1 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 text-[8px] font-bold leading-3 text-[#927987]">
+                              <span>{job.quantity} 件 · {job.workload}</span>
+                              <span
+                                className="inline-flex min-w-0 items-center gap-1 truncate"
+                                title={job.requesterEmail || requester}
+                              >
+                                <UserRound className="shrink-0" size={9} />
+                                建立者：<span className="truncate">{requester}</span>
+                              </span>
+                              {job.materialStatus === "waiting" ? (
+                                <span>等素材</span>
+                              ) : null}
                             </small>
                           </div>
 
-                          <div className="grid min-w-0 gap-2">
+                          <div className="grid min-w-0 gap-1">
                             <ListMeta
                               label="品牌"
                               value={job.brandName}
@@ -387,7 +410,7 @@ export default async function CreativeJobsPage({
                             />
                           </div>
 
-                          <div className="grid min-w-0 gap-1.5">
+                          <div className="grid min-w-0 gap-1">
                             <ListMeta
                               label="Source"
                               value={job.sourceName || "—"}
@@ -402,7 +425,7 @@ export default async function CreativeJobsPage({
                             />
                           </div>
 
-                          <div className="grid min-w-0 grid-cols-3 gap-2">
+                          <div className="grid min-w-0 grid-cols-3 gap-1.5">
                             <ScheduleMeta
                               label="Start"
                               value={prettyDate(job.startDate)}
@@ -428,7 +451,7 @@ export default async function CreativeJobsPage({
                           </div>
                           </Link>
                           {snapshot.canCreate ? (
-                            <div className="absolute right-3 top-3 xl:top-1/2 xl:-translate-y-1/2">
+                            <div className="absolute right-2 top-2 xl:top-1/2 xl:-translate-y-1/2">
                               <CreativeJobDeleteControl
                                 jobId={job.id}
                                 title={job.title}
@@ -473,12 +496,12 @@ function FilterSelect({
   options: Array<[string, string]>;
 }) {
   return (
-    <label className="grid min-w-[118px] flex-1 gap-1 sm:flex-none">
-      <span className="text-[9px] font-black text-[#806174]">{label}</span>
+    <label className="grid min-w-[104px] flex-1 gap-0.5 sm:flex-none">
+      <span className="text-[8px] font-black text-[#806174]">{label}</span>
       <select
         name={name}
         defaultValue={value}
-        className="h-9 min-w-0 rounded-xl border border-[#dfcdc4] bg-white px-2.5 text-[10px] font-bold text-[#4d2d40]"
+        className="h-8 min-w-0 rounded-lg border border-[#dfcdc4] bg-white px-2 text-[9px] font-bold text-[#4d2d40]"
       >
         {options.map(([optionValue, optionLabel]) => (
           <option key={`${name}-${optionValue || "all"}`} value={optionValue}>
@@ -502,12 +525,12 @@ function ListMeta({
   icon?: boolean;
 }) {
   return (
-    <div className="grid min-w-0 grid-cols-[64px_minmax(0,1fr)] items-center gap-2">
-      <span className="text-[8px] font-black uppercase tracking-[0.05em] text-[#9a818d]">
+    <div className="grid min-w-0 grid-cols-[52px_minmax(0,1fr)] items-center gap-1.5">
+      <span className="text-[7px] font-black uppercase tracking-[0.05em] text-[#9a818d]">
         {label}
       </span>
       <span
-        className={`flex min-w-0 items-center gap-1 truncate ${
+        className={`flex min-w-0 items-center gap-1 truncate text-[10px] leading-3 ${
           strong ? "font-black text-[#6d4a5c]" : "text-[#4d3945]"
         }`}
         title={value}
@@ -531,12 +554,12 @@ function ScheduleMeta({
   calendar?: boolean;
 }) {
   return (
-    <span className="min-w-0 rounded-xl bg-[#f8f4f2] px-2 py-2">
-      <small className="block text-[8px] font-black uppercase tracking-[0.05em] text-[#9a818d]">
+    <span className="min-w-0 rounded-lg bg-[#f8f4f2] px-2 py-1.5">
+      <small className="block text-[7px] font-black uppercase tracking-[0.05em] text-[#9a818d]">
         {label}
       </small>
       <strong
-        className={`mt-1 flex min-w-0 items-center gap-1 truncate text-[9px] ${
+        className={`mt-0.5 flex min-w-0 items-center gap-1 truncate text-[8px] leading-3 ${
           alert ? "text-[#a43b50]" : "text-[#4d3945]"
         }`}
       >
@@ -559,7 +582,7 @@ function PriorityBadge({
   };
   return (
     <span
-      className={`inline-flex shrink-0 rounded-full px-2 py-1 text-[9px] font-black ${styles[value]}`}
+      className={`inline-flex shrink-0 rounded-full px-1.5 py-0.5 text-[8px] font-black ${styles[value]}`}
     >
       {creativePriorityLabels[value]}
     </span>
@@ -574,7 +597,7 @@ function StatusBadge({
   const active = ["review", "revision", "blocked"].includes(status);
   return (
     <span
-      className={`inline-flex rounded-full px-2.5 py-1.5 text-[9px] font-black ${
+      className={`inline-flex rounded-full px-2 py-1 text-[8px] font-black ${
         active
           ? "bg-[#fff0f5] text-[#7c365f]"
           : status === "completed"

@@ -85,3 +85,11 @@ The release PR, merge commit, Vercel deployment and test run are appended after 
 - Missing daily spend renders as an honest gap, while unallocated treatment/source/campaign views explain the boundary instead of displaying a fabricated zero.
 - Added Storybook states plus deterministic Dashboard and Treatment Performance visual baselines.
 - Rollback: revert the source PR; no database migration is required.
+
+## 2026-09-03 — Compact Creative Job list and creator provenance
+
+- Reduced Creative Job summary-card, toolbar, filter, row, date-tile, status and destructive-control density for faster operational scanning.
+- Added the human Job creator to every list row and the Job detail header using the persisted requester member identity, with email/system fallbacks.
+- Kept the existing no-horizontal-scroll responsive layout and full-size form controls inside the detailed Brief workspace.
+- Added deterministic list visual acceptance plus explicit maximum row/action dimensions.
+- Rollback: revert the source PR; no database migration or stored-data rewrite is required.

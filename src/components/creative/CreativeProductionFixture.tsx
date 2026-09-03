@@ -130,7 +130,7 @@ export function CreativeProductionFixture() {
           className="mt-6 min-w-0 overflow-hidden rounded-2xl border border-[#e8dcd5] bg-white"
           data-testid="creative-job-list-fixture"
         >
-          <div className="hidden grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] gap-4 border-b border-[#eadfd9] bg-[#fbf9f7] px-4 py-3 text-[10px] font-black xl:grid">
+          <div className="hidden grid-cols-[minmax(220px,1.35fr)_minmax(150px,0.82fr)_minmax(220px,1.1fr)_minmax(205px,1fr)_minmax(86px,0.4fr)] gap-3 border-b border-[#eadfd9] bg-[#fbf9f7] px-3 py-2 text-[8px] font-black xl:grid">
             <span>Job</span>
             <span>負責</span>
             <span>製作規格</span>
@@ -138,16 +138,17 @@ export function CreativeProductionFixture() {
             <span>狀態</span>
           </div>
           <div className="relative">
-            <div className="grid min-w-0 grid-cols-1 gap-4 px-4 py-4 pr-14 text-[11px] font-semibold md:grid-cols-2 xl:grid-cols-[minmax(240px,1.45fr)_minmax(150px,0.85fr)_minmax(260px,1.35fr)_minmax(240px,1.2fr)_minmax(110px,0.55fr)] xl:items-center">
+            <div data-testid="creative-job-row" className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-2 px-3 py-2.5 pr-11 text-[10px] font-semibold md:grid-cols-2 xl:grid-cols-[minmax(220px,1.35fr)_minmax(150px,0.82fr)_minmax(220px,1.1fr)_minmax(205px,1fr)_minmax(86px,0.4fr)] xl:items-center">
             <div className="min-w-0">
-              <strong className="block truncate text-sm">
+              <strong className="block truncate text-[12px] leading-4">
                 GOS KOL 脫毛廣告片
               </strong>
-              <span className="mt-1 block text-[9px] text-[#927987]">
-                3 件 · M workload · 優先
+              <span className="mt-1 flex flex-wrap items-center gap-x-2 text-[8px] leading-3 text-[#927987]">
+                <span>3 件 · M · 優先</span>
+                <span>建立者：Kieran Kwok</span>
               </span>
             </div>
-            <div className="grid gap-1.5">
+            <div className="grid gap-1">
               <span>
                 <small className="mr-2 text-[#927987]">品牌</small>GOS
               </span>
@@ -155,7 +156,7 @@ export function CreativeProductionFixture() {
                 <small className="mr-2 text-[#927987]">Designer</small>Amber
               </span>
             </div>
-            <div className="grid min-w-0 gap-1.5">
+            <div className="grid min-w-0 gap-1">
               <span className="truncate">
                 <small className="mr-2 text-[#927987]">Source</small>KOL 拍攝 Raw Footage
               </span>
@@ -166,22 +167,22 @@ export function CreativeProductionFixture() {
                 <small className="mr-2 text-[#927987]">媒體格式</small>Video
               </span>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              <span className="rounded-xl bg-[#f8f4f2] p-2">
+            <div className="grid grid-cols-3 gap-1.5">
+              <span className="rounded-lg bg-[#f8f4f2] px-2 py-1.5 text-[8px] leading-3">
                 <small className="block text-[#927987]">Start</small>1/9
               </span>
-              <span className="rounded-xl bg-[#f8f4f2] p-2">
+              <span className="rounded-lg bg-[#f8f4f2] px-2 py-1.5 text-[8px] leading-3">
                 <small className="block text-[#927987]">Due</small>4/9
               </span>
-              <span className="rounded-xl bg-[#f8f4f2] p-2">
+              <span className="rounded-lg bg-[#f8f4f2] px-2 py-1.5 text-[8px] leading-3">
                 <small className="block text-[#927987]">Publish</small>6/9
               </span>
             </div>
-              <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[9px] font-black">
+              <span className="w-fit rounded-full bg-[#f5f1ef] px-2 py-1 text-[8px] font-black">
                 製作中
               </span>
             </div>
-            <div className="absolute right-3 top-3 xl:top-1/2 xl:-translate-y-1/2">
+            <div className="absolute right-2 top-2 xl:top-1/2 xl:-translate-y-1/2">
               <CreativeJobDeleteControl
                 jobId="fixture-job"
                 title="GOS KOL 脫毛廣告片"

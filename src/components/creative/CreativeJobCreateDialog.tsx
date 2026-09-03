@@ -86,8 +86,11 @@ export function CreativeJobCreateDialog({
 
   return (
     <Dialog.Root>
-      <Dialog.Trigger className="command-primary-button">
-        <Plus size={16} /> 新增設計 Job
+      <Dialog.Trigger
+        data-testid="creative-job-create-trigger"
+        className="command-primary-button !min-h-8 !rounded-lg !px-3 !py-1.5 !text-[10px]"
+      >
+        <Plus size={14} /> 新增設計 Job
       </Dialog.Trigger>
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[90] bg-[#321428]/40 backdrop-blur-[3px] transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />

@@ -27,10 +27,10 @@ export function CreativeJobDeleteControl({
   return (
     <SystemConfirmationDialog
       triggerLabel="刪除 Job"
-      triggerIcon={<Trash2 size={listPlacement ? 14 : 15} aria-hidden="true" />}
+      triggerIcon={<Trash2 size={listPlacement ? 12 : 15} aria-hidden="true" />}
       triggerVariant="destructive"
-      triggerSize={listPlacement ? "icon-lg" : "lg"}
-      triggerClassName={listPlacement ? "shadow-[var(--shadow-control)]" : undefined}
+      triggerSize={listPlacement ? "icon-sm" : "lg"}
+      triggerClassName={listPlacement ? "shadow-sm" : undefined}
       triggerAriaLabel={listPlacement ? `刪除 ${title}` : undefined}
       triggerTitle={listPlacement ? `刪除 ${title}` : undefined}
       triggerTestId={

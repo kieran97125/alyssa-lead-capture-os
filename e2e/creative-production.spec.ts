@@ -32,10 +32,42 @@ test("creative Job List keeps source, usage and media format separate without ho
   await expect(list).toContainText("KOL 拍攝");
   await expect(list).toContainText("Meta AD");
   await expect(list).toContainText("Video");
+  await expect(list).toContainText("建立者：Kieran Kwok");
   const fitsWithoutHorizontalScroll = await list.evaluate(
     (element) => element.scrollWidth <= element.clientWidth
   );
   expect(fitsWithoutHorizontalScroll).toBe(true);
+});
+
+test("Creative Job list keeps compact desktop density and proportionate controls", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await openFixture(page);
+
+  const list = page.getByTestId("creative-job-list-fixture");
+  const row = list.getByTestId("creative-job-row");
+  await expect(row).toContainText("建立者：Kieran Kwok");
+
+  const rowBox = await row.boundingBox();
+  expect(rowBox?.height ?? 999).toBeLessThanOrEqual(86);
+
+  const createBox = await page.getByTestId("creative-job-create-trigger").boundingBox();
+  expect(createBox?.height ?? 999).toBeLessThanOrEqual(34);
+
+  const deleteBox = await list
+    .getByTestId("creative-job-list-delete-button")
+    .boundingBox();
+  expect(deleteBox?.height ?? 999).toBeLessThanOrEqual(30);
+  expect(deleteBox?.width ?? 999).toBeLessThanOrEqual(30);
+
+  await page.evaluate(async () => {
+    await document.fonts.ready;
+  });
+  await expect(list).toHaveScreenshot("creative-job-list-compact-desktop.png", {
+    animations: "disabled",
+    caret: "hide",
+  });
 });
 
 test("new Creative Job opens in a focused dialog and keeps date guidance contextual", async ({
