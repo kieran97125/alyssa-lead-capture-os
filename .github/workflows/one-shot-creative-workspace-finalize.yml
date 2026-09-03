@@ -45,6 +45,9 @@ jobs:
       - name: Apply final Creative workspace implementation
         run: python3 scripts/implement-creative-workspace-finalize.py
 
+      - name: Remove obsolete permanent asset-panel contract
+        run: sed -i '/assert\.match(studio, \/插入 Workspace\//d' scripts/verify-creative-production-contract.mjs
+
       - name: Refresh package lock
         run: npm install --package-lock-only --ignore-scripts
 
