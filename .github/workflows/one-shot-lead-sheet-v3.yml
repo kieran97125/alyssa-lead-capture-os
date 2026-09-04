@@ -1,0 +1,85 @@
+name: One-shot Lead Sheet v3 Book Event Date
+
+on:
+  push:
+    branches:
+      - fix/lead-sheet-v3-book-event-date
+    paths:
+      - .github/workflows/one-shot-lead-sheet-v3.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: one-shot-lead-sheet-v3-book-event-date
+  cancel-in-progress: false
+
+jobs:
+  implement-and-verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      CI: true
+      ALYSSA_E2E_FIXTURES: 1
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      E2E_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/lead-sheet-v3-book-event-date
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Apply Lead Sheet v3 implementation
+        run: python3 scripts/implement-lead-sheet-v3-book-date.py
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify production build and contracts
+        run: npm run build
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Verify focused Lead Sheet date ownership
+        run: >-
+          npx playwright test
+          e2e/google-sheets-lead-sync.spec.ts
+          e2e/meta-lead-form-normalizer.spec.ts
+          e2e/lead-sheet-book-event-date.spec.ts
+          e2e/marketing-command-center.spec.ts
+
+      - name: Refresh approved Dashboard visual baseline
+        run: npm run test:design:update
+
+      - name: Verify design and accessibility
+        run: npm run test:design
+
+      - name: Verify full product regression
+        run: npm run test:e2e
+
+      - name: Commit verified implementation and remove one-shot files
+        shell: bash
+        run: |
+          rm .github/workflows/one-shot-lead-sheet-v3.yml
+          rm scripts/implement-lead-sheet-v3-book-date.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add --all
+          git diff --cached --check
+          git status --short
+          git commit -m "Add legacy-safe Book event date ownership"
+          git push origin HEAD:fix/lead-sheet-v3-book-event-date
