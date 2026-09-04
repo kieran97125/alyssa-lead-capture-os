@@ -27,9 +27,9 @@ export type LeadSheetSyncInput = {
   touch: TouchPayload;
 };
 
-export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v2";
+export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v3";
 
-export const GOOGLE_SHEETS_LEAD_HEADERS = [
+export const GOOGLE_SHEETS_LEAD_LEGACY_HEADERS = [
   "Created At",
   "跟進狀態",
   "品牌",
@@ -54,9 +54,15 @@ export const GOOGLE_SHEETS_LEAD_HEADERS = [
   "Show up",
 ] as const;
 
+export const GOOGLE_SHEETS_LEAD_HEADERS = [
+  "最後更新日期",
+  ...GOOGLE_SHEETS_LEAD_LEGACY_HEADERS,
+] as const;
+
 export type GoogleSheetsLeadWebhookPayload = {
   secret: string;
   schemaVersion: typeof GOOGLE_SHEETS_LEAD_SCHEMA_VERSION;
+  lastUpdatedAt: string;
   createdAt: string;
   followUpStatus: string;
   brand: string;
@@ -193,8 +199,12 @@ export function buildGoogleSheetsLeadPayload(
 ): GoogleSheetsLeadWebhookPayload {
   const touch = input.touch;
   const pageUrl = preferredPageUrl(touch) || input.pageUrl || "";
+  const createdAt = formatHongKongDateTime(input.createdAt);
   const fields = {
-    createdAt: formatHongKongDateTime(input.createdAt),
+    // New rows start with the same HKT timestamp in both columns. The Sheet
+    // automation later locks this field to the first Book event date.
+    lastUpdatedAt: createdAt,
+    createdAt,
     followUpStatus: "待跟進",
     brand: input.brandName,
     branch: input.branchName,
@@ -227,6 +237,7 @@ export function buildGoogleSheetsLeadPayload(
     showUp: "",
   };
   const rowValues = [
+    fields.lastUpdatedAt,
     fields.createdAt,
     fields.followUpStatus,
     fields.brand,

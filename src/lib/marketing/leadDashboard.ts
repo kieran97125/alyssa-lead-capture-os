@@ -422,7 +422,7 @@ export async function getLeadDashboardSnapshot(
     }
     if (parsed.diagnostics.invalidCreatedDateRows > 0) {
       warnings.push(
-        `${parsed.diagnostics.invalidCreatedDateRows} 行 Created At 無效，Lead／Book 暫未計入。`
+        `${parsed.diagnostics.invalidCreatedDateRows} 行 Created At 無效，Lead 同舊格式 Book fallback 暫未計入。`
       );
     }
 

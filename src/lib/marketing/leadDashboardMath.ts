@@ -1,7 +1,8 @@
-import type {
-  LeadSheetLeadGroup,
-  LeadSheetGroupRow,
-  SheetBrandReference,
+import {
+  leadGroupBookDate,
+  type LeadSheetLeadGroup,
+  type LeadSheetGroupRow,
+  type SheetBrandReference,
 } from "@/lib/marketing/googleSheetsMetricParser";
 import {
   annotationMatchesTreatment,
@@ -117,10 +118,8 @@ export function buildLeadDashboardTrend(input: {
       points: dates.map((date, index) => {
         const base = emptyPerformanceTrendBase();
         brandGroups.forEach((group) => {
-          if (group.firstTouchDate === date) {
-            base.leads += 1;
-            if (group.rows.some((row) => row.status !== "lead")) base.bookings += 1;
-          }
+          if (group.firstTouchDate === date) base.leads += 1;
+          if (leadGroupBookDate(group) === date) base.bookings += 1;
           if (
             group.rows.some(
               (row) => row.status === "show" && row.confirmationDate === date
@@ -218,9 +217,15 @@ function statsForGroups(
       filters.startDate,
       filters.endDate
     );
-    if (leadInRange) {
-      leads += 1;
-      if (group.rows.some((row) => row.status !== "lead")) bookings += 1;
+    if (leadInRange) leads += 1;
+    if (
+      inRange(
+        leadGroupBookDate(group),
+        filters.startDate,
+        filters.endDate
+      )
+    ) {
+      bookings += 1;
     }
     if (
       group.rows.some(

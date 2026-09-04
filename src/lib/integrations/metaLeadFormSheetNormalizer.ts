@@ -1,6 +1,7 @@
 import {
   formatHongKongDateTime,
   GOOGLE_SHEETS_LEAD_HEADERS,
+  GOOGLE_SHEETS_LEAD_LEGACY_HEADERS,
 } from "@/lib/integrations/googleSheetsLeadSync";
 import type { LeadSheetTreatmentAlias } from "@/lib/marketing/googleSheetsMetricParser";
 
@@ -41,11 +42,28 @@ function canonicalHeader(value: unknown) {
   return normalizedComparable(value).replace(/\s*\/\s*/g, "/");
 }
 
-function hasOperationalLeadHeaders(headers: unknown[]) {
-  if (headers.length < GOOGLE_SHEETS_LEAD_HEADERS.length) return false;
-  return GOOGLE_SHEETS_LEAD_HEADERS.every(
+type LeadSheetHeaderContract = "legacy" | "v3";
+
+function matchesOperationalHeaders(
+  headers: unknown[],
+  contract: readonly string[]
+) {
+  if (headers.length < contract.length) return false;
+  return contract.every(
     (header, index) => canonicalHeader(headers[index]) === canonicalHeader(header)
   );
+}
+
+function operationalHeaderContract(
+  headers: unknown[]
+): LeadSheetHeaderContract | null {
+  if (matchesOperationalHeaders(headers, GOOGLE_SHEETS_LEAD_HEADERS)) {
+    return "v3";
+  }
+  if (matchesOperationalHeaders(headers, GOOGLE_SHEETS_LEAD_LEGACY_HEADERS)) {
+    return "legacy";
+  }
+  return null;
 }
 
 function prefixedId(value: unknown, prefix: string) {
@@ -211,6 +229,7 @@ function normalizedRow(input: {
   brands: MetaLeadNormalizationBrand[];
   brandAliases: Record<string, string>;
   treatmentAliases: LeadSheetTreatmentAlias[];
+  contract: LeadSheetHeaderContract;
 }) {
   const row = input.rawRow.map(compactString);
   const leadId = prefixedId(row[0], "l");
@@ -251,7 +270,7 @@ function normalizedRow(input: {
   const createdAt = formatHongKongDateTime(row[1]);
   if (!createdAt) return null;
 
-  const values = [
+  const legacyValues = [
     createdAt,
     "待跟進",
     brand.name,
@@ -275,6 +294,10 @@ function normalizedRow(input: {
     "",
     "",
   ];
+  const values =
+    input.contract === "v3"
+      ? [createdAt, ...legacyValues]
+      : legacyValues;
 
   return { leadId, values };
 }
@@ -287,7 +310,8 @@ export function normalizeMetaLeadFormRows(input: {
   brandAliases?: Record<string, string>;
   treatmentAliases?: LeadSheetTreatmentAlias[];
 }): MetaLeadFormNormalizationResult {
-  if (!hasOperationalLeadHeaders(input.headers)) {
+  const contract = operationalHeaderContract(input.headers);
+  if (!contract) {
     return { rows: input.rows, rewrites: [] };
   }
 
@@ -300,6 +324,7 @@ export function normalizeMetaLeadFormRows(input: {
       brands: input.brands,
       brandAliases: input.brandAliases ?? {},
       treatmentAliases: input.treatmentAliases ?? [],
+      contract,
     });
     if (!normalized) return;
     rows[index] = normalized.values;

@@ -180,7 +180,7 @@ export function LeadDashboardPanel({
             </small>
           </div>
           <p>
-            同一品牌及電話只計一次；Lead 同 Book 歸入首次查詢日期。
+            同一品牌及電話只計一次；Lead 按首次查詢日，Book 按首次預約更新日；舊 Lead 維持原有日期。
           </p>
         </header>
 
@@ -256,7 +256,7 @@ export function LeadDashboardPanel({
         <SummaryMetric
           label="Book"
           value={snapshot.totals.bookings}
-          meta={`${formatPercent(snapshot.totals.bookRate)} Book Rate`}
+          meta={`${formatPercent(snapshot.totals.bookRate)} · 按預約更新日`}
           tone="rose"
           icon={UserRoundCheck}
         />
@@ -395,8 +395,9 @@ export function LeadDashboardPanel({
         <div>
           <strong>計算及資料來源</strong>
           <p>
-            Lead／Book 按同品牌同電話尾 8 位嘅首次查詢日期；Show 按確認到店日期；
-            No Show 同本月未 Show 按預約日期。Book 包括已預約、已到店及 No Show。
+            Lead 按同品牌同電話尾 8 位嘅首次查詢日期；新 Lead 嘅 Book 按「最後更新日期」鎖定首次預約日，
+            舊 Lead 冇該日期時繼續按首次查詢日。Show 按確認到店日期；No Show 同本月未 Show 按預約日期。
+            Book 包括已預約、已到店及 No Show；同期間 Book Rate 係事件流量比率，唔係固定 cohort。
           </p>
           <p>
             廣告費、CPL、CPBook 同 CPShow 會按所選範圍先加總再計算；
