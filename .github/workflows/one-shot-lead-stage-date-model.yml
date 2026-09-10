@@ -42,6 +42,20 @@ jobs:
           node-version: 22
           cache: npm
 
+      - name: Make implementation replacement escape-safe
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path("scripts/implement-lead-stage-date-model.py")
+          text = path.read_text(encoding="utf-8")
+          old = "parser, count = sort_pattern.subn(sort_helper, parser, count=1)"
+          new = "parser, count = sort_pattern.subn(lambda match: match.group(1) + sort_helper[2:], parser, count=1)"
+          if text.count(old) != 1:
+              raise RuntimeError(f"escape-safe replacement anchor count: {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Apply current-stage event-date model
         run: python3 scripts/implement-lead-stage-date-model.py
 
