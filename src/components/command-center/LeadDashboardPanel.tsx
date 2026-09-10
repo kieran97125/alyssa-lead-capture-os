@@ -180,7 +180,7 @@ export function LeadDashboardPanel({
             </small>
           </div>
           <p>
-            同一品牌及電話只計一次；Lead 按 Created At；新 Lead 嘅 Book／Show／No Show 按最後更新日期＋目前跟進狀態。
+            同一品牌及電話只計一次；Lead 按 Created At；Book／Show／No Show 按不可變 Funnel Event 紀錄日期。
           </p>
         </header>
 
@@ -395,9 +395,9 @@ export function LeadDashboardPanel({
         <div>
           <strong>計算及資料來源</strong>
           <p>
-            Lead 按同品牌同電話尾 8 位嘅 Created At。新 Lead 以「最後更新日期＋目前跟進狀態」判斷：
-            已預約＝Book 未 Show、已完成／已到店＝Show、No Show＝當日 No Show、待跟進＝未 Book。
-            Book 仍包括已預約、Show 及 No Show；舊 Lead 保留原有日期口徑。同期間比率係營運事件流量比率，唔係固定 cohort。
+            Lead 按同品牌同電話尾 8 位嘅 Created At；新版 Lead 嘅 Book、Show、No Show 由隱藏 Funnel Event Ledger 保存首次事件日期，
+            所以之後狀態再轉變都唔會搬走之前嘅 Book。舊 Lead 未有 Event Ledger 時保留原有歷史日期口徑；
+            C 欄「跟進狀態」仍然係目前狀態唯一主要來源。同期間比率係營運事件流量比率，唔係固定 cohort。
           </p>
           <p>
             廣告費、CPL、CPBook 同 CPShow 會按所選範圍先加總再計算；

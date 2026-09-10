@@ -1,3 +1,8 @@
+import {
+  applyLeadFunnelEventLedger,
+  type LeadFunnelEventLedgerTable,
+} from "@/lib/marketing/leadFunnelEventLedger";
+
 export type SheetBrandReference = {
   id: string;
   name: string;
@@ -85,11 +90,12 @@ export type LeadSheetLeadGroup = {
   branchLabel: string;
   firstTouchDate: string | null;
   usesStageDateContract: boolean;
+  usesEventLedger: boolean;
   currentStatus: LeadSheetStatus;
   currentEventDate: string | null;
   currentRowNumber: number;
   bookDate: string | null;
-  bookDateSource: "last_updated" | "legacy_created_at" | null;
+  bookDateSource: "last_updated" | "legacy_created_at" | "event_ledger" | null;
   showDate: string | null;
   noShowDate: string | null;
   pendingRowNumber: number | null;
@@ -655,36 +661,36 @@ export function buildLeadSheetGroups(input: {
     const currentEventDate = usesStageDateContract
       ? currentRow.lastUpdatedDate ?? currentRow.createdDate
       : null;
+    const bookedRows = rows.filter((row) => row.status !== "lead");
+    const earliestStageBookDate =
+      bookedRows
+        .map((row) => row.lastUpdatedDate)
+        .filter((value): value is string => Boolean(value))
+        .sort()[0] ?? null;
     const bookDate =
-      currentStatus === "lead"
+      bookedRows.length === 0
         ? null
-        : usesStageDateContract
-          ? currentEventDate
-          : first.row.createdDate;
+        : earliestStageBookDate ?? first.row.createdDate;
     const bookDateSource =
       bookDate === null
         ? null
-        : usesStageDateContract
+        : earliestStageBookDate
           ? "last_updated"
           : "legacy_created_at";
-    const legacyShowDate = rows
-      .filter((row) => row.status === "show" && row.confirmationDate)
-      .map((row) => row.confirmationDate as string)
-      .sort()[0] ?? null;
-    const legacyNoShowDate = rows
-      .filter((row) => row.status === "no_show" && row.appointmentDate)
-      .map((row) => row.appointmentDate as string)
-      .sort()[0] ?? null;
-    const showDate = usesStageDateContract
-      ? currentStatus === "show"
-        ? currentEventDate
-        : null
-      : legacyShowDate;
-    const noShowDate = usesStageDateContract
-      ? currentStatus === "no_show"
-        ? currentEventDate
-        : null
-      : legacyNoShowDate;
+    // No-ledger fallback deliberately keeps the pre-v4 historical ownership:
+    // Show comes from confirmed-show date and No Show from appointment date.
+    // Once a Lead has any valid `_funnel_events` row, the immutable ledger
+    // overrides all three operational event dates below.
+    const showDate =
+      rows
+        .filter((row) => row.status === "show" && row.confirmationDate)
+        .map((row) => row.confirmationDate as string)
+        .sort()[0] ?? null;
+    const noShowDate =
+      rows
+        .filter((row) => row.status === "no_show" && row.appointmentDate)
+        .map((row) => row.appointmentDate as string)
+        .sort()[0] ?? null;
     const legacyPendingRow = rows
       .filter((row) => row.status === "booked" && row.appointmentDate)
       .sort(
@@ -709,6 +715,7 @@ export function buildLeadSheetGroups(input: {
       branchLabel: first.branchLabel,
       firstTouchDate: first.row.createdDate,
       usesStageDateContract,
+      usesEventLedger: false,
       currentStatus,
       currentEventDate,
       currentRowNumber: currentRow.rowNumber,
@@ -750,15 +757,25 @@ export function aggregateLeadSheetPerformance(input: {
   sourceBrandId: string | null;
   brandAliases?: Record<string, string>;
   treatmentAliases?: LeadSheetTreatmentAlias[];
+  eventLedger?: LeadFunnelEventLedgerTable | null;
   dailyThroughDate: string;
   activityThroughDate: string;
   pendingThroughDate: string;
 }): ParsedLeadSheetPerformance {
-  const parsed = buildLeadSheetGroups({
+  const baseParsed = buildLeadSheetGroups({
     ...input,
     appsScriptContract: false,
-    dedupeByIdentity: false,
+    dedupeByIdentity: true,
   });
+  const parsed = {
+    ...baseParsed,
+    groups: applyLeadFunnelEventLedger({
+      groups: baseParsed.groups,
+      eventLedger: input.eventLedger,
+      brands: input.brands,
+      brandAliases: input.brandAliases,
+    }),
+  };
   const dailyMetrics = new Map<string, ParsedLeadFunnelMetric>();
   const metricFacts = new Map<string, ParsedLeadSheetMetricFact>();
   const getDailyMetric = (brandId: string, date: string) => {

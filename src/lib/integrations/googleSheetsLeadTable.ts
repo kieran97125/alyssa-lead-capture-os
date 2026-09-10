@@ -14,6 +14,8 @@ const MAX_LEAD_ROWS = 50_000;
 const LEGACY_OPERATIONAL_LAST_COLUMN = "V";
 const OPERATIONAL_LAST_COLUMN = "W";
 const META_RAW_TAIL_LAST_COLUMN = "BN";
+const FUNNEL_EVENT_LEDGER_SHEET_NAME = "_funnel_events";
+const FUNNEL_EVENT_LEDGER_LAST_COLUMN = "O";
 
 type GoogleValueRange = {
   values?: unknown[][];
@@ -292,4 +294,58 @@ export async function readLiveLeadTable(
   const rows = dataResponse.valueRanges?.[0]?.values ?? [];
 
   return { headers, rows, headerRow };
+}
+
+export async function readLeadFunnelEventLedger(
+  configuration: LeadTableSourceConfiguration
+): Promise<{ headers: unknown[]; rows: unknown[][] }> {
+  const accessToken = await getGoogleSheetsOAuthAccessToken();
+  const sourceSpreadsheetId = spreadsheetId(configuration);
+  const query = new URLSearchParams({
+    majorDimension: "ROWS",
+    valueRenderOption: "UNFORMATTED_VALUE",
+    dateTimeRenderOption: "SERIAL_NUMBER",
+  });
+  query.append(
+    "ranges",
+    `${quoteSheetName(FUNNEL_EVENT_LEDGER_SHEET_NAME)}!A1:${FUNNEL_EVENT_LEDGER_LAST_COLUMN}${MAX_LEAD_ROWS}`
+  );
+  const response = await fetch(
+    `${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(
+      sourceSpreadsheetId
+    )}/values:batchGet?${query.toString()}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        Accept: "application/json",
+      },
+      cache: "no-store",
+    }
+  );
+
+  // During the rollout the hidden ledger may not exist yet. Treat only the
+  // provider's missing/invalid-range statuses as an empty ledger so production
+  // can safely deploy before the Sheet cutover.
+  if ([400, 404].includes(response.status)) {
+    return { headers: [], rows: [] };
+  }
+  if (!response.ok) {
+    if ([401, 403].includes(response.status)) {
+      throw new Error(
+        "未能讀取 Lead Funnel Event Ledger；請重新連接公司 Google 帳戶。"
+      );
+    }
+    throw new Error(
+      `Lead Funnel Event Ledger 暫時讀取失敗（HTTP ${response.status}）。`
+    );
+  }
+
+  const payload = (await response.json()) as {
+    valueRanges?: GoogleValueRange[];
+  };
+  const values = payload.valueRanges?.[0]?.values ?? [];
+  return {
+    headers: values[0] ?? [],
+    rows: values.slice(1),
+  };
 }
