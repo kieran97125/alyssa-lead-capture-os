@@ -34,6 +34,7 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
     expect(payload.headers).toEqual(GOOGLE_SHEETS_LEAD_HEADERS);
     expect(payload.rowValues).toEqual([
       "2026/7/29 上午 11:25:51",
+      "2026/7/29 上午 11:25:51",
       "待跟進",
       "Alyssa",
       "旺角分店【朗豪坊】",
@@ -65,6 +66,8 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
         ])
       )
     ).toMatchObject({
+      最後更新日期: "2026/7/29 上午 11:25:51",
+      "Created At": "2026/7/29 上午 11:25:51",
       品牌: "Alyssa",
       分店: "旺角分店【朗豪坊】",
       客人姓名: "Kieran Test",
@@ -166,4 +169,31 @@ test("native Sheets writer stops safely when an operational header is missing", 
   expect(() =>
     alignLeadRowToDestinationHeaders([...headersWithoutPhone], payload)
   ).toThrow("Google Sheet 缺少必要 header：電話");
+});
+
+
+test("native writer stays compatible with the legacy A:V destination", () => {
+  const payload = buildGoogleSheetsLeadPayload({
+    brandId: "brand-test-123",
+    leadKey: "lead-test-legacy",
+    createdAt: "2026-07-29T03:25:51.000Z",
+    customerName: "Legacy Header Test",
+    phone: "85200000001",
+    email: null,
+    brandName: "Alyssa",
+    formName: "Lead Form",
+    treatmentName: "Facelift",
+    packageName: "$988 Facelift",
+    price: 988,
+    branchName: "旺角",
+    appointmentDate: null,
+    appointmentTime: null,
+    pageUrl: "https://example.com",
+    touch: {},
+  });
+  const legacyHeaders = GOOGLE_SHEETS_LEAD_HEADERS.slice(1);
+  const aligned = alignLeadRowToDestinationHeaders([...legacyHeaders], payload);
+  expect(aligned).toHaveLength(22);
+  expect(aligned[0]).toBe("2026/7/29 上午 11:25:51");
+  expect(aligned[legacyHeaders.indexOf("lead_key")]).toBe("lead-test-legacy");
 });

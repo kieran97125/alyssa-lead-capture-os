@@ -1,7 +1,11 @@
-import type {
-  LeadSheetLeadGroup,
-  LeadSheetGroupRow,
-  SheetBrandReference,
+import {
+  leadGroupBookDate,
+  leadGroupCurrentBookedRow,
+  leadGroupNoShowDate,
+  leadGroupShowDate,
+  type LeadSheetLeadGroup,
+  type LeadSheetGroupRow,
+  type SheetBrandReference,
 } from "@/lib/marketing/googleSheetsMetricParser";
 import {
   annotationMatchesTreatment,
@@ -117,25 +121,12 @@ export function buildLeadDashboardTrend(input: {
       points: dates.map((date, index) => {
         const base = emptyPerformanceTrendBase();
         brandGroups.forEach((group) => {
-          if (group.firstTouchDate === date) {
-            base.leads += 1;
-            if (group.rows.some((row) => row.status !== "lead")) base.bookings += 1;
-          }
-          if (
-            group.rows.some(
-              (row) => row.status === "show" && row.confirmationDate === date
-            )
-          ) base.shows += 1;
-          if (
-            group.rows.some(
-              (row) => row.status === "no_show" && row.appointmentDate === date
-            )
-          ) base.noShows += 1;
-          if (
-            group.rows.some(
-              (row) => row.status === "booked" && row.appointmentDate === date
-            )
-          ) base.pendingShows += 1;
+          if (group.firstTouchDate === date) base.leads += 1;
+          if (leadGroupBookDate(group) === date) base.bookings += 1;
+          if (leadGroupShowDate(group) === date) base.shows += 1;
+          if (leadGroupNoShowDate(group) === date) base.noShows += 1;
+          const pendingRow = leadGroupCurrentBookedRow(group);
+          if (pendingRow?.appointmentDate === date) base.pendingShows += 1;
         });
         return calculatePerformanceTrendPoint(base, {
           day: index + 1,
@@ -184,20 +175,8 @@ function firstOutstandingRow(
   startDate: string,
   endDate: string
 ) {
-  return (
-    group.rows
-      .filter(
-        (row) =>
-          row.status === "booked" &&
-          inRange(row.appointmentDate, startDate, endDate)
-      )
-      .sort(
-        (left, right) =>
-          String(left.appointmentDate).localeCompare(
-            String(right.appointmentDate)
-          ) || left.rowNumber - right.rowNumber
-      )[0] ?? null
-  );
+  const row = leadGroupCurrentBookedRow(group);
+  return row && inRange(row.appointmentDate, startDate, endDate) ? row : null;
 }
 
 function statsForGroups(
@@ -218,24 +197,30 @@ function statsForGroups(
       filters.startDate,
       filters.endDate
     );
-    if (leadInRange) {
-      leads += 1;
-      if (group.rows.some((row) => row.status !== "lead")) bookings += 1;
+    if (leadInRange) leads += 1;
+    if (
+      inRange(
+        leadGroupBookDate(group),
+        filters.startDate,
+        filters.endDate
+      )
+    ) {
+      bookings += 1;
     }
     if (
-      group.rows.some(
-        (row) =>
-          row.status === "show" &&
-          inRange(row.confirmationDate, filters.startDate, filters.endDate)
+      inRange(
+        leadGroupShowDate(group),
+        filters.startDate,
+        filters.endDate
       )
     ) {
       shows += 1;
     }
     if (
-      group.rows.some(
-        (row) =>
-          row.status === "no_show" &&
-          inRange(row.appointmentDate, filters.startDate, filters.endDate)
+      inRange(
+        leadGroupNoShowDate(group),
+        filters.startDate,
+        filters.endDate
       )
     ) {
       noShows += 1;

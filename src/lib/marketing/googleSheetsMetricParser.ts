@@ -63,6 +63,8 @@ export type LeadSheetStatus = "lead" | "booked" | "show" | "no_show";
 
 export type LeadSheetGroupRow = {
   rowNumber: number;
+  lastUpdatedAt?: unknown;
+  lastUpdatedDate?: string | null;
   createdAt: unknown;
   createdDate: string | null;
   status: LeadSheetStatus;
@@ -82,6 +84,15 @@ export type LeadSheetLeadGroup = {
   campaignLabel: string;
   branchLabel: string;
   firstTouchDate: string | null;
+  usesStageDateContract: boolean;
+  currentStatus: LeadSheetStatus;
+  currentEventDate: string | null;
+  currentRowNumber: number;
+  bookDate: string | null;
+  bookDateSource: "last_updated" | "legacy_created_at" | null;
+  showDate: string | null;
+  noShowDate: string | null;
+  pendingRowNumber: number | null;
   rows: LeadSheetGroupRow[];
 };
 
@@ -91,6 +102,7 @@ export type ParsedLeadSheetGroups = {
 };
 
 export const leadSheetFieldKeys = [
+  "lastUpdatedAt",
   "createdAt",
   "followStatus",
   "brand",
@@ -117,6 +129,13 @@ const MIN_SUPPORTED_SHEET_DATE = "2000-01-01";
 const MAX_SUPPORTED_SHEET_DATE = "2100-12-31";
 
 const LEAD_SHEET_HEADER_ALIASES: Record<LeadSheetFieldKey, string[]> = {
+  lastUpdatedAt: [
+    "最後更新日期",
+    "Last Updated At",
+    "Last Updated Date",
+    "Booked At",
+    "首次預約日期",
+  ],
   createdAt: ["Created At", "created_at", "建立時間"],
   followStatus: ["跟進狀態", "Follow-up Status", "Follow Up Status"],
   brand: ["品牌", "Brand"],
@@ -283,17 +302,45 @@ function buildBrandLookup(
   return lookup;
 }
 
-export function normalizeLeadSheetStatus(input: {
-  followStatus: unknown;
+function normalizePrimaryLeadSheetStatus(value: unknown): LeadSheetStatus | null {
+  const normalized = normalizeComparableText(value);
+  if (!normalized) return null;
+  if (["待跟進", "lead", "new lead", "未預約"].includes(normalized)) {
+    return "lead";
+  }
+  if (
+    ["已預約", "booked", "confirmed", "rescheduled", "requested"].includes(
+      normalized
+    )
+  ) {
+    return "booked";
+  }
+  if (
+    [
+      "已到店",
+      "已完成",
+      "完成療程",
+      "show",
+      "show up",
+      "completed",
+    ].includes(normalized)
+  ) {
+    return "show";
+  }
+  if (["no show", "noshow", "no-show", "未到店"].includes(normalized)) {
+    return "no_show";
+  }
+  return null;
+}
+
+function normalizeLegacyLeadSheetStatus(input: {
   status?: unknown;
   showUp?: unknown;
 }) {
-  const followStatus = compactString(input.followStatus);
-  const joined = [followStatus, input.status, input.showUp]
+  const joined = [input.status, input.showUp]
     .map(normalizeComparableText)
     .filter(Boolean)
     .join(" ");
-
   if (
     joined.includes("no show") ||
     joined.includes("noshow") ||
@@ -303,18 +350,18 @@ export function normalizeLeadSheetStatus(input: {
     return "no_show" as const;
   }
   if (
-    followStatus === "已到店" ||
-    followStatus === "已完成" ||
     joined.includes("已到店") ||
+    joined.includes("已完成") ||
     joined.includes("完成療程") ||
     joined === "show" ||
-    joined.endsWith(" show")
+    joined.includes("show up") ||
+    joined.includes("completed")
   ) {
     return "show" as const;
   }
   if (
-    followStatus === "已預約" ||
     joined.includes("已預約") ||
+    joined.includes("booked") ||
     joined.includes("confirmed") ||
     joined.includes("rescheduled") ||
     joined.includes("requested")
@@ -324,35 +371,27 @@ export function normalizeLeadSheetStatus(input: {
   return "lead" as const;
 }
 
-function normalizeAppsScriptLeadSheetStatus(input: {
+export function normalizeLeadSheetStatus(input: {
   followStatus: unknown;
   status?: unknown;
   showUp?: unknown;
 }) {
   const followStatus = compactString(input.followStatus);
-  const joined = [followStatus, input.showUp, input.status]
-    .map(compactString)
-    .filter(Boolean)
-    .join(" ")
-    .toLowerCase();
 
-  if (
-    joined.includes("no show") ||
-    joined.includes("noshow") ||
-    joined.includes("no-show")
-  ) {
-    return "no_show" as const;
+  // C 欄「跟進狀態」係唯一主要狀態來源。只有 C 真正空白，
+  // 先會用 legacy Status / Show up 作兼容 fallback。
+  if (followStatus) {
+    return normalizePrimaryLeadSheetStatus(followStatus) ?? "lead";
   }
-  if (
-    followStatus === "已到店" ||
-    followStatus === "已完成" ||
-    joined.includes("已到店") ||
-    joined.includes("完成療程")
-  ) {
-    return "show" as const;
-  }
-  if (followStatus === "已預約") return "booked" as const;
-  return "lead" as const;
+  return normalizeLegacyLeadSheetStatus(input);
+}
+
+function normalizeAppsScriptLeadSheetStatus(input: {
+  followStatus: unknown;
+  status?: unknown;
+  showUp?: unknown;
+}) {
+  return normalizeLeadSheetStatus(input);
 }
 
 function matchingTreatmentAlias(input: {
@@ -418,6 +457,23 @@ function createdAtSortValue(value: unknown, rowNumber: number) {
     return `${date} ${time}|${String(rowNumber).padStart(10, "0")}`;
   }
   return `9999-12-31 23:59:59|${String(rowNumber).padStart(10, "0")}`;
+}
+
+function stageEventSortValue(row: LeadSheetGroupRow) {
+  if (row.lastUpdatedDate) {
+    const raw = compactString(row.lastUpdatedAt);
+    const timeMatch = raw.match(/(?:T|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+    const time = timeMatch
+      ? `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}:${
+          timeMatch[3] || "00"
+        }`
+      : "00:00:00";
+    return `${row.lastUpdatedDate} ${time}|${String(row.rowNumber).padStart(
+      10,
+      "0"
+    )}`;
+  }
+  return createdAtSortValue(row.createdAt, row.rowNumber);
 }
 
 export function buildLeadSheetGroups(input: {
@@ -511,6 +567,8 @@ export function buildLeadSheetGroups(input: {
       diagnostics.uncategorizedTreatmentRows += 1;
     }
 
+    const lastUpdatedAt = valueAt(rawRow, "lastUpdatedAt");
+    const lastUpdatedDate = parseGoogleSheetDate(lastUpdatedAt);
     const createdAt = valueAt(rawRow, "createdAt");
     const createdDate = parseGoogleSheetDate(createdAt);
     if (!createdDate) diagnostics.invalidCreatedDateRows += 1;
@@ -525,13 +583,16 @@ export function buildLeadSheetGroups(input: {
     const confirmationDate = parseGoogleSheetDate(
       valueAt(rawRow, "confirmationDate")
     );
-    if (status === "show" && !confirmationDate) {
+    if (status === "show" && !confirmationDate && !lastUpdatedDate) {
       diagnostics.invalidShowDateRows += 1;
     }
     const appointmentDate = parseGoogleSheetDate(
       valueAt(rawRow, "appointmentDate")
     );
-    if (["booked", "no_show"].includes(status) && !appointmentDate) {
+    if (
+      (status === "booked" && !appointmentDate) ||
+      (status === "no_show" && !appointmentDate && !lastUpdatedDate)
+    ) {
       diagnostics.invalidAppointmentDateRows += 1;
     }
 
@@ -565,6 +626,8 @@ export function buildLeadSheetGroups(input: {
       branchLabel,
       row: {
         rowNumber,
+        lastUpdatedAt,
+        lastUpdatedDate,
         createdAt,
         createdDate,
         status,
@@ -583,6 +646,59 @@ export function buildLeadSheetGroups(input: {
   const groups = Array.from(groupedRows.entries()).map(([key, items]) => {
     items.sort((left, right) => left.sortValue.localeCompare(right.sortValue));
     const first = items[0];
+    const rows = items.map((item) => item.row);
+    const usesStageDateContract = Boolean(first.row.lastUpdatedDate);
+    const currentRow = [...rows].sort((left, right) =>
+      stageEventSortValue(left).localeCompare(stageEventSortValue(right))
+    )[rows.length - 1];
+    const currentStatus = currentRow.status;
+    const currentEventDate = usesStageDateContract
+      ? currentRow.lastUpdatedDate ?? currentRow.createdDate
+      : null;
+    const bookDate =
+      currentStatus === "lead"
+        ? null
+        : usesStageDateContract
+          ? currentEventDate
+          : first.row.createdDate;
+    const bookDateSource =
+      bookDate === null
+        ? null
+        : usesStageDateContract
+          ? "last_updated"
+          : "legacy_created_at";
+    const legacyShowDate = rows
+      .filter((row) => row.status === "show" && row.confirmationDate)
+      .map((row) => row.confirmationDate as string)
+      .sort()[0] ?? null;
+    const legacyNoShowDate = rows
+      .filter((row) => row.status === "no_show" && row.appointmentDate)
+      .map((row) => row.appointmentDate as string)
+      .sort()[0] ?? null;
+    const showDate = usesStageDateContract
+      ? currentStatus === "show"
+        ? currentEventDate
+        : null
+      : legacyShowDate;
+    const noShowDate = usesStageDateContract
+      ? currentStatus === "no_show"
+        ? currentEventDate
+        : null
+      : legacyNoShowDate;
+    const legacyPendingRow = rows
+      .filter((row) => row.status === "booked" && row.appointmentDate)
+      .sort(
+        (left, right) =>
+          String(left.appointmentDate).localeCompare(
+            String(right.appointmentDate)
+          ) || left.rowNumber - right.rowNumber
+      )[0];
+    const pendingRowNumber = usesStageDateContract
+      ? currentStatus === "booked"
+        ? currentRow.rowNumber
+        : null
+      : legacyPendingRow?.rowNumber ?? null;
+
     return {
       key,
       brandId: first.brand.id,
@@ -592,11 +708,39 @@ export function buildLeadSheetGroups(input: {
       campaignLabel: first.campaignLabel,
       branchLabel: first.branchLabel,
       firstTouchDate: first.row.createdDate,
-      rows: items.map((item) => item.row),
+      usesStageDateContract,
+      currentStatus,
+      currentEventDate,
+      currentRowNumber: currentRow.rowNumber,
+      bookDate,
+      bookDateSource,
+      showDate,
+      noShowDate,
+      pendingRowNumber,
+      rows,
     } satisfies LeadSheetLeadGroup;
   });
 
   return { groups, diagnostics };
+}
+
+export function leadGroupBookDate(group: LeadSheetLeadGroup) {
+  return group.bookDate;
+}
+
+export function leadGroupShowDate(group: LeadSheetLeadGroup) {
+  return group.showDate;
+}
+
+export function leadGroupNoShowDate(group: LeadSheetLeadGroup) {
+  return group.noShowDate;
+}
+
+export function leadGroupCurrentBookedRow(group: LeadSheetLeadGroup) {
+  if (group.pendingRowNumber === null) return null;
+  return (
+    group.rows.find((row) => row.rowNumber === group.pendingRowNumber) ?? null
+  );
 }
 
 export function aggregateLeadSheetPerformance(input: {
@@ -660,25 +804,23 @@ export function aggregateLeadSheetPerformance(input: {
       campaignLabel: group.campaignLabel,
       branchLabel: group.branchLabel,
     };
-    const isBook = group.rows.some((row) => row.status !== "lead");
     const createdDate = group.firstTouchDate;
+    const bookDate = leadGroupBookDate(group);
 
     if (createdDate && createdDate <= input.dailyThroughDate) {
-      const daily = getDailyMetric(group.brandId, createdDate);
-      daily.leads += 1;
-      if (isBook) daily.bookings += 1;
+      getDailyMetric(group.brandId, createdDate).leads += 1;
+    }
+    if (bookDate && bookDate <= input.dailyThroughDate) {
+      getDailyMetric(group.brandId, bookDate).bookings += 1;
     }
     if (createdDate && createdDate <= input.activityThroughDate) {
       addFact({ ...dimensions, metricDate: createdDate, metricKind: "lead" });
-      if (isBook) {
-        addFact({ ...dimensions, metricDate: createdDate, metricKind: "book" });
-      }
+    }
+    if (bookDate && bookDate <= input.activityThroughDate) {
+      addFact({ ...dimensions, metricDate: bookDate, metricKind: "book" });
     }
 
-    const showDate = group.rows
-      .filter((row) => row.status === "show" && row.confirmationDate)
-      .map((row) => row.confirmationDate as string)
-      .sort()[0];
+    const showDate = leadGroupShowDate(group);
     if (showDate && showDate <= input.dailyThroughDate) {
       getDailyMetric(group.brandId, showDate).shows += 1;
     }
@@ -686,10 +828,7 @@ export function aggregateLeadSheetPerformance(input: {
       addFact({ ...dimensions, metricDate: showDate, metricKind: "show" });
     }
 
-    const noShowDate = group.rows
-      .filter((row) => row.status === "no_show" && row.appointmentDate)
-      .map((row) => row.appointmentDate as string)
-      .sort()[0];
+    const noShowDate = leadGroupNoShowDate(group);
     if (noShowDate && noShowDate <= input.activityThroughDate) {
       addFact({
         ...dimensions,
@@ -698,10 +837,8 @@ export function aggregateLeadSheetPerformance(input: {
       });
     }
 
-    const pendingDate = group.rows
-      .filter((row) => row.status === "booked" && row.appointmentDate)
-      .map((row) => row.appointmentDate as string)
-      .sort()[0];
+    const pendingRow = leadGroupCurrentBookedRow(group);
+    const pendingDate = pendingRow?.appointmentDate ?? null;
     if (pendingDate && pendingDate <= input.pendingThroughDate) {
       addFact({
         ...dimensions,
@@ -739,6 +876,7 @@ export function aggregateDailySpendRows(input: {
 }
 
 export function aggregateLeadFunnelColumns(input: {
+  lastUpdatedValues?: unknown[][];
   createdAtValues: unknown[][];
   followStatusValues: unknown[][];
   brandValues: unknown[][];
@@ -753,6 +891,7 @@ export function aggregateLeadFunnelColumns(input: {
     brandLookup.set(normalizeGoogleSheetBrandKey(brand.slug), brand);
   }
   const rowCount = Math.max(
+    input.lastUpdatedValues?.length ?? 0,
     input.createdAtValues.length,
     input.followStatusValues.length,
     input.brandValues.length,
@@ -783,14 +922,17 @@ export function aggregateLeadFunnelColumns(input: {
         );
     if (!brand) continue;
 
-    const createdDate = parseGoogleSheetDate(
-      input.createdAtValues[index]?.[0]
-    );
+    const createdDate = parseGoogleSheetDate(input.createdAtValues[index]?.[0]);
     if (createdDate && createdDate <= input.throughDate) {
-      const createdMetric = getMetric(brand.id, createdDate);
-      createdMetric.leads += 1;
-      if (BOOKING_STATUSES.has(followStatus)) {
-        createdMetric.bookings += 1;
+      getMetric(brand.id, createdDate).leads += 1;
+    }
+
+    if (BOOKING_STATUSES.has(followStatus)) {
+      const eventDate =
+        parseGoogleSheetDate(input.lastUpdatedValues?.[index]?.[0]) ||
+        createdDate;
+      if (eventDate && eventDate <= input.throughDate) {
+        getMetric(brand.id, eventDate).bookings += 1;
       }
     }
 

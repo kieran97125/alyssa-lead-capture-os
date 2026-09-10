@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
-import { GOOGLE_SHEETS_LEAD_HEADERS } from "../src/lib/integrations/googleSheetsLeadSync";
+import {
+  GOOGLE_SHEETS_LEAD_HEADERS,
+  GOOGLE_SHEETS_LEAD_LEGACY_HEADERS,
+} from "../src/lib/integrations/googleSheetsLeadSync";
 import {
   isMetaLeadFormRawRow,
   normalizeMetaLeadFormRows,
@@ -67,8 +70,9 @@ test("Meta native Lead Form row is normalized into the Growth OS A:V contract", 
 
   expect(result.rewrites).toHaveLength(1);
   expect(result.rewrites[0].rowNumber).toBe(2);
-  expect(result.rows[0]).toHaveLength(22);
+  expect(result.rows[0]).toHaveLength(23);
   expect(result.rows[0]).toEqual([
+    "2026/8/21 下午 11:25:49",
     "2026/8/21 下午 11:25:49",
     "待跟進",
     "GOS Beauty",
@@ -96,6 +100,7 @@ test("Meta native Lead Form row is normalized into the Growth OS A:V contract", 
 
 test("normal operational rows are never rewritten as Meta raw leads", () => {
   const normalRow = [
+    "2026/8/21 下午 11:25:49",
     "2026/8/21 下午 11:25:49",
     "待跟進",
     "GOS Beauty",
@@ -153,7 +158,7 @@ test("normalizer refuses to rewrite when the destination header contract changed
     "p:+85261234567",
   ];
   const changedHeaders = [...GOOGLE_SHEETS_LEAD_HEADERS];
-  changedHeaders[5] = "Other Phone Header";
+  changedHeaders[changedHeaders.indexOf("電話")] = "Other Phone Header";
 
   const result = normalizeMetaLeadFormRows({
     headers: changedHeaders,
@@ -166,4 +171,37 @@ test("normalizer refuses to rewrite when the destination header contract changed
 
   expect(result.rewrites).toHaveLength(0);
   expect(result.rows[0]).toEqual(rawRow);
+});
+
+
+test("Meta raw leads remain normalizable while the live Sheet is still legacy A:V", () => {
+  const rawRow = [
+    "l:1000000000000002",
+    "2026-08-22T10:25:49-05:00",
+    "ag:120000000000000001",
+    "GOS_demo",
+    "as:120000000000000002",
+    "GOS_demo",
+    "c:120000000000000003",
+    "GOS_脫毛_demo",
+    "f:1800000000000001",
+    "Simple form setup demo",
+    "false",
+    "fb",
+    "激光脫毛方案",
+    "Demo Chan",
+    "p:+85261234568",
+  ];
+  const result = normalizeMetaLeadFormRows({
+    headers: [...GOOGLE_SHEETS_LEAD_LEGACY_HEADERS],
+    rows: [rawRow],
+    headerRow: 1,
+    brands,
+    brandAliases,
+    treatmentAliases,
+  });
+  expect(result.rewrites).toHaveLength(1);
+  expect(result.rows[0]).toHaveLength(22);
+  expect(result.rows[0][0]).toBe("2026/8/22 下午 11:25:49");
+  expect(result.rows[0][1]).toBe("待跟進");
 });

@@ -11,7 +11,8 @@ import type { LeadSheetTreatmentAlias } from "@/lib/marketing/googleSheetsMetric
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
 const MAX_LEAD_ROWS = 50_000;
-const OPERATIONAL_LAST_COLUMN = "V";
+const LEGACY_OPERATIONAL_LAST_COLUMN = "V";
+const OPERATIONAL_LAST_COLUMN = "W";
 const META_RAW_TAIL_LAST_COLUMN = "BN";
 
 type GoogleValueRange = {
@@ -65,11 +66,23 @@ function tabName(configuration: LeadTableSourceConfiguration) {
   return value;
 }
 
+function columnNumber(column: string) {
+  return column
+    .toUpperCase()
+    .split("")
+    .reduce((total, character) => total * 26 + character.charCodeAt(0) - 64, 0);
+}
+
 function configuredLastColumn(configuration: LeadTableSourceConfiguration) {
   const configured = stringValue(configuration.lastColumn) || OPERATIONAL_LAST_COLUMN;
-  return /^[A-Z]{1,3}$/i.test(configured)
+  const valid = /^[A-Z]{1,3}$/i.test(configured)
     ? configured.toUpperCase()
     : OPERATIONAL_LAST_COLUMN;
+  // A stored legacy `V` configuration must not truncate the new W / Show up
+  // column. Reading A:W against an unchanged legacy Sheet is harmless.
+  return columnNumber(valid) < columnNumber(OPERATIONAL_LAST_COLUMN)
+    ? OPERATIONAL_LAST_COLUMN
+    : valid;
 }
 
 function quoteSheetName(value: string) {
@@ -120,22 +133,26 @@ export async function rewriteMetaLeadFormRows(
   rewrites: MetaLeadFormRowRewrite[]
 ) {
   if (rewrites.length === 0) return { updatedRows: 0 };
-  if (configuredLastColumn(configuration) !== OPERATIONAL_LAST_COLUMN) {
+
+  const contractWidth = rewrites[0]?.values.length ?? 0;
+  if (![22, 23].includes(contractWidth)) {
     throw new Error(
-      "Meta Lead Form 自動整理只支援目前 A:V Lead Sheet contract；已安全停止回寫。"
+      "Meta Lead Form 自動整理只支援 legacy A:V 或 v3 A:W contract；已安全停止回寫。"
     );
   }
-
   const validRewrites = rewrites.filter(
     (rewrite) =>
       Number.isInteger(rewrite.rowNumber) &&
       rewrite.rowNumber >= 2 &&
-      rewrite.values.length === 22
+      rewrite.values.length === contractWidth
   );
   if (validRewrites.length !== rewrites.length) {
     throw new Error("Meta Lead Form 自動整理偵測到無效 row payload；已安全停止回寫。");
   }
 
+  const operationalLastColumn =
+    contractWidth === 23 ? OPERATIONAL_LAST_COLUMN : LEGACY_OPERATIONAL_LAST_COLUMN;
+  const rawTailStartColumn = contractWidth === 23 ? "X" : "W";
   const accessToken = await getGoogleSheetsOAuthAccessToken({
     requireWrite: true,
   });
@@ -158,7 +175,7 @@ export async function rewriteMetaLeadFormRows(
         valueInputOption: "RAW",
         includeValuesInResponse: false,
         data: validRewrites.map((rewrite) => ({
-          range: `${quotedTab}!A${rewrite.rowNumber}:V${rewrite.rowNumber}`,
+          range: `${quotedTab}!A${rewrite.rowNumber}:${operationalLastColumn}${rewrite.rowNumber}`,
           majorDimension: "ROWS",
           values: [rewrite.values],
         })),
@@ -168,14 +185,12 @@ export async function rewriteMetaLeadFormRows(
   );
   if (!updateResponse.ok) {
     throw new Error(
-      `Meta Lead Form A:V 整理回寫失敗（HTTP ${updateResponse.status}）。`
+      `Meta Lead Form ${operationalLastColumn} contract 整理回寫失敗（HTTP ${updateResponse.status}）。`
     );
   }
 
-  // Meta's native Google Sheets CRM integration can append additional raw
-  // metadata to columns after V. The Growth OS Lead Sheet contract explicitly
-  // governs A:V, so clear only the raw tail for rows we have positively
-  // identified and normalized. Other CS rows are never touched.
+  // Clear only the raw Meta tail after the detected governed contract. Normal
+  // operational rows and legacy records are never position-shifted here.
   const clearResponse = await fetch(
     `${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(
       sourceSpreadsheetId
@@ -190,7 +205,7 @@ export async function rewriteMetaLeadFormRows(
       body: JSON.stringify({
         ranges: validRewrites.map(
           (rewrite) =>
-            `${quotedTab}!W${rewrite.rowNumber}:${META_RAW_TAIL_LAST_COLUMN}${rewrite.rowNumber}`
+            `${quotedTab}!${rawTailStartColumn}${rewrite.rowNumber}:${META_RAW_TAIL_LAST_COLUMN}${rewrite.rowNumber}`
         ),
       }),
       cache: "no-store",
