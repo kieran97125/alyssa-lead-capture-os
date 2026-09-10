@@ -2,8 +2,10 @@ import "server-only";
 
 import {
   normalizeMetaLeadRowsInLiveTable,
+  readLeadFunnelEventLedger,
   readLiveLeadTable,
 } from "@/lib/integrations/googleSheetsLeadTable";
+import { applyLeadFunnelEventLedger } from "@/lib/marketing/leadFunnelEventLedger";
 import {
   buildLeadSheetGroups,
   normalizeGoogleSheetBrandKey,
@@ -356,7 +358,10 @@ export async function getLeadDashboardSnapshot(
       (brand) => !allowedBrandIdSet || allowedBrandIdSet.has(brand.id)
     );
     const aliases = treatmentAliases(source.configuration.treatmentAliases);
-    const rawLiveTable = await readLiveLeadTable(source.configuration);
+    const [rawLiveTable, eventLedger] = await Promise.all([
+      readLiveLeadTable(source.configuration),
+      readLeadFunnelEventLedger(source.configuration),
+    ]);
     const liveTable = await normalizeMetaLeadRowsInLiveTable({
       configuration: source.configuration,
       liveTable: rawLiveTable,
@@ -365,7 +370,7 @@ export async function getLeadDashboardSnapshot(
       treatmentAliases: aliases,
       writeBack: true,
     });
-    const parsed = buildLeadSheetGroups({
+    const baseParsed = buildLeadSheetGroups({
       ...liveTable,
       brands,
       sourceBrandId: null,
@@ -374,6 +379,15 @@ export async function getLeadDashboardSnapshot(
       appsScriptContract: true,
       dedupeByIdentity: true,
     });
+    const parsed = {
+      ...baseParsed,
+      groups: applyLeadFunnelEventLedger({
+        groups: baseParsed.groups,
+        eventLedger,
+        brands,
+        brandAliases: stringRecord(source.configuration.brandAliases),
+      }),
+    };
     const reportingBrands = brandsForScope(visibleBrands, filters.brandId);
     const visibleBrandKeys = new Set(
       reportingBrands.flatMap((brand) => [
