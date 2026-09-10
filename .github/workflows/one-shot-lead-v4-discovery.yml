@@ -1,0 +1,33 @@
+name: One-shot Lead v4 Discovery
+
+on:
+  push:
+    branches:
+      - fix/lead-sheet-v3-book-event-date
+    paths:
+      - .github/workflows/one-shot-lead-v4-discovery.yml
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/lead-sheet-v3-book-event-date
+          fetch-depth: 1
+      - name: Show Lead integration points
+        shell: bash
+        run: |
+          echo '=== buildLeadSheetGroups ==='
+          grep -RIn --exclude-dir=node_modules --exclude='*.map' 'buildLeadSheetGroups' src e2e scripts || true
+          echo '=== aggregateLeadSheetPerformance ==='
+          grep -RIn --exclude-dir=node_modules --exclude='*.map' 'aggregateLeadSheetPerformance' src e2e scripts || true
+          echo '=== readLiveLeadTable ==='
+          grep -RIn --exclude-dir=node_modules --exclude='*.map' 'readLiveLeadTable' src e2e scripts || true
+          echo '=== metricFacts ==='
+          grep -RIn --exclude-dir=node_modules --exclude='*.map' 'metricFacts' src/lib src/app || true
+          echo '=== googleSheetsLeadTable imports ==='
+          grep -RIn --exclude-dir=node_modules --exclude='*.map' 'googleSheetsLeadTable' src || true
