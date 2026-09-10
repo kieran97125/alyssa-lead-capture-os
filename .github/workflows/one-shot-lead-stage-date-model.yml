@@ -104,6 +104,40 @@ jobs:
           path.write_text(text, encoding="utf-8")
           PY
 
+      - name: Update legacy-status acceptance to C-column authority
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("e2e/marketing-command-center.spec.ts")
+          text = path.read_text(encoding="utf-8")
+          old = '''  expect(
+            normalizeLeadSheetStatus({
+              followStatus: "待跟進",
+              status: "",
+              showUp: "No Show",
+            })
+          ).toBe("no_show");'''
+          new = '''  expect(
+            normalizeLeadSheetStatus({
+              followStatus: "待跟進",
+              status: "",
+              showUp: "No Show",
+            })
+          ).toBe("lead");
+          expect(
+            normalizeLeadSheetStatus({
+              followStatus: "",
+              status: "",
+              showUp: "No Show",
+            })
+          ).toBe("no_show");'''
+          if text.count(old) != 1:
+              raise RuntimeError(f"legacy status assertion anchor count: {text.count(old)}")
+          path.write_text(text.replace(old, new, 1), encoding="utf-8")
+          PY
+
       - name: Install dependencies
         run: npm ci
 
