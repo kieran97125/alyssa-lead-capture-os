@@ -1,4 +1,4 @@
-# Lead Sheet Book event-date ownership with legacy-safe cutover
+# Lead Sheet current-stage event-date ownership with legacy-safe cutover
 
 ## Problem
 
@@ -38,3 +38,8 @@ Source PR, verified commit, workflow, deployment and production smoke evidence a
 ## Rollback
 
 Revert the source PR. The parser remains legacy-safe; no database migration is involved. Do not delete a live v3 Sheet column without a separate backed-up Sheet migration.
+
+
+## 2026-09-10 clarification
+
+The visible register is a current-state projection: `Created At` remains immutable first touch, while `最後更新日期` is the date of the current Funnel stage. For new-contract Leads, Book, Show and No Show therefore follow the current status plus that date; `跟進狀態` is authoritative and legacy Status / Show up fields are fallback-only. Historical Leads with a blank stage-date column retain the earlier date model.

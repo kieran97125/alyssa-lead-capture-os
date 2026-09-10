@@ -948,6 +948,13 @@ test("Lead Sheet treatment performance follows headers, event dates and anonymou
       status: "",
       showUp: "No Show",
     })
+  ).toBe("lead");
+  expect(
+    normalizeLeadSheetStatus({
+      followStatus: "",
+      status: "",
+      showUp: "No Show",
+    })
   ).toBe("no_show");
 });
 

@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
   aggregateLeadSheetPerformance,
   buildLeadSheetGroups,
+  normalizeLeadSheetStatus,
 } from "../src/lib/marketing/googleSheetsMetricParser";
 import {
   buildLeadDashboardModel,
@@ -21,65 +22,14 @@ const headers = [
   "預約日期",
   "確認到店日期",
   "分店",
+  "Status",
+  "Show up",
 ];
 
-function parsedGroups() {
+function groupsFor(rows: unknown[][]) {
   return buildLeadSheetGroups({
     headers,
-    rows: [
-      [
-        "2026-09-02 10:00:00",
-        "2026-09-01 09:00:00",
-        "已預約",
-        "Brand A",
-        "91230001",
-        "Treatment A",
-        "Meta",
-        "Campaign A",
-        "2026-09-10",
-        "",
-        "Branch A",
-      ],
-      [
-        "",
-        "2026-09-03 09:00:00",
-        "已預約",
-        "Brand A",
-        "91230002",
-        "Treatment A",
-        "Meta",
-        "Campaign A",
-        "2026-09-12",
-        "",
-        "Branch A",
-      ],
-      [
-        "",
-        "2026-08-20 09:00:00",
-        "待跟進",
-        "Brand A",
-        "91230003",
-        "Treatment A",
-        "Meta",
-        "Campaign A",
-        "",
-        "",
-        "Branch A",
-      ],
-      [
-        "2026-09-04 13:00:00",
-        "2026-09-04 13:00:00",
-        "已預約",
-        "Brand A",
-        "91230003",
-        "Treatment A",
-        "Meta",
-        "Campaign A",
-        "2026-09-20",
-        "",
-        "Branch A",
-      ],
-    ],
+    rows,
     brands,
     sourceBrandId: null,
     appsScriptContract: true,
@@ -87,109 +37,179 @@ function parsedGroups() {
   }).groups;
 }
 
-test("new Lead books on 最後更新日期 while legacy Lead keeps Created At", () => {
-  const groups = parsedGroups();
-  expect(groups).toHaveLength(3);
-  const newLead = groups.find((group) => group.key.includes("91230001"));
-  const legacyLead = groups.find((group) => group.key.includes("91230002"));
-  const legacyWithLaterDuplicate = groups.find((group) =>
-    group.key.includes("91230003")
-  );
+test("C 欄跟進狀態 overrides legacy Status / Show up", () => {
+  expect(
+    normalizeLeadSheetStatus({
+      followStatus: "已完成",
+      status: "",
+      showUp: "no show",
+    })
+  ).toBe("show");
+  expect(
+    normalizeLeadSheetStatus({
+      followStatus: "",
+      status: "",
+      showUp: "no show",
+    })
+  ).toBe("no_show");
+});
 
-  expect(newLead).toMatchObject({
+test("new Lead uses current stage date while Created At stays first touch", () => {
+  const [shown] = groupsFor([
+    [
+      "2026-09-05 12:00:00",
+      "2026-09-01 09:00:00",
+      "已完成",
+      "Brand A",
+      "91230001",
+      "Treatment A",
+      "Meta",
+      "Campaign A",
+      "2026-09-20",
+      "2026-09-30",
+      "Branch A",
+      "",
+      "no show",
+    ],
+  ]);
+
+  expect(shown).toMatchObject({
     firstTouchDate: "2026-09-01",
-    bookDate: "2026-09-02",
-    bookDateSource: "last_updated",
-  });
-  expect(legacyLead).toMatchObject({
-    firstTouchDate: "2026-09-03",
-    bookDate: "2026-09-03",
-    bookDateSource: "legacy_created_at",
-  });
-  // The first row identifies this as an old Lead, so a later duplicate created
-  // after cutover must not rewrite the historical cohort's Book date.
-  expect(legacyWithLaterDuplicate).toMatchObject({
-    firstTouchDate: "2026-08-20",
-    bookDate: "2026-08-20",
-    bookDateSource: "legacy_created_at",
+    usesStageDateContract: true,
+    currentStatus: "show",
+    currentEventDate: "2026-09-05",
+    bookDate: "2026-09-05",
+    showDate: "2026-09-05",
+    noShowDate: null,
   });
 });
 
-test("daily metrics move only new Book events without changing full-period totals", () => {
+test("latest stage row controls a new deduped Lead", () => {
+  const [group] = groupsFor([
+    [
+      "2026-09-02 10:00:00",
+      "2026-09-01 09:00:00",
+      "已預約",
+      "Brand A",
+      "91230002",
+      "Treatment A",
+      "Meta",
+      "Campaign A",
+      "2026-09-10",
+      "",
+      "Branch A",
+      "",
+      "",
+    ],
+    [
+      "2026-09-06 18:00:00",
+      "2026-09-01 09:00:00",
+      "no show",
+      "Brand A",
+      "91230002",
+      "Treatment A",
+      "Meta",
+      "Campaign A",
+      "2026-09-10",
+      "",
+      "Branch A",
+      "",
+      "",
+    ],
+  ]);
+  expect(group).toMatchObject({
+    currentStatus: "no_show",
+    currentEventDate: "2026-09-06",
+    bookDate: "2026-09-06",
+    showDate: null,
+    noShowDate: "2026-09-06",
+  });
+});
+
+test("legacy Lead remains on the old date model", () => {
+  const [legacy] = groupsFor([
+    [
+      "",
+      "2026-09-01 09:00:00",
+      "已完成",
+      "Brand A",
+      "91230003",
+      "Treatment A",
+      "Meta",
+      "Campaign A",
+      "2026-09-10",
+      "2026-09-07",
+      "Branch A",
+      "",
+      "",
+    ],
+  ]);
+  expect(legacy).toMatchObject({
+    firstTouchDate: "2026-09-01",
+    usesStageDateContract: false,
+    bookDate: "2026-09-01",
+    showDate: "2026-09-07",
+    noShowDate: null,
+  });
+});
+
+test("daily facts and Dashboard use stage date for Book Show and No Show", () => {
+  const rows = [
+    ["2026-09-05", "2026-09-01", "已完成", "Brand A", "91230001", "Treatment A", "Meta", "Campaign A", "2026-09-20", "2026-09-30", "Branch A", "", ""],
+    ["2026-09-06", "2026-09-02", "no show", "Brand A", "91230002", "Treatment A", "Meta", "Campaign A", "2026-09-28", "", "Branch A", "", ""],
+    ["2026-09-03", "2026-09-03", "已預約", "Brand A", "91230003", "Treatment A", "Meta", "Campaign A", "2026-09-12", "", "Branch A", "", ""],
+  ];
+  const groups = groupsFor(rows);
   const result = aggregateLeadSheetPerformance({
     headers,
-    rows: [
-      ["2026-09-02", "2026-09-01", "已預約", "Brand A", "91230001", "Treatment A", "Meta", "Campaign A", "2026-09-10", "", "Branch A"],
-      ["", "2026-09-03", "已預約", "Brand A", "91230002", "Treatment A", "Meta", "Campaign A", "2026-09-12", "", "Branch A"],
-    ],
+    rows,
     brands,
     sourceBrandId: null,
     dailyThroughDate: "2026-09-30",
     activityThroughDate: "2026-09-30",
     pendingThroughDate: "2027-12-31",
   });
-  const byDate = Object.fromEntries(
-    result.dailyMetrics.map((row) => [row.date, row])
-  );
-  expect(byDate["2026-09-01"]).toMatchObject({ leads: 1, bookings: 0 });
-  expect(byDate["2026-09-02"]).toMatchObject({ leads: 0, bookings: 1 });
-  expect(byDate["2026-09-03"]).toMatchObject({ leads: 1, bookings: 1 });
-  expect(result.dailyMetrics.reduce((sum, row) => sum + row.leads, 0)).toBe(2);
-  expect(result.dailyMetrics.reduce((sum, row) => sum + row.bookings, 0)).toBe(2);
-});
+  const byDate = Object.fromEntries(result.dailyMetrics.map((row) => [row.date, row]));
+  expect(byDate["2026-09-01"]).toMatchObject({ leads: 1, bookings: 0, shows: 0 });
+  expect(byDate["2026-09-02"]).toMatchObject({ leads: 1, bookings: 0, shows: 0 });
+  expect(byDate["2026-09-03"]).toMatchObject({ leads: 1, bookings: 1, shows: 0 });
+  expect(byDate["2026-09-05"]).toMatchObject({ leads: 0, bookings: 1, shows: 1 });
+  expect(byDate["2026-09-06"]).toMatchObject({ leads: 0, bookings: 1, shows: 0 });
+  expect(
+    result.metricFacts.find(
+      (fact) => fact.metricKind === "no_show" && fact.metricDate === "2026-09-06"
+    )
+  ).toBeTruthy();
 
-test("Dashboard totals and trend use independent Lead and Book event dates", () => {
-  const groups = parsedGroups().filter((group) => !group.key.includes("91230003"));
-  const dayOne = buildLeadDashboardModel({
+  const model = buildLeadDashboardModel({
     groups,
     brands,
     filters: {
-      startDate: "2026-09-01",
-      endDate: "2026-09-01",
+      startDate: "2026-09-05",
+      endDate: "2026-09-06",
       brandId: "",
       treatment: "",
     },
   });
-  const dayTwo = buildLeadDashboardModel({
-    groups,
-    brands,
-    filters: {
-      startDate: "2026-09-02",
-      endDate: "2026-09-02",
-      brandId: "",
-      treatment: "",
-    },
+  expect(model.totals).toMatchObject({
+    leads: 0,
+    bookings: 2,
+    shows: 1,
+    noShows: 1,
   });
-  const full = buildLeadDashboardModel({
-    groups,
-    brands,
-    filters: {
-      startDate: "2026-09-01",
-      endDate: "2026-09-03",
-      brandId: "",
-      treatment: "",
-    },
-  });
-  expect(dayOne.totals).toMatchObject({ leads: 1, bookings: 0 });
-  expect(dayTwo.totals).toMatchObject({ leads: 0, bookings: 1 });
-  expect(full.totals).toMatchObject({ leads: 2, bookings: 2 });
 
   const trend = buildLeadDashboardTrend({
     groups,
     brands,
     filters: {
-      startDate: "2026-09-01",
-      endDate: "2026-09-03",
+      startDate: "2026-09-05",
+      endDate: "2026-09-06",
       brandId: "",
       treatment: "",
     },
     brandColors: { "brand-a": "#5a2348" },
     annotations: [],
   });
-  expect(trend[0].points.find((point) => point.date === "2026-09-01"))
-    .toMatchObject({ leads: 1, bookings: 0 });
-  expect(trend[0].points.find((point) => point.date === "2026-09-02"))
-    .toMatchObject({ leads: 0, bookings: 1 });
-  expect(trend[0].points.find((point) => point.date === "2026-09-03"))
-    .toMatchObject({ leads: 1, bookings: 1 });
+  expect(trend[0].points[0]).toMatchObject({ bookings: 1, shows: 1, noShows: 0 });
+  expect(trend[0].points[1]).toMatchObject({ bookings: 1, shows: 0, noShows: 1 });
 });
