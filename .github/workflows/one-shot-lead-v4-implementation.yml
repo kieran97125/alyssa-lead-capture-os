@@ -84,3 +84,5 @@ jobs:
           git status --short
           git commit -m "Preserve immutable Lead funnel events across status changes"
           git push origin HEAD:fix/lead-sheet-v3-book-event-date
+
+# retrigger-v4-cutover: 2026-09-10-hkt
