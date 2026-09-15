@@ -172,7 +172,11 @@ function formatTreatmentOffer(
   packageName: string,
   price: number | string
 ) {
+  // The Lead's treatment is the canonical business identity. Form names are
+  // provenance only and may stay stale after a copied Wix form is repurposed.
+  // Never let that provenance label override the canonical treatment in Sheet.
   return (
+    String(treatmentName || "").trim() ||
     String(formName || "").trim() ||
     formatPricedLabel(packageName, treatmentName, price)
   );
