@@ -7,6 +7,8 @@ on:
     paths:
       - "supabase/templates/invite.html"
       - "supabase/templates/magic-link.html"
+      - "scripts/sync-supabase-auth-email-templates.mjs"
+      - ".github/workflows/sync-auth-email-templates.yml"
 
 permissions:
   contents: read
@@ -17,7 +19,7 @@ concurrency:
 
 jobs:
   sync:
-    name: Sync and verify hosted templates
+    name: Sync and verify hosted Auth configuration
     runs-on: ubuntu-latest
     timeout-minutes: 5
     env:
@@ -34,5 +36,5 @@ jobs:
         with:
           node-version: 22
 
-      - name: Sync Invite and Magic Link templates
+      - name: Sync and verify managed Auth settings
         run: npm run sync:auth-email-templates
