@@ -5,11 +5,7 @@ export type LeadFunnelEventLedgerTable = {
   rows: unknown[][];
 };
 
-type BrandReference = {
-  id: string;
-  name: string;
-  slug: string;
-};
+type BrandReference = { id: string; name: string; slug: string };
 
 type LedgerAwareLeadGroup = {
   key: string;
@@ -38,40 +34,52 @@ const EVENT_HEADER_ALIASES = {
 function compactString(value: unknown) {
   return typeof value === "string"
     ? value.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim()
-    : value === null || value === undefined
-      ? ""
-      : String(value).trim();
+    : value === null || value === undefined ? "" : String(value).trim();
 }
 
 function normalizeComparable(value: unknown) {
-  return compactString(value)
-    .toLowerCase()
-    .replace(/[／/]+/g, "/")
-    .replace(/[\s_-]+/g, " ")
-    .trim();
+  return compactString(value).toLowerCase().replace(/[／/]+/g, "/")
+    .replace(/[\s_-]+/g, " ").trim();
 }
 
 function normalizeHeader(value: unknown) {
   return normalizeComparable(value).replace(/\s*\/\s*/g, "/");
 }
 
+function supportedDate(value: string) {
+  return value >= "2000-01-01" && value <= "2100-12-31";
+}
+
 function parseSheetDate(value: unknown) {
   if (typeof value === "number" && Number.isFinite(value)) {
     const day = Math.floor(value);
-    if (day < 1) return null;
-    const date = new Date(Date.UTC(1899, 11, 30) + day * 86_400_000)
-      .toISOString()
-      .slice(0, 10);
-    return date >= "2000-01-01" && date <= "2100-12-31" ? date : null;
+    // Check range before calling toISOString: an enormous finite serial throws.
+    if (day < 36526 || day > 73415) return null;
+    const parsed = new Date(Date.UTC(1899, 11, 30) + day * 86_400_000);
+    const date = parsed.toISOString().slice(0, 10);
+    return supportedDate(date) ? date : null;
   }
   const raw = compactString(value);
-  const match = raw.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+  // Explicit timezone-bearing instants belong to the HKT calendar day, not UTC.
+  if (/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:?\d{2})$/i.test(raw)) {
+    const localDay = raw.slice(0, 10);
+    const calendarCheck = new Date(`${localDay}T00:00:00.000Z`);
+    if (Number.isNaN(calendarCheck.getTime()) ||
+        calendarCheck.toISOString().slice(0, 10) !== localDay) return null;
+    const instant = new Date(raw);
+    if (Number.isNaN(instant.getTime())) return null;
+    const hkt = new Date(instant.getTime() + 8 * 60 * 60 * 1000);
+    if (Number.isNaN(hkt.getTime())) return null;
+    const date = hkt.toISOString().slice(0, 10);
+    return supportedDate(date) ? date : null;
+  }
+  const match = raw.match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:$|\s|T)/);
   if (!match) return null;
   const date = `${match[1]}-${match[2].padStart(2, "0")}-${match[3].padStart(2, "0")}`;
+  if (!supportedDate(date)) return null;
   const parsed = new Date(`${date}T00:00:00.000Z`);
   return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === date
-    ? date
-    : null;
+    ? date : null;
 }
 
 function phoneIdentity(value: unknown) {
@@ -83,19 +91,13 @@ function normalizeEventType(value: unknown): LeadFunnelEventType | null {
   const normalized = normalizeComparable(value);
   if (["lead", "new lead"].includes(normalized)) return "lead";
   if (["book", "booked", "已預約"].includes(normalized)) return "book";
-  if (["show", "show up", "completed", "已到店", "已完成"].includes(normalized)) {
-    return "show";
-  }
-  if (["no show", "noshow", "no-show", "未到店"].includes(normalized)) {
-    return "no_show";
-  }
+  if (["show", "show up", "completed", "已到店", "已完成"].includes(normalized)) return "show";
+  if (["no show", "noshow", "未到店"].includes(normalized)) return "no_show";
+  // Operational status_change audit rows intentionally do not create KPI events.
   return null;
 }
 
-function buildBrandLookup(
-  brands: BrandReference[],
-  aliases: Record<string, string> = {}
-) {
+function buildBrandLookup(brands: BrandReference[], aliases: Record<string, string> = {}) {
   const lookup = new Map<string, BrandReference>();
   for (const brand of brands) {
     const name = normalizeComparable(brand.name);
@@ -107,22 +109,23 @@ function buildBrandLookup(
   }
   for (const [alias, target] of Object.entries(aliases)) {
     const targetKey = normalizeComparable(target);
-    const brand =
-      lookup.get(targetKey) ||
-      brands.find(
-        (item) =>
-          normalizeComparable(item.id) === targetKey ||
-          normalizeComparable(item.name) === targetKey ||
-          normalizeComparable(item.slug) === targetKey
-      );
+    const brand = lookup.get(targetKey) || brands.find((item) =>
+      normalizeComparable(item.id) === targetKey ||
+      normalizeComparable(item.name) === targetKey ||
+      normalizeComparable(item.slug) === targetKey);
     if (brand) lookup.set(normalizeComparable(alias), brand);
   }
   return lookup;
 }
 
 function resolveColumn(headers: unknown[], aliases: readonly string[]) {
-  const normalized = headers.map(normalizeHeader);
-  return normalized.findIndex((header) => aliases.includes(header));
+  const accepted = aliases.map(normalizeHeader);
+  const matches = headers.flatMap((header, index) =>
+    accepted.includes(normalizeHeader(header)) ? [index] : []);
+  if (matches.length > 1) {
+    throw new Error(`Lead Funnel Event Ledger 有重複欄位：${aliases[0]}。已停止計算，避免歷史事件錯配。`);
+  }
+  return matches[0] ?? -1;
 }
 
 function earliestDate(values: string[]) {
@@ -130,11 +133,9 @@ function earliestDate(values: string[]) {
 }
 
 /**
- * Applies the immutable `_funnel_events` ledger to already-deduplicated Lead
- * groups. Presence of any valid event for a Lead marks that Lead as ledger-
- * governed: Book / Show / No Show dates then come only from the ledger and are
- * never reconstructed from the current status row. This prevents a later Show
- * status from moving or deleting the earlier Book event.
+ * Applies the immutable `_funnel_events` ledger to Book / Show / No Show dates. An empty legacy ledger
+ * stays compatible, but a populated ledger with a broken schema must never
+ * silently revert to current-state dates. Incomplete identity rows are ignored.
  */
 export function applyLeadFunnelEventLedger<T extends LedgerAwareLeadGroup>(input: {
   groups: T[];
@@ -143,60 +144,54 @@ export function applyLeadFunnelEventLedger<T extends LedgerAwareLeadGroup>(input
   brandAliases?: Record<string, string>;
 }): T[] {
   const ledger = input.eventLedger;
-  if (!ledger || ledger.rows.length === 0 || ledger.headers.length === 0) {
-    return input.groups;
+  if (!ledger || ledger.rows.length === 0) return input.groups;
+
+  const columns = {
+    eventId: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventId),
+    eventType: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventType),
+    brand: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.brand),
+    eventDate: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventDate),
+    eventAt: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventAt),
+    leadKey: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.leadKey),
+    phone: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.phoneLast8),
+    sourceRow: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.sourceRow),
+  };
+  if (columns.eventType < 0 || columns.brand < 0 ||
+      (columns.eventDate < 0 && columns.eventAt < 0) ||
+      (columns.leadKey < 0 && columns.phone < 0 && columns.sourceRow < 0)) {
+    throw new Error("Lead Funnel Event Ledger 欄位不完整。已停止計算，唔會退回舊日期口徑。");
   }
 
-  const eventTypeColumn = resolveColumn(
-    ledger.headers,
-    EVENT_HEADER_ALIASES.eventType
-  );
-  const brandColumn = resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.brand);
-  const eventDateColumn = resolveColumn(
-    ledger.headers,
-    EVENT_HEADER_ALIASES.eventDate
-  );
-  const eventAtColumn = resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventAt);
-  const leadKeyColumn = resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.leadKey);
-  const phoneColumn = resolveColumn(
-    ledger.headers,
-    EVENT_HEADER_ALIASES.phoneLast8
-  );
-  const sourceRowColumn = resolveColumn(
-    ledger.headers,
-    EVENT_HEADER_ALIASES.sourceRow
-  );
-
-  if (eventTypeColumn < 0 || brandColumn < 0) return input.groups;
-
   const brandLookup = buildBrandLookup(input.brands, input.brandAliases);
-  const eventsByGroup = new Map<
-    string,
-    Array<{ type: LeadFunnelEventType; date: string }>
-  >();
+  const eventsByGroup = new Map<string, Array<{ type: LeadFunnelEventType; date: string }>>();
+  const eventFingerprints = new Map<string, string>();
 
   for (const row of ledger.rows) {
-    const type = normalizeEventType(row[eventTypeColumn]);
-    const brand = brandLookup.get(normalizeComparable(row[brandColumn]));
-    const date =
-      (eventDateColumn >= 0 ? parseSheetDate(row[eventDateColumn]) : null) ||
-      (eventAtColumn >= 0 ? parseSheetDate(row[eventAtColumn]) : null);
+    const type = normalizeEventType(row[columns.eventType]);
+    const brand = brandLookup.get(normalizeComparable(row[columns.brand]));
+    const date = (columns.eventDate >= 0 ? parseSheetDate(row[columns.eventDate]) : null) ||
+      (columns.eventAt >= 0 ? parseSheetDate(row[columns.eventAt]) : null);
     if (!type || !brand || !date) continue;
 
-    const phone = phoneColumn >= 0 ? phoneIdentity(row[phoneColumn]) : "";
-    const leadKey = leadKeyColumn >= 0 ? compactString(row[leadKeyColumn]) : "";
-    const sourceRow =
-      sourceRowColumn >= 0 ? Number.parseInt(compactString(row[sourceRowColumn]), 10) : NaN;
-    const identity = phone
-      ? `phone:${phone}`
-      : leadKey
-        ? `lead:${leadKey}`
-        : Number.isInteger(sourceRow) && sourceRow >= 2
-          ? `row:${sourceRow}`
-          : "";
+    const phone = columns.phone >= 0 ? phoneIdentity(row[columns.phone]) : "";
+    const leadKey = columns.leadKey >= 0 ? compactString(row[columns.leadKey]) : "";
+    const sourceRow = columns.sourceRow >= 0 ? Number(compactString(row[columns.sourceRow])) : NaN;
+    const identity = phone ? `phone:${phone}` : leadKey ? `lead:${leadKey}` :
+      Number.isInteger(sourceRow) && sourceRow >= 2 ? `row:${sourceRow}` : "";
     if (!identity) continue;
 
     const key = `${brand.id}|${identity}`;
+    const eventId = columns.eventId >= 0 ? compactString(row[columns.eventId]) : "";
+    if (eventId) {
+      const fingerprint = JSON.stringify([key, type, date]);
+      const previous = eventFingerprints.get(eventId);
+      if (previous && previous !== fingerprint) {
+        // Do not include private Lead identities in an operator-facing error.
+        throw new Error("Lead Funnel Event Ledger 同一 Event ID 有矛盾內容。請先核對事件紀錄；歷史日期未被覆寫。");
+      }
+      if (previous) continue;
+      eventFingerprints.set(eventId, fingerprint);
+    }
     const existing = eventsByGroup.get(key);
     const event = { type, date };
     if (existing) existing.push(event);
@@ -206,22 +201,17 @@ export function applyLeadFunnelEventLedger<T extends LedgerAwareLeadGroup>(input
   return input.groups.map((group) => {
     const events = eventsByGroup.get(group.key) ?? [];
     if (events.length === 0) return group;
-
     const datesFor = (type: LeadFunnelEventType) =>
       events.filter((event) => event.type === type).map((event) => event.date);
     const bookDate = earliestDate(datesFor("book"));
-    const showDate = earliestDate(datesFor("show"));
-    const noShowDate = earliestDate(datesFor("no_show"));
-
     return {
       ...group,
       usesEventLedger: true,
       bookDate,
       bookDateSource: bookDate ? ("event_ledger" as const) : null,
-      showDate,
-      noShowDate,
-      pendingRowNumber:
-        group.currentStatus === "booked" ? group.currentRowNumber : null,
+      showDate: earliestDate(datesFor("show")),
+      noShowDate: earliestDate(datesFor("no_show")),
+      pendingRowNumber: group.currentStatus === "booked" ? group.currentRowNumber : null,
     };
   });
 }
