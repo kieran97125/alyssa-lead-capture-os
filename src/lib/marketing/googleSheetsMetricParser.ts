@@ -441,7 +441,14 @@ function defaultDimensionLabel(value: unknown, fallback: string) {
 }
 
 function phoneIdentity(value: unknown) {
-  const digits = compactString(value).replace(/\D/g, "");
+  // UNFORMATTED_VALUE returns numeric Sheet phone cells as numbers. Preserve
+  // those digits so operational groups join the ledger's brand + phone key,
+  // rather than silently falling back to row identity and legacy KPI dates.
+  if (typeof value === "number" && (!Number.isSafeInteger(value) || value < 0)) {
+    return "";
+  }
+  const raw = typeof value === "number" ? String(value) : compactString(value);
+  const digits = raw.replace(/\D/g, "");
   return digits.length >= 8 ? digits.slice(-8) : "";
 }
 
