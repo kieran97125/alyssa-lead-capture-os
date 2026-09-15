@@ -41,7 +41,7 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
       "Kieran Test",
       "85265871236",
       "",
-      "Facelift-yanyan-lead-form",
+      "Facelift",
       "$988 Facelift",
       "2026-07-29",
       "12:00",
@@ -73,7 +73,7 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
       客人姓名: "Kieran Test",
       電話: "85265871236",
       Email: "",
-      "療程 / 優惠": "Facelift-yanyan-lead-form",
+      "療程 / 優惠": "Facelift",
       療程項目: "$988 Facelift",
       確認到店日期: "",
       來源: "直接 / 無追蹤",
@@ -131,7 +131,7 @@ test("native Sheets writer follows destination headers instead of fixed columns"
     "",
     "85200000000",
     "Ineffable Beauty",
-    "DEP Lead Form",
+    "DEP",
     "$588 DEP Combo",
     "Header Mapping Test",
     "銅鑼灣",
@@ -141,6 +141,34 @@ test("native Sheets writer follows destination headers instead of fixed columns"
     "待跟進",
     "lead-test-456",
   ]);
+});
+
+test("canonical treatment wins over a stale copied form name", () => {
+  const payload = buildGoogleSheetsLeadPayload({
+    brandId: "brand-alyssa-test",
+    leadKey: "lead-slimcut-regression",
+    createdAt: "2026-09-15T02:22:33.000Z",
+    customerName: "Regression Test",
+    phone: "85200000002",
+    email: null,
+    brandName: "Alyssa",
+    formName: "Alyssa Facelift Wix Form",
+    treatmentName: "SlimCut",
+    packageName: "網上登記優惠",
+    price: 780,
+    branchName: "旺角",
+    appointmentDate: "2026-09-23",
+    appointmentTime: "19:30",
+    pageUrl: "https://example.com/slimcut",
+    touch: {},
+  });
+
+  expect(payload.treatmentOffer).toBe("SlimCut");
+  expect(payload.treatmentItem).toBe("$780 網上登記優惠");
+  expect(
+    payload.rowValues[GOOGLE_SHEETS_LEAD_HEADERS.indexOf("療程 / 優惠")]
+  ).toBe("SlimCut");
+  expect(payload.treatmentOffer).not.toContain("Facelift");
 });
 
 test("native Sheets writer stops safely when an operational header is missing", () => {
