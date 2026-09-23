@@ -32,6 +32,12 @@ import {
   brandIdsForScope,
   brandsForScope,
 } from "@/lib/marketing/brandScope";
+import {
+  LEAD_ACCOUNTS,
+  brandIdsForLeadAccount,
+  leadAccountColor,
+  mapSpendFactsToLeadAccounts,
+} from "@/lib/marketing/leadAccountScope";
 import type { InternalAccessContext } from "@/lib/security/internalAccess";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 import {
@@ -71,10 +77,17 @@ function costSummaryForModel(input: {
   brands: BrandRow[];
   spendFacts: DailySpendFact[];
 }) {
-  const selectedBrandIds = brandIdsForScope(
+  let selectedBrandIds = brandIdsForLeadAccount(
     input.brands,
-    input.filters.brandId
+    input.filters.accountId,
+    "spend"
   );
+  if (input.filters.brandId) {
+    const brandScope = new Set(
+      brandIdsForScope(input.brands, input.filters.brandId)
+    );
+    selectedBrandIds = selectedBrandIds.filter((id) => brandScope.has(id));
+  }
   return calculatePerformanceCostSummary({
     spendFacts: input.spendFacts,
     selectedBrandIds,
@@ -155,7 +168,8 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
   const rows = [
     [
       filters.startDate,
-      "Alyssa",
+      "Alyssa Aesthetics",
+      "Alyssa Aesthetics",
       "91234567",
       "lead-1",
       "$988 Facelift",
@@ -170,7 +184,8 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
     ],
     [
       filters.startDate,
-      "Alyssa",
+      "Alyssa Aesthetics",
+      "Alyssa Aesthetics",
       "91234567",
       "lead-2",
       "$988 Facelift",
@@ -186,6 +201,7 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
     [
       filters.startDate,
       "Ineffable Beauty",
+      "Ineffable",
       "92345678",
       "lead-3",
       "$388 柔清舒敏護理",
@@ -202,6 +218,7 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
   const headers = [
     "Created At",
     "品牌",
+    "Account",
     "電話",
     "lead_key",
     "療程項目",
@@ -219,7 +236,10 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
     rows,
     brands,
     sourceBrandId: null,
-    brandAliases: { "Alyssa Medical": "am" },
+    brandAliases: {
+      "Alyssa Aesthetics": "alyssa",
+      "Aesthetics Medical": "aesthetics",
+    },
     appsScriptContract: true,
     dedupeByIdentity: true,
   });
@@ -232,9 +252,17 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
     { brandId: "alyssa-brand", spendDate: filters.startDate, amount: 1_200 },
     { brandId: "ib-brand", spendDate: filters.startDate, amount: 600 },
   ];
-  const brandColors = Object.fromEntries(
-    brands.map((brand) => [brand.id, brand.primary_color || "#5a2348"])
-  );
+  const brandColors = {
+    ...Object.fromEntries(
+      brands.map((brand) => [brand.id, brand.primary_color || "#5a2348"])
+    ),
+    ...Object.fromEntries(
+      LEAD_ACCOUNTS.map((account) => [
+        account.id,
+        account.color || leadAccountColor(account.id),
+      ])
+    ),
+  };
   const annotations = [
     {
       id: "dashboard-fixture-annotation",
@@ -266,7 +294,7 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
       brands,
       brandColors,
       annotations,
-      spendFacts,
+      spendFacts: mapSpendFactsToLeadAccounts(spendFacts, brands),
       costAttributable: !filters.treatment,
     }),
     diagnostics: parsed.diagnostics,
@@ -388,7 +416,15 @@ export async function getLeadDashboardSnapshot(
         brandAliases: stringRecord(source.configuration.brandAliases),
       }),
     };
-    const reportingBrands = brandsForScope(visibleBrands, filters.brandId);
+    const accountBrandIds = new Set(
+      brandIdsForLeadAccount(visibleBrands, filters.accountId, "permission")
+    );
+    const accountBrands = filters.accountId
+      ? visibleBrands.filter((brand) => accountBrandIds.has(brand.id))
+      : visibleBrands;
+    const reportingBrands = filters.accountId
+      ? brandsForScope(accountBrands, filters.brandId)
+      : accountBrands;
     const visibleBrandKeys = new Set(
       reportingBrands.flatMap((brand) => [
         normalizeGoogleSheetBrandKey(brand.name),
@@ -408,9 +444,17 @@ export async function getLeadDashboardSnapshot(
         )
         .map((alias) => alias.label),
     });
-    const brandColors = Object.fromEntries(
-      visibleBrands.map((brand) => [brand.id, brand.primary_color || "#5a2348"])
-    );
+    const brandColors = {
+      ...Object.fromEntries(
+        visibleBrands.map((brand) => [
+          brand.id,
+          brand.primary_color || "#5a2348",
+        ])
+      ),
+      ...Object.fromEntries(
+        LEAD_ACCOUNTS.map((account) => [account.id, account.color])
+      ),
+    };
     const annotations = await getOperationalAnnotations({
       startDate: filters.startDate,
       endDate: filters.endDate,
@@ -460,7 +504,7 @@ export async function getLeadDashboardSnapshot(
         brands: visibleBrands,
         brandColors,
         annotations,
-        spendFacts,
+        spendFacts: mapSpendFactsToLeadAccounts(spendFacts, brands),
         costAttributable: !filters.treatment,
       }),
       diagnostics: parsed.diagnostics,
