@@ -39,6 +39,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = {
   startDate?: string | string[];
   endDate?: string | string[];
+  accountId?: string | string[];
   brandId?: string | string[];
   treatment?: string | string[];
   source?: string | string[];
@@ -76,6 +77,7 @@ function performanceHref(
   const query = new URLSearchParams();
   query.set("startDate", next.startDate);
   query.set("endDate", next.endDate);
+  if (next.accountId) query.set("accountId", next.accountId);
   if (next.brandId) query.set("brandId", next.brandId);
   if (next.treatment) query.set("treatment", next.treatment);
   if (next.source) query.set("source", next.source);
@@ -129,6 +131,7 @@ export default async function TreatmentPerformancePage({
   const requestedFilters = {
     startDate: firstParam(query.startDate),
     endDate: firstParam(query.endDate),
+    accountId: firstParam(query.accountId),
     brandId: firstParam(query.brandId),
     treatment: firstParam(query.treatment),
     source: firstParam(query.source),
@@ -144,7 +147,8 @@ export default async function TreatmentPerformancePage({
   const message = firstParam(query.message);
   const commandStatus = firstParam(query.command_status);
   const hasActiveDimensionFilter = Boolean(
-    snapshot.filters.brandId ||
+    snapshot.filters.accountId ||
+      snapshot.filters.brandId ||
       snapshot.filters.treatment ||
       snapshot.filters.source ||
       snapshot.filters.campaign
@@ -161,7 +165,7 @@ export default async function TreatmentPerformancePage({
               <p className="command-page-kicker">成效分析</p>
               <h1 className="command-page-title">療程成效</h1>
               <p className="command-page-subtitle">
-                按品牌、療程、來源同 Campaign 比較 Lead、預約、到店、廣告費及成本效率。
+                按 Omni Account、品牌、療程、來源同 Campaign 比較 Lead、預約、到店、廣告費及成本效率。
               </p>
               <div className="treatment-source-line">
                 <span
@@ -279,9 +283,29 @@ export default async function TreatmentPerformancePage({
                 />
               </label>
               <label>
+                <span>Omni Account</span>
+                <select
+                  name="accountId"
+                  defaultValue={snapshot.filters.accountId}
+                >
+                  <option value="">全部 Account</option>
+                  {snapshot.accountOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label>
                 <span>品牌</span>
-                <select name="brandId" defaultValue={snapshot.filters.brandId}>
-                  <option value="">全部品牌</option>
+                <select
+                  name="brandId"
+                  defaultValue={snapshot.filters.brandId}
+                  disabled={!snapshot.filters.accountId}
+                >
+                  <option value="">
+                    {snapshot.filters.accountId ? "全部品牌" : "先揀 Account"}
+                  </option>
                   {snapshot.brandOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {option.label}
@@ -451,7 +475,7 @@ export default async function TreatmentPerformancePage({
               <table className="treatment-performance-table">
                 <thead>
                   <tr>
-                    <th>品牌／療程</th>
+                    <th>Account／品牌／療程</th>
                     <th>Lead</th>
                     <th>Book</th>
                     <th>Show</th>
@@ -524,7 +548,7 @@ export default async function TreatmentPerformancePage({
             </div>
             {snapshot.sourceRows.length > 50 ? (
               <p className="treatment-table-note">
-                目前先顯示 Lead 數最高 50 組；可用上方品牌、療程及來源篩選再收窄。
+                目前先顯示 Lead 數最高 50 組；可用上方 Account、品牌、療程及來源篩選再收窄。
               </p>
             ) : null}
           </section>
@@ -540,7 +564,7 @@ export default async function TreatmentPerformancePage({
                 可能反映跨期到店，唔應單獨當成同一批 Lead cohort。
               </p>
               <p>
-                呢頁只保存品牌、療程、來源、Campaign、分店及每日數量彙總；唔保存姓名、電話、Email、Lead
+                呢頁只保存 Omni Account、品牌、療程、來源、Campaign、分店及每日數量彙總；唔保存姓名、電話、Email、Lead
                 Key 或 CS Remark。廣告費只讀品牌級系統廣告費帳簿；如篩選到
                 單一療程、來源或 Campaign，成本會顯示未分配，唔會用 Lead 比例估算。
                 亦唔會重複讀取舊報表數據。
@@ -722,7 +746,7 @@ function TreatmentRow({
           <BrandMark name={row.brandName} color={color || "#5a2348"} />
           <div>
             <strong>{row.treatment}</strong>
-            <span>{row.brandName}</span>
+            <span>{row.accountLabel} · {row.brandName}</span>
             {row.leads > 0 && row.leads < 5 ? (
               <small>樣本不足</small>
             ) : null}
@@ -756,7 +780,7 @@ function SourceRow({
           <BrandMark name={row.brandName} color={color || "#5a2348"} />
           <div>
             <strong>{row.treatment}</strong>
-            <span>{row.brandName}</span>
+            <span>{row.accountLabel} · {row.brandName}</span>
           </div>
         </div>
       </td>
