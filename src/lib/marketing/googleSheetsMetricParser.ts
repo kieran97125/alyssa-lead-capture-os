@@ -527,6 +527,7 @@ export function buildLeadSheetGroups(input: {
       accountId: string;
       accountLabel: string;
       brand: SheetBrandReference;
+      brandLabel: string;
       treatmentLabel: string;
       sourceLabel: string;
       campaignLabel: string;
@@ -658,6 +659,7 @@ export function buildLeadSheetGroups(input: {
       accountId: account.id,
       accountLabel: account.label,
       brand,
+      brandLabel: defaultDimensionLabel(valueAt(rawRow, "brand"), brand.name),
       treatmentLabel: canonicalTreatment,
       sourceLabel: defaultDimensionLabel(
         valueAt(rawRow, "source"),
@@ -748,7 +750,7 @@ export function buildLeadSheetGroups(input: {
       accountId: first.accountId,
       accountLabel: first.accountLabel,
       brandId: first.brand.id,
-      brandLabel: first.brand.name,
+      brandLabel: first.brandLabel,
       treatmentLabel: first.treatmentLabel,
       sourceLabel: first.sourceLabel,
       campaignLabel: first.campaignLabel,
