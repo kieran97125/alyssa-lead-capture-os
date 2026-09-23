@@ -6,7 +6,7 @@ import {
   GOOGLE_SHEETS_LEAD_SCHEMA_VERSION,
 } from "../src/lib/integrations/googleSheetsLeadSync";
 
-test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => {
+test("LaunchHub lead payload matches the Account-first A:X contract", () => {
   const previousSecret = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET;
   process.env.GOOGLE_SHEETS_WEBHOOK_SECRET = "test-secret";
 
@@ -33,8 +33,8 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
     expect(payload.schemaVersion).toBe(GOOGLE_SHEETS_LEAD_SCHEMA_VERSION);
     expect(payload.headers).toEqual(GOOGLE_SHEETS_LEAD_HEADERS);
     expect(payload.rowValues).toEqual([
-      "2026/7/29 上午 11:25:51",
-      "2026/7/29 上午 11:25:51",
+      "2026-07-29",
+      "2026-07-29",
       "待跟進",
       "Alyssa",
       "旺角分店【朗豪坊】",
@@ -46,18 +46,19 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
       "2026-07-29",
       "12:00",
       "",
-      "直接 / 無追蹤",
       "未標記廣告系列 / 未標記素材",
-      "https://example.com/facelift",
       "",
-      "lead-test-123",
+      "",
+      "",
+      "",
+      "",
       "",
       "",
       "",
       "",
       "",
     ]);
-    expect(payload.rowValues).toHaveLength(GOOGLE_SHEETS_LEAD_HEADERS.length);
+    expect(payload.rowValues).toHaveLength(24);
     expect(
       Object.fromEntries(
         GOOGLE_SHEETS_LEAD_HEADERS.map((header, index) => [
@@ -66,8 +67,8 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
         ])
       )
     ).toMatchObject({
-      最後更新日期: "2026/7/29 上午 11:25:51",
-      "Created At": "2026/7/29 上午 11:25:51",
+      最後更新日期: "2026-07-29",
+      "Created At": "2026-07-29",
       品牌: "Alyssa",
       分店: "旺角分店【朗豪坊】",
       客人姓名: "Kieran Test",
@@ -76,8 +77,7 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
       "療程 / 優惠": "Facelift",
       療程項目: "$988 Facelift",
       確認到店日期: "",
-      來源: "直接 / 無追蹤",
-      lead_key: "lead-test-123",
+      Account: "",
     });
     expect(payload).not.toHaveProperty("csOwner");
   } finally {
@@ -89,7 +89,7 @@ test("LaunchHub lead payload matches the live Google Sheet A:V contract", () => 
   }
 });
 
-test("native Sheets writer follows destination headers instead of fixed columns", () => {
+test("native Sheets writer follows Account-first destination headers instead of fixed columns", () => {
   const payload = buildGoogleSheetsLeadPayload({
     brandId: "brand-test-123",
     leadKey: "lead-test-456",
@@ -119,15 +119,15 @@ test("native Sheets writer follows destination headers instead of fixed columns"
     "分店",
     "預約日期",
     "預約時間",
-    "來源",
+    "Campaign / 廣告",
     "跟進狀態",
-    "lead_key",
+    "Account",
   ];
 
   expect(
     alignLeadRowToDestinationHeaders(destinationHeaders, payload)
   ).toEqual([
-    "2026/7/29 上午 11:25:51",
+    "2026-07-29",
     "",
     "85200000000",
     "Ineffable Beauty",
@@ -137,9 +137,9 @@ test("native Sheets writer follows destination headers instead of fixed columns"
     "銅鑼灣",
     "2026-08-20",
     "12:00",
-    "直接 / 無追蹤",
+    "未標記廣告系列 / 未標記素材",
     "待跟進",
-    "lead-test-456",
+    "",
   ]);
 });
 
@@ -171,7 +171,7 @@ test("canonical treatment wins over a stale copied form name", () => {
   expect(payload.treatmentOffer).not.toContain("Facelift");
 });
 
-test("native Sheets writer stops safely when an operational header is missing", () => {
+test("native Sheets writer stops safely when a required operational header is missing", () => {
   const payload = buildGoogleSheetsLeadPayload({
     brandId: "brand-test-123",
     leadKey: "lead-test-789",
@@ -199,13 +199,12 @@ test("native Sheets writer stops safely when an operational header is missing", 
   ).toThrow("Google Sheet 缺少必要 header：電話");
 });
 
-
-test("native writer stays compatible with the legacy A:V destination", () => {
+test("Account-first destination requires the Account header", () => {
   const payload = buildGoogleSheetsLeadPayload({
     brandId: "brand-test-123",
-    leadKey: "lead-test-legacy",
+    leadKey: "lead-test-account",
     createdAt: "2026-07-29T03:25:51.000Z",
-    customerName: "Legacy Header Test",
+    customerName: "Account Header Test",
     phone: "85200000001",
     email: null,
     brandName: "Alyssa",
@@ -219,9 +218,11 @@ test("native writer stays compatible with the legacy A:V destination", () => {
     pageUrl: "https://example.com",
     touch: {},
   });
-  const legacyHeaders = GOOGLE_SHEETS_LEAD_HEADERS.slice(1);
-  const aligned = alignLeadRowToDestinationHeaders([...legacyHeaders], payload);
-  expect(aligned).toHaveLength(22);
-  expect(aligned[0]).toBe("2026/7/29 上午 11:25:51");
-  expect(aligned[legacyHeaders.indexOf("lead_key")]).toBe("lead-test-legacy");
+  const withoutAccount = GOOGLE_SHEETS_LEAD_HEADERS.filter(
+    (header) => header !== "Account"
+  );
+
+  expect(() =>
+    alignLeadRowToDestinationHeaders([...withoutAccount], payload)
+  ).toThrow("Google Sheet 缺少必要 header：Account");
 });
