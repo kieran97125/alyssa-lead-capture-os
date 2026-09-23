@@ -152,3 +152,40 @@ test("Lead Dashboard exposes Account as first-level performance dimension", () =
     ])
   );
 });
+
+
+test("Account-first filter interaction produces deterministic visual evidence", async ({
+  page,
+}, testInfo) => {
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.goto("/dashboard", { waitUntil: "networkidle" });
+
+  const panel = page.locator(".lead-dashboard-filter-panel");
+  await expect(panel.getByText("Omni Account", { exact: true })).toBeVisible();
+  await expect(panel.getByText("品牌", { exact: true })).toBeVisible();
+
+  const account = panel.locator('select[name="accountId"]');
+  const brand = panel.locator('select[name="brandId"]');
+  await expect(account).toBeEnabled();
+  await expect(brand).toBeDisabled();
+
+  await account.selectOption("alyssa-aesthetics");
+  await page.getByRole("button", { name: "套用" }).first().click();
+  await page.waitForLoadState("networkidle");
+
+  const selectedPanel = page.locator(".lead-dashboard-filter-panel");
+  const selectedBrand = selectedPanel.locator('select[name="brandId"]');
+  await expect(selectedPanel.locator('select[name="accountId"]')).toHaveValue(
+    "alyssa-aesthetics"
+  );
+  await expect(selectedBrand).toBeEnabled();
+
+  const screenshot = await selectedPanel.screenshot({
+    animations: "disabled",
+  });
+  expect(screenshot.byteLength).toBeGreaterThan(5_000);
+  await testInfo.attach("account-first-dashboard-filter", {
+    body: screenshot,
+    contentType: "image/png",
+  });
+});
