@@ -189,7 +189,7 @@ export function applyLeadFunnelEventLedger<T extends LedgerAwareLeadGroup>(input
       Number.isInteger(sourceRow) && sourceRow >= 2 ? `row:${sourceRow}` : "";
     if (!identity) continue;
 
-    const key = account ? `${account.id}|${brand.id}|${identity}` : `${brand.id}|${identity}`;
+    const key = columns.account >= 0 && account ? `${account.id}|${brand.id}|${identity}` : `${brand.id}|${identity}`;
     const eventId = columns.eventId >= 0 ? compactString(row[columns.eventId]) : "";
     if (eventId) {
       const fingerprint = JSON.stringify([key, type, date]);
