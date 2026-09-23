@@ -116,10 +116,10 @@ export function buildLeadDashboardTrend(input: {
     brandIdsForScope(input.brands, input.filters.brandId)
   );
   const groups = input.groups.filter((group) => {
-    if (input.filters.accountId && group.accountId !== input.filters.accountId) {
+    if (!selectedBrandIds.has(group.brandId)) {
       return false;
     }
-    if (input.filters.brandId && !selectedBrandIds.has(group.brandId)) {
+    if (input.filters.accountId && group.accountId !== input.filters.accountId) {
       return false;
     }
     if (
