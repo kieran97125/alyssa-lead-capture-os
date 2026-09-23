@@ -66,6 +66,7 @@ export default async function DashboardPage({
     message?: string | string[];
     startDate?: string | string[];
     endDate?: string | string[];
+    accountId?: string | string[];
     brandId?: string | string[];
     treatment?: string | string[];
   }>;
@@ -78,6 +79,7 @@ export default async function DashboardPage({
       {
         startDate: firstParam(query.startDate),
         endDate: firstParam(query.endDate),
+        accountId: firstParam(query.accountId),
         brandId: firstParam(query.brandId),
         treatment: firstParam(query.treatment),
       },
