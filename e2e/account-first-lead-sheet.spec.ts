@@ -22,6 +22,8 @@ const headers = [
   "品牌",
   "電話",
   "療程項目",
+  "預約日期",
+  "確認到店日期",
   "Account",
 ];
 
@@ -38,6 +40,8 @@ function row(input: {
     input.brand,
     input.phone,
     input.treatment,
+    "",
+    "",
     input.account,
   ];
 }
