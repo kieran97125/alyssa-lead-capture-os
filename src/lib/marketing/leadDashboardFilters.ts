@@ -14,6 +14,7 @@ export function normalizeLeadDashboardFilters(
   input: {
     startDate?: unknown;
     endDate?: unknown;
+    accountId?: unknown;
     brandId?: unknown;
     treatment?: unknown;
   },
@@ -30,6 +31,7 @@ export function normalizeLeadDashboardFilters(
   return {
     startDate,
     endDate,
+    accountId: firstString(input.accountId),
     brandId: firstString(input.brandId),
     treatment: firstString(input.treatment),
   };
@@ -40,6 +42,7 @@ export function buildLeadDashboardReturnPath(filters: LeadDashboardFilters) {
     startDate: filters.startDate,
     endDate: filters.endDate,
   });
+  if (filters.accountId) params.set("accountId", filters.accountId);
   if (filters.brandId) params.set("brandId", filters.brandId);
   if (filters.treatment) params.set("treatment", filters.treatment);
   return `/dashboard?${params.toString()}`;
