@@ -63,6 +63,7 @@ type DailyMetricUpsert = {
 
 type TreatmentPerformanceMetricUpsert = {
   data_source_id: string;
+  account_label: string;
   brand_id: string;
   metric_date: string;
   metric_kind: "lead" | "book" | "show" | "no_show" | "pending_show";
@@ -352,7 +353,7 @@ async function collectLeadFunnelMetrics(
     brands,
     brandAliases: leadBrandAliases,
     treatmentAliases: leadTreatmentAliases,
-    writeBack: true,
+    writeBack: configuration.readOnlyMaster !== true,
   });
   const { headers, rows, headerRow } = normalizedLiveTable;
   if (normalizedLiveTable.normalizedMetaLeadRows > 0) {
@@ -401,12 +402,14 @@ async function collectLeadFunnelMetrics(
   });
   const treatmentMetrics = parsed.metricFacts.map((fact) => ({
     data_source_id: source.id,
+    account_label: fact.accountLabel,
     brand_id: fact.brandId,
     metric_date: fact.metricDate,
     metric_kind: fact.metricKind,
     dimension_key: createHash("sha256")
       .update(
         JSON.stringify([
+          fact.accountLabel,
           fact.brandId,
           fact.treatmentLabel,
           fact.sourceLabel,
