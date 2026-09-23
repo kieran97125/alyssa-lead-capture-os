@@ -33,7 +33,7 @@ import {
 export type LeadDashboardFilters = {
   startDate: string;
   endDate: string;
-  accountId: string;
+  accountId?: string;
   brandId: string;
   treatment: string;
 };
