@@ -94,6 +94,7 @@ export default async function DashboardPage({
       {
         startDate: leadDashboard.filters.startDate,
         endDate: leadDashboard.filters.endDate,
+        accountScope: leadDashboard.filters.accountId || null,
         brandScope: leadDashboard.filters.brandId,
       },
       access
