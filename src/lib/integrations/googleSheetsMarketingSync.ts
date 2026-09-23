@@ -67,6 +67,7 @@ type TreatmentPerformanceMetricUpsert = {
   metric_date: string;
   metric_kind: "lead" | "book" | "show" | "no_show" | "pending_show";
   dimension_key: string;
+  account_label: string;
   brand_label: string;
   treatment_label: string;
   source_label: string;
@@ -407,6 +408,7 @@ async function collectLeadFunnelMetrics(
     dimension_key: createHash("sha256")
       .update(
         JSON.stringify([
+          fact.accountId,
           fact.brandId,
           fact.treatmentLabel,
           fact.sourceLabel,
@@ -415,6 +417,7 @@ async function collectLeadFunnelMetrics(
         ])
       )
       .digest("hex"),
+    account_label: fact.accountLabel,
     brand_label: fact.brandLabel,
     treatment_label: fact.treatmentLabel,
     source_label: fact.sourceLabel,
