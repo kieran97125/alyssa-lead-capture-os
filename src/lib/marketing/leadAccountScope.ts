@@ -187,6 +187,35 @@ export function brandIdsForLeadAccount(
     .map((brand) => brand.id);
 }
 
+export function leadAccountForSpendBrandId(
+  brands: LeadAccountBrandReference[],
+  brandId: string
+) {
+  const brand = brands.find((item) => item.id === brandId);
+  if (!brand) return null;
+  const slug = normalizeLeadAccountKey(brand.slug || brand.name);
+  return (
+    LEAD_ACCOUNTS.find((account) =>
+      account.spendBrandSlugs.some(
+        (candidate) => normalizeLeadAccountKey(candidate) === slug
+      )
+    ) ?? null
+  );
+}
+
+export function mapSpendFactsToLeadAccounts<T extends {
+  brandId: string;
+  spendDate: string;
+  amount: number;
+}>(facts: T[], brands: LeadAccountBrandReference[]) {
+  return facts.flatMap((fact) => {
+    const account = leadAccountForSpendBrandId(brands, fact.brandId);
+    return account
+      ? [{ brandId: account.id, spendDate: fact.spendDate, amount: fact.amount }]
+      : [];
+  });
+}
+
 export function leadAccountColor(accountId: string | null | undefined) {
   return leadAccountById(accountId)?.color || "#5a2348";
 }
