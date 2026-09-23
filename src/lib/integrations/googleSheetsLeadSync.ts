@@ -27,7 +27,7 @@ export type LeadSheetSyncInput = {
   touch: TouchPayload;
 };
 
-export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v3";
+export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v4";
 
 export const GOOGLE_SHEETS_LEAD_LEGACY_HEADERS = [
   "Created At",
@@ -54,9 +54,36 @@ export const GOOGLE_SHEETS_LEAD_LEGACY_HEADERS = [
   "Show up",
 ] as const;
 
-export const GOOGLE_SHEETS_LEAD_HEADERS = [
+export const GOOGLE_SHEETS_LEAD_V3_HEADERS = [
   "最後更新日期",
   ...GOOGLE_SHEETS_LEAD_LEGACY_HEADERS,
+] as const;
+
+export const GOOGLE_SHEETS_LEAD_HEADERS = [
+  "最後更新日期",
+  "Created At",
+  "跟進狀態",
+  "品牌",
+  "分店",
+  "客人姓名",
+  "電話",
+  "Email",
+  "療程 / 優惠",
+  "療程項目",
+  "預約日期",
+  "預約時間",
+  "確認到店日期",
+  "Campaign / 廣告",
+  "最後跟進時間",
+  "CS Remark",
+  "Remark(後續跟進情況)",
+  "Status",
+  "Show up",
+  "Account",
+  "IG/FB Username",
+  "Day 1",
+  "Day 2",
+  "Promotion",
 ] as const;
 
 export type GoogleSheetsLeadWebhookPayload = {
@@ -85,6 +112,11 @@ export type GoogleSheetsLeadWebhookPayload = {
   followUpRemark: string;
   status: string;
   showUp: string;
+  account: string;
+  igFbUsername: string;
+  day1: string;
+  day2: string;
+  promotion: string;
   headers: typeof GOOGLE_SHEETS_LEAD_HEADERS;
   rowValues: string[];
 };
@@ -107,6 +139,26 @@ export function getGoogleSheetsLeadSyncStatus(): {
 function formatMoney(price: number | string) {
   if (price === "" || price == null) return "";
   return `$${price}`;
+}
+
+export function formatHongKongDate(value: Date | string | null | undefined) {
+  if (!value) return "";
+
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Hong_Kong",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+  const part = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((item) => item.type === type)?.value || "";
+  const year = part("year");
+  const month = part("month");
+  const day = part("day");
+  return year && month && day ? `${year}-${month}-${day}` : "";
 }
 
 export function formatHongKongDateTime(value: Date | string | null | undefined) {
@@ -203,10 +255,10 @@ export function buildGoogleSheetsLeadPayload(
 ): GoogleSheetsLeadWebhookPayload {
   const touch = input.touch;
   const pageUrl = preferredPageUrl(touch) || input.pageUrl || "";
-  const createdAt = formatHongKongDateTime(input.createdAt);
+  const createdAt = formatHongKongDate(input.createdAt);
   const fields = {
-    // New rows start with the same HKT timestamp in both columns. The Sheet
-    // automation later locks this field to the first Book event date.
+    // Account-first Sheet stores calendar dates only. A starts at Created At
+    // and later changes only when the operator changes the follow-up status.
     lastUpdatedAt: createdAt,
     createdAt,
     followUpStatus: "待跟進",
@@ -239,6 +291,11 @@ export function buildGoogleSheetsLeadPayload(
     followUpRemark: "",
     status: "",
     showUp: "",
+    account: "",
+    igFbUsername: "",
+    day1: "",
+    day2: "",
+    promotion: "",
   };
   const rowValues = [
     fields.lastUpdatedAt,
@@ -254,16 +311,17 @@ export function buildGoogleSheetsLeadPayload(
     fields.appointmentDate,
     fields.appointmentTime,
     fields.confirmedShowDate,
-    fields.source,
     fields.campaignAd,
-    fields.pageUrl,
     fields.lastFollowUpAt,
-    fields.leadKey,
     fields.csRemark,
-    fields.assignedTo,
     fields.followUpRemark,
     fields.status,
     fields.showUp,
+    fields.account,
+    fields.igFbUsername,
+    fields.day1,
+    fields.day2,
+    fields.promotion,
   ];
 
   return {
@@ -296,8 +354,7 @@ const REQUIRED_OPERATIONAL_HEADERS = [
   "療程項目",
   "預約日期",
   "預約時間",
-  "來源",
-  "lead_key",
+  "Account",
 ] as const;
 
 export function alignLeadRowToDestinationHeaders(
