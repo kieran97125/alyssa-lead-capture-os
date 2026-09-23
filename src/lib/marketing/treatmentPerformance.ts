@@ -881,6 +881,17 @@ export async function getTreatmentPerformanceSnapshot(
       ? brandsForScope(accountBrands, filters.brandId)
       : accountBrands;
     const reportingBrandIds = reportingBrands.map((brand) => brand.id);
+    let reportingSpendBrandIds = brandIdsForLeadAccount(
+      brandRows,
+      filters.accountId,
+      "spend"
+    );
+    if (filters.brandId) {
+      const selected = new Set(reportingBrandIds);
+      reportingSpendBrandIds = reportingSpendBrandIds.filter((id) =>
+        selected.has(id)
+      );
+    }
     const [facts, analysisPresenceResult, annotations, spendFacts] = source
       ? await Promise.all([
           fetchFacts({
@@ -907,7 +918,7 @@ export async function getTreatmentPerformanceSnapshot(
           fetchDailySpendFacts({
             startDate: filters.startDate,
             endDate: filters.endDate,
-            allowedBrandIds: reportingBrandIds,
+            allowedBrandIds: reportingSpendBrandIds,
           }),
         ])
       : [
@@ -917,7 +928,7 @@ export async function getTreatmentPerformanceSnapshot(
           await fetchDailySpendFacts({
             startDate: filters.startDate,
             endDate: filters.endDate,
-            allowedBrandIds: reportingBrandIds,
+            allowedBrandIds: reportingSpendBrandIds,
           }),
         ];
     if (analysisPresenceResult.error) throw analysisPresenceResult.error;
