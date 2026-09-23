@@ -26,6 +26,7 @@ import { TreatmentPerformanceTrendChartLazy } from "@/components/command-center/
 import {
   getTreatmentPerformanceSnapshot,
   normalizeTreatmentPerformanceFilters,
+  type TreatmentPerformanceAccountRow,
   type TreatmentPerformanceFilters,
   type TreatmentPerformanceInsight,
   type TreatmentPerformanceRow,
@@ -39,6 +40,7 @@ export const dynamic = "force-dynamic";
 type SearchParams = {
   startDate?: string | string[];
   endDate?: string | string[];
+  account?: string | string[];
   brandId?: string | string[];
   treatment?: string | string[];
   source?: string | string[];
@@ -76,6 +78,7 @@ function performanceHref(
   const query = new URLSearchParams();
   query.set("startDate", next.startDate);
   query.set("endDate", next.endDate);
+  if (next.account) query.set("account", next.account);
   if (next.brandId) query.set("brandId", next.brandId);
   if (next.treatment) query.set("treatment", next.treatment);
   if (next.source) query.set("source", next.source);
@@ -129,6 +132,7 @@ export default async function TreatmentPerformancePage({
   const requestedFilters = {
     startDate: firstParam(query.startDate),
     endDate: firstParam(query.endDate),
+    account: firstParam(query.account),
     brandId: firstParam(query.brandId),
     treatment: firstParam(query.treatment),
     source: firstParam(query.source),
@@ -144,7 +148,8 @@ export default async function TreatmentPerformancePage({
   const message = firstParam(query.message);
   const commandStatus = firstParam(query.command_status);
   const hasActiveDimensionFilter = Boolean(
-    snapshot.filters.brandId ||
+    snapshot.filters.account ||
+      snapshot.filters.brandId ||
       snapshot.filters.treatment ||
       snapshot.filters.source ||
       snapshot.filters.campaign
@@ -161,7 +166,7 @@ export default async function TreatmentPerformancePage({
               <p className="command-page-kicker">成效分析</p>
               <h1 className="command-page-title">療程成效</h1>
               <p className="command-page-subtitle">
-                按品牌、療程、來源同 Campaign 比較 Lead、預約、到店、廣告費及成本效率。
+                按 Omni Account 為第一層，再按品牌、療程、來源同 Campaign 比較 Lead、預約、到店、廣告費及成本效率。
               </p>
               <div className="treatment-source-line">
                 <span
@@ -277,6 +282,17 @@ export default async function TreatmentPerformancePage({
                   defaultValue={snapshot.filters.endDate}
                   required
                 />
+              </label>
+              <label>
+                <span>Omni Account</span>
+                <select name="account" defaultValue={snapshot.filters.account}>
+                  <option value="">全部 Account</option>
+                  {snapshot.accountOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
               </label>
               <label>
                 <span>品牌</span>
@@ -442,6 +458,48 @@ export default async function TreatmentPerformancePage({
 
           <section className="command-surface treatment-ranking-section">
             <SectionHeading
+              eyebrow="Account performance"
+              title="Omni Account 成效"
+              description="Account 係第一級營運維度；點 Account 名可以直接進入該 Account 成效頁。"
+              icon={UsersRound}
+            />
+            <div className="treatment-table-wrap">
+              <table className="treatment-performance-table">
+                <thead>
+                  <tr>
+                    <th>Omni Account</th>
+                    <th>Lead</th>
+                    <th>Book</th>
+                    <th>Show</th>
+                    <th>No Show</th>
+                    <th>待到店</th>
+                    <th title="Book ÷ Lead">Book Rate</th>
+                    <th title="Show ÷ Lead">Show / Lead</th>
+                    <th title="Show ÷ Book">Show-up</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {snapshot.accountRows.length > 0 ? (
+                    snapshot.accountRows.map((row) => (
+                      <AccountPerformanceRow
+                        key={row.account}
+                        row={row}
+                        filters={snapshot.filters}
+                      />
+                    ))
+                  ) : (
+                    <EmptyTableRow
+                      colSpan={9}
+                      message="所選期間未有符合條件嘅 Account 成效。"
+                    />
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </section>
+
+          <section className="command-surface treatment-ranking-section">
+            <SectionHeading
               eyebrow="Treatment ranking"
               title="療程表現"
               description={`${snapshot.filters.startDate} 至 ${snapshot.filters.endDate} · ${snapshot.treatmentRows.length} 個療程組合`}
@@ -451,7 +509,7 @@ export default async function TreatmentPerformancePage({
               <table className="treatment-performance-table">
                 <thead>
                   <tr>
-                    <th>品牌／療程</th>
+                    <th>Account／品牌／療程</th>
                     <th>Lead</th>
                     <th>Book</th>
                     <th>Show</th>
@@ -494,7 +552,7 @@ export default async function TreatmentPerformancePage({
               <table className="treatment-performance-table source-diagnostic-table">
                 <thead>
                   <tr>
-                    <th>品牌／療程</th>
+                    <th>Account／品牌／療程</th>
                     <th>來源</th>
                     <th>Campaign／廣告</th>
                     <th>Lead</th>
@@ -534,8 +592,9 @@ export default async function TreatmentPerformancePage({
             <div>
               <strong>計算口徑</strong>
               <p>
-                Lead／Book 按 Created At；Show 按確認到店日期；No Show
-                同待到店按預約日期。Book 包括已預約、已到店及 No Show。由於 Show
+                Lead 按 Created At；Book／Show／No Show 優先按不可變 Funnel Event 日期，
+                舊資料先用最後更新／確認到店／預約日期 fallback。Account 係第一級去重邊界。
+                由於 Show
                 可能來自較早期 Lead，極短日期範圍嘅 Show-up Rate
                 可能反映跨期到店，唔應單獨當成同一批 Lead cohort。
               </p>
@@ -708,6 +767,35 @@ function SectionHeading({
   );
 }
 
+function AccountPerformanceRow({
+  row,
+  filters,
+}: {
+  row: TreatmentPerformanceAccountRow;
+  filters: TreatmentPerformanceFilters;
+}) {
+  return (
+    <tr>
+      <td>
+        <IntentPrefetchLink
+          href={performanceHref(filters, { account: row.account })}
+          className="treatment-account-link"
+        >
+          <strong>{row.account}</strong>
+        </IntentPrefetchLink>
+      </td>
+      <NumericCell value={row.leads} strong />
+      <NumericCell value={row.bookings} />
+      <NumericCell value={row.shows} />
+      <NumericCell value={row.noShows} tone={row.noShows > 0 ? "red" : undefined} />
+      <NumericCell value={row.pendingShows} tone="blue" />
+      <RateCell value={row.bookRate} />
+      <RateCell value={row.leadToShowRate} />
+      <RateCell value={row.showUpRate} />
+    </tr>
+  );
+}
+
 function TreatmentRow({
   row,
   color,
@@ -722,7 +810,7 @@ function TreatmentRow({
           <BrandMark name={row.brandName} color={color || "#5a2348"} />
           <div>
             <strong>{row.treatment}</strong>
-            <span>{row.brandName}</span>
+            <span>{row.account} · {row.brandName}</span>
             {row.leads > 0 && row.leads < 5 ? (
               <small>樣本不足</small>
             ) : null}
@@ -756,7 +844,7 @@ function SourceRow({
           <BrandMark name={row.brandName} color={color || "#5a2348"} />
           <div>
             <strong>{row.treatment}</strong>
-            <span>{row.brandName}</span>
+            <span>{row.account} · {row.brandName}</span>
           </div>
         </div>
       </td>
