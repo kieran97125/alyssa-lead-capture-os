@@ -15,7 +15,7 @@ const LEGACY_OPERATIONAL_LAST_COLUMN = "V";
 const OPERATIONAL_LAST_COLUMN = "W";
 const META_RAW_TAIL_LAST_COLUMN = "BN";
 const FUNNEL_EVENT_LEDGER_SHEET_NAME = "_funnel_events";
-const FUNNEL_EVENT_LEDGER_LAST_COLUMN = "O";
+const FUNNEL_EVENT_LEDGER_LAST_COLUMN = "P";
 
 type GoogleValueRange = {
   values?: unknown[][];
