@@ -41,7 +41,7 @@ export type TreatmentPerformanceSort =
 export type TreatmentPerformanceFilters = {
   startDate: string;
   endDate: string;
-  accountId: string;
+  accountId?: string;
   brandId: string;
   treatment: string;
   source: string;
