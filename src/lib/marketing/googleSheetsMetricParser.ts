@@ -590,14 +590,15 @@ export function buildLeadSheetGroups(input: {
       diagnostics.unknownBrandRows += 1;
       return;
     }
-    const account = resolveLeadAccount(
-      valueAt(rawRow, "account"),
-      valueAt(rawRow, "brand")
-    );
-    if (!account) {
-      diagnostics.unknownBrandRows += 1;
-      return;
-    }
+    const hasAccountColumn = columns.account >= 0;
+    const account =
+      resolveLeadAccount(
+        valueAt(rawRow, "account"),
+        valueAt(rawRow, "brand")
+      ) ?? {
+        id: `brand:${brand.id}`,
+        label: brand.name,
+      };
     diagnostics.acceptedRows += 1;
 
     const canonicalTreatment = treatmentLabel({
@@ -649,7 +650,9 @@ export function buildLeadSheetGroups(input: {
           : leadKey
             ? `lead:${leadKey}`
             : `row:${rowNumber}`;
-    const groupKey = `${account.id}|${brand.id}|${identity}`;
+    const groupKey = hasAccountColumn
+      ? `${account.id}|${brand.id}|${identity}`
+      : `${brand.id}|${identity}`;
     const branchLabel = defaultDimensionLabel(
       valueAt(rawRow, "branch"),
       "未標記分店"
