@@ -37,6 +37,7 @@ export type LeadSheetTreatmentAlias = {
 };
 
 export type ParsedLeadSheetMetricFact = {
+  accountLabel: string;
   brandId: string;
   brandLabel: string;
   metricDate: string;
@@ -82,6 +83,7 @@ export type LeadSheetGroupRow = {
 
 export type LeadSheetLeadGroup = {
   key: string;
+  accountLabel: string;
   brandId: string;
   brandLabel: string;
   treatmentLabel: string;
@@ -112,6 +114,7 @@ export const leadSheetFieldKeys = [
   "createdAt",
   "followStatus",
   "brand",
+  "account",
   "branch",
   "offer",
   "treatment",
@@ -145,6 +148,7 @@ const LEAD_SHEET_HEADER_ALIASES: Record<LeadSheetFieldKey, string[]> = {
   createdAt: ["Created At", "created_at", "建立時間"],
   followStatus: ["跟進狀態", "Follow-up Status", "Follow Up Status"],
   brand: ["品牌", "Brand"],
+  account: ["Account", "Omni Account", "Omnichat Account", "客服 Account"],
   branch: ["分店", "Branch"],
   offer: ["療程 / 優惠", "療程／優惠", "Treatment / Offer"],
   treatment: ["療程項目", "Treatment Item", "Treatment"],
@@ -544,21 +548,21 @@ export function buildLeadSheetGroups(input: {
       brandLookup.get(
         normalizeGoogleSheetBrandKey(valueAt(rawRow, "brand"))
       );
+    const accountLabel = compactString(valueAt(rawRow, "account"));
+    const accountMode = Boolean(accountLabel);
     const rowBrandAliases = rowBrand
       ? new Set(automaticBrandAliases(rowBrand))
       : new Set<string>();
-    // New WhatsApp-only brand: treatments are owned by the Sheet, not a
-    // website catalog. Keep its explicit brand authoritative and retain J.
-    // Do not change historical alias/migration behavior for existing brands.
-    const sheetOwnedTreatments = rowBrand?.slug === "skin-light";
+    // In the Omni Account contract the Sheet's explicit Account + Brand + J
+    // values are authoritative. Aliases are only a fallback when J is blank.
+    const sheetOwnedTreatments = accountMode || rowBrand?.slug === "skin-light";
     const eligibleAliases = aliases.filter((alias) => {
       const aliasBrand = alias.brand
         ? brandLookup.get(normalizeGoogleSheetBrandKey(alias.brand))
         : null;
       if (sheetOwnedTreatments) {
-        return !alias.brand || aliasBrand?.id === rowBrand.id;
+        return !alias.brand || aliasBrand?.id === rowBrand?.id;
       }
-      // A newly added Skin Light rule must not reclassify an existing brand.
       if (aliasBrand?.slug === "skin-light") return false;
       return Boolean(
         input.appsScriptContract ||
@@ -572,7 +576,7 @@ export function buildLeadSheetGroups(input: {
       campaign: valueAt(rawRow, "campaign"),
       aliases: eligibleAliases,
     });
-    const aliasBrand = input.appsScriptContract && matchedAlias?.brand
+    const aliasBrand = !accountMode && input.appsScriptContract && matchedAlias?.brand
       ? brandLookup.get(normalizeGoogleSheetBrandKey(matchedAlias.brand))
       : null;
     const brand = sourceBrand || aliasBrand || rowBrand;
@@ -582,12 +586,19 @@ export function buildLeadSheetGroups(input: {
     }
     diagnostics.acceptedRows += 1;
 
-    const canonicalTreatment = treatmentLabel({
-      treatment: valueAt(rawRow, "treatment"),
-      offer: valueAt(rawRow, "offer"),
-      matchedAlias,
-      fallbackLabel: input.appsScriptContract && !sheetOwnedTreatments ? "其他" : undefined,
-    });
+    const explicitTreatment = compactString(valueAt(rawRow, "treatment"));
+    const canonicalTreatment =
+      accountMode && explicitTreatment
+        ? explicitTreatment.slice(0, 160)
+        : treatmentLabel({
+            treatment: valueAt(rawRow, "treatment"),
+            offer: valueAt(rawRow, "offer"),
+            matchedAlias,
+            fallbackLabel:
+              input.appsScriptContract && !sheetOwnedTreatments
+                ? "其他"
+                : undefined,
+          });
     if (canonicalTreatment === "未分類療程") {
       diagnostics.uncategorizedTreatmentRows += 1;
     }
@@ -631,13 +642,17 @@ export function buildLeadSheetGroups(input: {
           : leadKey
             ? `lead:${leadKey}`
             : `row:${rowNumber}`;
-    const groupKey = `${brand.id}|${identity}`;
+    const normalizedAccount = normalizeGoogleSheetBrandKey(accountLabel);
+    const groupKey = normalizedAccount
+      ? `${normalizedAccount}|${identity}`
+      : `${brand.id}|${identity}`;
     const branchLabel = defaultDimensionLabel(
       valueAt(rawRow, "branch"),
       "未標記分店"
     );
     const item = {
       sortValue: createdAtSortValue(createdAt, rowNumber),
+      accountLabel: accountLabel || brand.name,
       brand,
       treatmentLabel: canonicalTreatment,
       sourceLabel: defaultDimensionLabel(
@@ -726,6 +741,7 @@ export function buildLeadSheetGroups(input: {
 
     return {
       key,
+      accountLabel: first.accountLabel,
       brandId: first.brand.id,
       brandLabel: first.brand.name,
       treatmentLabel: first.treatmentLabel,
@@ -815,6 +831,7 @@ export function aggregateLeadSheetPerformance(input: {
     fact: Omit<ParsedLeadSheetMetricFact, "count">
   ) => {
     const key = JSON.stringify([
+      fact.accountLabel,
       fact.brandId,
       fact.metricDate,
       fact.metricKind,
@@ -833,6 +850,7 @@ export function aggregateLeadSheetPerformance(input: {
 
   parsed.groups.forEach((group) => {
     const dimensions = {
+      accountLabel: group.accountLabel,
       brandId: group.brandId,
       brandLabel: group.brandLabel,
       treatmentLabel: group.treatmentLabel,
