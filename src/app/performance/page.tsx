@@ -21,6 +21,7 @@ import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { DashboardRefreshButton } from "@/components/command-center/DashboardRefreshButton";
 import { BrandMark } from "@/components/command-center/BrandMark";
+import { AccountBrandScopeFields } from "@/components/system/AccountBrandScopeFields";
 import { PerformanceCostSummary } from "@/components/command-center/PerformanceCostSummary";
 import { TreatmentPerformanceTrendChartLazy } from "@/components/command-center/TreatmentPerformanceTrendChartLazy";
 import {
@@ -282,37 +283,12 @@ export default async function TreatmentPerformancePage({
                   required
                 />
               </label>
-              <label>
-                <span>Omni Account</span>
-                <select
-                  name="accountId"
-                  defaultValue={snapshot.filters.accountId}
-                >
-                  <option value="">全部 Account</option>
-                  {snapshot.accountOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                <span>品牌</span>
-                <select
-                  name="brandId"
-                  defaultValue={snapshot.filters.brandId}
-                  disabled={!snapshot.filters.accountId}
-                >
-                  <option value="">
-                    {snapshot.filters.accountId ? "全部品牌" : "先揀 Account"}
-                  </option>
-                  {snapshot.brandOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <AccountBrandScopeFields
+                accountOptions={snapshot.accountOptions}
+                brandOptions={snapshot.brandOptions}
+                accountId={snapshot.filters.accountId || ""}
+                brandId={snapshot.filters.brandId}
+              />
               <label>
                 <span>療程</span>
                 <select
