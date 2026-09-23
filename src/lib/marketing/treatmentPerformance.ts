@@ -37,6 +37,7 @@ export type TreatmentPerformanceSort =
 export type TreatmentPerformanceFilters = {
   startDate: string;
   endDate: string;
+  account: string;
   brandId: string;
   treatment: string;
   source: string;
@@ -58,11 +59,16 @@ export type TreatmentPerformanceTotals = {
 
 export type TreatmentPerformanceRow = TreatmentPerformanceTotals & {
   key: string;
+  account: string;
   brandId: string;
   brandName: string;
   treatment: string;
   source?: string;
   campaign?: string;
+};
+
+export type TreatmentPerformanceAccountRow = TreatmentPerformanceTotals & {
+  account: string;
 };
 
 export type TreatmentPerformanceOption = {
@@ -81,8 +87,10 @@ export type TreatmentPerformanceSnapshot = {
   filters: TreatmentPerformanceFilters;
   totals: TreatmentPerformanceTotals;
   costs: PerformanceCostSummary;
+  accountRows: TreatmentPerformanceAccountRow[];
   treatmentRows: TreatmentPerformanceRow[];
   sourceRows: TreatmentPerformanceRow[];
+  accountOptions: TreatmentPerformanceOption[];
   brandOptions: TreatmentPerformanceOption[];
   treatmentOptions: TreatmentPerformanceOption[];
   sourceOptions: TreatmentPerformanceOption[];
@@ -101,6 +109,7 @@ export type TreatmentPerformanceSnapshot = {
 };
 
 type TreatmentMetricFact = {
+  account_label: string;
   brand_id: string;
   brand_label: string;
   metric_date: string;
@@ -153,9 +162,16 @@ function cleanFilter(value: unknown, maxLength = 180) {
     : "";
 }
 
+function configuredAccountLabels(value: unknown) {
+  return Array.isArray(value)
+    ? value.map((item) => cleanFilter(item, 80)).filter(Boolean)
+    : [];
+}
+
 export function normalizeTreatmentPerformanceFilters(input: {
   startDate?: unknown;
   endDate?: unknown;
+  account?: unknown;
   brandId?: unknown;
   treatment?: unknown;
   source?: unknown;
@@ -178,6 +194,7 @@ export function normalizeTreatmentPerformanceFilters(input: {
   return {
     startDate,
     endDate,
+    account: cleanFilter(input.account, 80),
     brandId: cleanFilter(input.brandId, 80),
     treatment: cleanFilter(input.treatment),
     source: cleanFilter(input.source),
@@ -239,6 +256,7 @@ function buildRows(
   const groups = new Map<
     string,
     {
+      account: string;
       brandId: string;
       brandName: string;
       treatment: string;
@@ -251,8 +269,9 @@ function buildRows(
   for (const fact of facts) {
     const key =
       group === "treatment"
-        ? JSON.stringify([fact.brand_id, fact.treatment_label])
+        ? JSON.stringify([fact.account_label, fact.brand_id, fact.treatment_label])
         : JSON.stringify([
+            fact.account_label,
             fact.brand_id,
             fact.treatment_label,
             fact.source_label,
@@ -261,6 +280,7 @@ function buildRows(
     const current =
       groups.get(key) ??
       {
+        account: fact.account_label,
         brandId: fact.brand_id,
         brandName: fact.brand_label,
         treatment: fact.treatment_label,
@@ -274,6 +294,7 @@ function buildRows(
 
   return Array.from(groups, ([key, row]) => ({
     key,
+    account: row.account,
     brandId: row.brandId,
     brandName: row.brandName,
     treatment: row.treatment,
@@ -281,6 +302,27 @@ function buildRows(
     campaign: row.campaign,
     ...withRates(row.counts),
   }));
+}
+
+function buildAccountRows(
+  facts: TreatmentMetricFact[]
+): TreatmentPerformanceAccountRow[] {
+  const groups = new Map<string, ReturnType<typeof emptyCounts>>();
+  for (const fact of facts) {
+    const account = fact.account_label || "未標記 Account";
+    const counts = groups.get(account) ?? emptyCounts();
+    addFact(counts, fact);
+    groups.set(account, counts);
+  }
+  return Array.from(groups, ([account, counts]) => ({
+    account,
+    ...withRates(counts),
+  })).sort(
+    (left, right) =>
+      right.leads - left.leads ||
+      right.bookings - left.bookings ||
+      left.account.localeCompare(right.account, "zh-HK")
+  );
 }
 
 function nullableSortValue(value: number | null) {
@@ -422,6 +464,8 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
     kind: TreatmentMetricFact["metric_kind"],
     count: number
   ): TreatmentMetricFact => ({
+    account_label:
+      brandId === "alyssa-brand" ? "Alyssa Aesthetics" : "Ineffable",
     brand_id: brandId,
     brand_label: brand,
     metric_date: date,
@@ -522,7 +566,7 @@ async function fetchFacts(input: {
     let query = supabase
       .from("marketing_treatment_performance_daily")
       .select(
-        "brand_id,brand_label,metric_date,metric_kind,treatment_label,source_label,campaign_label,branch_label,metric_count"
+        "account_label,brand_id,brand_label,metric_date,metric_kind,treatment_label,source_label,campaign_label,branch_label,metric_count"
       )
       .eq("data_source_id", input.dataSourceId)
       .gte("metric_date", input.startDate)
@@ -549,6 +593,7 @@ function buildSnapshot(input: {
   warnings?: string[];
   annotations?: OperationalAnnotation[];
   spendFacts?: DailySpendFact[];
+  accountLabels?: string[];
 }): TreatmentPerformanceSnapshot {
   const brandOptions = brandScopeOptions(input.brands);
   const selectedBrandIds = brandIdsForScope(
@@ -559,16 +604,25 @@ function buildSnapshot(input: {
   const brandScopedFacts = input.facts.filter((fact) =>
     selectedBrandIdSet.has(fact.brand_id)
   );
+  const accountOptions = uniqueOptions([
+    ...(input.accountLabels ?? []).map((value) => ({ value })),
+    ...brandScopedFacts.map((fact) => ({ value: fact.account_label })),
+  ]);
+  const accountScopedFacts = input.filters.account
+    ? brandScopedFacts.filter(
+        (fact) => fact.account_label === input.filters.account
+      )
+    : brandScopedFacts;
   const treatmentOptions = uniqueOptions(
-    brandScopedFacts.map((fact) => ({ value: fact.treatment_label }))
+    accountScopedFacts.map((fact) => ({ value: fact.treatment_label }))
   );
   const sourceOptions = uniqueOptions(
-    brandScopedFacts.map((fact) => ({ value: fact.source_label }))
+    accountScopedFacts.map((fact) => ({ value: fact.source_label }))
   );
   const campaignOptions = uniqueOptions(
-    brandScopedFacts.map((fact) => ({ value: fact.campaign_label }))
+    accountScopedFacts.map((fact) => ({ value: fact.campaign_label }))
   );
-  const filteredFacts = brandScopedFacts.filter((fact) => {
+  const filteredFacts = accountScopedFacts.filter((fact) => {
     if (
       input.filters.treatment &&
       fact.treatment_label !== input.filters.treatment
@@ -601,6 +655,7 @@ function buildSnapshot(input: {
       input.filters.campaign
     ),
   });
+  const accountRows = buildAccountRows(filteredFacts);
   const treatmentRows = sortTreatmentRows(
     buildRows(filteredFacts, "treatment"),
     input.filters.sort
@@ -617,7 +672,9 @@ function buildSnapshot(input: {
       brandName: fact.brand_label,
       metricDate: fact.metric_date,
       metricKind: fact.metric_kind,
-      treatmentLabel: fact.treatment_label,
+      treatmentLabel: input.filters.account
+        ? fact.treatment_label
+        : `${fact.account_label} · ${fact.treatment_label}`,
       metricCount: numeric(fact.metric_count),
     })
   );
@@ -661,8 +718,10 @@ function buildSnapshot(input: {
     filters: input.filters,
     totals,
     costs,
+    accountRows,
     treatmentRows,
     sourceRows,
+    accountOptions,
     brandOptions,
     treatmentOptions,
     sourceOptions,
@@ -755,6 +814,14 @@ export async function getTreatmentPerformanceSnapshot(
       analysisReady: facts.length > 0,
       annotations,
       spendFacts,
+      accountLabels: [
+        "Alyssa Main",
+        "Alyssa Medical",
+        "Alyssa Aesthetics",
+        "GOS Beauty",
+        "Ineffable",
+        "Skin Light",
+      ],
       warnings:
         facts.length > 0
           ? []
@@ -770,6 +837,7 @@ export async function getTreatmentPerformanceSnapshot(
       source: null,
       schemaReady: true,
       analysisReady: true,
+      accountLabels: [],
       warnings: ["你目前未獲分配任何品牌嘅療程成效權限。"],
     });
   }
@@ -828,6 +896,7 @@ export async function getTreatmentPerformanceSnapshot(
             startDate: filters.startDate,
             endDate: filters.endDate,
             allowedBrandIds: reportingBrandIds,
+            accountLabel: filters.account || undefined,
           }),
         ])
       : [
@@ -838,6 +907,7 @@ export async function getTreatmentPerformanceSnapshot(
             startDate: filters.startDate,
             endDate: filters.endDate,
             allowedBrandIds: reportingBrandIds,
+            accountLabel: filters.account || undefined,
           }),
         ];
     if (analysisPresenceResult.error) throw analysisPresenceResult.error;
@@ -852,6 +922,9 @@ export async function getTreatmentPerformanceSnapshot(
       analysisReady,
       annotations,
       spendFacts,
+      accountLabels: configuredAccountLabels(
+        source?.configuration?.accountLabels
+      ),
       warnings:
         !source
           ? ["未找到指定 Lead Sheet 資料來源；療程成效未有可顯示數據。"]
@@ -876,6 +949,7 @@ export async function getTreatmentPerformanceSnapshot(
       source: null,
       schemaReady: false,
       analysisReady: false,
+      accountLabels: [],
       warnings: ["療程成效資料層尚未完成上線，請先套用 migration 並同步 Lead Sheet。"],
     });
   }
