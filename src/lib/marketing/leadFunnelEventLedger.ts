@@ -11,7 +11,7 @@ type BrandReference = { id: string; name: string; slug: string };
 
 type LedgerAwareLeadGroup = {
   key: string;
-  accountId: string;
+  accountId?: string;
   brandId: string;
   currentStatus: "lead" | "booked" | "show" | "no_show";
   currentRowNumber: number;
@@ -180,7 +180,7 @@ export function applyLeadFunnelEventLedger<T extends LedgerAwareLeadGroup>(input
     );
     const date = (columns.eventDate >= 0 ? parseSheetDate(row[columns.eventDate]) : null) ||
       (columns.eventAt >= 0 ? parseSheetDate(row[columns.eventAt]) : null);
-    if (!type || !brand || !account || !date) continue;
+    if (!type || !brand || !date) continue;
 
     const phone = columns.phone >= 0 ? phoneIdentity(row[columns.phone]) : "";
     const leadKey = columns.leadKey >= 0 ? compactString(row[columns.leadKey]) : "";
@@ -189,7 +189,7 @@ export function applyLeadFunnelEventLedger<T extends LedgerAwareLeadGroup>(input
       Number.isInteger(sourceRow) && sourceRow >= 2 ? `row:${sourceRow}` : "";
     if (!identity) continue;
 
-    const key = `${account.id}|${brand.id}|${identity}`;
+    const key = account ? `${account.id}|${brand.id}|${identity}` : `${brand.id}|${identity}`;
     const eventId = columns.eventId >= 0 ? compactString(row[columns.eventId]) : "";
     if (eventId) {
       const fingerprint = JSON.stringify([key, type, date]);
