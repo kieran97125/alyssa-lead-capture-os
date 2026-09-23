@@ -145,7 +145,7 @@ function defaultWebsiteAccountRoute(sourceBrand: string): WebsiteAccountRoute | 
       account: "Alyssa Aesthetics",
       brand: "Alyssa Aesthetics",
       medicalBrand: "Aesthetics Medical",
-      medicalKeywords: ["julaine", "juläine", "xeomin", "麗珠"],
+      medicalKeywords: ["julaine", "juläine", "xeomin", "麗珠", "緻麗顏"],
     };
   }
   if (brand === "aesthetics" || brand === "aesthetics medical") {
