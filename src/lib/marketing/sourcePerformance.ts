@@ -3,6 +3,10 @@ import "server-only";
 import { getConfiguredBrands } from "@/lib/data/configuration";
 import { brandsForScope } from "@/lib/marketing/brandScope";
 import {
+  brandIdsForLeadAccount,
+  leadAccountById,
+} from "@/lib/marketing/leadAccountScope";
+import {
   buildSourcePerformanceGroups,
   type SourceMetricFact,
   type SourceSpendFact,
@@ -18,6 +22,7 @@ import {
 export type SourcePerformanceSnapshot = ReturnType<typeof buildSourcePerformanceGroups> & {
   startDate: string;
   endDate: string;
+  accountScope: string | null;
   brandScope: string | null;
   live: boolean;
   warnings: string[];
@@ -82,6 +87,7 @@ function chooseFunnelSource(sources: SourceRow[], brandId: string) {
 function fixtureSnapshot(input: {
   startDate: string;
   endDate: string;
+  accountScope: string | null;
   brandScope: string | null;
   brands: Array<{ id: string; name: string; primaryColor?: string | null }>;
 }): SourcePerformanceSnapshot {
@@ -150,6 +156,7 @@ function fixtureSnapshot(input: {
     }),
     startDate: input.startDate,
     endDate: input.endDate,
+    accountScope: input.accountScope,
     brandScope: input.brandScope,
     live: false,
     warnings: ["Source Performance 暫時使用驗收數據。"],
@@ -160,6 +167,7 @@ export async function getSourcePerformanceSnapshot(
   input: {
     startDate: string;
     endDate: string;
+    accountScope?: string | null;
     brandScope?: string | null;
   },
   access: InternalAccessContext
@@ -168,12 +176,26 @@ export async function getSourcePerformanceSnapshot(
   const permittedBrands = configuredBrands.filter((brand) =>
     canAccessInternalBrand(access, brand.id)
   );
-  const selectedBrands = brandsForScope(permittedBrands, input.brandScope);
+  const accountScope = input.accountScope || null;
+  const accountBrandIds = accountScope
+    ? new Set(
+        brandIdsForLeadAccount(
+          permittedBrands,
+          accountScope,
+          "permission"
+        )
+      )
+    : null;
+  const accountBrands = accountBrandIds
+    ? permittedBrands.filter((brand) => accountBrandIds.has(brand.id))
+    : permittedBrands;
+  const selectedBrands = brandsForScope(accountBrands, input.brandScope);
   const brandScope = input.brandScope || null;
   if (!hasSupabaseAdminEnv()) {
     return fixtureSnapshot({
       startDate: input.startDate,
       endDate: input.endDate,
+      accountScope,
       brandScope,
       brands: selectedBrands,
     });
@@ -183,6 +205,7 @@ export async function getSourcePerformanceSnapshot(
       ...buildSourcePerformanceGroups({ brands: [], spendFacts: [], metricFacts: [] }),
       startDate: input.startDate,
       endDate: input.endDate,
+      accountScope,
       brandScope,
       live: true,
       warnings: ["目前品牌範圍未有可顯示嘅 Source Performance。"],
@@ -191,6 +214,13 @@ export async function getSourcePerformanceSnapshot(
 
   const supabase = createSupabaseAdminClient();
   const brandIds = selectedBrands.map((brand) => brand.id);
+  let spendBrandIds = accountScope
+    ? brandIdsForLeadAccount(permittedBrands, accountScope, "spend")
+    : brandIdsForLeadAccount(permittedBrands, null, "spend");
+  if (brandScope) {
+    const selected = new Set(brandIds);
+    spendBrandIds = spendBrandIds.filter((id) => selected.has(id));
+  }
   const [sourcesResult, spendResult, metricResult] = await Promise.all([
     supabase
       .from("marketing_data_sources")
@@ -198,13 +228,13 @@ export async function getSourcePerformanceSnapshot(
     supabase
       .from("marketing_daily_spend_entries")
       .select("brand_id,spend_date,spend_type,amount")
-      .in("brand_id", brandIds)
+      .in("brand_id", spendBrandIds.length > 0 ? spendBrandIds : ["00000000-0000-0000-0000-000000000000"])
       .gte("spend_date", input.startDate)
       .lte("spend_date", input.endDate),
     supabase
       .from("marketing_treatment_performance_daily")
       .select(
-        "data_source_id,brand_id,metric_date,metric_kind,source_label,campaign_label,metric_count"
+        "data_source_id,account_label,brand_id,metric_date,metric_kind,source_label,campaign_label,metric_count"
       )
       .in("brand_id", brandIds)
       .in("metric_kind", ["lead", "book", "show"])
@@ -220,6 +250,7 @@ export async function getSourcePerformanceSnapshot(
     return fixtureSnapshot({
       startDate: input.startDate,
       endDate: input.endDate,
+      accountScope,
       brandScope,
       brands: selectedBrands,
     });
@@ -258,6 +289,12 @@ export async function getSourcePerformanceSnapshot(
   const metricFacts: SourceMetricFact[] = ((metricResult.data ?? []) as Array<Record<string, unknown>>)
     .flatMap((row): SourceMetricFact[] => {
       const brandId = String(row.brand_id ?? "");
+      if (
+        accountScope &&
+        leadAccountById(row.account_label)?.id !== accountScope
+      ) {
+        return [];
+      }
       const canonicalSourceId = funnelSourceByBrand.get(brandId);
       if (!canonicalSourceId || String(row.data_source_id ?? "") !== canonicalSourceId) return [];
       const metricKind = text(row.metric_kind);
@@ -293,6 +330,7 @@ export async function getSourcePerformanceSnapshot(
     ...groups,
     startDate: input.startDate,
     endDate: input.endDate,
+    accountScope,
     brandScope,
     live: true,
     warnings:
