@@ -155,7 +155,11 @@ function defaultWebsiteAccountRoute(sourceBrand: string): WebsiteAccountRoute | 
       brand: "Aesthetics Medical",
     };
   }
-  if (brand === "alyssa medical") {
+  if (
+    brand === "am" ||
+    brand === "alyssa medical" ||
+    brand === "alyssa-medical"
+  ) {
     return {
       tabName: "Alyssa Medical",
       account: "Alyssa Medical",
