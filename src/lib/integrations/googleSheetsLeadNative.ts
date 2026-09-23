@@ -6,6 +6,7 @@ import {
 } from "@/lib/integrations/googleSheetsOAuth";
 import {
   alignLeadRowToDestinationHeaders,
+  GOOGLE_SHEETS_LEAD_HEADERS,
   type GoogleSheetsLeadWebhookPayload,
 } from "@/lib/integrations/googleSheetsLeadSync";
 import {
@@ -89,6 +90,128 @@ function columnFromIndex(index: number) {
 function sourceDataset(configuration: Record<string, unknown>) {
   return stringValue(configuration.dataset);
 }
+
+function normalized(value: unknown) {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9\u3400-\u9fff]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+type WebsiteAccountRoute = {
+  tabName: string;
+  account: string;
+  brand: string;
+  medicalBrand?: string;
+  medicalKeywords?: string[];
+};
+
+function configuredWebsiteAccountRoute(
+  configuration: Record<string, unknown>,
+  sourceBrand: string
+): WebsiteAccountRoute | null {
+  const raw = configuration.websiteAccountRoutes;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return null;
+  const routes = raw as Record<string, unknown>;
+  const matchedEntry = Object.entries(routes).find(
+    ([key]) => normalized(key) === normalized(sourceBrand)
+  );
+  if (!matchedEntry) return null;
+  const value = matchedEntry[1];
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const record = value as Record<string, unknown>;
+  const tab = stringValue(record.tabName);
+  const account = stringValue(record.account);
+  const brand = stringValue(record.brand);
+  if (!tab || !account || !brand) return null;
+  return {
+    tabName: tab,
+    account,
+    brand,
+    medicalBrand: stringValue(record.medicalBrand) || undefined,
+    medicalKeywords: Array.isArray(record.medicalKeywords)
+      ? record.medicalKeywords.map(stringValue).filter(Boolean)
+      : undefined,
+  };
+}
+
+function defaultWebsiteAccountRoute(sourceBrand: string): WebsiteAccountRoute | null {
+  const brand = normalized(sourceBrand);
+  if (brand === "alyssa") {
+    return {
+      tabName: "Alyssa Aesthetics",
+      account: "Alyssa Aesthetics",
+      brand: "Alyssa Aesthetics",
+      medicalBrand: "Aesthetics Medical",
+      medicalKeywords: ["julaine", "juläine", "xeomin", "麗珠"],
+    };
+  }
+  if (brand === "aesthetics" || brand === "aesthetics medical") {
+    return {
+      tabName: "Alyssa Aesthetics",
+      account: "Alyssa Aesthetics",
+      brand: "Aesthetics Medical",
+    };
+  }
+  if (brand === "alyssa medical") {
+    return {
+      tabName: "Alyssa Medical",
+      account: "Alyssa Medical",
+      brand: "Alyssa Medical",
+    };
+  }
+  if (brand === "gos" || brand === "gos beauty") {
+    return { tabName: "GOS Beauty", account: "GOS Beauty", brand: "GOS Beauty" };
+  }
+  if (brand === "ineffable" || brand === "ineffable beauty") {
+    return { tabName: "Ineffable", account: "Ineffable", brand: "Ineffable Beauty" };
+  }
+  if (["skin light", "skinlight", "skin light beauty"].includes(brand)) {
+    return { tabName: "Skin Light", account: "Skin Light", brand: "Skin Light" };
+  }
+  return null;
+}
+
+function routePayload(
+  configuration: Record<string, unknown>,
+  payload: GoogleSheetsLeadWebhookPayload
+) {
+  const route =
+    configuredWebsiteAccountRoute(configuration, payload.brand) ||
+    defaultWebsiteAccountRoute(payload.brand);
+  if (!route) {
+    throw new Error(`未設定 ${payload.brand || "未知品牌"} 嘅 Omni Account 寫入路由。`);
+  }
+
+  const treatmentText = normalized(
+    [payload.treatmentOffer, payload.treatmentItem].filter(Boolean).join(" ")
+  );
+  const useMedicalBrand = Boolean(
+    route.medicalBrand &&
+      route.medicalKeywords?.some((keyword) =>
+        treatmentText.includes(normalized(keyword))
+      )
+  );
+  const sheetBrand = useMedicalBrand ? route.medicalBrand! : route.brand;
+  const rowValues = [...payload.rowValues];
+  const brandIndex = GOOGLE_SHEETS_LEAD_HEADERS.indexOf("品牌");
+  const accountIndex = GOOGLE_SHEETS_LEAD_HEADERS.indexOf("Account");
+  if (brandIndex >= 0) rowValues[brandIndex] = sheetBrand;
+  if (accountIndex >= 0) rowValues[accountIndex] = route.account;
+
+  return {
+    route,
+    payload: {
+      ...payload,
+      brand: sheetBrand,
+      account: route.account,
+      rowValues,
+    } satisfies GoogleSheetsLeadWebhookPayload,
+  };
+}
+
 
 async function getLeadDestination(brandId: string) {
   const supabase = createSupabaseAdminClient();
@@ -309,7 +432,8 @@ export async function appendLeadViaNativeGoogleSheets(input: {
 
   const configuration = destination.configuration;
   const destinationSpreadsheetId = spreadsheetId(configuration);
-  const destinationTabName = tabName(configuration);
+  const routed = routePayload(configuration, input.payload);
+  const destinationTabName = routed.route.tabName || tabName(configuration);
   const destinationHeaderRow = headerRowValue(configuration.headerRow);
 
   try {
@@ -322,7 +446,7 @@ export async function appendLeadViaNativeGoogleSheets(input: {
       tabName: destinationTabName,
       headerRow: destinationHeaderRow,
     });
-    const values = alignLeadRowToDestinationHeaders(headers, input.payload);
+    const values = alignLeadRowToDestinationHeaders(headers, routed.payload);
     const result = await appendRow({
       accessToken,
       spreadsheetId: destinationSpreadsheetId,
