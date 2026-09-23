@@ -14,14 +14,16 @@ const [sync, table, normalizer, parser, ledger, dashboard, panel] = await Promis
   read("src/components/command-center/LeadDashboardPanel.tsx"),
 ]);
 
-assert.match(sync, /GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead\.v3"/);
+assert.match(sync, /GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead\.v4"/);
 assert.match(sync, /GOOGLE_SHEETS_LEAD_LEGACY_HEADERS/);
 assert.match(sync, /"最後更新日期"/);
 assert.match(sync, /lastUpdatedAt: createdAt/);
 assert.match(table, /FUNNEL_EVENT_LEDGER_SHEET_NAME = "_funnel_events"/);
 assert.match(table, /readLeadFunnelEventLedger/);
-assert.match(table, /OPERATIONAL_LAST_COLUMN = "W"/);
+assert.match(table, /OPERATIONAL_LAST_COLUMN = "X"/);
 assert.match(table, /\[22, 23\]\.includes\(contractWidth\)/);
+assert.match(sync, /"Account"/);
+assert.match(table, /FUNNEL_EVENT_LEDGER_LAST_COLUMN = "P"/);
 assert.match(normalizer, /operationalHeaderContract/);
 assert.match(parser, /usesEventLedger/);
 assert.match(parser, /dedupeByIdentity: true/);
@@ -34,4 +36,4 @@ assert.match(dashboard, /applyLeadFunnelEventLedger/);
 assert.match(panel, /不可變 Funnel Event 紀錄日期/);
 assert.match(panel, /之後狀態再轉變都唔會搬走之前嘅 Book/);
 
-console.log("Lead Sheet v4 event-ledger ownership and legacy-safe fallback verified.");
+console.log("Lead Sheet v4 Account-first A:X contract, event-ledger ownership, and legacy-safe fallback verified.");
