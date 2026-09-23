@@ -2,6 +2,7 @@ import {
   applyLeadFunnelEventLedger,
   type LeadFunnelEventLedgerTable,
 } from "@/lib/marketing/leadFunnelEventLedger";
+import { resolveLeadAccount } from "@/lib/marketing/leadAccountScope";
 
 export type SheetBrandReference = {
   id: string;
@@ -37,6 +38,8 @@ export type LeadSheetTreatmentAlias = {
 };
 
 export type ParsedLeadSheetMetricFact = {
+  accountId: string;
+  accountLabel: string;
   brandId: string;
   brandLabel: string;
   metricDate: string;
@@ -82,6 +85,8 @@ export type LeadSheetGroupRow = {
 
 export type LeadSheetLeadGroup = {
   key: string;
+  accountId: string;
+  accountLabel: string;
   brandId: string;
   brandLabel: string;
   treatmentLabel: string;
@@ -112,6 +117,7 @@ export const leadSheetFieldKeys = [
   "createdAt",
   "followStatus",
   "brand",
+  "account",
   "branch",
   "offer",
   "treatment",
@@ -145,6 +151,7 @@ const LEAD_SHEET_HEADER_ALIASES: Record<LeadSheetFieldKey, string[]> = {
   createdAt: ["Created At", "created_at", "建立時間"],
   followStatus: ["跟進狀態", "Follow-up Status", "Follow Up Status"],
   brand: ["品牌", "Brand"],
+  account: ["Account", "Omni Account", "Omni account"],
   branch: ["分店", "Branch"],
   offer: ["療程 / 優惠", "療程／優惠", "Treatment / Offer"],
   treatment: ["療程項目", "Treatment Item", "Treatment"],
@@ -517,6 +524,8 @@ export function buildLeadSheetGroups(input: {
     string,
     Array<{
       sortValue: string;
+      accountId: string;
+      accountLabel: string;
       brand: SheetBrandReference;
       treatmentLabel: string;
       sourceLabel: string;
@@ -580,6 +589,14 @@ export function buildLeadSheetGroups(input: {
       diagnostics.unknownBrandRows += 1;
       return;
     }
+    const account = resolveLeadAccount(
+      valueAt(rawRow, "account"),
+      valueAt(rawRow, "brand")
+    );
+    if (!account) {
+      diagnostics.unknownBrandRows += 1;
+      return;
+    }
     diagnostics.acceptedRows += 1;
 
     const canonicalTreatment = treatmentLabel({
@@ -631,13 +648,15 @@ export function buildLeadSheetGroups(input: {
           : leadKey
             ? `lead:${leadKey}`
             : `row:${rowNumber}`;
-    const groupKey = `${brand.id}|${identity}`;
+    const groupKey = `${account.id}|${brand.id}|${identity}`;
     const branchLabel = defaultDimensionLabel(
       valueAt(rawRow, "branch"),
       "未標記分店"
     );
     const item = {
       sortValue: createdAtSortValue(createdAt, rowNumber),
+      accountId: account.id,
+      accountLabel: account.label,
       brand,
       treatmentLabel: canonicalTreatment,
       sourceLabel: defaultDimensionLabel(
@@ -726,6 +745,8 @@ export function buildLeadSheetGroups(input: {
 
     return {
       key,
+      accountId: first.accountId,
+      accountLabel: first.accountLabel,
       brandId: first.brand.id,
       brandLabel: first.brand.name,
       treatmentLabel: first.treatmentLabel,
@@ -815,6 +836,7 @@ export function aggregateLeadSheetPerformance(input: {
     fact: Omit<ParsedLeadSheetMetricFact, "count">
   ) => {
     const key = JSON.stringify([
+      fact.accountId,
       fact.brandId,
       fact.metricDate,
       fact.metricKind,
@@ -833,6 +855,8 @@ export function aggregateLeadSheetPerformance(input: {
 
   parsed.groups.forEach((group) => {
     const dimensions = {
+      accountId: group.accountId,
+      accountLabel: group.accountLabel,
       brandId: group.brandId,
       brandLabel: group.brandLabel,
       treatmentLabel: group.treatmentLabel,
