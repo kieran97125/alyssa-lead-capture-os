@@ -131,11 +131,26 @@ export function buildLeadDashboardTrend(input: {
     return true;
   });
   const availableAccountIds = new Set(input.groups.map((group) => group.accountId));
-  const seriesAccounts = LEAD_ACCOUNTS.filter(
+  const knownSeriesAccounts = LEAD_ACCOUNTS.filter(
     (account) =>
       availableAccountIds.has(account.id) &&
       (!input.filters.accountId || account.id === input.filters.accountId)
   );
+  const knownIds = new Set(knownSeriesAccounts.map((account) => account.id));
+  const legacySeriesAccounts = input.groups
+    .filter(
+      (group, index, all) =>
+        Boolean(group.accountId) &&
+        !knownIds.has(group.accountId) &&
+        (!input.filters.accountId || group.accountId === input.filters.accountId) &&
+        all.findIndex((item) => item.accountId === group.accountId) === index
+    )
+    .map((group) => ({
+      id: group.accountId,
+      label: group.accountLabel,
+      color: input.brandColors[group.brandId] || "#5a2348",
+    }));
+  const seriesAccounts = [...knownSeriesAccounts, ...legacySeriesAccounts];
   const dates = dashboardDates(input.filters.startDate, input.filters.endDate);
 
   const series = seriesAccounts.map((account) => {
