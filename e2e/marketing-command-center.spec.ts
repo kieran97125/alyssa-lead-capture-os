@@ -1102,7 +1102,7 @@ test("Lead Dashboard copies brand-phone dedupe and First Touch rules from the op
   expect(model.campaignRows.find((row) => row.brandId === "alyssa-brand"))
     .toMatchObject({ campaignLabel: "first-touch-campaign", leads: 1, bookings: 1 });
   expect(model.outstandingRows[0]).toMatchObject({
-    brandLabel: "AM",
+    brandLabel: "Alyssa Medical",
     appointmentDate: "2026-07-20",
     csRemark: "待確認",
   });
@@ -1152,6 +1152,7 @@ test("Lead Dashboard defaults to completed HKT days and preserves active filters
   expect(filters).toEqual({
     startDate: "2026-08-01",
     endDate: "2026-08-05",
+    accountId: "",
     brandId: "alyssa-brand",
     treatment: "$988 Facelift",
   });
@@ -1234,7 +1235,12 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
   await expect(
     page.getByRole("heading", { name: "Dashboard", exact: true })
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "品牌總結" })).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Omni Account 總結" })
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Account 內品牌" })
+  ).toBeVisible();
   const dashboardCosts = page.getByRole("region", { name: "廣告成本成效" });
   await expect(
     dashboardCosts.getByRole("heading", { name: "廣告成本成效" })
