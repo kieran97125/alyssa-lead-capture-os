@@ -22,9 +22,13 @@ import {
 import { fetchDailySpendFacts } from "@/lib/marketing/performanceCosts";
 import {
   brandIdsForScope,
-  brandScopeOptions,
   brandsForScope,
 } from "@/lib/marketing/brandScope";
+import {
+  accountsForAllowedBrands,
+  brandIdsForLeadAccount,
+  leadAccountById,
+} from "@/lib/marketing/leadAccountScope";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export type TreatmentPerformanceSort =
@@ -37,6 +41,7 @@ export type TreatmentPerformanceSort =
 export type TreatmentPerformanceFilters = {
   startDate: string;
   endDate: string;
+  accountId: string;
   brandId: string;
   treatment: string;
   source: string;
@@ -58,6 +63,7 @@ export type TreatmentPerformanceTotals = {
 
 export type TreatmentPerformanceRow = TreatmentPerformanceTotals & {
   key: string;
+  accountLabel: string;
   brandId: string;
   brandName: string;
   treatment: string;
@@ -83,6 +89,7 @@ export type TreatmentPerformanceSnapshot = {
   costs: PerformanceCostSummary;
   treatmentRows: TreatmentPerformanceRow[];
   sourceRows: TreatmentPerformanceRow[];
+  accountOptions: TreatmentPerformanceOption[];
   brandOptions: TreatmentPerformanceOption[];
   treatmentOptions: TreatmentPerformanceOption[];
   sourceOptions: TreatmentPerformanceOption[];
@@ -101,6 +108,7 @@ export type TreatmentPerformanceSnapshot = {
 };
 
 type TreatmentMetricFact = {
+  account_label: string | null;
   brand_id: string;
   brand_label: string;
   metric_date: string;
@@ -156,6 +164,7 @@ function cleanFilter(value: unknown, maxLength = 180) {
 export function normalizeTreatmentPerformanceFilters(input: {
   startDate?: unknown;
   endDate?: unknown;
+  accountId?: unknown;
   brandId?: unknown;
   treatment?: unknown;
   source?: unknown;
@@ -178,6 +187,7 @@ export function normalizeTreatmentPerformanceFilters(input: {
   return {
     startDate,
     endDate,
+    accountId: cleanFilter(input.accountId, 80),
     brandId: cleanFilter(input.brandId, 80),
     treatment: cleanFilter(input.treatment),
     source: cleanFilter(input.source),
@@ -239,6 +249,7 @@ function buildRows(
   const groups = new Map<
     string,
     {
+      accountLabel: string;
       brandId: string;
       brandName: string;
       treatment: string;
@@ -251,8 +262,9 @@ function buildRows(
   for (const fact of facts) {
     const key =
       group === "treatment"
-        ? JSON.stringify([fact.brand_id, fact.treatment_label])
+        ? JSON.stringify([fact.account_label, fact.brand_id, fact.treatment_label])
         : JSON.stringify([
+            fact.account_label,
             fact.brand_id,
             fact.treatment_label,
             fact.source_label,
@@ -261,6 +273,7 @@ function buildRows(
     const current =
       groups.get(key) ??
       {
+        accountLabel: fact.account_label || "未分類 Account",
         brandId: fact.brand_id,
         brandName: fact.brand_label,
         treatment: fact.treatment_label,
@@ -274,6 +287,7 @@ function buildRows(
 
   return Array.from(groups, ([key, row]) => ({
     key,
+    accountLabel: row.accountLabel,
     brandId: row.brandId,
     brandName: row.brandName,
     treatment: row.treatment,
@@ -414,6 +428,7 @@ function buildInsights(
 function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact[] {
   const date = filters.startDate;
   const make = (
+    accountLabel: string,
     brandId: string,
     brand: string,
     treatment: string,
@@ -422,6 +437,7 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
     kind: TreatmentMetricFact["metric_kind"],
     count: number
   ): TreatmentMetricFact => ({
+    account_label: accountLabel,
     brand_id: brandId,
     brand_label: brand,
     metric_date: date,
@@ -434,8 +450,9 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
   });
   return [
     make(
+      "Alyssa Aesthetics",
       "alyssa-brand",
-      "Alyssa",
+      "Alyssa Aesthetics",
       "$988 Facelift",
       "Facebook Lead Form",
       "Facelift-yanyan-lead-form",
@@ -443,8 +460,9 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
       42
     ),
     make(
+      "Alyssa Aesthetics",
       "alyssa-brand",
-      "Alyssa",
+      "Alyssa Aesthetics",
       "$988 Facelift",
       "Facebook Lead Form",
       "Facelift-yanyan-lead-form",
@@ -452,8 +470,9 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
       9
     ),
     make(
+      "Alyssa Aesthetics",
       "alyssa-brand",
-      "Alyssa",
+      "Alyssa Aesthetics",
       "$988 Facelift",
       "Facebook Lead Form",
       "Facelift-yanyan-lead-form",
@@ -461,6 +480,7 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
       5
     ),
     make(
+      "Ineffable",
       "ib-brand",
       "Ineffable Beauty",
       "$388 柔清舒敏護理",
@@ -470,6 +490,7 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
       28
     ),
     make(
+      "Ineffable",
       "ib-brand",
       "Ineffable Beauty",
       "$388 柔清舒敏護理",
@@ -479,6 +500,7 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
       7
     ),
     make(
+      "Ineffable",
       "ib-brand",
       "Ineffable Beauty",
       "$388 柔清舒敏護理",
@@ -488,6 +510,7 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
       4
     ),
     make(
+      "Ineffable",
       "ib-brand",
       "Ineffable Beauty",
       "$388 柔清舒敏護理",
@@ -497,6 +520,7 @@ function fixtureFacts(filters: TreatmentPerformanceFilters): TreatmentMetricFact
       2
     ),
     make(
+      "Ineffable",
       "ib-brand",
       "Ineffable Beauty",
       "$388 柔清舒敏護理",
@@ -522,7 +546,7 @@ async function fetchFacts(input: {
     let query = supabase
       .from("marketing_treatment_performance_daily")
       .select(
-        "brand_id,brand_label,metric_date,metric_kind,treatment_label,source_label,campaign_label,branch_label,metric_count"
+        "account_label,brand_id,brand_label,metric_date,metric_kind,treatment_label,source_label,campaign_label,branch_label,metric_count"
       )
       .eq("data_source_id", input.dataSourceId)
       .gte("metric_date", input.startDate)
@@ -550,15 +574,45 @@ function buildSnapshot(input: {
   annotations?: OperationalAnnotation[];
   spendFacts?: DailySpendFact[];
 }): TreatmentPerformanceSnapshot {
-  const brandOptions = brandScopeOptions(input.brands);
-  const selectedBrandIds = brandIdsForScope(
+  const visibleAccounts = accountsForAllowedBrands(
     input.brands,
-    input.filters.brandId
+    input.brands.map((brand) => brand.id)
   );
+  const accountOptions = visibleAccounts.map((account) => ({
+    value: account.id,
+    label: account.label,
+  }));
+  const accountScopedFacts = input.facts.filter((fact) => {
+    if (!input.filters.accountId) return true;
+    return leadAccountById(fact.account_label)?.id === input.filters.accountId;
+  });
+  const accountBrandIds = input.filters.accountId
+    ? new Set(
+        brandIdsForLeadAccount(
+          input.brands,
+          input.filters.accountId,
+          "permission"
+        )
+      )
+    : null;
+  const accountBrands = accountBrandIds
+    ? input.brands.filter((brand) => accountBrandIds.has(brand.id))
+    : input.brands;
+  const selectedBrandIds = input.filters.brandId
+    ? brandIdsForScope(accountBrands, input.filters.brandId)
+    : accountBrands.map((brand) => brand.id);
   const selectedBrandIdSet = new Set(selectedBrandIds);
-  const brandScopedFacts = input.facts.filter((fact) =>
+  const brandScopedFacts = accountScopedFacts.filter((fact) =>
     selectedBrandIdSet.has(fact.brand_id)
   );
+  const brandOptions = input.filters.accountId
+    ? uniqueOptions(
+        accountScopedFacts.map((fact) => ({
+          value: fact.brand_id,
+          label: fact.brand_label,
+        }))
+      )
+    : [];
   const treatmentOptions = uniqueOptions(
     brandScopedFacts.map((fact) => ({ value: fact.treatment_label }))
   );
@@ -589,9 +643,20 @@ function buildSnapshot(input: {
   const totalCounts = emptyCounts();
   filteredFacts.forEach((fact) => addFact(totalCounts, fact));
   const totals = withRates(totalCounts);
+  let selectedSpendBrandIds = brandIdsForLeadAccount(
+    input.brands,
+    input.filters.accountId,
+    "spend"
+  );
+  if (input.filters.brandId) {
+    const selected = new Set(selectedBrandIds);
+    selectedSpendBrandIds = selectedSpendBrandIds.filter((id) =>
+      selected.has(id)
+    );
+  }
   const costs = calculatePerformanceCostSummary({
     spendFacts: input.spendFacts ?? [],
-    selectedBrandIds,
+    selectedBrandIds: selectedSpendBrandIds,
     leads: totals.leads,
     bookings: totals.bookings,
     shows: totals.shows,
@@ -663,6 +728,7 @@ function buildSnapshot(input: {
     costs,
     treatmentRows,
     sourceRows,
+    accountOptions,
     brandOptions,
     treatmentOptions,
     sourceOptions,
@@ -799,7 +865,21 @@ export async function getTreatmentPerformanceSnapshot(
     const source =
       (sourceResult.data as TreatmentDataSource | null) ?? null;
     const brandRows = (brandsResult.data ?? []) as BrandColorRow[];
-    const reportingBrands = brandsForScope(brandRows, filters.brandId);
+    const accountBrandIds = filters.accountId
+      ? new Set(
+          brandIdsForLeadAccount(
+            brandRows,
+            filters.accountId,
+            "permission"
+          )
+        )
+      : null;
+    const accountBrands = accountBrandIds
+      ? brandRows.filter((brand) => accountBrandIds.has(brand.id))
+      : brandRows;
+    const reportingBrands = filters.brandId
+      ? brandsForScope(accountBrands, filters.brandId)
+      : accountBrands;
     const reportingBrandIds = reportingBrands.map((brand) => brand.id);
     const [facts, analysisPresenceResult, annotations, spendFacts] = source
       ? await Promise.all([
