@@ -223,3 +223,23 @@ export function leadAccountColor(accountId: string | null | undefined) {
 export function leadAccountLabel(accountId: string | null | undefined) {
   return leadAccountById(accountId)?.label || "未分類 Account";
 }
+
+export function mapSpendFactsToLeadAccounts<
+  T extends { brandId: string; spendDate: string; amount: number }
+>(facts: T[], brands: LeadAccountBrandReference[]) {
+  const brandById = new Map(brands.map((brand) => [brand.id, brand]));
+  const accountForSpendSlug = new Map<string, LeadAccountDefinition>();
+  for (const account of LEAD_ACCOUNTS) {
+    for (const slug of account.spendBrandSlugs) {
+      accountForSpendSlug.set(normalizeLeadAccountKey(slug), account);
+    }
+  }
+
+  return facts.flatMap((fact) => {
+    const brand = brandById.get(fact.brandId);
+    if (!brand) return [];
+    const slug = normalizeLeadAccountKey(brand.slug || brand.name);
+    const account = accountForSpendSlug.get(slug);
+    return account ? [{ ...fact, brandId: account.id }] : [];
+  });
+}
