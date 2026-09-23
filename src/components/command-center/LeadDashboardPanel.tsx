@@ -96,7 +96,7 @@ function PerformanceTable({
   snapshot,
 }: {
   rows: LeadDashboardDimensionRow[];
-  firstColumn: "brand" | "treatment";
+  firstColumn: "account" | "brand" | "treatment";
   snapshot: LeadDashboardSnapshot;
 }) {
   return (
@@ -104,7 +104,13 @@ function PerformanceTable({
       <table className="treatment-performance-table lead-dashboard-table">
         <thead>
           <tr>
-            <th>{firstColumn === "brand" ? "品牌" : "療程項目"}</th>
+            <th>
+              {firstColumn === "account"
+                ? "Omni Account"
+                : firstColumn === "brand"
+                  ? "品牌"
+                  : "療程項目"}
+            </th>
             <th>Lead</th>
             <th>Book</th>
             <th>Show</th>
@@ -121,7 +127,19 @@ function PerformanceTable({
             rows.map((row) => (
               <tr key={row.key}>
                 <td>
-                  {firstColumn === "brand" ? (
+                  {firstColumn === "account" ? (
+                    <IntentPrefetchLink
+                      href={`/dashboard?startDate=${snapshot.filters.startDate}&endDate=${snapshot.filters.endDate}&accountId=${encodeURIComponent(row.accountId)}`}
+                      className="lead-dashboard-brand-cell"
+                    >
+                      <BrandMark
+                        compact
+                        name={row.accountLabel}
+                        color={snapshot.brandColors[row.accountId] || "#5a2348"}
+                      />
+                      <strong>{row.accountLabel}</strong>
+                    </IntentPrefetchLink>
+                  ) : firstColumn === "brand" ? (
                     <span className="lead-dashboard-brand-cell">
                       <BrandMark
                         compact
@@ -157,7 +175,9 @@ export function LeadDashboardPanel({
   snapshot: LeadDashboardSnapshot;
 }) {
   const hasFilters = Boolean(
-    snapshot.filters.brandId || snapshot.filters.treatment
+    snapshot.filters.accountId ||
+      snapshot.filters.brandId ||
+      snapshot.filters.treatment
   );
 
   return (
@@ -180,7 +200,7 @@ export function LeadDashboardPanel({
             </small>
           </div>
           <p>
-            同一品牌及電話只計一次；Lead 按 Created At；Book／Show／No Show 按不可變 Funnel Event 紀錄日期。
+            同一 Omni Account、品牌及電話只計一次；Lead 按 Created At；Book／Show／No Show 按不可變 Funnel Event 紀錄日期。
           </p>
         </header>
 
@@ -204,9 +224,26 @@ export function LeadDashboardPanel({
             />
           </label>
           <label>
+            <span>Omni Account</span>
+            <select name="accountId" defaultValue={snapshot.filters.accountId}>
+              <option value="">全部 Account</option>
+              {snapshot.accountOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
             <span>品牌</span>
-            <select name="brandId" defaultValue={snapshot.filters.brandId}>
-              <option value="">全部品牌</option>
+            <select
+              name="brandId"
+              defaultValue={snapshot.filters.brandId}
+              disabled={!snapshot.filters.accountId}
+            >
+              <option value="">
+                {snapshot.filters.accountId ? "全部品牌" : "先揀 Account"}
+              </option>
               {snapshot.brandOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
@@ -304,10 +341,21 @@ export function LeadDashboardPanel({
 
       <section
         className="command-surface treatment-ranking-section"
-        aria-label="品牌總結"
+        aria-label="Omni Account 總結"
       >
         <div className="lead-dashboard-section-heading">
-          <div><UsersRound size={17} /><div><h2>品牌總結</h2></div></div>
+          <div><UsersRound size={17} /><div><h2>Omni Account 總結</h2></div></div>
+          <span>撳 Account 名稱可直接進入該 Account 成效頁</span>
+        </div>
+        <PerformanceTable rows={snapshot.accountRows} firstColumn="account" snapshot={snapshot} />
+      </section>
+
+      <section
+        className="command-surface treatment-ranking-section"
+        aria-label="Account 內品牌總結"
+      >
+        <div className="lead-dashboard-section-heading">
+          <div><UsersRound size={17} /><div><h2>Account 內品牌</h2></div></div>
           <span>{snapshot.filters.startDate} 至 {snapshot.filters.endDate}</span>
         </div>
         <PerformanceTable rows={snapshot.brandRows} firstColumn="brand" snapshot={snapshot} />
@@ -330,7 +378,7 @@ export function LeadDashboardPanel({
           <table className="treatment-performance-table source-diagnostic-table lead-dashboard-table">
             <thead>
               <tr>
-                <th>品牌／療程</th><th>來源</th><th>Campaign／廣告</th>
+                <th>Account／品牌／療程</th><th>來源</th><th>Campaign／廣告</th>
                 <th>Lead</th><th>Book</th><th>Show</th><th>No Show</th>
                 <th>本月未 Show</th><th>Book Rate</th><th>Show-up Rate</th>
               </tr>
@@ -339,7 +387,10 @@ export function LeadDashboardPanel({
               {snapshot.campaignRows.length > 0 ? (
                 snapshot.campaignRows.slice(0, 100).map((row) => (
                   <tr key={row.key}>
-                    <td><strong>{row.brandLabel}</strong><span>{row.treatmentLabel}</span></td>
+                    <td>
+                      <strong>{row.accountLabel}</strong>
+                      <span>{row.brandLabel} · {row.treatmentLabel}</span>
+                    </td>
                     <td>{row.sourceLabel}</td><td>{row.campaignLabel}</td>
                     <td>{formatNumber(row.leads)}</td><td>{formatNumber(row.bookings)}</td>
                     <td>{formatNumber(row.shows)}</td><td>{formatNumber(row.noShows)}</td>
@@ -367,7 +418,7 @@ export function LeadDashboardPanel({
           <table className="treatment-performance-table lead-dashboard-table lead-dashboard-outstanding-table">
             <thead>
               <tr>
-                <th>預約日期／時間</th><th>品牌／分店</th><th>療程</th><th>狀態</th>
+                <th>預約日期／時間</th><th>Account／品牌／分店</th><th>療程</th><th>狀態</th>
                 <th>來源</th><th>Campaign／廣告</th><th>First Touch</th><th>CS Remark</th>
               </tr>
             </thead>
@@ -376,7 +427,10 @@ export function LeadDashboardPanel({
                 snapshot.outstandingRows.map((row) => (
                   <tr key={row.key}>
                     <td><strong>{row.appointmentDate}</strong><span>{row.appointmentTime}</span></td>
-                    <td><strong>{row.brandLabel}</strong><span>{row.branchLabel}</span></td>
+                    <td>
+                      <strong>{row.accountLabel}</strong>
+                      <span>{row.brandLabel} · {row.branchLabel}</span>
+                    </td>
                     <td>{row.treatmentLabel}</td><td>{row.statusLabel}</td>
                     <td>{row.sourceLabel}</td><td>{row.campaignLabel}</td>
                     <td>{row.createdAt}</td><td>{row.csRemark || "—"}</td>
@@ -395,7 +449,7 @@ export function LeadDashboardPanel({
         <div>
           <strong>計算及資料來源</strong>
           <p>
-            Lead 按同品牌同電話尾 8 位嘅 Created At；新版 Lead 嘅 Book、Show、No Show 由隱藏 Funnel Event Ledger 保存首次事件日期，
+            Lead 按同一 Omni Account、品牌同電話尾 8 位嘅 Created At；新版 Lead 嘅 Book、Show、No Show 由隱藏 Funnel Event Ledger 保存首次事件日期，
             所以之後狀態再轉變都唔會搬走之前嘅 Book。舊 Lead 未有 Event Ledger 時保留原有歷史日期口徑；
             C 欄「跟進狀態」仍然係目前狀態唯一主要來源。同期間比率係營運事件流量比率，唔係固定 cohort。
           </p>
