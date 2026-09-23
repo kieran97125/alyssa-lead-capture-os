@@ -368,7 +368,7 @@ export async function getLeadDashboardSnapshot(
       brands,
       brandAliases: stringRecord(source.configuration.brandAliases),
       treatmentAliases: aliases,
-      writeBack: true,
+      writeBack: source.configuration.readOnlyMaster !== true,
     });
     const baseParsed = buildLeadSheetGroups({
       ...liveTable,
