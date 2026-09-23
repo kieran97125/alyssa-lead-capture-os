@@ -6,6 +6,7 @@ import type { DailySpendFact } from "@/lib/marketing/performanceCostMath";
 type DailySpendRow = {
   id: string;
   brand_id: string;
+  account_label: string | null;
   spend_date: string;
   amount: number | string;
 };
@@ -16,6 +17,7 @@ export async function fetchDailySpendFacts(input: {
   startDate: string;
   endDate: string;
   allowedBrandIds: string[] | null;
+  accountLabel?: string;
 }): Promise<DailySpendFact[]> {
   if (input.allowedBrandIds !== null && input.allowedBrandIds.length === 0) {
     return [];
@@ -26,7 +28,7 @@ export async function fetchDailySpendFacts(input: {
   for (let offset = 0; offset < 50_000; offset += PAGE_SIZE) {
     let query = supabase
       .from("marketing_daily_spend_entries")
-      .select("id,brand_id,spend_date,amount")
+      .select("id,brand_id,account_label,spend_date,amount")
       .gte("spend_date", input.startDate)
       .lte("spend_date", input.endDate)
       .order("spend_date", { ascending: true })
@@ -35,6 +37,9 @@ export async function fetchDailySpendFacts(input: {
       .range(offset, offset + PAGE_SIZE - 1);
     if (input.allowedBrandIds !== null) {
       query = query.in("brand_id", input.allowedBrandIds);
+    }
+    if (input.accountLabel) {
+      query = query.eq("account_label", input.accountLabel);
     }
     const { data, error } = await query;
     if (error) throw error;
