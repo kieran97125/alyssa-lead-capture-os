@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   GOOGLE_SHEETS_LEAD_HEADERS,
+  GOOGLE_SHEETS_LEAD_V3_HEADERS,
   GOOGLE_SHEETS_LEAD_LEGACY_HEADERS,
 } from "../src/lib/integrations/googleSheetsLeadSync";
 import {
@@ -31,7 +32,7 @@ const treatmentAliases = [
   },
 ];
 
-test("Meta native Lead Form row is normalized into the Growth OS A:V contract", () => {
+test("Meta native Lead Form row is normalized into the Growth OS v3 A:W contract", () => {
   const rawRow = [
     "l:1000000000000001",
     "2026-08-21T10:25:49-05:00",
@@ -60,7 +61,7 @@ test("Meta native Lead Form row is normalized into the Growth OS A:V contract", 
   expect(isMetaLeadFormRawRow(rawRow)).toBe(true);
 
   const result = normalizeMetaLeadFormRows({
-    headers: [...GOOGLE_SHEETS_LEAD_HEADERS],
+    headers: [...GOOGLE_SHEETS_LEAD_V3_HEADERS],
     rows: [rawRow],
     headerRow: 1,
     brands,
@@ -127,7 +128,7 @@ test("normal operational rows are never rewritten as Meta raw leads", () => {
 
   expect(isMetaLeadFormRawRow(normalRow)).toBe(false);
   const result = normalizeMetaLeadFormRows({
-    headers: [...GOOGLE_SHEETS_LEAD_HEADERS],
+    headers: [...GOOGLE_SHEETS_LEAD_V3_HEADERS],
     rows: [normalRow],
     headerRow: 1,
     brands,
@@ -157,7 +158,7 @@ test("normalizer refuses to rewrite when the destination header contract changed
     "Demo Lau",
     "p:+85261234567",
   ];
-  const changedHeaders = [...GOOGLE_SHEETS_LEAD_HEADERS];
+  const changedHeaders = [...GOOGLE_SHEETS_LEAD_V3_HEADERS];
   changedHeaders[changedHeaders.indexOf("電話")] = "Other Phone Header";
 
   const result = normalizeMetaLeadFormRows({
