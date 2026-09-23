@@ -9,6 +9,7 @@ type BrandReference = { id: string; name: string; slug: string };
 
 type LedgerAwareLeadGroup = {
   key: string;
+  accountLabel?: string;
   brandId: string;
   currentStatus: "lead" | "booked" | "show" | "no_show";
   currentRowNumber: number;
@@ -27,6 +28,7 @@ const EVENT_HEADER_ALIASES = {
   eventType: ["event type", "event_type"],
   leadKey: ["lead_key", "lead key", "leadkey"],
   brand: ["brand", "品牌"],
+  account: ["account", "omni account", "omnichat account", "客服 account"],
   phoneLast8: ["phone last8", "phone_last8", "電話尾8位"],
   sourceRow: ["source row", "source_row", "來源行"],
 } as const;
@@ -150,6 +152,7 @@ export function applyLeadFunnelEventLedger<T extends LedgerAwareLeadGroup>(input
     eventId: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventId),
     eventType: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventType),
     brand: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.brand),
+    account: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.account),
     eventDate: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventDate),
     eventAt: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.eventAt),
     leadKey: resolveColumn(ledger.headers, EVENT_HEADER_ALIASES.leadKey),
@@ -180,7 +183,12 @@ export function applyLeadFunnelEventLedger<T extends LedgerAwareLeadGroup>(input
       Number.isInteger(sourceRow) && sourceRow >= 2 ? `row:${sourceRow}` : "";
     if (!identity) continue;
 
-    const key = `${brand.id}|${identity}`;
+    const account = columns.account >= 0
+      ? normalizeComparable(row[columns.account])
+      : "";
+    const key = account
+      ? `${account}|${identity}`
+      : `${brand.id}|${identity}`;
     const eventId = columns.eventId >= 0 ? compactString(row[columns.eventId]) : "";
     if (eventId) {
       const fingerprint = JSON.stringify([key, type, date]);
