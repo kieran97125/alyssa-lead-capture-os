@@ -362,6 +362,7 @@ export async function getLeadDashboardSnapshot(
         .select("id,display_name,status,last_success_at,configuration")
         .eq("provider_key", "google_sheets")
         .eq("configuration->>sourceProfile", "alyssa_workspace_lead_funnel")
+        .neq("status", "paused")
         .maybeSingle(),
       supabase
         .from("brands")
