@@ -201,7 +201,7 @@ export function LeadDashboardPanel({
             </small>
           </div>
           <p>
-            同一 Omni Account、品牌及電話只計一次；Lead 按 Created At；Book／Show／No Show 按不可變 Funnel Event 紀錄日期。
+            同一 Omni Account + 電話尾 8 位只計一次；跨 Account 分開計。Lead 按 Created At；Book／Show／No Show 按不可變 Funnel Event 紀錄日期。
           </p>
         </header>
 
