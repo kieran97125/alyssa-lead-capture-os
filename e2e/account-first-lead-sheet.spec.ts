@@ -93,6 +93,53 @@ test("same Alyssa DB brand and phone stay separated by Omni Account", () => {
   expect(new Set(parsed.groups.map((group) => group.key)).size).toBe(3);
 });
 
+test("same phone last8 inside one Account is counted once across brand lines", () => {
+  const parsed = buildLeadSheetGroups({
+    headers,
+    rows: [
+      row({
+        account: "Alyssa Aesthetics",
+        brand: "Alyssa Aesthetics",
+        phone: "+852 6123-4567",
+        treatment: "$988 Facelift",
+      }),
+      row({
+        account: "Alyssa Aesthetics",
+        brand: "Aesthetics Medical",
+        phone: "61234567",
+        treatment: "XEOMIN",
+      }),
+      row({
+        account: "Alyssa Main",
+        brand: "Alyssa",
+        phone: "61234567",
+        treatment: "$780 SlimCut",
+      }),
+    ],
+    brands,
+    brandAliases: aliases,
+    sourceBrandId: null,
+    appsScriptContract: true,
+    dedupeByIdentity: true,
+  });
+
+  expect(parsed.groups).toHaveLength(2);
+  expect(
+    parsed.groups.filter((group) => group.accountLabel === "Alyssa Aesthetics")
+  ).toHaveLength(1);
+  expect(
+    parsed.groups.find((group) => group.accountLabel === "Alyssa Aesthetics")
+  ).toMatchObject({
+    brandLabel: "Alyssa Aesthetics",
+    firstTouchDate: "2026-09-23",
+  });
+  expect(
+    parsed.groups.find((group) => group.accountLabel === "Alyssa Main")
+  ).toMatchObject({
+    brandLabel: "Alyssa",
+  });
+});
+
 test("Lead Dashboard exposes Account as first-level performance dimension", () => {
   const parsed = buildLeadSheetGroups({
     headers,
