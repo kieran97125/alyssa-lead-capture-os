@@ -27,7 +27,7 @@ export type LeadSheetSyncInput = {
   touch: TouchPayload;
 };
 
-export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v4";
+export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v5";
 
 export const GOOGLE_SHEETS_LEAD_LEGACY_HEADERS = [
   "Created At",
@@ -64,6 +64,7 @@ export const GOOGLE_SHEETS_LEAD_HEADERS = [
   "Created At",
   "跟進狀態",
   "品牌",
+  "CS同事名",
   "分店",
   "客人姓名",
   "電話",
@@ -93,6 +94,7 @@ export type GoogleSheetsLeadWebhookPayload = {
   createdAt: string;
   followUpStatus: string;
   brand: string;
+  csOwner: string;
   branch: string;
   customerName: string;
   phone: string;
@@ -263,6 +265,7 @@ export function buildGoogleSheetsLeadPayload(
     createdAt,
     followUpStatus: "待跟進",
     brand: input.brandName,
+    csOwner: "",
     branch: input.branchName,
     customerName: input.customerName,
     phone: input.phone,
@@ -302,6 +305,7 @@ export function buildGoogleSheetsLeadPayload(
     fields.createdAt,
     fields.followUpStatus,
     fields.brand,
+    fields.csOwner,
     fields.branch,
     fields.customerName,
     fields.phone,
@@ -347,6 +351,7 @@ const REQUIRED_OPERATIONAL_HEADERS = [
   "Created At",
   "跟進狀態",
   "品牌",
+  "CS同事名",
   "分店",
   "客人姓名",
   "電話",

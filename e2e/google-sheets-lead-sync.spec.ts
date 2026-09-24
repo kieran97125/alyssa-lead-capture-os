@@ -6,7 +6,7 @@ import {
   GOOGLE_SHEETS_LEAD_SCHEMA_VERSION,
 } from "../src/lib/integrations/googleSheetsLeadSync";
 
-test("LaunchHub lead payload matches the Account-first A:X contract", () => {
+test("LaunchHub lead payload matches the Account-first A:Y contract", () => {
   const previousSecret = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET;
   process.env.GOOGLE_SHEETS_WEBHOOK_SECRET = "test-secret";
 
@@ -37,6 +37,7 @@ test("LaunchHub lead payload matches the Account-first A:X contract", () => {
       "2026-07-29",
       "待跟進",
       "Alyssa",
+      "",
       "旺角分店【朗豪坊】",
       "Kieran Test",
       "85265871236",
@@ -58,7 +59,7 @@ test("LaunchHub lead payload matches the Account-first A:X contract", () => {
       "",
       "",
     ]);
-    expect(payload.rowValues).toHaveLength(24);
+    expect(payload.rowValues).toHaveLength(25);
     expect(
       Object.fromEntries(
         GOOGLE_SHEETS_LEAD_HEADERS.map((header, index) => [
@@ -70,6 +71,7 @@ test("LaunchHub lead payload matches the Account-first A:X contract", () => {
       最後更新日期: "2026-07-29",
       "Created At": "2026-07-29",
       品牌: "Alyssa",
+      CS同事名: "",
       分店: "旺角分店【朗豪坊】",
       客人姓名: "Kieran Test",
       電話: "85265871236",
@@ -79,7 +81,7 @@ test("LaunchHub lead payload matches the Account-first A:X contract", () => {
       確認到店日期: "",
       Account: "",
     });
-    expect(payload).not.toHaveProperty("csOwner");
+    expect(payload.csOwner).toBe("");
   } finally {
     if (previousSecret === undefined) {
       delete process.env.GOOGLE_SHEETS_WEBHOOK_SECRET;
@@ -113,6 +115,7 @@ test("native Sheets writer follows Account-first destination headers instead of 
     "自訂欄位",
     "電話",
     "品牌",
+    "CS同事名",
     "療程／優惠",
     "療程項目",
     "客人姓名",
@@ -131,6 +134,7 @@ test("native Sheets writer follows Account-first destination headers instead of 
     "",
     "85200000000",
     "Ineffable Beauty",
+    "",
     "DEP",
     "$588 DEP Combo",
     "Header Mapping Test",
