@@ -202,6 +202,22 @@ test("Lead Dashboard exposes Account as first-level performance dimension", () =
       }),
     ])
   );
+
+  const scoped = buildLeadDashboardModel({
+    groups: parsed.groups,
+    brands,
+    filters: {
+      startDate: "2026-09-23",
+      endDate: "2026-09-23",
+      accountId: "alyssa-aesthetics",
+      brandId: "",
+      treatment: "",
+    },
+  });
+  expect(scoped.brandOptions).toEqual([
+    { value: "aesthetics-db", label: "Aesthetics Medical" },
+    { value: "alyssa-db", label: "Alyssa Aesthetics" },
+  ]);
 });
 
 
