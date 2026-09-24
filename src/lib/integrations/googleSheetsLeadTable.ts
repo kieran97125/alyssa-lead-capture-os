@@ -12,7 +12,7 @@ const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
 const MAX_LEAD_ROWS = 50_000;
 const LEGACY_OPERATIONAL_LAST_COLUMN = "V";
-const OPERATIONAL_LAST_COLUMN = "X";
+const OPERATIONAL_LAST_COLUMN = "Y";
 const META_RAW_TAIL_LAST_COLUMN = "BN";
 const FUNNEL_EVENT_LEDGER_SHEET_NAME = "_funnel_events";
 const FUNNEL_EVENT_LEDGER_LAST_COLUMN = "P";
@@ -80,8 +80,8 @@ function configuredLastColumn(configuration: LeadTableSourceConfiguration) {
   const valid = /^[A-Z]{1,3}$/i.test(configured)
     ? configured.toUpperCase()
     : OPERATIONAL_LAST_COLUMN;
-  // A stored legacy configuration must not truncate the Account-first A:X contract.
-  // Reading A:X against an older Sheet is harmless because empty trailing cells are ignored.
+  // A stored legacy configuration must not truncate the Account-first A:Y contract.
+  // Reading A:Y against an older Sheet is harmless because empty trailing cells are ignored.
   return columnNumber(valid) < columnNumber(OPERATIONAL_LAST_COLUMN)
     ? OPERATIONAL_LAST_COLUMN
     : valid;
