@@ -27,6 +27,7 @@ import {
   accountsForAllowedBrands,
   brandIdsForLeadAccount,
   leadAccountById,
+  leadAccountBrandLabel,
   leadAccountColor,
 } from "@/lib/marketing/leadAccountScope";
 
@@ -562,14 +563,12 @@ export function buildLeadDashboardModel(input: {
     label: account.label,
   }));
   const brandOptions = input.filters.accountId
-    ? Array.from(
-        new Map(
-          accountScopedGroups.map((group) => [
-            group.brandId,
-            { value: group.brandId, label: group.brandLabel },
-          ])
-        ).values()
-      ).sort((left, right) => left.label.localeCompare(right.label, "zh-HK"))
+    ? accountBrands
+        .map((brand) => ({
+          value: brand.id,
+          label: leadAccountBrandLabel(input.filters.accountId, brand),
+        }))
+        .sort((left, right) => left.label.localeCompare(right.label, "zh-HK"))
     : [];
 
   return {

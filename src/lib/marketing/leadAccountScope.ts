@@ -223,3 +223,20 @@ export function leadAccountColor(accountId: string | null | undefined) {
 export function leadAccountLabel(accountId: string | null | undefined) {
   return leadAccountById(accountId)?.label || "未分類 Account";
 }
+
+export function leadAccountBrandLabel(
+  accountId: string | null | undefined,
+  brand: LeadAccountBrandReference
+) {
+  const account = leadAccountById(accountId);
+  const slug = normalizeLeadAccountKey(brand.slug || brand.name);
+
+  if (account?.id === "alyssa-aesthetics") {
+    if (slug === "alyssa") return "Alyssa Aesthetics";
+    if (slug === "aesthetics") return "Aesthetics Medical";
+  }
+  if (account?.id === "alyssa-main" && slug === "alyssa") {
+    return "Alyssa";
+  }
+  return brand.name;
+}

@@ -28,6 +28,7 @@ import {
   accountsForAllowedBrands,
   brandIdsForLeadAccount,
   leadAccountById,
+  leadAccountBrandLabel,
 } from "@/lib/marketing/leadAccountScope";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
@@ -606,12 +607,12 @@ function buildSnapshot(input: {
     selectedBrandIdSet.has(fact.brand_id)
   );
   const brandOptions = input.filters.accountId
-    ? uniqueOptions(
-        accountScopedFacts.map((fact) => ({
-          value: fact.brand_id,
-          label: fact.brand_label,
+    ? accountBrands
+        .map((brand) => ({
+          value: brand.id,
+          label: leadAccountBrandLabel(input.filters.accountId, brand),
         }))
-      )
+        .sort((left, right) => left.label.localeCompare(right.label, "zh-HK"))
     : [];
   const treatmentOptions = uniqueOptions(
     brandScopedFacts.map((fact) => ({ value: fact.treatment_label }))
