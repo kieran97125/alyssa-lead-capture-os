@@ -650,9 +650,12 @@ export function buildLeadSheetGroups(input: {
           : leadKey
             ? `lead:${leadKey}`
             : `row:${rowNumber}`;
-    const groupKey = hasAccountColumn
-      ? `${account.id}|${brand.id}|${identity}`
-      : `${brand.id}|${identity}`;
+    const groupKey =
+      hasAccountColumn && phone
+        ? `${account.id}|phone:${phone}`
+        : hasAccountColumn
+          ? `${account.id}|${brand.id}|${identity}`
+          : `${brand.id}|${identity}`;
     const branchLabel = defaultDimensionLabel(
       valueAt(rawRow, "branch"),
       "未標記分店"
