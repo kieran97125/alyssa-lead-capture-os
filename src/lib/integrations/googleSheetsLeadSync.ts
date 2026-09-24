@@ -351,6 +351,7 @@ const REQUIRED_OPERATIONAL_HEADERS = [
   "Created At",
   "跟進狀態",
   "品牌",
+  "CS同事名",
   "分店",
   "客人姓名",
   "電話",
