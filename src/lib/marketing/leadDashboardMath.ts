@@ -130,14 +130,14 @@ export function buildLeadDashboardTrend(input: {
     }
     return true;
   });
-  const availableAccountIds = new Set(input.groups.map((group) => group.accountId));
+  const availableAccountIds = new Set(groups.map((group) => group.accountId));
   const knownSeriesAccounts = LEAD_ACCOUNTS.filter(
     (account) =>
       availableAccountIds.has(account.id) &&
       (!input.filters.accountId || account.id === input.filters.accountId)
   );
   const knownIds = new Set(knownSeriesAccounts.map((account) => account.id));
-  const legacySeriesAccounts = input.groups
+  const legacySeriesAccounts = groups
     .filter(
       (group, index, all) =>
         Boolean(group.accountId) &&
