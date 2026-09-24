@@ -1,5 +1,26 @@
 # Design System Change Log
 
+## 2026-09-23 — Omni Account-first performance filters
+
+PR: #94
+
+### Changed
+
+- Promoted Omni Account to the first reporting/filter dimension on Dashboard and Treatment Performance.
+- Kept Brand as a second-level filter and disabled it until an Account is selected, preventing ambiguous cross-account brand choices.
+- Reused one shared `AccountBrandScopeFields` interaction across both performance surfaces.
+- Added direct Account summary links so each Account has a dedicated filtered performance view.
+
+### Evidence
+
+- Storybook: `System/Filters/AccountBrandScopeFields` covers unselected, Alyssa Aesthetics, and Aesthetics Medical states.
+- Playwright Account-first acceptance captures the Dashboard filter panel and attaches the deterministic PNG to the CI report.
+- Production build and full Playwright checks are required before the Lead data-source cutover.
+
+### Rollback
+
+- See `docs/design-system/rollback/2026-09-23-account-first-performance-filters.md`.
+
 ## 2026-09-01 — Creative Job deletion confirmation
 
 Issue: #79

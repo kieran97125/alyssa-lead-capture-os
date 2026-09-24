@@ -46,23 +46,25 @@ test("Alyssa All always combines every permitted non-GOS brand", () => {
   });
 });
 
-test("reporting pages render Alyssa All totals without GOS rows", async ({
+test("Dashboard is Account-first while legacy reporting pages retain Alyssa All scope", async ({
   page,
 }) => {
-  await page.goto(`/dashboard?brandId=${ALYSSA_ALL_BRAND_SCOPE}`, {
+  await page.goto("/dashboard?accountId=alyssa-aesthetics", {
     waitUntil: "domcontentloaded",
   });
-  await expect(page.locator('select[name="brandId"]')).toHaveValue(
-    ALYSSA_ALL_BRAND_SCOPE
+  await expect(page.locator('select[name="accountId"]')).toHaveValue(
+    "alyssa-aesthetics"
   );
-  const dashboardBrands = page.getByRole("region", { name: "品牌總結" });
-  await expect(dashboardBrands).toBeVisible();
-  await expect(dashboardBrands.getByText("Alyssa", { exact: true })).toBeVisible();
+  await expect(page.locator('select[name="brandId"]')).toBeEnabled();
+  const dashboardAccounts = page.getByRole("region", {
+    name: "Omni Account 總結",
+  });
+  await expect(dashboardAccounts).toBeVisible();
   await expect(
-    dashboardBrands.getByText("Ineffable Beauty", { exact: true })
+    dashboardAccounts.getByText("Alyssa Aesthetics", { exact: true })
   ).toBeVisible();
   await expect(
-    dashboardBrands.getByText("GOS Beauty", { exact: true })
+    dashboardAccounts.getByText("GOS Beauty", { exact: true })
   ).toHaveCount(0);
 
   await page.goto(

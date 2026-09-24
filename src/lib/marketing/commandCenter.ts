@@ -779,7 +779,9 @@ export async function getCommandCenterSnapshot(
     (item) => item.brandId === null || visibleBrandIds.has(item.brandId)
   );
   const visibleDataSourceIds = new Set(
-    visibleDataSources.map((source) => source.id)
+    visibleDataSources
+      .filter((source) => source.status !== "paused")
+      .map((source) => source.id)
   );
   const visibleReportingWorkbooks = planning.reportingWorkbooks.filter(
     (workbook) =>

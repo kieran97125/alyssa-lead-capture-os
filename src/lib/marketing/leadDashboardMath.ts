@@ -20,13 +20,20 @@ import {
 } from "@/lib/marketing/performanceTrend";
 import {
   brandIdsForScope,
-  brandScopeOptions,
   brandsForScope,
 } from "@/lib/marketing/brandScope";
+import {
+  LEAD_ACCOUNTS,
+  accountsForAllowedBrands,
+  brandIdsForLeadAccount,
+  leadAccountById,
+  leadAccountColor,
+} from "@/lib/marketing/leadAccountScope";
 
 export type LeadDashboardFilters = {
   startDate: string;
   endDate: string;
+  accountId?: string;
   brandId: string;
   treatment: string;
 };
@@ -45,6 +52,8 @@ export type LeadDashboardStats = {
 
 export type LeadDashboardDimensionRow = LeadDashboardStats & {
   key: string;
+  accountId: string;
+  accountLabel: string;
   brandId: string;
   brandLabel: string;
   treatmentLabel: string;
@@ -56,6 +65,8 @@ export type LeadDashboardOutstandingRow = {
   key: string;
   appointmentDate: string;
   appointmentTime: string;
+  accountId: string;
+  accountLabel: string;
   brandId: string;
   brandLabel: string;
   branchLabel: string;
@@ -69,10 +80,12 @@ export type LeadDashboardOutstandingRow = {
 
 export type LeadDashboardModel = {
   totals: LeadDashboardStats;
+  accountRows: LeadDashboardDimensionRow[];
   brandRows: LeadDashboardDimensionRow[];
   treatmentRows: LeadDashboardDimensionRow[];
   campaignRows: LeadDashboardDimensionRow[];
   outstandingRows: LeadDashboardOutstandingRow[];
+  accountOptions: Array<{ value: string; label: string }>;
   brandOptions: Array<{ value: string; label: string }>;
   treatmentOptions: Array<{ value: string; label: string }>;
   outstandingMonthStart: string;
@@ -103,24 +116,57 @@ export function buildLeadDashboardTrend(input: {
     brandIdsForScope(input.brands, input.filters.brandId)
   );
   const groups = input.groups.filter((group) => {
-    if (!selectedBrandIds.has(group.brandId)) return false;
-    if (input.filters.treatment && group.treatmentLabel !== input.filters.treatment) return false;
+    if (!selectedBrandIds.has(group.brandId)) {
+      return false;
+    }
+    if (input.filters.accountId && group.accountId !== input.filters.accountId) {
+      return false;
+    }
+    if (
+      input.filters.treatment &&
+      group.treatmentLabel !== input.filters.treatment
+    ) {
+      return false;
+    }
     return true;
   });
-  const seriesBrands = brandsForScope(input.brands, input.filters.brandId);
+  const availableAccountIds = new Set(groups.map((group) => group.accountId));
+  const knownSeriesAccounts = LEAD_ACCOUNTS.filter(
+    (account) =>
+      availableAccountIds.has(account.id) &&
+      (!input.filters.accountId || account.id === input.filters.accountId)
+  );
+  const knownIds = new Set(knownSeriesAccounts.map((account) => account.id));
+  const legacySeriesAccounts = groups
+    .filter(
+      (group, index, all) =>
+        Boolean(group.accountId) &&
+        !knownIds.has(group.accountId) &&
+        (!input.filters.accountId || group.accountId === input.filters.accountId) &&
+        all.findIndex((item) => item.accountId === group.accountId) === index
+    )
+    .map((group) => ({
+      id: group.accountId,
+      label: group.accountLabel,
+      color: input.brandColors[group.brandId] || "#5a2348",
+    }));
+  const seriesAccounts = [...knownSeriesAccounts, ...legacySeriesAccounts];
   const dates = dashboardDates(input.filters.startDate, input.filters.endDate);
 
-  const series = seriesBrands.map((brand) => {
-    const brandGroups = groups.filter((group) => group.brandId === brand.id);
+  const series = seriesAccounts.map((account) => {
+    const accountGroups = groups.filter((group) => group.accountId === account.id);
+    const annotationBrandIds = new Set(
+      brandIdsForLeadAccount(input.brands, account.id, "permission")
+    );
     return {
-      key: brand.id,
-      label: brand.name,
-      color: input.brandColors[brand.id] || "#5a2348",
-      brandId: brand.id,
+      key: account.id,
+      label: account.label,
+      color: input.brandColors[account.id] || leadAccountColor(account.id),
+      brandId: account.id,
       treatmentLabel: input.filters.treatment || undefined,
       points: dates.map((date, index) => {
         const base = emptyPerformanceTrendBase();
-        brandGroups.forEach((group) => {
+        accountGroups.forEach((group) => {
           if (group.firstTouchDate === date) base.leads += 1;
           if (leadGroupBookDate(group) === date) base.bookings += 1;
           if (leadGroupShowDate(group) === date) base.shows += 1;
@@ -134,11 +180,13 @@ export function buildLeadDashboardTrend(input: {
           annotations: input.annotations.filter(
             (annotation) =>
               annotation.date === date &&
-              annotation.brandId === brand.id &&
+              annotationBrandIds.has(annotation.brandId) &&
+              (!input.filters.brandId ||
+                selectedBrandIds.has(annotation.brandId)) &&
               (!input.filters.treatment ||
                 annotationMatchesTreatment(
                   annotation,
-                  brand.id,
+                  annotation.brandId,
                   input.filters.treatment
                 ))
           ),
@@ -275,6 +323,8 @@ function dimensionRow(input: {
   filters: LeadDashboardFilters;
   outstandingStart: string;
   outstandingEnd: string;
+  accountId?: string;
+  accountLabel?: string;
   brandId?: string;
   brandLabel?: string;
   treatmentLabel?: string;
@@ -284,6 +334,8 @@ function dimensionRow(input: {
   const first = input.groups[0];
   return {
     key: input.key,
+    accountId: input.accountId ?? first?.accountId ?? "",
+    accountLabel: input.accountLabel ?? first?.accountLabel ?? "全部 Account",
     brandId: input.brandId ?? first?.brandId ?? "",
     brandLabel: input.brandLabel ?? first?.brandLabel ?? "全部品牌",
     treatmentLabel:
@@ -317,12 +369,35 @@ export function buildLeadDashboardModel(input: {
   const visibleBrands = input.brands.filter(
     (brand) => !allowedBrandIds || allowedBrandIds.has(brand.id)
   );
-  const scopedBrands = brandsForScope(visibleBrands, input.filters.brandId);
-  const scopedBrandIds = new Set(scopedBrands.map((brand) => brand.id));
-  const scopedGroups = allowedGroups.filter((group) =>
-    scopedBrandIds.has(group.brandId)
+  const visibleAccounts = accountsForAllowedBrands(
+    input.brands,
+    input.allowedBrandIds
   );
-  const visibleGroups = scopedGroups.filter((group) => {
+  const accountScopedGroups = allowedGroups.filter(
+    (group) =>
+      !input.filters.accountId || group.accountId === input.filters.accountId
+  );
+
+  const accountBrandIds = input.filters.accountId
+    ? new Set(
+        brandIdsForLeadAccount(
+          visibleBrands,
+          input.filters.accountId,
+          "permission"
+        )
+      )
+    : null;
+  const accountBrands = accountBrandIds
+    ? visibleBrands.filter((brand) => accountBrandIds.has(brand.id))
+    : visibleBrands;
+  const scopedBrands = input.filters.accountId
+    ? brandsForScope(accountBrands, input.filters.brandId)
+    : accountBrands;
+  const scopedBrandIds = new Set(scopedBrands.map((brand) => brand.id));
+  const brandScopedGroups = accountScopedGroups.filter(
+    (group) => !input.filters.brandId || scopedBrandIds.has(group.brandId)
+  );
+  const visibleGroups = brandScopedGroups.filter((group) => {
     if (
       input.filters.treatment &&
       group.treatmentLabel !== input.filters.treatment
@@ -331,22 +406,68 @@ export function buildLeadDashboardModel(input: {
     }
     return true;
   });
+
   const outstandingMonth = monthRange(input.filters.startDate);
-  const brandRows = scopedBrands.map((brand) =>
-    dimensionRow({
-      key: brand.id,
-      groups: visibleGroups.filter((group) => group.brandId === brand.id),
-      filters: input.filters,
-      outstandingStart: outstandingMonth.start,
-      outstandingEnd: outstandingMonth.end,
-      brandId: brand.id,
-      brandLabel: brand.name,
-    })
-  );
+  const accountRows = visibleAccounts
+    .filter(
+      (account) =>
+        !input.filters.accountId || account.id === input.filters.accountId
+    )
+    .map((account) =>
+      dimensionRow({
+        key: account.id,
+        groups: visibleGroups.filter((group) => group.accountId === account.id),
+        filters: input.filters,
+        outstandingStart: outstandingMonth.start,
+        outstandingEnd: outstandingMonth.end,
+        accountId: account.id,
+        accountLabel: account.label,
+        brandId: account.id,
+        brandLabel: account.label,
+      })
+    );
+
+  const brandBuckets = new Map<
+    string,
+    { accountId: string; accountLabel: string; brandId: string; brandLabel: string; groups: LeadSheetLeadGroup[] }
+  >();
+  visibleGroups.forEach((group) => {
+    const key = JSON.stringify([group.accountId, group.brandLabel]);
+    const current = brandBuckets.get(key) ?? {
+      accountId: group.accountId,
+      accountLabel: group.accountLabel,
+      brandId: group.brandId,
+      brandLabel: group.brandLabel,
+      groups: [],
+    };
+    current.groups.push(group);
+    brandBuckets.set(key, current);
+  });
+  const brandRows = Array.from(brandBuckets.entries())
+    .map(([key, bucket]) =>
+      dimensionRow({
+        key,
+        groups: bucket.groups,
+        filters: input.filters,
+        outstandingStart: outstandingMonth.start,
+        outstandingEnd: outstandingMonth.end,
+        accountId: bucket.accountId,
+        accountLabel: bucket.accountLabel,
+        brandId: bucket.brandId,
+        brandLabel: bucket.brandLabel,
+      })
+    )
+    .sort(
+      (left, right) =>
+        right.leads - left.leads ||
+        left.accountLabel.localeCompare(right.accountLabel, "zh-HK") ||
+        left.brandLabel.localeCompare(right.brandLabel, "zh-HK")
+    );
+
   const treatmentLabels = Array.from(
     new Set([
       ...(input.treatmentLabels ?? []),
-      ...scopedGroups.map((group) => group.treatmentLabel),
+      ...brandScopedGroups.map((group) => group.treatmentLabel),
     ])
   ).filter(Boolean);
   const treatmentRows = [
@@ -371,10 +492,12 @@ export function buildLeadDashboardModel(input: {
       })
     ),
   ];
+
   const campaignBuckets = new Map<string, LeadSheetLeadGroup[]>();
   visibleGroups.forEach((group) => {
     const key = JSON.stringify([
-      group.brandId,
+      group.accountId,
+      group.brandLabel,
       group.treatmentLabel,
       group.sourceLabel,
       group.campaignLabel,
@@ -398,8 +521,10 @@ export function buildLeadDashboardModel(input: {
         right.leads - left.leads ||
         right.bookings - left.bookings ||
         right.shows - left.shows ||
+        left.accountLabel.localeCompare(right.accountLabel, "zh-HK") ||
         left.brandLabel.localeCompare(right.brandLabel, "zh-HK")
     );
+
   const outstandingRows = visibleGroups
     .map((group) => {
       const row = firstOutstandingRow(
@@ -412,6 +537,8 @@ export function buildLeadDashboardModel(input: {
         key: `${group.key}:${row.rowNumber}`,
         appointmentDate: row.appointmentDate,
         appointmentTime: formatSheetTime(row.appointmentTime),
+        accountId: group.accountId,
+        accountLabel: group.accountLabel,
         brandId: group.brandId,
         brandLabel: group.brandLabel,
         branchLabel: row.branchLabel,
@@ -430,6 +557,21 @@ export function buildLeadDashboardModel(input: {
         left.appointmentTime.localeCompare(right.appointmentTime)
     );
 
+  const accountOptions = visibleAccounts.map((account) => ({
+    value: account.id,
+    label: account.label,
+  }));
+  const brandOptions = input.filters.accountId
+    ? Array.from(
+        new Map(
+          accountScopedGroups.map((group) => [
+            group.brandId,
+            { value: group.brandId, label: group.brandLabel },
+          ])
+        ).values()
+      ).sort((left, right) => left.label.localeCompare(right.label, "zh-HK"))
+    : [];
+
   return {
     totals: statsForGroups(
       visibleGroups,
@@ -437,11 +579,13 @@ export function buildLeadDashboardModel(input: {
       outstandingMonth.start,
       outstandingMonth.end
     ),
+    accountRows,
     brandRows,
     treatmentRows,
     campaignRows,
     outstandingRows,
-    brandOptions: brandScopeOptions(visibleBrands),
+    accountOptions,
+    brandOptions,
     treatmentOptions: treatmentLabels.map((label) => ({
       value: label,
       label,
@@ -450,3 +594,4 @@ export function buildLeadDashboardModel(input: {
     outstandingMonthEnd: outstandingMonth.end,
   };
 }
+

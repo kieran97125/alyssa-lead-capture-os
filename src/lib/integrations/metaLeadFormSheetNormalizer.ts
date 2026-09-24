@@ -1,6 +1,6 @@
 import {
   formatHongKongDateTime,
-  GOOGLE_SHEETS_LEAD_HEADERS,
+  GOOGLE_SHEETS_LEAD_V3_HEADERS,
   GOOGLE_SHEETS_LEAD_LEGACY_HEADERS,
 } from "@/lib/integrations/googleSheetsLeadSync";
 import type { LeadSheetTreatmentAlias } from "@/lib/marketing/googleSheetsMetricParser";
@@ -57,7 +57,7 @@ function matchesOperationalHeaders(
 function operationalHeaderContract(
   headers: unknown[]
 ): LeadSheetHeaderContract | null {
-  if (matchesOperationalHeaders(headers, GOOGLE_SHEETS_LEAD_HEADERS)) {
+  if (matchesOperationalHeaders(headers, GOOGLE_SHEETS_LEAD_V3_HEADERS)) {
     return "v3";
   }
   if (matchesOperationalHeaders(headers, GOOGLE_SHEETS_LEAD_LEGACY_HEADERS)) {
