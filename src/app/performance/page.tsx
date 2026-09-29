@@ -534,7 +534,7 @@ export default async function TreatmentPerformancePage({
             <div>
               <strong>計算口徑</strong>
               <p>
-                Lead／Book 按 Created At；Show 按確認到店日期；No Show
+                Lead 按 Created At；Book 按最後更新日期；Show 按確認到店日期；No Show
                 同待到店按預約日期。Book 包括已預約、已到店及 No Show。由於 Show
                 可能來自較早期 Lead，極短日期範圍嘅 Show-up Rate
                 可能反映跨期到店，唔應單獨當成同一批 Lead cohort。

@@ -1,5 +1,13 @@
 # Design System Change Log
 
+## 2026-09-29 — Schema-independent metric wording
+
+- Replaced physical date-column letters in the Dashboard explanation with stable field names, so the copy remains correct after the operational column reorder.
+- Corrected Treatment Performance's Book explanation to use the update date. Existing controls, layout and shared components are unchanged.
+- Evidence: v5/v6 parser and aggregate equivalence, schema contract, design contract, targeted ESLint, diff checks, the full production build and Storybook build passed locally. Source PR and release evidence are pending.
+- The local application visual/accessibility gate still requires a working Chromium installation; the earlier truncated download limitation has not been resolved by these copy changes.
+- Rollback: revert the copy with its source-contract documentation if necessary. Header-based wording supports either physical schema; no component or token rollback is needed.
+
 ## 2026-09-29 — Dashboard metric-date explanation
 
 ### Changed

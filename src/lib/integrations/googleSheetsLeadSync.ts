@@ -27,7 +27,7 @@ export type LeadSheetSyncInput = {
   touch: TouchPayload;
 };
 
-export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v5";
+export const GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead.v6";
 
 export const GOOGLE_SHEETS_LEAD_LEGACY_HEADERS = [
   "Created At",
@@ -59,7 +59,9 @@ export const GOOGLE_SHEETS_LEAD_V3_HEADERS = [
   ...GOOGLE_SHEETS_LEAD_LEGACY_HEADERS,
 ] as const;
 
-export const GOOGLE_SHEETS_LEAD_HEADERS = [
+// Retain the previous physical order for compatibility tests and staged rollouts.
+// Existing rows are never migrated by the writer; destination headers own layout.
+export const GOOGLE_SHEETS_LEAD_V5_HEADERS = [
   "最後更新日期",
   "Created At",
   "跟進狀態",
@@ -85,6 +87,24 @@ export const GOOGLE_SHEETS_LEAD_HEADERS = [
   "Day 1",
   "Day 2",
   "Promotion",
+] as const;
+
+export const GOOGLE_SHEETS_LEAD_HEADERS = [
+  "最後更新日期",
+  "Created At",
+  "跟進狀態",
+  "CS同事名",
+  "品牌",
+  "預約日期",
+  "預約時間",
+  "確認到店日期",
+  "客人姓名",
+  "電話",
+  "療程 / 優惠",
+  "療程項目",
+  "分店",
+  "Email",
+  ...GOOGLE_SHEETS_LEAD_V5_HEADERS.slice(14),
 ] as const;
 
 export type GoogleSheetsLeadWebhookPayload = {
@@ -304,17 +324,17 @@ export function buildGoogleSheetsLeadPayload(
     fields.lastUpdatedAt,
     fields.createdAt,
     fields.followUpStatus,
-    fields.brand,
     fields.csOwner,
-    fields.branch,
-    fields.customerName,
-    fields.phone,
-    fields.email,
-    fields.treatmentOffer,
-    fields.treatmentItem,
+    fields.brand,
     fields.appointmentDate,
     fields.appointmentTime,
     fields.confirmedShowDate,
+    fields.customerName,
+    fields.phone,
+    fields.treatmentOffer,
+    fields.treatmentItem,
+    fields.branch,
+    fields.email,
     fields.campaignAd,
     fields.lastFollowUpAt,
     fields.csRemark,
@@ -404,6 +424,23 @@ export function alignLeadRowToDestinationHeaders(
   );
 }
 
+// The optional external Apps Script receiver has its own deployed contract.
+// Keep its existing v5 wire format until that receiver is separately migrated;
+// the native OAuth writer above always aligns v6 values to actual live headers.
+export function buildGoogleSheetsLegacyWebhookPayload(
+  payload: GoogleSheetsLeadWebhookPayload
+) {
+  return {
+    ...payload,
+    schemaVersion: "lead.v5" as const,
+    headers: GOOGLE_SHEETS_LEAD_V5_HEADERS,
+    rowValues: alignLeadRowToDestinationHeaders(
+      [...GOOGLE_SHEETS_LEAD_V5_HEADERS],
+      payload
+    ),
+  };
+}
+
 export async function appendLeadToGoogleSheet(input: LeadSheetSyncInput) {
   const status = getGoogleSheetsLeadSyncStatus();
 
@@ -455,7 +492,7 @@ export async function appendLeadToGoogleSheet(input: LeadSheetSyncInput) {
   const response = await fetch(env("GOOGLE_SHEETS_WEBHOOK_URL"), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    body: JSON.stringify(buildGoogleSheetsLegacyWebhookPayload(payload)),
   });
 
   if (!response.ok) {
