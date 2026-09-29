@@ -132,7 +132,7 @@ test("immutable ledger preserves Book when current status later becomes Show", (
   });
 });
 
-test("daily and treatment metrics use ledger dates and ignore appointment date for No Show", () => {
+test("daily and treatment metrics use B/A/N/L dates despite conflicting audit ledger events", () => {
   const rows = [
     [
       "2026-09-08", "2026-09-01", "已完成", "Brand A", "91230001", "Treatment A",
@@ -148,7 +148,7 @@ test("daily and treatment metrics use ledger dates and ignore appointment date f
     rows: [
       eventRow({ id: "a1", date: "2026-09-01", type: "lead", phone: "91230001", leadKey: "lead-a" }),
       eventRow({ id: "a2", date: "2026-09-03", type: "book", phone: "91230001", leadKey: "lead-a" }),
-      eventRow({ id: "a3", date: "2026-09-08", type: "show", phone: "91230001", leadKey: "lead-a" }),
+      eventRow({ id: "a3", date: "2026-09-07", type: "show", phone: "91230001", leadKey: "lead-a" }),
       eventRow({ id: "b1", date: "2026-09-02", type: "lead", phone: "91230002", leadKey: "lead-b" }),
       eventRow({ id: "b2", date: "2026-09-04", type: "book", phone: "91230002", leadKey: "lead-b" }),
       eventRow({ id: "b3", date: "2026-09-09", type: "no_show", phone: "91230002", leadKey: "lead-b" }),
@@ -169,24 +169,27 @@ test("daily and treatment metrics use ledger dates and ignore appointment date f
   const byDate = Object.fromEntries(result.dailyMetrics.map((row) => [row.date, row]));
   expect(byDate["2026-09-01"]).toMatchObject({ leads: 1, bookings: 0, shows: 0 });
   expect(byDate["2026-09-02"]).toMatchObject({ leads: 1, bookings: 0, shows: 0 });
-  expect(byDate["2026-09-03"]).toMatchObject({ leads: 0, bookings: 1, shows: 0 });
-  expect(byDate["2026-09-04"]).toMatchObject({ leads: 0, bookings: 1, shows: 0 });
-  expect(byDate["2026-09-08"]).toMatchObject({ leads: 0, bookings: 0, shows: 1 });
+  expect(byDate["2026-09-03"]).toBeUndefined();
+  expect(byDate["2026-09-04"]).toBeUndefined();
+  expect(byDate["2026-09-07"]).toBeUndefined();
+  expect(byDate["2026-09-08"]).toMatchObject({ leads: 0, bookings: 1, shows: 1 });
+  expect(byDate["2026-09-09"]).toMatchObject({ leads: 0, bookings: 1, shows: 0 });
   expect(result.metricFacts).toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ metricKind: "book", metricDate: "2026-09-03", count: 1 }),
+      expect.objectContaining({ metricKind: "book", metricDate: "2026-09-08", count: 1 }),
+      expect.objectContaining({ metricKind: "book", metricDate: "2026-09-09", count: 1 }),
       expect.objectContaining({ metricKind: "show", metricDate: "2026-09-08", count: 1 }),
-      expect.objectContaining({ metricKind: "no_show", metricDate: "2026-09-09", count: 1 }),
+      expect.objectContaining({ metricKind: "no_show", metricDate: "2026-09-20", count: 1 }),
     ])
   );
   expect(result.metricFacts).not.toEqual(
     expect.arrayContaining([
-      expect.objectContaining({ metricKind: "no_show", metricDate: "2026-09-20" }),
+      expect.objectContaining({ metricKind: "no_show", metricDate: "2026-09-09" }),
     ])
   );
 });
 
-test("no-ledger rows keep legacy historical ownership", () => {
+test("source row dates own Book and Show without a ledger", () => {
   const parsed = buildLeadSheetGroups({
     headers,
     rows: [[

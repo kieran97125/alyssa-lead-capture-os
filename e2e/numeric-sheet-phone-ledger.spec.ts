@@ -58,17 +58,17 @@ test("numeric provider phones use the same dates in daily trend", () => {
   expect(trend[0].points[0]).toMatchObject({ date: "2026-09-15", bookings: 1, noShows: 1 });
 });
 
-test("numeric provider phones reconcile the stored reporting aggregation", () => {
+test("numeric provider phones reconcile stored B/A/N/L reporting independently of audit ledger dates", () => {
   const result = aggregateLeadSheetPerformance({
     headers, rows: [row(60000001, "no show"), row(60000002, "已預約")], brands,
     sourceBrandId: null, eventLedger: { headers: eventHeaders, rows: events },
     dailyThroughDate: "2026-09-15", activityThroughDate: "2026-09-15", pendingThroughDate: "2026-09-30",
   });
-  expect(result.dailyMetrics.find(m => m.date === "2026-09-15")).toMatchObject({ bookings: 1, shows: 0 });
+  expect(result.dailyMetrics.find(m => m.date === "2026-09-15")).toMatchObject({ bookings: 2, shows: 0 });
   const currentFacts = result.metricFacts.filter(f => f.metricDate === "2026-09-15");
-  expect(currentFacts.find(f => f.metricKind === "book")?.count).toBe(1);
-  expect(currentFacts.find(f => f.metricKind === "no_show")?.count).toBe(1);
-  expect(result.metricFacts.some(f => f.metricKind === "no_show" && f.metricDate === "2026-09-13")).toBe(false);
+  expect(currentFacts.find(f => f.metricKind === "book")?.count).toBe(2);
+  expect(currentFacts.find(f => f.metricKind === "no_show")).toBeUndefined();
+  expect(result.metricFacts.find(f => f.metricKind === "no_show" && f.metricDate === "2026-09-13")?.count).toBe(1);
 });
 
 test("numeric, text and country-code phones deduplicate to one brand identity", () => {
