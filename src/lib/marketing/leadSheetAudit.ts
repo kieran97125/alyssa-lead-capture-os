@@ -17,6 +17,7 @@ import {
 } from "@/lib/marketing/leadSheetAuditContract";
 
 const MAX_AUDIT_ROWS = 50_000;
+const AUDIT_SNAPSHOT_PAGE_SIZE = 1_000;
 const ACTIVE_KEY_VERSION =
   process.env.LEAD_AUDIT_ACTIVE_KEY_VERSION?.trim() || "v1";
 let cachedDecryptionKeys: Map<string, Buffer> | null = null;
@@ -252,7 +253,7 @@ async function getPreviousAcceptedSnapshot(dataSourceId: string) {
   const supabase = createSupabaseAdminClient();
   const { data: run, error: runError } = await supabase
     .from("lead_sheet_audit_runs")
-    .select("id")
+    .select("id,row_count")
     .eq("data_source_id", dataSourceId)
     .in("status", ["baseline", "completed"])
     .order("completed_at", { ascending: false })
@@ -261,17 +262,33 @@ async function getPreviousAcceptedSnapshot(dataSourceId: string) {
   if (runError) throw runError;
   if (!run) return { runId: null, records: [] as LeadAuditComparableRecord[] };
 
-  const { data: entries, error: entriesError } = await supabase
-    .from("lead_sheet_audit_snapshot_entries")
-    .select(
-      "record_key,row_number,record_version:lead_sheet_audit_record_versions!inner(content_hash,key_version,subject_label,payload_ciphertext,payload_iv,payload_auth_tag)"
-    )
-    .eq("run_id", run.id)
-    .order("row_number", { ascending: true })
-    .limit(MAX_AUDIT_ROWS);
-  if (entriesError) throw entriesError;
+  const expectedRows = Number(run.row_count);
+  if (!Number.isInteger(expectedRows) || expectedRows < 0 || expectedRows > MAX_AUDIT_ROWS) {
+    throw new Error("Lead Audit snapshot row count 無效；已停止比較不完整版本。");
+  }
+  const entries: StoredSnapshotEntry[] = [];
+  // PostgREST caps each response independently of .limit(). Read the immutable
+  // run in pages and require its recorded row count before computing a diff.
+  while (entries.length < expectedRows) {
+    const from = entries.length;
+    const { data: page, error: entriesError } = await supabase
+      .from("lead_sheet_audit_snapshot_entries")
+      .select(
+        "record_key,row_number,record_version:lead_sheet_audit_record_versions!inner(content_hash,key_version,subject_label,payload_ciphertext,payload_iv,payload_auth_tag)"
+      )
+      .eq("run_id", run.id)
+      .order("row_number", { ascending: true })
+      .order("record_key", { ascending: true })
+      .range(from, Math.min(from + AUDIT_SNAPSHOT_PAGE_SIZE, expectedRows) - 1);
+    if (entriesError) throw entriesError;
+    const batch = (page ?? []) as unknown as StoredSnapshotEntry[];
+    if (batch.length === 0 || entries.length + batch.length > expectedRows) {
+      throw new Error("Lead Audit snapshot 不完整；已停止比較，避免錯報新增或刪除。");
+    }
+    entries.push(...batch);
+  }
 
-  const records = ((entries ?? []) as unknown as StoredSnapshotEntry[]).map(
+  const records = entries.map(
     (entry) => {
       const version = Array.isArray(entry.record_version)
         ? entry.record_version[0]

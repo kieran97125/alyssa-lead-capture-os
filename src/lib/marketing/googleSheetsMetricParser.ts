@@ -1,8 +1,7 @@
-import {
-  applyLeadFunnelEventLedger,
-  type LeadFunnelEventLedgerTable,
-} from "@/lib/marketing/leadFunnelEventLedger";
+import type { LeadFunnelEventLedgerTable } from "@/lib/marketing/leadFunnelEventLedger";
 import { resolveLeadAccount } from "@/lib/marketing/leadAccountScope";
+
+export const LEAD_SHEET_METRIC_CONTRACT_VERSION = "lead-sheet-column-dates-v1";
 
 export type SheetBrandReference = {
   id: string;
@@ -202,13 +201,14 @@ export function parseGoogleSheetDate(value: unknown) {
 
   if (typeof value === "number" && Number.isFinite(value)) {
     const day = Math.floor(value);
-    if (day < 1) return null;
+    // Reject invalid serials before constructing a Date (large finite values throw).
+    if (day < 36526 || day > 73415) return null;
     const epoch = Date.UTC(1899, 11, 30);
     parsedDate = new Date(epoch + day * 86_400_000)
       .toISOString()
       .slice(0, 10);
   } else if (typeof value === "string") {
-    const match = value.match(/(\d{4})[/-](\d{1,2})[/-](\d{1,2})/);
+    const match = value.trim().match(/^(\d{4})[/-](\d{1,2})[/-](\d{1,2})(?:$|\s|T)/);
     if (match) {
       parsedDate = `${match[1]}-${match[2].padStart(
         2,
@@ -460,40 +460,27 @@ function phoneIdentity(value: unknown) {
 }
 
 function createdAtSortValue(value: unknown, rowNumber: number) {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return `${String(Math.floor(value)).padStart(10, "0")}.${String(
-      Math.round((value - Math.floor(value)) * 1_000_000)
-    ).padStart(6, "0")}|${String(rowNumber).padStart(10, "0")}`;
-  }
   const raw = compactString(value);
   const date = parseGoogleSheetDate(value);
   if (date) {
     const timeMatch = raw.match(/(?:T|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-    const time = timeMatch
-      ? `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}:${
-          timeMatch[3] || "00"
-        }`
-      : "00:00:00";
-    return `${date} ${time}|${String(rowNumber).padStart(10, "0")}`;
+    const seconds = typeof value === "number"
+      ? Math.min(86_399, Math.floor((value - Math.floor(value)) * 86_400 + 0.00001))
+      : timeMatch
+        ? Number(timeMatch[1]) * 3600 + Number(timeMatch[2]) * 60 + Number(timeMatch[3] || 0)
+        : 0;
+    // Serial and string dates must share a sort representation; otherwise every
+    // numeric date incorrectly precedes every ISO string regardless of day.
+    return `${date}|${String(seconds).padStart(5, "0")}|${String(rowNumber).padStart(10, "0")}`;
   }
-  return `9999-12-31 23:59:59|${String(rowNumber).padStart(10, "0")}`;
+  return `9999-12-31|86399|${String(rowNumber).padStart(10, "0")}`;
 }
 
 function stageEventSortValue(row: LeadSheetGroupRow) {
-  if (row.lastUpdatedDate) {
-    const raw = compactString(row.lastUpdatedAt);
-    const timeMatch = raw.match(/(?:T|\s)(\d{1,2}):(\d{2})(?::(\d{2}))?/);
-    const time = timeMatch
-      ? `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}:${
-          timeMatch[3] || "00"
-        }`
-      : "00:00:00";
-    return `${row.lastUpdatedDate} ${time}|${String(row.rowNumber).padStart(
-      10,
-      "0"
-    )}`;
-  }
-  return createdAtSortValue(row.createdAt, row.rowNumber);
+  return createdAtSortValue(
+    row.lastUpdatedDate ? row.lastUpdatedAt : row.createdAt,
+    row.rowNumber
+  );
 }
 
 export function buildLeadSheetGroups(input: {
@@ -507,6 +494,7 @@ export function buildLeadSheetGroups(input: {
   dedupeByIdentity?: boolean;
 }): ParsedLeadSheetGroups {
   const columns = resolveLeadSheetColumns(input.headers);
+  const hasAccountColumn = columns.account >= 0;
   const brandLookup = buildBrandLookup(input.brands, input.brandAliases);
   const sourceBrand = input.sourceBrandId
     ? input.brands.find((brand) => brand.id === input.sourceBrandId) ?? null
@@ -549,11 +537,14 @@ export function buildLeadSheetGroups(input: {
     if (!selectedValues.some((value) => compactString(value))) return;
     diagnostics.sourceRows += 1;
 
-    const rowBrand =
-      sourceBrand ||
-      brandLookup.get(
-        normalizeGoogleSheetBrandKey(valueAt(rawRow, "brand"))
-      );
+    const explicitBrand = brandLookup.get(
+      normalizeGoogleSheetBrandKey(valueAt(rawRow, "brand"))
+    );
+    // Account-first Sheets own D and K. A campaign keyword must not move a
+    // customer to another Brand or silently rewrite an explicit treatment.
+    const rowBrand = hasAccountColumn
+      ? explicitBrand || (compactString(valueAt(rawRow, "brand")) ? null : sourceBrand)
+      : sourceBrand || explicitBrand;
     const rowBrandAliases = rowBrand
       ? new Set(automaticBrandAliases(rowBrand))
       : new Set<string>();
@@ -576,7 +567,7 @@ export function buildLeadSheetGroups(input: {
         rowBrandAliases.has(normalizeGoogleSheetBrandKey(alias.brand))
       );
     });
-    const matchedAlias = matchingTreatmentAlias({
+    const matchedAlias = hasAccountColumn ? undefined : matchingTreatmentAlias({
       treatment: valueAt(rawRow, "treatment"),
       offer: valueAt(rawRow, "offer"),
       campaign: valueAt(rawRow, "campaign"),
@@ -585,12 +576,11 @@ export function buildLeadSheetGroups(input: {
     const aliasBrand = input.appsScriptContract && matchedAlias?.brand
       ? brandLookup.get(normalizeGoogleSheetBrandKey(matchedAlias.brand))
       : null;
-    const brand = sourceBrand || aliasBrand || rowBrand;
+    const brand = hasAccountColumn ? rowBrand : sourceBrand || aliasBrand || rowBrand;
     if (!brand) {
       diagnostics.unknownBrandRows += 1;
       return;
     }
-    const hasAccountColumn = columns.account >= 0;
     const account =
       resolveLeadAccount(
         valueAt(rawRow, "account"),
@@ -605,7 +595,7 @@ export function buildLeadSheetGroups(input: {
       treatment: valueAt(rawRow, "treatment"),
       offer: valueAt(rawRow, "offer"),
       matchedAlias,
-      fallbackLabel: input.appsScriptContract && !sheetOwnedTreatments ? "其他" : undefined,
+      fallbackLabel: !hasAccountColumn && input.appsScriptContract && !sheetOwnedTreatments ? "其他" : undefined,
     });
     if (canonicalTreatment === "未分類療程") {
       diagnostics.uncategorizedTreatmentRows += 1;
@@ -627,7 +617,7 @@ export function buildLeadSheetGroups(input: {
     const confirmationDate = parseGoogleSheetDate(
       valueAt(rawRow, "confirmationDate")
     );
-    if (status === "show" && !confirmationDate && !lastUpdatedDate) {
+    if (status === "show" && !confirmationDate) {
       diagnostics.invalidShowDateRows += 1;
     }
     const appointmentDate = parseGoogleSheetDate(
@@ -635,7 +625,7 @@ export function buildLeadSheetGroups(input: {
     );
     if (
       (status === "booked" && !appointmentDate) ||
-      (status === "no_show" && !appointmentDate && !lastUpdatedDate)
+      (status === "no_show" && !appointmentDate)
     ) {
       diagnostics.invalidAppointmentDateRows += 1;
     }
@@ -647,15 +637,13 @@ export function buildLeadSheetGroups(input: {
         ? `row:${rowNumber}`
         : phone
           ? `phone:${phone}`
-          : leadKey
+          : !hasAccountColumn && leadKey
             ? `lead:${leadKey}`
             : `row:${rowNumber}`;
     const groupKey =
-      hasAccountColumn && phone
-        ? `${account.id}|phone:${phone}`
-        : hasAccountColumn
-          ? `${account.id}|${brand.id}|${identity}`
-          : `${brand.id}|${identity}`;
+      hasAccountColumn
+        ? `${account.id}|${identity}`
+        : `${brand.id}|${identity}`;
     const branchLabel = defaultDimensionLabel(
       valueAt(rawRow, "branch"),
       "未標記分店"
@@ -704,29 +692,18 @@ export function buildLeadSheetGroups(input: {
       stageEventSortValue(left).localeCompare(stageEventSortValue(right))
     )[rows.length - 1];
     const currentStatus = currentRow.status;
-    const currentEventDate = usesStageDateContract
-      ? currentRow.lastUpdatedDate ?? currentRow.createdDate
-      : null;
+    const currentEventDate = currentRow.lastUpdatedDate ?? null;
     const bookedRows = rows.filter((row) => row.status !== "lead");
     const earliestStageBookDate =
       bookedRows
         .map((row) => row.lastUpdatedDate)
         .filter((value): value is string => Boolean(value))
         .sort()[0] ?? null;
-    const bookDate =
-      bookedRows.length === 0
-        ? null
-        : earliestStageBookDate ?? first.row.createdDate;
-    const bookDateSource =
-      bookDate === null
-        ? null
-        : earliestStageBookDate
-          ? "last_updated"
-          : "legacy_created_at";
-    // No-ledger fallback deliberately keeps the pre-v4 historical ownership:
-    // Show comes from confirmed-show date and No Show from appointment date.
-    // Once a Lead has any valid `_funnel_events` row, the immutable ledger
-    // overrides all three operational event dates below.
+    const bookDate = earliestStageBookDate;
+    const bookDateSource = bookDate ? "last_updated" : null;
+    // Shared Sheet/system contract: Lead=B, Book=A, Show=N, No Show=L.
+    // Count each identity once per metric using its earliest qualifying source
+    // row date. Missing A never falls back to B; ledger dates are audit only.
     const showDate =
       rows
         .filter((row) => row.status === "show" && row.confirmationDate)
@@ -805,25 +782,17 @@ export function aggregateLeadSheetPerformance(input: {
   sourceBrandId: string | null;
   brandAliases?: Record<string, string>;
   treatmentAliases?: LeadSheetTreatmentAlias[];
+  // Accepted for existing callers/audit compatibility; B/A/N/L own KPI dates.
   eventLedger?: LeadFunnelEventLedgerTable | null;
   dailyThroughDate: string;
   activityThroughDate: string;
   pendingThroughDate: string;
 }): ParsedLeadSheetPerformance {
-  const baseParsed = buildLeadSheetGroups({
+  const parsed = buildLeadSheetGroups({
     ...input,
     appsScriptContract: false,
     dedupeByIdentity: true,
   });
-  const parsed = {
-    ...baseParsed,
-    groups: applyLeadFunnelEventLedger({
-      groups: baseParsed.groups,
-      eventLedger: input.eventLedger,
-      brands: input.brands,
-      brandAliases: input.brandAliases,
-    }),
-  };
   const dailyMetrics = new Map<string, ParsedLeadFunnelMetric>();
   const metricFacts = new Map<string, ParsedLeadSheetMetricFact>();
   const getDailyMetric = (brandId: string, date: string) => {
@@ -996,9 +965,7 @@ export function aggregateLeadFunnelColumns(input: {
     }
 
     if (BOOKING_STATUSES.has(followStatus)) {
-      const eventDate =
-        parseGoogleSheetDate(input.lastUpdatedValues?.[index]?.[0]) ||
-        createdDate;
+      const eventDate = parseGoogleSheetDate(input.lastUpdatedValues?.[index]?.[0]);
       if (eventDate && eventDate <= input.throughDate) {
         getMetric(brand.id, eventDate).bookings += 1;
       }

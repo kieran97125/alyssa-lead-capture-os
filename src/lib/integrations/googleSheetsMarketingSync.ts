@@ -5,7 +5,6 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
 import {
   normalizeMetaLeadRowsInLiveTable,
-  readLeadFunnelEventLedger,
   readLiveLeadTable,
 } from "@/lib/integrations/googleSheetsLeadTable";
 import {
@@ -341,10 +340,7 @@ async function collectLeadFunnelMetrics(
   throughDate: string,
   options: { actorIdentifier?: string; startedAt: string }
 ) {
-  const [rawLiveTable, eventLedger] = await Promise.all([
-    readLiveLeadTable(configuration),
-    readLeadFunnelEventLedger(configuration),
-  ]);
+  const rawLiveTable = await readLiveLeadTable(configuration);
   const leadBrandAliases = stringRecord(configuration.brandAliases);
   const leadTreatmentAliases = treatmentAliases(configuration.treatmentAliases);
   const normalizedLiveTable = await normalizeMetaLeadRowsInLiveTable({
@@ -382,7 +378,6 @@ async function collectLeadFunnelMetrics(
     sourceBrandId: source.brand_id,
     brandAliases: leadBrandAliases,
     treatmentAliases: leadTreatmentAliases,
-    eventLedger,
     dailyThroughDate: throughDate,
     activityThroughDate: month.today,
     pendingThroughDate: addIsoDays(month.today, 400),

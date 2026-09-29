@@ -4,14 +4,13 @@ import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const read = (path) => readFile(`${root}${path}`, "utf8");
-const [sync, table, normalizer, parser, ledger, dashboard, panel] = await Promise.all([
+const [sync, table, normalizer, parser, ledger, dashboard] = await Promise.all([
   read("src/lib/integrations/googleSheetsLeadSync.ts"),
   read("src/lib/integrations/googleSheetsLeadTable.ts"),
   read("src/lib/integrations/metaLeadFormSheetNormalizer.ts"),
   read("src/lib/marketing/googleSheetsMetricParser.ts"),
   read("src/lib/marketing/leadFunnelEventLedger.ts"),
   read("src/lib/marketing/leadDashboard.ts"),
-  read("src/components/command-center/LeadDashboardPanel.tsx"),
 ]);
 
 assert.match(sync, /GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead\.v5"/);
@@ -28,13 +27,12 @@ assert.match(table, /FUNNEL_EVENT_LEDGER_LAST_COLUMN = "P"/);
 assert.match(normalizer, /operationalHeaderContract/);
 assert.match(parser, /usesEventLedger/);
 assert.match(parser, /dedupeByIdentity: true/);
-assert.match(parser, /applyLeadFunnelEventLedger/);
+assert.doesNotMatch(parser, /applyLeadFunnelEventLedger/);
 assert.match(parser, /C 欄「跟進狀態」係唯一主要狀態來源/);
 assert.match(ledger, /immutable `_funnel_events` ledger/);
 assert.match(ledger, /bookDateSource: bookDate \? \("event_ledger" as const\) : null/);
-assert.match(dashboard, /readLeadFunnelEventLedger/);
-assert.match(dashboard, /applyLeadFunnelEventLedger/);
-assert.match(panel, /不可變 Funnel Event 紀錄日期/);
-assert.match(panel, /之後狀態再轉變都唔會搬走之前嘅 Book/);
+assert.doesNotMatch(dashboard, /readLeadFunnelEventLedger|applyLeadFunnelEventLedger/);
+assert.match(dashboard, /appsScriptContract: false/);
+await import("./test-lead-metric-date-contract.mjs");
 
-console.log("Lead Sheet v5 Account-first A:Y contract, CS owner column, event-ledger ownership, and legacy-safe fallback verified.");
+console.log("Lead Sheet v5 Account-first A:Y contract and shared B/A/N/L reporting dates verified; the event ledger remains audit-only.");
