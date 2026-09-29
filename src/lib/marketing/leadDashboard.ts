@@ -2,10 +2,8 @@ import "server-only";
 
 import {
   normalizeMetaLeadRowsInLiveTable,
-  readLeadFunnelEventLedger,
   readLiveLeadTable,
 } from "@/lib/integrations/googleSheetsLeadTable";
-import { applyLeadFunnelEventLedger } from "@/lib/marketing/leadFunnelEventLedger";
 import {
   buildLeadSheetGroups,
   normalizeGoogleSheetBrandKey,
@@ -240,7 +238,7 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
       "Alyssa Aesthetics": "alyssa",
       "Aesthetics Medical": "aesthetics",
     },
-    appsScriptContract: true,
+    appsScriptContract: false,
     dedupeByIdentity: true,
   });
   const model = buildLeadDashboardModel({
@@ -387,10 +385,7 @@ export async function getLeadDashboardSnapshot(
       (brand) => !allowedBrandIdSet || allowedBrandIdSet.has(brand.id)
     );
     const aliases = treatmentAliases(source.configuration.treatmentAliases);
-    const [rawLiveTable, eventLedger] = await Promise.all([
-      readLiveLeadTable(source.configuration),
-      readLeadFunnelEventLedger(source.configuration),
-    ]);
+    const rawLiveTable = await readLiveLeadTable(source.configuration);
     const liveTable = await normalizeMetaLeadRowsInLiveTable({
       configuration: source.configuration,
       liveTable: rawLiveTable,
@@ -399,24 +394,15 @@ export async function getLeadDashboardSnapshot(
       treatmentAliases: aliases,
       writeBack: true,
     });
-    const baseParsed = buildLeadSheetGroups({
+    const parsed = buildLeadSheetGroups({
       ...liveTable,
       brands,
       sourceBrandId: null,
       brandAliases: stringRecord(source.configuration.brandAliases),
       treatmentAliases: aliases,
-      appsScriptContract: true,
+      appsScriptContract: false,
       dedupeByIdentity: true,
     });
-    const parsed = {
-      ...baseParsed,
-      groups: applyLeadFunnelEventLedger({
-        groups: baseParsed.groups,
-        eventLedger,
-        brands,
-        brandAliases: stringRecord(source.configuration.brandAliases),
-      }),
-    };
     const accountBrandIds = new Set(
       brandIdsForLeadAccount(visibleBrands, filters.accountId, "permission")
     );

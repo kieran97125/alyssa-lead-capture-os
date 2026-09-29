@@ -1176,9 +1176,15 @@ outbound Lead Sync webhook above.
 - `lead_funnel` reads the governed CS range once. Funnel aggregation still
   imports only approved non-PII metrics, while Lead Data Audit encrypts the
   customer-level snapshot before it is stored in server-only audit tables.
-- Lead and Book are attributed to the Lead Created At date. Book includes
-  `已預約`, `已到店`, and `no show`. Show is attributed to the confirmed show
-  date when the follow-up status is `已到店`.
+- The worksheet and application share `lead-sheet-column-dates-v1`: Lead uses
+  B `Created At`; Book uses A `最後更新日期` for `已預約`, `已到店`, or
+  `no show`; Show uses N `確認到店日期` for `已到店`; No Show uses L
+  `預約日期` for `no show`. Each normalized Account + phone-last-8 identity
+  contributes at most once to each metric, using its earliest valid qualifying
+  date. First valid Created At owns reporting dimensions. Missing dates do not
+  inherit another column or an event-ledger date. See the
+  [source-column metric contract](docs/lead-sheet-column-date-contract.md) for
+  status precedence, native formulas, reconciliation and rollback.
 - The Dashboard reads imported metrics from the first day of the current Hong
   Kong month through yesterday. If no successful funnel import exists yet, it
   clearly warns and falls back to existing LaunchHub records.

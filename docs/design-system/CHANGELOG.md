@@ -1,5 +1,25 @@
 # Design System Change Log
 
+## 2026-09-29 — Dashboard metric-date explanation
+
+### Changed
+
+- Updated feature-level explanatory copy in `LeadDashboardPanel` to show the approved source-column dates: Lead B, Book A, Show N and No Show L.
+- Explained Account-scoped duplicate handling, earliest qualifying dates, first-touch dimensions and the treatment of missing dates alongside the existing operational-ratio wording.
+- Retained the existing component structure, controls, typography and layout. This change introduces no shared primitive or new component state.
+
+### Evidence
+
+- Production build, Storybook build and contract checks passed in the source implementation workspace.
+- Native worksheet dashboard presentation was reviewed separately after its formula update.
+- Local `test:design` execution remains blocked: the Chromium installation returned truncated vendor downloads and no usable local browser was available. The native worksheet review is not a substitute for the application's Playwright visual/accessibility checks; run those checks in a working browser environment before recording that gate as passed.
+- Metric semantics, parity checks and source rollback are documented in `docs/lead-sheet-column-date-contract.md`.
+
+### Rollback
+
+- Revert the feature explanatory copy with the matching application metric contract and native worksheet formula version. Do not restore event-ledger wording while the source-column calculation remains active.
+- No design-token, shared-component or database rollback is required for the copy change.
+
 ## 2026-09-23 — Omni Account-first performance filters
 
 PR: #94

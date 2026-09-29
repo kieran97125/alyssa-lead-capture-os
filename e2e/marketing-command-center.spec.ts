@@ -740,6 +740,7 @@ test("legacy workbook selection stays deterministic for cutover reconciliation",
 test("Google Sheets funnel trims brand names and keeps Lead, Book and Show date ownership", () => {
   const metrics = aggregateLeadFunnelColumns({
     createdAtValues: [[46204.2], [46204.4], [46205.3], [46205.6]],
+    lastUpdatedValues: [[46204.2], [46205.4], [46206.3], []],
     followStatusValues: [["待跟進"], ["已預約"], ["已到店"], ["已預約"]],
     brandValues: [["Alyssa "], ["Ineffable Beauty"], ["Alyssa"], ["AM"]],
     confirmationDateValues: [[], [], [46206], []],
@@ -769,6 +770,13 @@ test("Google Sheets funnel trims brand names and keeps Lead, Book and Show date 
         brandId: "ib-brand",
         date: "2026-07-01",
         leads: 1,
+        bookings: 0,
+        shows: 0,
+      },
+      {
+        brandId: "ib-brand",
+        date: "2026-07-02",
+        leads: 0,
         bookings: 1,
         shows: 0,
       },
@@ -776,21 +784,21 @@ test("Google Sheets funnel trims brand names and keeps Lead, Book and Show date 
         brandId: "alyssa-brand",
         date: "2026-07-02",
         leads: 1,
-        bookings: 1,
+        bookings: 0,
         shows: 0,
       },
       {
         brandId: "alyssa-brand",
         date: "2026-07-03",
         leads: 0,
-        bookings: 0,
+        bookings: 1,
         shows: 1,
       },
       {
         brandId: "am-brand",
         date: "2026-07-02",
         leads: 1,
-        bookings: 1,
+        bookings: 0, // A is blank: B cannot supply the Book date.
         shows: 0,
       },
     ])
@@ -1089,7 +1097,7 @@ test("Lead Dashboard copies brand-phone dedupe and First Touch rules from the op
   });
   expect(model.totals).toMatchObject({
     leads: 3,
-    bookings: 3,
+    bookings: 0, // This legacy fixture has no A column.
     shows: 1,
     noShows: 1,
     outstanding: 1,
@@ -1097,10 +1105,10 @@ test("Lead Dashboard copies brand-phone dedupe and First Touch rules from the op
   expect(model.treatmentRows[0]).toMatchObject({
     treatmentLabel: "全部療程",
     leads: 3,
-    bookings: 3,
+    bookings: 0,
   });
   expect(model.campaignRows.find((row) => row.brandId === "alyssa-brand"))
-    .toMatchObject({ campaignLabel: "first-touch-campaign", leads: 1, bookings: 1 });
+    .toMatchObject({ campaignLabel: "first-touch-campaign", leads: 1, bookings: 0 });
   expect(model.outstandingRows[0]).toMatchObject({
     brandLabel: "Alyssa Medical",
     appointmentDate: "2026-07-20",
@@ -1135,7 +1143,7 @@ test("Lead Dashboard copies brand-phone dedupe and First Touch rules from the op
   });
   expect(trend).toHaveLength(1);
   expect(trend[0].points.find((point) => point.date === "2026-07-01"))
-    .toMatchObject({ leads: 1, bookings: 1 });
+    .toMatchObject({ leads: 1, bookings: 0 });
   expect(trend[0].points.find((point) => point.date === "2026-07-03"))
     .toMatchObject({ shows: 1, annotations: [{ id: "launch-day" }] });
 });

@@ -81,6 +81,8 @@ test("Persisted reporting uses the same Skin Light identity and owner-defined la
   const p = aggregateLeadSheetPerformance({ headers, rows: [row({ status: "已到店", treatment: "Service A" })], brands, brandAliases, sourceBrandId: null, treatmentAliases: aliases, eventLedger: ledger, dailyThroughDate: "2026-09-30", activityThroughDate: "2026-09-30", pendingThroughDate: "2026-09-30" });
   expect(p.dailyMetrics.reduce((a,m) => a + m.leads, 0)).toBe(1);
   expect(p.dailyMetrics.reduce((a,m) => a + m.bookings, 0)).toBe(1);
-  expect(p.dailyMetrics.reduce((a,m) => a + m.shows, 0)).toBe(1);
+  expect(p.dailyMetrics.reduce((a,m) => a + m.shows, 0)).toBe(0);
+  expect(p.metricFacts.find(f => f.metricKind === "book")).toMatchObject({ metricDate: "2026-09-21", count: 1 });
+  expect(p.metricFacts.some(f => f.metricKind === "show")).toBe(false); // N is blank; audit ledger cannot supply its date.
   expect(p.metricFacts.every(f => f.brandId === "skin-test" && f.treatmentLabel === "Service A")).toBe(true);
 });
