@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 import ts from "typescript";
+import { factsFormula, FACT_HEADERS } from "./lead-sheet-dashboard-formulas.mjs";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
 const nativeRequire = createRequire(import.meta.url);
@@ -145,4 +146,43 @@ assert.deepEqual(metricTotals(boundary), { lead: 1, book: 1, show: 1, no_show: 0
 assert.equal(parseGoogleSheetDate(Number.MAX_VALUE), null);
 assert.equal(parseGoogleSheetDate("2026-02-30"), null);
 assert.equal(parseGoogleSheetDate("not a date 2026-09-29"), null);
-console.log("Lead metric behavior verified: B/A/N/L dates, Account identity, explicit attribution, no ledger override, and cutoff boundaries.");
+// A physical v5 → v6 column permutation cannot change any metric, first-touch
+// dimension, status or diagnostic. Keep the tail untouched just like the live move.
+const v6Headers = ["最後更新日期", "Created At", "跟進狀態", "CS同事名", "品牌",
+  "預約日期", "預約時間", "確認到店日期", "客人姓名", "電話", "療程 / 優惠",
+  "療程項目", "分店", "Email", ...headers.slice(14)];
+const permutationRows = [...duplicateRows, ...sameDayFirstTouchFixture.rows, ...strictRows,
+  row({ "Created At": "2026-09-02", "療程 / 優惠": "Offer fallback", "分店": "Fixture branch" }),
+  row({ "Created At": "2026-09-02", "跟進狀態": "", "Status": "booked",
+    "最後更新日期": "2026-09-04", "預約日期": "2026-09-09", "預約時間": "14:00" }),
+];
+export const reorderedSchemaFixture = {
+  v5: { headers, rows: permutationRows },
+  v6: { headers: v6Headers, rows: permutationRows.map((values) =>
+    v6Headers.map((header) => values[headers.indexOf(header)])) },
+};
+for (const appsScriptContract of [false, true]) {
+  const baseline = { ...aliasInput, ...reorderedSchemaFixture.v5, appsScriptContract };
+  const reordered = { ...baseline, ...reorderedSchemaFixture.v6 };
+  assert.deepEqual(buildLeadSheetGroups(reordered), buildLeadSheetGroups(baseline),
+    "Physical column order must not change grouped identities or attribution");
+  const window = { dailyThroughDate: "2026-09-29", activityThroughDate: "2026-09-29",
+    pendingThroughDate: "2026-12-31" };
+  assert.deepEqual(aggregateLeadSheetPerformance({ ...reordered, ...window }),
+    aggregateLeadSheetPerformance({ ...baseline, ...window }),
+    "Physical column order must not change daily facts or performance projections");
+}
+
+const nativeFormula = factsFormula(80);
+assert.match(nativeFormula, /headers,lead!A1:Y1/);
+assert.match(nativeFormula, /MATCH\("Account",headers,0\)/);
+assert.match(nativeFormula, /field,LAMBDA\(header,INDEX\(src,,MATCH\(header,headers,0\)\)\)/);
+assert.doesNotMatch(nativeFormula, /INDEX\(src,,\d+\)/,
+  "Native projection must not retain positional source-column reads");
+assert.ok(FACT_HEADERS.includes("Show Date · 確認到店日期"));
+const fixtureFormula = factsFormula(80, { sourceSheet: "Metric QA's", headerRange: "'Metric QA''s'!AA1:AY1" });
+assert.ok(fixtureFormula.includes("raw,'Metric QA''s'!A2:Y80"));
+assert.ok(fixtureFormula.includes("headers,'Metric QA''s'!AA1:AY1"));
+assert.throws(() => factsFormula(1), /Source row limit/);
+
+console.log("Lead metric behavior verified: source-owned dates, Account identity, explicit attribution, no ledger override, cutoff boundaries, and v5/v6 column-order parity.");

@@ -6,7 +6,6 @@ import {
 } from "@/lib/integrations/googleSheetsOAuth";
 import {
   alignLeadRowToDestinationHeaders,
-  GOOGLE_SHEETS_LEAD_HEADERS,
   type GoogleSheetsLeadWebhookPayload,
 } from "@/lib/integrations/googleSheetsLeadSync";
 import {
@@ -200,8 +199,8 @@ function routePayload(
   );
   const sheetBrand = useMedicalBrand ? route.medicalBrand! : route.brand;
   const rowValues = [...payload.rowValues];
-  const brandIndex = GOOGLE_SHEETS_LEAD_HEADERS.indexOf("品牌");
-  const accountIndex = GOOGLE_SHEETS_LEAD_HEADERS.indexOf("Account");
+  const brandIndex = payload.headers.indexOf("品牌");
+  const accountIndex = payload.headers.indexOf("Account");
   if (brandIndex >= 0) rowValues[brandIndex] = sheetBrand;
   if (accountIndex >= 0) rowValues[accountIndex] = route.account;
 

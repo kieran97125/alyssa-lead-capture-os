@@ -428,8 +428,8 @@ export function LeadDashboardPanel({
         <div>
           <strong>計算及資料來源</strong>
           <p>
-            Lead 按 B 欄 Created At；Book 包括已預約、已到店及 no show，按 A 欄最後更新日期；
-            Show 按 N 欄確認到店日期；No Show 按 L 欄預約日期。每個 Account＋電話尾 8 位只計一次，各指標取符合狀態嘅最早有效日期；
+            Lead 按 Created At；Book 包括已預約、已到店及 no show，按最後更新日期；
+            Show 按確認到店日期；No Show 按預約日期。每個 Account＋電話尾 8 位只計一次，各指標取符合狀態嘅最早有效日期；
             缺日期唔會借用其他欄位或事件紀錄。品牌及療程沿用首次 Lead 資料。C 欄係目前狀態主要來源；同期間比率唔係固定 cohort。
           </p>
           <p>

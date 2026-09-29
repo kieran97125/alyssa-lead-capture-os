@@ -2,11 +2,13 @@ import { expect, test } from "@playwright/test";
 import {
   alignLeadRowToDestinationHeaders,
   buildGoogleSheetsLeadPayload,
+  buildGoogleSheetsLegacyWebhookPayload,
   GOOGLE_SHEETS_LEAD_HEADERS,
+  GOOGLE_SHEETS_LEAD_V5_HEADERS,
   GOOGLE_SHEETS_LEAD_SCHEMA_VERSION,
 } from "../src/lib/integrations/googleSheetsLeadSync";
 
-test("LaunchHub lead payload matches the Account-first A:Y contract", () => {
+test("LaunchHub lead payload matches the CS-first v6 A:Y contract", () => {
   const previousSecret = process.env.GOOGLE_SHEETS_WEBHOOK_SECRET;
   process.env.GOOGLE_SHEETS_WEBHOOK_SECRET = "test-secret";
 
@@ -36,16 +38,16 @@ test("LaunchHub lead payload matches the Account-first A:Y contract", () => {
       "2026-07-29",
       "2026-07-29",
       "待跟進",
+      "",
       "Alyssa",
-      "",
-      "旺角分店【朗豪坊】",
-      "Kieran Test",
-      "85265871236",
-      "",
-      "Facelift",
-      "$988 Facelift",
       "2026-07-29",
       "12:00",
+      "",
+      "Kieran Test",
+      "85265871236",
+      "Facelift",
+      "$988 Facelift",
+      "旺角分店【朗豪坊】",
       "",
       "未標記廣告系列 / 未標記素材",
       "",
@@ -82,6 +84,12 @@ test("LaunchHub lead payload matches the Account-first A:Y contract", () => {
       Account: "",
     });
     expect(payload.csOwner).toBe("");
+    expect(payload.schemaVersion).toBe("lead.v6");
+    expect(payload.headers.slice(0, 14)).toEqual([
+      "最後更新日期", "Created At", "跟進狀態", "CS同事名", "品牌", "預約日期", "預約時間",
+      "確認到店日期", "客人姓名", "電話", "療程 / 優惠", "療程項目", "分店", "Email",
+    ]);
+    expect(payload.headers.slice(14)).toEqual(GOOGLE_SHEETS_LEAD_V5_HEADERS.slice(14));
   } finally {
     if (previousSecret === undefined) {
       delete process.env.GOOGLE_SHEETS_WEBHOOK_SECRET;
@@ -229,4 +237,59 @@ test("Account-first destination requires the Account header", () => {
   expect(() =>
     alignLeadRowToDestinationHeaders([...withoutAccount], payload)
   ).toThrow("Google Sheet 缺少必要 header：Account");
+});
+
+function migrationPayload() {
+  const payload = buildGoogleSheetsLeadPayload({
+    brandId: "synthetic-brand", leadKey: "synthetic-migration", createdAt: "2026-09-29T04:00:00Z",
+    customerName: "Synthetic Name", phone: "10000001", email: "synthetic@example.com",
+    brandName: "GOS Beauty", formName: "Synthetic Form", treatmentName: "Synthetic Offer",
+    packageName: "Synthetic Treatment", price: 100, branchName: "Synthetic Branch",
+    appointmentDate: "2026-10-01", appointmentTime: "15:30", pageUrl: "https://example.com", touch: {},
+  });
+  // Give every moved field and the unchanged tail a recognizable value.
+  const values = {
+    CS同事名: "Synthetic Owner", 確認到店日期: "2026-10-02", Account: "GOS Beauty",
+    "IG/FB Username": "synthetic-user", "Day 1": "2026-09-30", "Day 2": "2026-10-01", Promotion: "Synthetic Promotion",
+  };
+  for (const [header, value] of Object.entries(values)) {
+    payload.rowValues[payload.headers.indexOf(header as typeof payload.headers[number])] = value;
+  }
+  return payload;
+}
+
+test("v6 deployment appends correct values to actual v5 and v6 headers without rewriting either layout", () => {
+  const payload = migrationPayload();
+  const original = JSON.stringify(payload);
+  const expected = Object.fromEntries(payload.headers.map((header, index) => [header, payload.rowValues[index]]));
+  for (const destination of [GOOGLE_SHEETS_LEAD_V5_HEADERS, GOOGLE_SHEETS_LEAD_HEADERS]) {
+    const liveHeaders = [...destination];
+    const unchangedHeaders = [...liveHeaders];
+    const values = alignLeadRowToDestinationHeaders(liveHeaders, payload);
+    expect(Object.fromEntries(liveHeaders.map((header, index) => [header, values[index]]))).toEqual(expected);
+    expect(values.slice(14)).toEqual(payload.rowValues.slice(14));
+    expect(liveHeaders).toEqual(unchangedHeaders);
+  }
+  const oldValues = alignLeadRowToDestinationHeaders([...GOOGLE_SHEETS_LEAD_V5_HEADERS], payload);
+  expect(oldValues[3]).toBe("GOS Beauty");
+  expect(oldValues[4]).toBe("Synthetic Owner");
+  expect(oldValues[7]).toBe("10000001");
+  expect(oldValues[13]).toBe("2026-10-02");
+  expect(payload.rowValues[3]).toBe("Synthetic Owner");
+  expect(payload.rowValues[4]).toBe("GOS Beauty");
+  expect(payload.rowValues[7]).toBe("2026-10-02");
+  expect(payload.rowValues[9]).toBe("10000001");
+  expect(JSON.stringify(payload)).toBe(original);
+});
+
+test("external Apps Script fallback retains its existing v5 wire order during native v6 rollout", () => {
+  const payload = migrationPayload();
+  const original = JSON.stringify(payload);
+  const legacy = buildGoogleSheetsLegacyWebhookPayload(payload);
+  expect(legacy.schemaVersion).toBe("lead.v5");
+  expect(legacy.headers).toEqual(GOOGLE_SHEETS_LEAD_V5_HEADERS);
+  expect(legacy.rowValues).toEqual(alignLeadRowToDestinationHeaders([...GOOGLE_SHEETS_LEAD_V5_HEADERS], payload));
+  expect(legacy.rowValues[7]).toBe("10000001");
+  expect(legacy.rowValues[13]).toBe("2026-10-02");
+  expect(JSON.stringify(payload)).toBe(original);
 });

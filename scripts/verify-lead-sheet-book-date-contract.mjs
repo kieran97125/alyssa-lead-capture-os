@@ -13,7 +13,7 @@ const [sync, table, normalizer, parser, ledger, dashboard] = await Promise.all([
   read("src/lib/marketing/leadDashboard.ts"),
 ]);
 
-assert.match(sync, /GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead\.v5"/);
+assert.match(sync, /GOOGLE_SHEETS_LEAD_SCHEMA_VERSION = "lead\.v6"/);
 assert.match(sync, /GOOGLE_SHEETS_LEAD_LEGACY_HEADERS/);
 assert.match(sync, /"最後更新日期"/);
 assert.match(sync, /lastUpdatedAt: createdAt/);
@@ -35,4 +35,4 @@ assert.doesNotMatch(dashboard, /readLeadFunnelEventLedger|applyLeadFunnelEventLe
 assert.match(dashboard, /appsScriptContract: false/);
 await import("./test-lead-metric-date-contract.mjs");
 
-console.log("Lead Sheet v5 Account-first A:Y contract and shared B/A/N/L reporting dates verified; the event ledger remains audit-only.");
+console.log("Lead Sheet v6 header-aligned writes and shared source-field reporting dates verified; the event ledger remains audit-only.");
