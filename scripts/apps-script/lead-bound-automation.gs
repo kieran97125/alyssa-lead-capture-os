@@ -1,5 +1,5 @@
 /**
- * Alyssa Omni Account Lead Sheet — header-resolved automation v1.5
+ * Alyssa Omni Account Lead Sheet — header-resolved automation v1.6
  *
  * Supports the legacy 24-column, CS-owner 25-column, and reordered lead.v6
  * operational layouts by resolving fields from row 1 on each execution.
@@ -93,12 +93,95 @@ const DEFAULT_BRAND_BY_ACCOUNT = {
 function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu('Lead 工具')
+    .addItem('搜尋電話移到底部', 'searchOmniPhoneToBottom')
     .addItem('安裝 / 更新自動化', 'installOmniLeadAutomation')
     .addItem('檢查設定', 'verifyOmniLeadSetup')
     .addItem('重新套用日期格式', 'applyOmniDateFormats')
     .addItem('重新同步療程項目', 'syncAllAccountTreatments')
     .addItem('補齊缺少 Lead Event', 'captureMissingLeadEvents')
     .addToUi();
+}
+
+/** CS search stays in the active Account tab and never creates an activity event. */
+function searchOmniPhoneToBottom() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const ui = SpreadsheetApp.getUi();
+  const originalSheet = ss.getActiveSheet();
+  if (!originalSheet || !OMNI_ACCOUNT_TABS.includes(originalSheet.getName())) {
+    ui.alert('請先開啟要更新的 Account 分頁，再搜尋電話。');
+    return;
+  }
+  const originalId = originalSheet.getSheetId();
+  // A prompt suspends the script and discards locks. Acquire only after it closes.
+  const response = ui.prompt('搜尋電話移到底部',
+    `只搜尋「${originalSheet.getName()}」。輸入電話或電話尾 8 位；同一電話的所有紀錄會按原有次序移到資料底部。`,
+    ui.ButtonSet.OK_CANCEL);
+  if (response.getSelectedButton() !== ui.Button.OK) return;
+  const input = response.getResponseText().trim();
+  const phone = last8_(input);
+  if (!phone || !/^\+?[\d\s().-]+$/.test(input) || input.replace(/\D/g, '').length > 15) {
+    ui.alert('請輸入有效電話，至少 8 位數字；可包含 +852、空格或連字號。');
+    return;
+  }
+  const lock = LockService.getDocumentLock();
+  if (!lock.tryLock(30000)) {
+    ui.alert('目前有其他更新正在處理，請稍後再搜尋。');
+    return;
+  }
+  let result;
+  let error;
+  try {
+    const sheet = ss.getActiveSheet();
+    if (!sheet || sheet.getSheetId() !== originalId) {
+      throw new Error('搜尋期間已切換分頁，請在目標 Account 分頁重新搜尋。');
+    }
+    result = moveOmniPhoneRowsToBottom_(sheet, phone);
+    if (result.count) {
+      SpreadsheetApp.flush();
+      sheet.getRange(result.firstRow, 1, result.count, sheet.getLastColumn()).activate();
+      ss.toast(`已找到 ${result.count} 筆，位於第 ${result.firstRow}–${result.lastRow} 行。日期及狀態保留；如有篩選，請確認結果未被隱藏。`,
+        result.moves ? '已移到資料底部' : '紀錄已在資料底部', 10);
+    }
+  } catch (caught) {
+    error = String(caught.message || caught);
+  } finally {
+    lock.releaseLock();
+  }
+  // Never suspend execution with an alert while holding the document lock.
+  if (error) ui.alert(`未能完成搜尋：${error}`);
+  else if (!result.count) ui.alert('目前分頁找不到這個電話，資料未有改動。');
+  return result;
+}
+
+function moveOmniPhoneRowsToBottom_(sheet, phone) {
+  if (!OMNI_ACCOUNT_TABS.includes(sheet.getName())) throw new Error('只可操作 Account 分頁。');
+  if (!/^\d{8}$/.test(phone)) throw new Error('電話尾 8 位格式不正確。');
+  const columns = getOmniColumns_(sheet);
+  const lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { count: 0, moves: 0 };
+  const matches = sheet.getRange(2, columns.PHONE, lastRow - 1, 1)
+    .getDisplayValues().map(row => last8_(row[0]) === phone);
+  const count = matches.filter(Boolean).length;
+  if (!count) return { count: 0, moves: 0 };
+  const firstRow = lastRow - count + 1;
+  const result = { count, firstRow, lastRow, moves: 0 };
+  if (matches.slice(matches.length - count).every(Boolean)) return result;
+
+  // Structural moveRows rewrites external ranges (including the master/cache),
+  // so use a native whole-record sort. Unique keys make both groups stable.
+  // The temporary column is beyond ALL existing columns, including hidden data.
+  const temporaryColumn = sheet.getMaxColumns() + 1;
+  sheet.insertColumnsAfter(temporaryColumn - 1, 1);
+  try {
+    const keys = matches.map((match, index) => [index + (match ? matches.length : 0)]);
+    sheet.getRange(2, temporaryColumn, matches.length, 1).setValues(keys);
+    sheet.getRange(2, 1, matches.length, temporaryColumn)
+      .sort([{ column: temporaryColumn, ascending: true }]);
+    result.moves = 1;
+  } finally {
+    sheet.deleteColumn(temporaryColumn);
+  }
+  return result;
 }
 
 function installOmniLeadAutomation() {
