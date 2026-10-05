@@ -1,0 +1,177 @@
+
+> alyssa-lead-capture-os@0.1.0 build
+> npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:lead-sheet-book-date-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && npm run verify:work-ops-contract && npm run verify:design-system-contract && npm run verify:creative-production-contract && npm run verify:calendar-edit-contract && next build
+
+
+> alyssa-lead-capture-os@0.1.0 verify:public-lead-contract
+> node scripts/verify-public-lead-contract.mjs
+
+Verified public lead insert columns, success trace responses, and immutable build source.
+
+> alyssa-lead-capture-os@0.1.0 verify:auth-email-contract
+> node scripts/verify-auth-email-contract.mjs
+
+Auth email template contract verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:reporting-trend-contract
+> node scripts/verify-reporting-trend-contract.mjs
+
+Reporting daily/cumulative mode, aggregate-first CPLead/CPBook/CPShow trends, spend-presence gaps, per-surface preference, connected events, calendar annotation, and Manager KPI contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:report-export-contract
+> node scripts/verify-report-export-contract.mjs
+
+Report export and immutable snapshot contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:treatment-mapping-contract
+> node scripts/verify-treatment-mapping-contract.mjs
+
+System-owned treatment mapping and Lead classification contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:brand-scope-contract
+> node scripts/verify-brand-scope-contract.mjs
+
+Alyssa All, lightweight reporting data, and loading feedback contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:lead-audit-contract
+> node scripts/verify-lead-audit-contract.mjs
+
+Lead Sheet encrypted version, anomaly, review, explicit-access, and daily cron contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:lead-sheet-book-date-contract
+> node scripts/verify-lead-sheet-book-date-contract.mjs
+
+Lead metric behavior verified: source-owned dates, Account identity, explicit attribution, no ledger override, cutoff boundaries, and v5/v6 column-order parity.
+Lead Sheet v6 header-aligned writes and shared source-field reporting dates verified; the event ledger remains audit-only.
+
+> alyssa-lead-capture-os@0.1.0 verify:product-ui-contract
+> node scripts/verify-product-ui-contract.mjs
+
+Production UI wording and real-feature contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:app-icon-contract
+> node scripts/verify-app-icon-contract.mjs
+
+Growth OS favicon, install icon, and manifest contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:work-ops-contract
+> node scripts/verify-work-task-push-contract.mjs
+
+Task Start Day, Due Day calendar ownership, atomic schedule sync, reminders, Web Push subscription, atomic delivery, pg_net ownership, and Service Worker contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:design-system-contract
+> node scripts/verify-design-system-contract.mjs
+
+Design system contract verified: namespaced tokens, Base UI, Storybook, visual and accessibility gates are present without legacy global collisions.
+
+> alyssa-lead-capture-os@0.1.0 verify:creative-production-contract
+> node scripts/verify-creative-production-contract.mjs
+
+Creative Production Studio schema, permissions, navigation, rich brief, calendar, audit and Web Push contracts verified.
+
+> alyssa-lead-capture-os@0.1.0 verify:calendar-edit-contract
+> node scripts/verify-calendar-edit-contract.mjs
+
+Editable Calendar dialog, dual-brand authorization, linked-record sync, concurrency, audit and visual acceptance contracts verified.
+⚠ No build cache found. Please configure build caching for faster rebuilds. Read more: https://nextjs.org/docs/messages/no-cache
+▲ Next.js 16.2.12 (Turbopack)
+
+  Creating an optimized production build ...
+✓ Compiled successfully in 9.0s
+  Running TypeScript ...
+  Finished TypeScript in 20.0s ...
+  Collecting page data using 8 workers ...
+  Generating static pages using 8 workers (0/22) ...
+  Generating static pages using 8 workers (5/22)
+  Generating static pages using 8 workers (10/22)
+  Generating static pages using 8 workers (16/22)
+✓ Generating static pages using 8 workers (22/22) in 256ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /
+├ ○ /_not-found
+├ ƒ /api/auth/finalize
+├ ƒ /api/creative-jobs/[jobId]/assets
+├ ƒ /api/creative-jobs/[jobId]/assets/[assetId]
+├ ƒ /api/creative-jobs/[jobId]/brief
+├ ƒ /api/crm/whatsapp/campaigns
+├ ƒ /api/crm/whatsapp/send
+├ ƒ /api/cron/marketing-data-sources
+├ ƒ /api/cron/whatsapp-campaigns
+├ ƒ /api/integrations/google-sheets/callback
+├ ƒ /api/integrations/google-sheets/start
+├ ƒ /api/internal/performance/rolling-comparison
+├ ƒ /api/internal/reports/daily-overview/export
+├ ƒ /api/internal/reports/export
+├ ƒ /api/notifications/push
+├ ƒ /api/notifications/push/test
+├ ƒ /api/public/events
+├ ƒ /api/public/forms/[token]
+├ ƒ /api/public/leads
+├ ƒ /api/public/thank-you
+├ ƒ /api/webhooks/payment
+├ ƒ /api/webhooks/whatsapp
+├ ƒ /api/webhooks/whatsapp/meta
+├ ○ /apple-icon.png
+├ ƒ /auth/confirm
+├ ƒ /brands
+├ ƒ /calendar
+├ ƒ /campaigns/new
+├ ○ /create-campaign
+├ ƒ /creative-jobs
+├ ƒ /creative-jobs/[jobId]
+├ ƒ /crm
+├ ƒ /crm/leads/[leadId]
+├ ƒ /crm/operations
+├ ƒ /crm/settings
+├ ƒ /crm/settings/whatsapp
+├ ƒ /crm/whatsapp
+├ ƒ /crm/whatsapp-broadcasts
+├ ƒ /crm/whatsapp/[conversationId]
+├ ƒ /crm/whatsapp/templates
+├ ƒ /dashboard
+├ ƒ /data-sources
+├ ƒ /e2e/attribution-parent
+├ ○ /e2e/creative-production
+├ ○ /e2e/dashboard-streaming
+├ ○ /e2e/design-system
+├ ○ /embed-preview
+├ ƒ /embed/[formToken]
+├ ƒ /forms
+├ ƒ /forms/[formId]
+├ ƒ /forms/new
+├ ƒ /forms/redirect-sync
+├ ○ /icon.svg
+├ ƒ /kpis
+├ ƒ /landing-pages
+├ ƒ /landing-pages/[pageId]
+├ ƒ /lead-audit
+├ ƒ /leads
+├ ƒ /legal/[brandSlug]/[documentType]
+├ ƒ /login
+├ ƒ /logout
+├ ƒ /lp/[slug]
+├ ○ /manifest.webmanifest
+├ ƒ /performance
+├ ƒ /performance/compare
+├ ƒ /performance/daily
+├ ƒ /reports
+├ ƒ /settings
+├ ƒ /settings/branches
+├ ƒ /settings/brands
+├ ƒ /settings/creative
+├ ƒ /settings/packages
+├ ƒ /settings/planning
+├ ƒ /settings/team
+├ ƒ /settings/templates
+├ ƒ /settings/treatments
+├ ƒ /system-audit
+├ ƒ /tasks
+└ ○ /thank-you
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand

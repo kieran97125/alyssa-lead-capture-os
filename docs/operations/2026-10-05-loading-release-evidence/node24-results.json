@@ -1,0 +1,12 @@
+[
+  {
+    "check": "behavior-node24",
+    "exit": 0,
+    "seconds": 1.03
+  },
+  {
+    "check": "production-build-node24",
+    "exit": 0,
+    "seconds": 26.7
+  }
+]

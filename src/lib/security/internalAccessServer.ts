@@ -23,9 +23,11 @@ import {
   isWorkspaceEmailAuthRequired,
 } from "@/lib/supabase/authConfig";
 import { createSupabaseServerAuthClient } from "@/lib/supabase/authServer";
+import { isSupabaseUnavailableError } from "@/lib/supabase/requestDeadline";
 import {
   canAccessWorkspaceModule,
   getWorkspaceMemberAccess,
+  WorkspaceAccessUnavailableError,
   type WorkspaceMemberAccess,
   type WorkspaceModuleKey,
 } from "@/lib/security/workspaceAuth";
@@ -45,7 +47,7 @@ export async function getCurrentInternalAccess(): Promise<InternalAccessContext>
   const result = await verifyCurrentInternalAccess();
   if (result.ok) return result.access;
 
-  if (!isAdminPasswordGateEnabled() && !isWorkspaceEmailAuthRequired()) {
+  if (!isAdminPasswordGateEnabled() && !isWorkspaceEmailAuthRequired() && !getSupabasePublicAuthConfig().ready) {
     return openAccessContext();
   }
 
@@ -59,7 +61,15 @@ async function verifyCurrentInternalAccessUncached(): Promise<
   | { ok: true; access: InternalAccessContext }
   | { ok: false; access: null }
 > {
-  const emailAccess = await getCurrentWorkspaceMemberAccess();
+  let emailAccess: WorkspaceMemberAccess | null = null;
+  let providerUnavailable: WorkspaceAccessUnavailableError | null = null;
+  try {
+    emailAccess = await getCurrentWorkspaceMemberAccess();
+  } catch (error) {
+    if (!(error instanceof WorkspaceAccessUnavailableError)) throw error;
+    if (!isBreakGlassPasswordEnabled()) throw error;
+    providerUnavailable = error;
+  }
   if (emailAccess) {
     return { ok: true, access: emailAccess };
   }
@@ -73,7 +83,10 @@ async function verifyCurrentInternalAccessUncached(): Promise<
     cookieStore.get(adminSessionCookieName)?.value
   );
 
-  if (result.ok && result.source) {
+  if (
+    result.ok && result.source === "shared_password" &&
+    isAdminPasswordGateEnabled() && isBreakGlassPasswordEnabled()
+  ) {
     return {
       ok: true,
       access: {
@@ -83,7 +96,9 @@ async function verifyCurrentInternalAccessUncached(): Promise<
     };
   }
 
-  if (!isAdminPasswordGateEnabled() && !isWorkspaceEmailAuthRequired()) {
+  if (providerUnavailable) throw providerUnavailable;
+
+  if (!isAdminPasswordGateEnabled() && !isWorkspaceEmailAuthRequired() && !getSupabasePublicAuthConfig().ready) {
     return { ok: true, access: openAccessContext() };
   }
 
@@ -113,7 +128,8 @@ export async function getCurrentWorkspaceMemberAccess(): Promise<WorkspaceMember
 
   try {
     const supabase = await createSupabaseServerAuthClient();
-    const { data, error } = await supabase.auth.getClaims();
+    const { data, error } = await supabase.authDeadline.run(() => supabase.auth.getClaims());
+    if (isSupabaseUnavailableError(error)) throw new WorkspaceAccessUnavailableError();
     const userId =
       typeof data?.claims?.sub === "string" ? data.claims.sub.trim() : "";
     const email =
@@ -121,9 +137,9 @@ export async function getCurrentWorkspaceMemberAccess(): Promise<WorkspaceMember
         ? data.claims.email.trim().toLowerCase()
         : "";
     if (error || !userId || !email) return null;
-    return getWorkspaceMemberAccess({ userId, email });
+    return await getWorkspaceMemberAccess({ userId, email });
   } catch {
-    return null;
+    throw new WorkspaceAccessUnavailableError();
   }
 }
 
@@ -187,7 +203,7 @@ export async function clearInternalSessionCookie() {
   if (getSupabasePublicAuthConfig().ready) {
     try {
       const supabase = await createSupabaseServerAuthClient();
-      await supabase.auth.signOut();
+      await supabase.authDeadline.run(() => supabase.auth.signOut());
     } catch {
       // Clearing the legacy cookies still guarantees the old shared-password
       // session is gone; a malformed provider session is ignored here.

@@ -1,0 +1,37 @@
+✔ workspace access retains exact allowed brands and module denials (32.359089ms)
+✔ missing, suspended, removed, mismatched members remain genuine denials (89.095318ms)
+✔ HTTP503 with long Retry-After fails immediately without SDK retries or uninvited result (9.79804ms)
+✔ permission lookup faults fail closed even for a valid member (12.117492ms)
+✔ invitation activation is awaited, bounded and never automatically retried (71.994102ms)
+✔ Proxy auth/member outages redirect with preserved rotated cookies and sanitized next (72.150708ms)
+✔ outage never opens fallback; explicit breakglass still requires signature and master constraints (65.127454ms)
+✔ server access does not turn provider errors or configured invalid sessions into open access (21.674491ms)
+✔ finalize distinguishes service503 from invalid401 and genuine denied403 without signing out on service failures (46.315766ms)
+✔ successful finalize does not wait for sign-in telemetry and retains scoped next URL (10.077092ms)
+✔ confirmation service failure is transient; unmount suppresses late navigation without OTP replay (71.525435ms)
+lead_dashboard_live_read_failed { code: 'unknown', message: 'Lead Sheet 讀取逾時，請稍後重試；其他功能仍可使用。' }
+PASS: read-only dashboard, one batch read, shared abort at 4 stages, no token retries, explicit sync preserved
+✔ scripts/test-dashboard-google-read.mjs (668.276275ms)
+Dashboard streaming verified: shell/navigation available with stalled reads; normalized independent Source; shared command/audit reads; independent Operations; honest Lead unavailable state; optional notification failures and permission boundaries.
+✔ scripts/test-dashboard-streaming.mjs (773.3082ms)
+✔ successful GET preserves request options, JSON, HTTP and response metadata (79.640371ms)
+✔ stalled headers time out and abort transport, even if transport ignores cancellation (50.818709ms)
+✔ late headers have their body cancelled after deadline (53.01858ms)
+✔ a stalled response body shares the header deadline and cancels its upstream reader (50.426154ms)
+✔ caller cancellation is preserved before headers and during body reads (2.361669ms)
+✔ explicit init signal overrides Request signal; pre-aborted calls never start (6.751367ms)
+✔ consumer stream cancellation cancels the original body and fetch signal (0.912269ms)
+✔ HEAD completes at headers and admin writes remain exact pass-through (65.377393ms)
+✔ installed PostgREST SDK does not retry deadline-aborted reads (58.079394ms)
+✔ auth operation deadline covers token refresh POST and blocks subsequent SDK attempts (50.364398ms)
+✔ auth getClaims lifecycle is bounded even before a transport call starts (50.004061ms)
+✔ Proxy and server auth refuse late cookie writes after timeout (129.004622ms)
+✔ outage classification does not turn invalid/expired sessions into verified access (0.310418ms)
+ℹ tests 26
+ℹ suites 0
+ℹ pass 26
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 985.760674

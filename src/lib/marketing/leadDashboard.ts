@@ -385,14 +385,16 @@ export async function getLeadDashboardSnapshot(
       (brand) => !allowedBrandIdSet || allowedBrandIdSet.has(brand.id)
     );
     const aliases = treatmentAliases(source.configuration.treatmentAliases);
-    const rawLiveTable = await readLiveLeadTable(source.configuration);
+    const rawLiveTable = await readLiveLeadTable(source.configuration, {
+      readOnly: true,
+    });
     const liveTable = await normalizeMetaLeadRowsInLiveTable({
       configuration: source.configuration,
       liveTable: rawLiveTable,
       brands,
       brandAliases: stringRecord(source.configuration.brandAliases),
       treatmentAliases: aliases,
-      writeBack: true,
+      writeBack: false,
     });
     const parsed = buildLeadSheetGroups({
       ...liveTable,

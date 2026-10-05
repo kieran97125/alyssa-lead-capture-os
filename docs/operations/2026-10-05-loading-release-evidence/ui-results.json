@@ -1,0 +1,497 @@
+{
+  "config": {
+    "argv": [
+      "/workspace/scratch/6eeadd0c1662/safe-validation-review/runtime-node22/node-v22.23.3-linux-x64/bin/node",
+      "/workspace/scratch/6eeadd0c1662/loading-release-review/node_modules/@playwright/test/cli.js",
+      "test",
+      "--config",
+      "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/playwright.config.ts"
+    ],
+    "configFile": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/playwright.config.ts",
+    "rootDir": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": true,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {
+      "actualWorkers": 1
+    },
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "setup",
+        "name": "setup",
+        "testDir": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/auth\\.setup\\.ts/"
+        ],
+        "timeout": 30000
+      },
+      {
+        "outputDir": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {
+          "actualWorkers": 1
+        },
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "/(design-quality|dashboard-streaming)\\.spec\\.ts/"
+        ],
+        "timeout": 30000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "json",
+        {
+          "outputFile": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/ui-results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 1,
+    "webServer": {
+      "command": "npm run start -- --hostname 127.0.0.1 --port 3012",
+      "cwd": "/workspace/scratch/6eeadd0c1662/loading-release-review",
+      "url": "http://127.0.0.1:3012/login",
+      "timeout": 30000,
+      "reuseExistingServer": false
+    }
+  },
+  "suites": [
+    {
+      "title": "auth.setup.ts",
+      "file": "auth.setup.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "authenticate once",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "setup",
+              "projectName": "setup",
+              "results": [
+                {
+                  "workerIndex": 0,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 700,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-05T07:50:14.098Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "17e3fe6f4d9d8bd79c6b-fcf4b54ebf9b289df24d",
+          "file": "auth.setup.ts",
+          "line": 6,
+          "column": 6
+        }
+      ]
+    },
+    {
+      "title": "dashboard-streaming.spec.ts",
+      "file": "dashboard-streaming.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "pending data leaves mobile navigation open when notification counts arrive",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2155,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-05T07:50:15.270Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "79d5607c7dea472d3ca9-ee292f8d87ae181fb938",
+          "file": "dashboard-streaming.spec.ts",
+          "line": 4,
+          "column": 5
+        },
+        {
+          "title": "Dashboard availability desktop visual and accessibility states",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2488,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-05T07:50:17.493Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "79d5607c7dea472d3ca9-c4df17345cffd834cea4",
+          "file": "dashboard-streaming.spec.ts",
+          "line": 17,
+          "column": 7
+        },
+        {
+          "title": "Dashboard availability mobile visual and accessibility states",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 2353,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-05T07:50:19.994Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "79d5607c7dea472d3ca9-fd07dfa4d8225319955c",
+          "file": "dashboard-streaming.spec.ts",
+          "line": 17,
+          "column": 7
+        }
+      ]
+    },
+    {
+      "title": "design-quality.spec.ts",
+      "file": "design-quality.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [
+        {
+          "title": "design foundation desktop visual baseline",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 1,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 1355,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveScreenshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  20213 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: design-foundation-desktop.png\n\nCall log:\n\u001b[2m  - Expect \"toHaveScreenshot(design-foundation-desktop.png)\" with timeout 5000ms\u001b[22m\n\u001b[2m    - verifying given screenshot expectation\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - 20213 pixels (ratio 0.02 of all image pixels) are different.\u001b[22m\n\u001b[2m  - waiting 100ms before taking screenshot\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - captured a stable screenshot\u001b[22m\n\u001b[2m  - 20213 pixels (ratio 0.02 of all image pixels) are different.\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveScreenshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  20213 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: design-foundation-desktop.png\n\nCall log:\n\u001b[2m  - Expect \"toHaveScreenshot(design-foundation-desktop.png)\" with timeout 5000ms\u001b[22m\n\u001b[2m    - verifying given screenshot expectation\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - 20213 pixels (ratio 0.02 of all image pixels) are different.\u001b[22m\n\u001b[2m  - waiting 100ms before taking screenshot\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - captured a stable screenshot\u001b[22m\n\u001b[2m  - 20213 pixels (ratio 0.02 of all image pixels) are different.\u001b[22m\n\n    at /workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts:35:22",
+                    "location": {
+                      "file": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts",
+                      "column": 22,
+                      "line": 35
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 33 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39msetViewportSize({ width\u001b[33m:\u001b[39m \u001b[35m1440\u001b[39m\u001b[33m,\u001b[39m height\u001b[33m:\u001b[39m \u001b[35m1000\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m 34 |\u001b[39m   \u001b[36mawait\u001b[39m openSpecimen(page)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 35 |\u001b[39m   \u001b[36mawait\u001b[39m expect(page)\u001b[33m.\u001b[39mtoHaveScreenshot(\u001b[32m\"design-foundation-desktop.png\"\u001b[39m\u001b[33m,\u001b[39m {\n \u001b[90m    |\u001b[39m                      \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 36 |\u001b[39m     fullPage\u001b[33m:\u001b[39m \u001b[36mtrue\u001b[39m\u001b[33m,\u001b[39m\n \u001b[90m 37 |\u001b[39m     animations\u001b[33m:\u001b[39m \u001b[32m\"disabled\"\u001b[39m\u001b[33m,\u001b[39m\n \u001b[90m 38 |\u001b[39m   })\u001b[33m;\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts",
+                        "column": 22,
+                        "line": 35
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveScreenshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  20213 pixels (ratio 0.02 of all image pixels) are different.\n\n  Snapshot: design-foundation-desktop.png\n\nCall log:\n\u001b[2m  - Expect \"toHaveScreenshot(design-foundation-desktop.png)\" with timeout 5000ms\u001b[22m\n\u001b[2m    - verifying given screenshot expectation\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - 20213 pixels (ratio 0.02 of all image pixels) are different.\u001b[22m\n\u001b[2m  - waiting 100ms before taking screenshot\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - captured a stable screenshot\u001b[22m\n\u001b[2m  - 20213 pixels (ratio 0.02 of all image pixels) are different.\u001b[22m\n\n\n  33 |   await page.setViewportSize({ width: 1440, height: 1000 });\n  34 |   await openSpecimen(page);\n> 35 |   await expect(page).toHaveScreenshot(\"design-foundation-desktop.png\", {\n     |                      ^\n  36 |     fullPage: true,\n  37 |     animations: \"disabled\",\n  38 |   });\n    at /workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts:35:22"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-05T07:50:22.362Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "design-foundation-desktop-expected.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts-snapshots/design-foundation-desktop-chromium-linux.png"
+                    },
+                    {
+                      "name": "design-foundation-desktop-actual.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results/design-quality-design-foundation-desktop-visual-baseline-chromium/design-foundation-desktop-actual.png"
+                    },
+                    {
+                      "name": "design-foundation-desktop-diff.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results/design-quality-design-foundation-desktop-visual-baseline-chromium/design-foundation-desktop-diff.png"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results/design-quality-design-foundation-desktop-visual-baseline-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results/design-quality-design-foundation-desktop-visual-baseline-chromium/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts",
+                    "column": 22,
+                    "line": 35
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "592f9cfe9c9a0a658d25-654008354849f136cc0a",
+          "file": "design-quality.spec.ts",
+          "line": 32,
+          "column": 5
+        },
+        {
+          "title": "design foundation mobile visual baseline",
+          "ok": false,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 2,
+                  "parallelIndex": 0,
+                  "status": "failed",
+                  "duration": 1213,
+                  "error": {
+                    "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveScreenshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\n\n  Snapshot: design-foundation-mobile.png\n\nCall log:\n\u001b[2m  - Expect \"toHaveScreenshot(design-foundation-mobile.png)\" with timeout 5000ms\u001b[22m\n\u001b[2m    - verifying given screenshot expectation\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\u001b[22m\n\u001b[2m  - waiting 100ms before taking screenshot\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - captured a stable screenshot\u001b[22m\n\u001b[2m  - Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\u001b[22m\n",
+                    "stack": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveScreenshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\n\n  Snapshot: design-foundation-mobile.png\n\nCall log:\n\u001b[2m  - Expect \"toHaveScreenshot(design-foundation-mobile.png)\" with timeout 5000ms\u001b[22m\n\u001b[2m    - verifying given screenshot expectation\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\u001b[22m\n\u001b[2m  - waiting 100ms before taking screenshot\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - captured a stable screenshot\u001b[22m\n\u001b[2m  - Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\u001b[22m\n\n    at /workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts:44:22",
+                    "location": {
+                      "file": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts",
+                      "column": 22,
+                      "line": 44
+                    },
+                    "snippet": "\u001b[0m \u001b[90m 42 |\u001b[39m   \u001b[36mawait\u001b[39m page\u001b[33m.\u001b[39msetViewportSize({ width\u001b[33m:\u001b[39m \u001b[35m390\u001b[39m\u001b[33m,\u001b[39m height\u001b[33m:\u001b[39m \u001b[35m844\u001b[39m })\u001b[33m;\u001b[39m\n \u001b[90m 43 |\u001b[39m   \u001b[36mawait\u001b[39m openSpecimen(page)\u001b[33m;\u001b[39m\n\u001b[31m\u001b[1m>\u001b[22m\u001b[39m\u001b[90m 44 |\u001b[39m   \u001b[36mawait\u001b[39m expect(page)\u001b[33m.\u001b[39mtoHaveScreenshot(\u001b[32m\"design-foundation-mobile.png\"\u001b[39m\u001b[33m,\u001b[39m {\n \u001b[90m    |\u001b[39m                      \u001b[31m\u001b[1m^\u001b[22m\u001b[39m\n \u001b[90m 45 |\u001b[39m     fullPage\u001b[33m:\u001b[39m \u001b[36mtrue\u001b[39m\u001b[33m,\u001b[39m\n \u001b[90m 46 |\u001b[39m     animations\u001b[33m:\u001b[39m \u001b[32m\"disabled\"\u001b[39m\u001b[33m,\u001b[39m\n \u001b[90m 47 |\u001b[39m   })\u001b[33m;\u001b[39m\u001b[0m"
+                  },
+                  "errors": [
+                    {
+                      "location": {
+                        "file": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts",
+                        "column": 22,
+                        "line": 44
+                      },
+                      "message": "Error: \u001b[2mexpect(\u001b[22m\u001b[31mpage\u001b[39m\u001b[2m).\u001b[22mtoHaveScreenshot\u001b[2m(\u001b[22m\u001b[32mexpected\u001b[39m\u001b[2m)\u001b[22m failed\n\n  Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\n\n  Snapshot: design-foundation-mobile.png\n\nCall log:\n\u001b[2m  - Expect \"toHaveScreenshot(design-foundation-mobile.png)\" with timeout 5000ms\u001b[22m\n\u001b[2m    - verifying given screenshot expectation\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\u001b[22m\n\u001b[2m  - waiting 100ms before taking screenshot\u001b[22m\n\u001b[2m  - taking page screenshot\u001b[22m\n\u001b[2m    - disabled all CSS animations\u001b[22m\n\u001b[2m  - waiting for fonts to load...\u001b[22m\n\u001b[2m  - fonts loaded\u001b[22m\n\u001b[2m  - captured a stable screenshot\u001b[22m\n\u001b[2m  - Expected an image 390px by 1738px, received 390px by 1767px. 20014 pixels (ratio 0.03 of all image pixels) are different.\u001b[22m\n\n\n  42 |   await page.setViewportSize({ width: 390, height: 844 });\n  43 |   await openSpecimen(page);\n> 44 |   await expect(page).toHaveScreenshot(\"design-foundation-mobile.png\", {\n     |                      ^\n  45 |     fullPage: true,\n  46 |     animations: \"disabled\",\n  47 |   });\n    at /workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts:44:22"
+                    }
+                  ],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-05T07:50:24.166Z",
+                  "annotations": [],
+                  "attachments": [
+                    {
+                      "name": "design-foundation-mobile-expected.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts-snapshots/design-foundation-mobile-chromium-linux.png"
+                    },
+                    {
+                      "name": "design-foundation-mobile-actual.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results/design-quality-design-foundation-mobile-visual-baseline-chromium/design-foundation-mobile-actual.png"
+                    },
+                    {
+                      "name": "design-foundation-mobile-diff.png",
+                      "contentType": "image/png",
+                      "path": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results/design-quality-design-foundation-mobile-visual-baseline-chromium/design-foundation-mobile-diff.png"
+                    },
+                    {
+                      "name": "screenshot",
+                      "contentType": "image/png",
+                      "path": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results/design-quality-design-foundation-mobile-visual-baseline-chromium/test-failed-1.png"
+                    },
+                    {
+                      "name": "error-context",
+                      "contentType": "text/markdown",
+                      "path": "/workspace/scratch/6eeadd0c1662/incident-20261005/loading-release/test-results/design-quality-design-foundation-mobile-visual-baseline-chromium/error-context.md"
+                    }
+                  ],
+                  "errorLocation": {
+                    "file": "/workspace/scratch/6eeadd0c1662/loading-release-review/e2e/design-quality.spec.ts",
+                    "column": 22,
+                    "line": 44
+                  }
+                }
+              ],
+              "status": "unexpected"
+            }
+          ],
+          "id": "592f9cfe9c9a0a658d25-318ca8c510f8ac38be4d",
+          "file": "design-quality.spec.ts",
+          "line": 41,
+          "column": 5
+        },
+        {
+          "title": "design foundation has no automated WCAG A or AA violations",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 1069,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-05T07:50:25.894Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "592f9cfe9c9a0a658d25-66ad9b5b621b7c4fb02d",
+          "file": "design-quality.spec.ts",
+          "line": 50,
+          "column": 5
+        },
+        {
+          "title": "design tokens cannot wash out Dashboard labels and helper text",
+          "ok": true,
+          "tags": [],
+          "tests": [
+            {
+              "timeout": 30000,
+              "annotations": [],
+              "expectedStatus": "passed",
+              "projectId": "chromium",
+              "projectName": "chromium",
+              "results": [
+                {
+                  "workerIndex": 3,
+                  "parallelIndex": 0,
+                  "status": "passed",
+                  "duration": 850,
+                  "errors": [],
+                  "stdout": [],
+                  "stderr": [],
+                  "retry": 0,
+                  "startTime": "2026-10-05T07:50:27.036Z",
+                  "annotations": [],
+                  "attachments": []
+                }
+              ],
+              "status": "expected"
+            }
+          ],
+          "id": "592f9cfe9c9a0a658d25-006d7d34ff970403c4a3",
+          "file": "design-quality.spec.ts",
+          "line": 60,
+          "column": 5
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-10-05T07:50:12.662Z",
+    "duration": 15292.829,
+    "expected": 6,
+    "skipped": 0,
+    "unexpected": 2,
+    "flaky": 0
+  }
+}

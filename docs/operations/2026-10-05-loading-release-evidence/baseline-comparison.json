@@ -1,0 +1,14 @@
+[
+  {
+    "viewport": "desktop",
+    "currentSha256": "3f865cd0bdb88bffe4c7b5f9ce01232ed6dd802afd6296d5968e9abb95df2deb",
+    "baselineSha256": "3f865cd0bdb88bffe4c7b5f9ce01232ed6dd802afd6296d5968e9abb95df2deb",
+    "identical": true
+  },
+  {
+    "viewport": "mobile",
+    "currentSha256": "240c2aa2e68bcf7b7895071269d9fcf27b05c05d819924ddbf6455c44a269d82",
+    "baselineSha256": "240c2aa2e68bcf7b7895071269d9fcf27b05c05d819924ddbf6455c44a269d82",
+    "identical": true
+  }
+]

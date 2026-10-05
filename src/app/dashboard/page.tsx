@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+import { redirect, unstable_rethrow } from "next/navigation";
 import {
   ArrowUpRight,
   CalendarClock,
@@ -7,6 +9,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
+import { DashboardRegionState } from "@/components/command-center/DashboardRegionState";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import {
   PaceBar,
@@ -24,10 +27,14 @@ import {
   type MetricProgress,
 } from "@/lib/marketing/commandCenter";
 import { getLeadDashboardSnapshot } from "@/lib/marketing/leadDashboard";
-import { buildLeadDashboardReturnPath } from "@/lib/marketing/leadDashboardFilters";
+import {
+  buildLeadDashboardReturnPath,
+  normalizeLeadDashboardFilters,
+} from "@/lib/marketing/leadDashboardFilters";
 import { getLeadAuditNavigationSummary } from "@/lib/marketing/leadSheetAuditView";
 import { getSourcePerformanceSnapshot } from "@/lib/marketing/sourcePerformance";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
+import { WorkspaceAccessUnavailableError } from "@/lib/security/workspaceAuth";
 import {
   hasWorkspaceModulePermission,
   normalizeWorkspaceRole,
@@ -71,63 +78,50 @@ export default async function DashboardPage({
     treatment?: string | string[];
   }>;
 }) {
-  const commandSnapshotPromise = getCommandCenterSnapshot();
-  const accessPromise = getCurrentInternalAccess();
-  const query = (await searchParams) ?? {};
-  const leadDashboardPromise = accessPromise.then((access) =>
-    getLeadDashboardSnapshot(
-      {
-        startDate: firstParam(query.startDate),
-        endDate: firstParam(query.endDate),
-        accountId: firstParam(query.accountId),
-        brandId: firstParam(query.brandId),
-        treatment: firstParam(query.treatment),
-      },
-      access
-    )
-  );
-  const sourcePerformancePromise = Promise.all([
-    accessPromise,
-    leadDashboardPromise,
-  ]).then(([access, leadDashboard]) =>
-    getSourcePerformanceSnapshot(
-      {
-        startDate: leadDashboard.filters.startDate,
-        endDate: leadDashboard.filters.endDate,
-        accountScope: leadDashboard.filters.accountId || null,
-        brandScope: leadDashboard.filters.brandId,
-      },
-      access
-    )
-  );
-  const leadAuditAlertPromise = accessPromise.then((access) => {
-    const isMaster = access.accessLevel === "master";
-    const canSee =
-      isMaster ||
-      (access.source === "supabase_auth" &&
-        hasWorkspaceModulePermission(
-          {
-            isMaster,
-            workspaceRole: normalizeWorkspaceRole(access.workspaceRole),
-            modulePermissions: access.modulePermissions ?? {},
-          },
-          "lead_audit"
-        ));
-    return canSee ? getLeadAuditNavigationSummary(access) : 0;
-  });
-  const [
-    snapshot,
-    access,
-    leadDashboard,
-    sourcePerformance,
-    leadAuditAlertCount,
-  ] = await Promise.all([
-    commandSnapshotPromise,
-    accessPromise,
-    leadDashboardPromise,
-    sourcePerformancePromise,
-    leadAuditAlertPromise,
+  // Auth remains a prerequisite. Data panels do not gate the navigation or shell.
+  const [requestedQuery, access] = await Promise.all([
+    searchParams,
+    getCurrentInternalAccess().catch((error: unknown) => {
+      if (error instanceof WorkspaceAccessUnavailableError) {
+        redirect("/login?error=auth_unavailable&next=%2Fdashboard");
+      }
+      throw error;
+    }),
   ]);
+  const query = requestedQuery ?? {};
+  if (access.source === "unauthenticated") {
+    redirect("/login?error=auth_unavailable&next=%2Fdashboard");
+  }
+  const filters = normalizeLeadDashboardFilters({
+    startDate: firstParam(query.startDate),
+    endDate: firstParam(query.endDate),
+    accountId: firstParam(query.accountId),
+    brandId: firstParam(query.brandId),
+    treatment: firstParam(query.treatment),
+  });
+  const commandSnapshotPromise = settleDashboardData(getCommandCenterSnapshot());
+  const leadDashboardPromise = settleDashboardData(
+    getLeadDashboardSnapshot(filters, access)
+  );
+  const sourcePerformancePromise = settleDashboardData(
+    getSourcePerformanceSnapshot({
+      startDate: filters.startDate,
+      endDate: filters.endDate,
+      accountScope: filters.accountId || null,
+      brandScope: filters.brandId,
+    }, access)
+  );
+  const canSeeLeadAudit =
+    access.accessLevel === "master" ||
+    (access.source === "supabase_auth" &&
+      hasWorkspaceModulePermission({
+        isMaster: false,
+        workspaceRole: normalizeWorkspaceRole(access.workspaceRole),
+        modulePermissions: access.modulePermissions ?? {},
+      }, "lead_audit"));
+  const leadAuditAlertPromise = settleDashboardData(
+    canSeeLeadAudit ? getLeadAuditNavigationSummary(access) : Promise.resolve(0)
+  );
   const isMaster = access.accessLevel === "master";
   const greetingName =
     access.source === "supabase_auth"
@@ -137,37 +131,16 @@ export default async function DashboardPage({
       : "Kieran";
   const message = firstParam(query?.message);
   const status = firstParam(query?.command_status);
-  const alerts = snapshot.brands.filter(
-    (brand) =>
-      ["warning", "critical", "under"].includes(brand.budgetStatus) ||
-      brand.leads.status === "behind" ||
-      brand.bookings.status === "behind" ||
-      brand.shows.status === "behind" ||
-      brand.sourceIssueCount > 0
-  );
-  const upcoming = snapshot.calendarItems
-    .filter((item) => item.scheduledDate >= snapshot.month.today)
-    .slice(0, 5);
-  const leadSheetSources = snapshot.dataSources.filter(
-    (source) =>
-      source.providerKey === "google_sheets" &&
-      !source.reportingWorkbookId &&
-      source.status !== "paused"
-  );
-  const latestSuccessAt =
-    leadSheetSources
-      .map((source) => source.lastSuccessAt)
-      .filter((value): value is string => Boolean(value))
-      .sort((left, right) => right.localeCompare(left))[0] ?? null;
-  const refreshDisabled =
-    !isMaster || !snapshot.schemaReady || leadSheetSources.length === 0;
-  const dashboardReturnPath = buildLeadDashboardReturnPath(
-    leadDashboard.filters
-  );
+  const dashboardReturnPath = buildLeadDashboardReturnPath(filters);
 
   return (
     <main className="alyssa-shell">
-      <AppNav access={access} leadAuditAlertCount={leadAuditAlertCount} />
+      <AppNav
+        access={access}
+        leadAuditAlertPromise={leadAuditAlertPromise.then((result) =>
+          result.ok ? result.value : null
+        )}
+      />
       <div className="command-page">
         <div className="command-page-inner">
           <header className="command-page-header">
@@ -179,30 +152,13 @@ export default async function DashboardPage({
               </p>
             </div>
             <div className="command-header-actions">
-              {isMaster ? (
-                <form
-                  action={refreshDashboardDataAction}
-                  className="command-refresh-form"
-                >
-                  <input
-                    type="hidden"
-                    name="returnPath"
-                    value={dashboardReturnPath}
-                  />
-                  <DashboardRefreshButton
-                    disabled={refreshDisabled}
-                    idleLabel="同步最新數據"
-                    pendingLabel="同步數據中…"
-                  />
-                  <small>
-                    上次同步：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
-                  </small>
-                </form>
-              ) : (
-                <small>
-                  上次同步：{formatHkDateTime(latestSuccessAt) || "尚未同步"}
-                </small>
-              )}
+              <Suspense fallback={<small role="status">讀取同步狀態中…</small>}>
+                <DashboardSyncStatus
+                  result={commandSnapshotPromise}
+                  isMaster={isMaster}
+                  returnPath={dashboardReturnPath}
+                />
+              </Suspense>
               {isMaster ? (
                 <IntentPrefetchLink
                   href="/settings/planning"
@@ -231,178 +187,297 @@ export default async function DashboardPage({
               {message}
             </p>
           ) : null}
-          {snapshot.dataWarnings.map((warning) => (
-            <p key={warning} className="command-status-message">
-              {warning}
-            </p>
-          ))}
-
-          {leadDashboard.warnings.map((warning) => (
-            <p key={warning} className="command-status-message is-error">
-              {warning}
-            </p>
-          ))}
-
-          {leadAuditAlertCount > 0 ? (
-            <a href="/lead-audit?review=open" className="lead-audit-alert-banner">
-              <ShieldAlert size={22} />
-              <div>
-                <strong>{leadAuditAlertCount} 項 Lead 資料異常待核對</strong>
-                <p>系統偵測到舊紀錄被刪除或出現關鍵變動。</p>
-              </div>
-              <span>
-                立即檢查 <ArrowUpRight size={14} />
-              </span>
-            </a>
-          ) : null}
-
-          <LeadDashboardPanel snapshot={leadDashboard} />
-          <SourcePerformancePanel snapshot={sourcePerformance} />
-
-          <div className="lead-dashboard-operations-heading">
-            <p>Operations control</p>
-            <h2>營運控制</h2>
-            <span>
-              Budget 與 KPI 以已完成日期至昨日為準，避免今日未完整數據干擾判斷。
-            </span>
-          </div>
-
-          <section className="command-dashboard-layout">
-            <div className="command-main-column">
-              <section className="command-surface command-section">
-                <SectionHeader
-                  eyebrow="Budget control"
-                  title="預算概覽"
-                  description={`時間進度 ${snapshot.month.elapsedDays}／${snapshot.month.daysInMonth} 日；垂直線代表截至昨日理應使用位置。`}
-                  href={isMaster ? "/settings/planning" : undefined}
-                  linkLabel={isMaster ? "管理預算" : undefined}
-                />
-                <div className="budget-brand-list">
-                  {snapshot.brands.map((brand) => (
-                    <BudgetBrandRow
-                      key={brand.id}
-                      brand={brand}
-                      paceRatio={snapshot.month.paceRatio}
-                    />
-                  ))}
-                </div>
-              </section>
-
-              <section className="command-surface command-section">
-                <SectionHeader
-                  eyebrow="Funnel pace"
-                  title="品牌 KPI 進度"
-                  description="實際進度會同截至昨日應達值比較；未設定目標時不會發出假警告。"
-                  href="/kpis"
-                  linkLabel="查看完整 KPI"
-                />
-                <div className="kpi-brand-list">
-                  {snapshot.brands.map((brand) => (
-                    <KpiBrandRow
-                      key={brand.id}
-                      brand={brand}
-                      paceRatio={snapshot.month.paceRatio}
-                    />
-                  ))}
-                </div>
-              </section>
-            </div>
-
-            <aside className="command-side-column">
-              <section className="command-surface command-section">
-                <SectionHeader
-                  eyebrow="Attention"
-                  title="需要留意"
-                  description={`${alerts.length} 個品牌狀態需要檢查`}
-                />
-                <div className="command-alert-list">
-                  {alerts.length > 0 ? (
-                    alerts.map((brand) => (
-                      <BrandAlert key={brand.id} brand={brand} />
-                    ))
-                  ) : (
-                    <EmptyState
-                      icon={Target}
-                      title="目前未有進度警告"
-                      body="設定 Budget、KPI 及資料來源後，系統會自動檢查超支、投放偏慢及漏斗落後。"
-                    />
-                  )}
-                </div>
-              </section>
-
-              <section className="command-surface command-section">
-                <SectionHeader
-                  eyebrow="Next up"
-                  title="即將執行"
-                  description="由營銷日曆統一管理 Post、廣告、LP 及會議"
-                  href="/calendar"
-                  linkLabel="開啟日曆"
-                />
-                <div className="command-upcoming-list">
-                  {upcoming.length > 0 ? (
-                    upcoming.map((item) => {
-                      const brand = snapshot.brands.find(
-                        (candidate) => candidate.id === item.brandId
-                      );
-                      return (
-                        <div key={item.id} className="command-upcoming-item">
-                          <span
-                            className="command-upcoming-dot"
-                            style={{ background: brand?.color || "#5a2348" }}
-                          />
-                          <div>
-                            <strong>{item.title}</strong>
-                            <span>
-                              {brand?.name || "未設定品牌"} · {item.scheduledDate}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  ) : (
-                    <EmptyState
-                      icon={CalendarClock}
-                      title="未有即將執行事項"
-                      body="將本月 Post、廣告、Landing Page 同例會加入日曆，就可以跨品牌排期。"
-                    />
-                  )}
-                </div>
-              </section>
-
-              <section className="command-surface command-section">
-                <SectionHeader
-                  eyebrow="Data health"
-                  title="資料接駁"
-                  description={`${snapshot.dataSources.length} 個已登記來源`}
-                  href={isMaster ? "/data-sources" : undefined}
-                  linkLabel={isMaster ? "管理來源" : undefined}
-                />
-                <div className="source-health-grid">
-                  <SourceHealth
-                    icon={DatabaseZap}
-                    label="已連接"
-                    value={
-                      snapshot.dataSources.filter(
-                        (source) => source.status === "connected"
-                      ).length
-                    }
-                  />
-                  <SourceHealth
-                    icon={TriangleAlert}
-                    label="需處理"
-                    value={
-                      snapshot.dataSources.filter((source) =>
-                        ["warning", "error"].includes(source.status)
-                      ).length
-                    }
-                  />
-                </div>
-              </section>
-            </aside>
-          </section>
+          <Suspense fallback={null}>
+            <LeadAuditAlert result={leadAuditAlertPromise} />
+          </Suspense>
+          <Suspense fallback={<DashboardRegionState title="Lead、預約及到店" />}>
+            <LeadDashboardRegion
+              result={leadDashboardPromise}
+              returnPath={dashboardReturnPath}
+            />
+          </Suspense>
+          <Suspense fallback={<DashboardRegionState title="廣告來源成效" />}>
+            <SourcePerformanceRegion
+              result={sourcePerformancePromise}
+              returnPath={dashboardReturnPath}
+            />
+          </Suspense>
+          <Suspense fallback={<DashboardRegionState title="營運控制" />}>
+            <OperationsRegion
+              result={commandSnapshotPromise}
+              isMaster={isMaster}
+              returnPath={dashboardReturnPath}
+            />
+          </Suspense>
         </div>
       </div>
     </main>
+  );
+}
+
+type DashboardData<T> = { ok: true; value: T } | { ok: false; error: unknown };
+
+// Attach the rejection handler as soon as a read starts, including while a
+// different Suspense boundary is pending. Next redirect/notFound signals are
+// rethrown by the region, not mistaken for empty business data.
+function settleDashboardData<T>(read: Promise<T>): Promise<DashboardData<T>> {
+  return read.then(
+    (value) => ({ ok: true as const, value }),
+    (error: unknown) => ({ ok: false as const, error })
+  );
+}
+
+function readDashboardData<T>(result: DashboardData<T>): T | null {
+  if (result.ok) return result.value;
+  unstable_rethrow(result.error);
+  return null;
+}
+
+type CommandResult = Promise<
+  DashboardData<Awaited<ReturnType<typeof getCommandCenterSnapshot>>>
+>;
+
+async function DashboardSyncStatus({ result, isMaster, returnPath }: {
+  result: CommandResult;
+  isMaster: boolean;
+  returnPath: string;
+}) {
+  const snapshot = readDashboardData(await result);
+  if (!snapshot) return <small role="status">同步狀態暫時未能讀取</small>;
+  const leadSheetSources = snapshot.dataSources.filter((source) =>
+    source.providerKey === "google_sheets" &&
+    !source.reportingWorkbookId &&
+    source.status !== "paused"
+  );
+  const latestSuccessAt = leadSheetSources
+    .map((source) => source.lastSuccessAt)
+    .filter((value): value is string => Boolean(value))
+    .sort((left, right) => right.localeCompare(left))[0] ?? null;
+  const refreshDisabled =
+    !isMaster || !snapshot.schemaReady || leadSheetSources.length === 0;
+  return isMaster ? (
+    <form action={refreshDashboardDataAction} className="command-refresh-form">
+      <input type="hidden" name="returnPath" value={returnPath} />
+      <DashboardRefreshButton
+        disabled={refreshDisabled}
+        idleLabel="同步最新數據"
+        pendingLabel="同步數據中…"
+      />
+      <small>上次同步：{formatHkDateTime(latestSuccessAt) || "尚未同步"}</small>
+    </form>
+  ) : <small>上次同步：{formatHkDateTime(latestSuccessAt) || "尚未同步"}</small>;
+}
+
+async function LeadAuditAlert({ result }: {
+  result: Promise<DashboardData<number>>;
+}) {
+  const count = readDashboardData(await result);
+  if (!count || count <= 0) return null;
+  return (
+    <a href="/lead-audit?review=open" className="lead-audit-alert-banner">
+      <ShieldAlert size={22} />
+      <div>
+        <strong>{count} 項 Lead 資料異常待核對</strong>
+        <p>系統偵測到舊紀錄被刪除或出現關鍵變動。</p>
+      </div>
+      <span>立即檢查 <ArrowUpRight size={14} /></span>
+    </a>
+  );
+}
+
+async function LeadDashboardRegion({ result, returnPath }: {
+  result: Promise<DashboardData<Awaited<ReturnType<typeof getLeadDashboardSnapshot>>>>;
+  returnPath: string;
+}) {
+  const snapshot = readDashboardData(await result);
+  if (!snapshot?.live) {
+    return <DashboardRegionState title="Lead、預約及到店" failed retryHref={returnPath} />;
+  }
+  return (
+    <>
+      {snapshot.warnings.map((warning) => (
+        <p key={warning} className="command-status-message is-error">{warning}</p>
+      ))}
+      <LeadDashboardPanel snapshot={snapshot} />
+    </>
+  );
+}
+
+async function SourcePerformanceRegion({ result, returnPath }: {
+  result: Promise<DashboardData<Awaited<ReturnType<typeof getSourcePerformanceSnapshot>>>>;
+  returnPath: string;
+}) {
+  const snapshot = readDashboardData(await result);
+  if (!snapshot || (!snapshot.live && process.env.ALYSSA_E2E_FIXTURES !== "1")) {
+    return <DashboardRegionState title="廣告來源成效" failed retryHref={returnPath} />;
+  }
+  return <SourcePerformancePanel snapshot={snapshot} />;
+}
+
+async function OperationsRegion({ result, isMaster, returnPath }: {
+  result: CommandResult;
+  isMaster: boolean;
+  returnPath: string;
+}) {
+  const snapshot = readDashboardData(await result);
+  if (!snapshot || (!snapshot.schemaReady && process.env.ALYSSA_E2E_FIXTURES !== "1")) {
+    return <DashboardRegionState title="營運控制" failed retryHref={returnPath} />;
+  }
+  const alerts = snapshot.brands.filter((brand) =>
+    ["warning", "critical", "under"].includes(brand.budgetStatus) ||
+    brand.leads.status === "behind" ||
+    brand.bookings.status === "behind" ||
+    brand.shows.status === "behind" ||
+    brand.sourceIssueCount > 0
+  );
+  const upcoming = snapshot.calendarItems
+    .filter((item) => item.scheduledDate >= snapshot.month.today)
+    .slice(0, 5);
+  return (
+    <>
+      {snapshot.dataWarnings.map((warning) => <p key={warning} className="command-status-message">{warning}</p>)}
+      <div className="lead-dashboard-operations-heading">
+        <p>Operations control</p>
+        <h2>營運控制</h2>
+        <span>
+          Budget 與 KPI 以已完成日期至昨日為準，避免今日未完整數據干擾判斷。
+        </span>
+      </div>
+
+      <section className="command-dashboard-layout">
+        <div className="command-main-column">
+          <section className="command-surface command-section">
+            <SectionHeader
+              eyebrow="Budget control"
+              title="預算概覽"
+              description={`時間進度 ${snapshot.month.elapsedDays}／${snapshot.month.daysInMonth} 日；垂直線代表截至昨日理應使用位置。`}
+              href={isMaster ? "/settings/planning" : undefined}
+              linkLabel={isMaster ? "管理預算" : undefined}
+            />
+            <div className="budget-brand-list">
+              {snapshot.brands.map((brand) => (
+                <BudgetBrandRow
+                  key={brand.id}
+                  brand={brand}
+                  paceRatio={snapshot.month.paceRatio}
+                />
+              ))}
+            </div>
+          </section>
+
+          <section className="command-surface command-section">
+            <SectionHeader
+              eyebrow="Funnel pace"
+              title="品牌 KPI 進度"
+              description="實際進度會同截至昨日應達值比較；未設定目標時不會發出假警告。"
+              href="/kpis"
+              linkLabel="查看完整 KPI"
+            />
+            <div className="kpi-brand-list">
+              {snapshot.brands.map((brand) => (
+                <KpiBrandRow
+                  key={brand.id}
+                  brand={brand}
+                  paceRatio={snapshot.month.paceRatio}
+                />
+              ))}
+            </div>
+          </section>
+        </div>
+
+        <aside className="command-side-column">
+          <section className="command-surface command-section">
+            <SectionHeader
+              eyebrow="Attention"
+              title="需要留意"
+              description={`${alerts.length} 個品牌狀態需要檢查`}
+            />
+            <div className="command-alert-list">
+              {alerts.length > 0 ? (
+                alerts.map((brand) => (
+                  <BrandAlert key={brand.id} brand={brand} />
+                ))
+              ) : (
+                <EmptyState
+                  icon={Target}
+                  title="目前未有進度警告"
+                  body="設定 Budget、KPI 及資料來源後，系統會自動檢查超支、投放偏慢及漏斗落後。"
+                />
+              )}
+            </div>
+          </section>
+
+          <section className="command-surface command-section">
+            <SectionHeader
+              eyebrow="Next up"
+              title="即將執行"
+              description="由營銷日曆統一管理 Post、廣告、LP 及會議"
+              href="/calendar"
+              linkLabel="開啟日曆"
+            />
+            <div className="command-upcoming-list">
+              {upcoming.length > 0 ? (
+                upcoming.map((item) => {
+                  const brand = snapshot.brands.find(
+                    (candidate) => candidate.id === item.brandId
+                  );
+                  return (
+                    <div key={item.id} className="command-upcoming-item">
+                      <span
+                        className="command-upcoming-dot"
+                        style={{ background: brand?.color || "#5a2348" }}
+                      />
+                      <div>
+                        <strong>{item.title}</strong>
+                        <span>
+                          {brand?.name || "未設定品牌"} · {item.scheduledDate}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })
+              ) : (
+                <EmptyState
+                  icon={CalendarClock}
+                  title="未有即將執行事項"
+                  body="將本月 Post、廣告、Landing Page 同例會加入日曆，就可以跨品牌排期。"
+                />
+              )}
+            </div>
+          </section>
+
+          <section className="command-surface command-section">
+            <SectionHeader
+              eyebrow="Data health"
+              title="資料接駁"
+              description={`${snapshot.dataSources.length} 個已登記來源`}
+              href={isMaster ? "/data-sources" : undefined}
+              linkLabel={isMaster ? "管理來源" : undefined}
+            />
+            <div className="source-health-grid">
+              <SourceHealth
+                icon={DatabaseZap}
+                label="已連接"
+                value={
+                  snapshot.dataSources.filter(
+                    (source) => source.status === "connected"
+                  ).length
+                }
+              />
+              <SourceHealth
+                icon={TriangleAlert}
+                label="需處理"
+                value={
+                  snapshot.dataSources.filter((source) =>
+                    ["warning", "error"].includes(source.status)
+                  ).length
+                }
+              />
+            </div>
+          </section>
+        </aside>
+      </section>
+    </>
   );
 }
 

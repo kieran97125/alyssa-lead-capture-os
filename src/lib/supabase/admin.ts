@@ -1,5 +1,6 @@
 import "server-only";
 import { createClient } from "@supabase/supabase-js";
+import { createSupabaseReadFetch } from "@/lib/supabase/requestDeadline";
 
 export type SupabaseAdminEnvStatus = {
   ready: boolean;
@@ -78,6 +79,7 @@ export function createSupabaseAdminClient() {
   }
 
   return createClient(url, key, {
+    global: { fetch: createSupabaseReadFetch() },
     auth: {
       autoRefreshToken: false,
       persistSession: false,

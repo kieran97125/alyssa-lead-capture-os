@@ -1,0 +1,8 @@
+e2e/managed-auth-config.spec.ts(6,14): error TS2741: Property 'NODE_ENV' is missing in type '{}' but required in type 'ProcessEnv'.
+e2e/managed-auth-config.spec.ts(23,22): error TS2345: Argument of type '{ AUTH_MOCK_FAIL: string; }' is not assignable to parameter of type 'ProcessEnv'.
+  Property 'NODE_ENV' is missing in type '{ AUTH_MOCK_FAIL: string; }' but required in type 'ProcessEnv'.
+e2e/managed-auth-config.spec.ts(26,22): error TS2345: Argument of type '{ AUTH_MOCK_FAIL: string; }' is not assignable to parameter of type 'ProcessEnv'.
+  Property 'NODE_ENV' is missing in type '{ AUTH_MOCK_FAIL: string; }' but required in type 'ProcessEnv'.
+e2e/managed-auth-config.spec.ts(29,22): error TS2345: Argument of type '{ SUPABASE_ACCESS_TOKEN: string; }' is not assignable to parameter of type 'ProcessEnv'.
+  Property 'NODE_ENV' is missing in type '{ SUPABASE_ACCESS_TOKEN: string; }' but required in type 'ProcessEnv'.
+e2e/meta-lead-form-normalizer.spec.ts(162,3): error TS2322: Type '"Other Phone Header"' is not assignable to type '"lead_key" | "品牌" | "最後更新日期" | "Created At" | "跟進狀態" | "分店" | "療程 / 優惠" | "療程項目" | "預約日期" | "預約時間" | "確認到店日期" | "來源" | "Campaign / 廣告" | "Status" | "Show up" | "電話" | "CS Remark" | ... 5 more ... | "具體派畀邊間分店+邊一位同事"'.

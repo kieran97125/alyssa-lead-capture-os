@@ -11,6 +11,7 @@ import type { LeadSheetTreatmentAlias } from "@/lib/marketing/googleSheetsMetric
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
 const MAX_LEAD_ROWS = 50_000;
+const DASHBOARD_READ_TIMEOUT_MS = 12_000;
 const LEGACY_OPERATIONAL_LAST_COLUMN = "V";
 const OPERATIONAL_LAST_COLUMN = "Y";
 const META_RAW_TAIL_LAST_COLUMN = "BN";
@@ -95,6 +96,7 @@ async function batchGetValues(input: {
   accessToken: string;
   spreadsheetId: string;
   ranges: string[];
+  signal?: AbortSignal;
 }) {
   const query = new URLSearchParams({
     majorDimension: "ROWS",
@@ -112,6 +114,7 @@ async function batchGetValues(input: {
         Accept: "application/json",
       },
       cache: "no-store",
+      signal: input.signal,
     }
   );
 
@@ -260,40 +263,55 @@ export async function normalizeMetaLeadRowsInLiveTable(input: {
 }
 
 export async function readLiveLeadTable(
-  configuration: LeadTableSourceConfiguration
+  configuration: LeadTableSourceConfiguration,
+  options: { readOnly?: boolean; signal?: AbortSignal } = {}
 ): Promise<LiveLeadTable> {
-  const accessToken = await getGoogleSheetsOAuthAccessToken();
-  const sourceSpreadsheetId = spreadsheetId(configuration);
-  const sourceTabName = tabName(configuration);
-  const headerRow = Math.min(integerValue(configuration.headerRow, 1), 100);
-  const configuredMaxRows = integerValue(
-    configuration.maxRows,
-    DEFAULT_MAX_ROWS
-  );
-  const maxRows = Math.min(configuredMaxRows, MAX_LEAD_ROWS);
-  const lastColumn = configuredLastColumn(configuration);
+  // The dashboard's deadline covers the whole provider read, including token
+  // refresh. Explicit sync callers retain their existing health/write policy.
+  const signal = options.readOnly
+    ? AbortSignal.any([
+        AbortSignal.timeout(DASHBOARD_READ_TIMEOUT_MS),
+        ...(options.signal ? [options.signal] : []),
+      ])
+    : options.signal;
+  try {
+    signal?.throwIfAborted();
+    const accessToken = await getGoogleSheetsOAuthAccessToken({
+      signal,
+      ...(options.readOnly ? { recordHealth: false } : {}),
+    });
+    signal?.throwIfAborted();
+    const sourceSpreadsheetId = spreadsheetId(configuration);
+    const sourceTabName = tabName(configuration);
+    const headerRow = Math.min(integerValue(configuration.headerRow, 1), 100);
+    const configuredMaxRows = integerValue(
+      configuration.maxRows,
+      DEFAULT_MAX_ROWS
+    );
+    const maxRows = Math.min(configuredMaxRows, MAX_LEAD_ROWS);
+    const lastColumn = configuredLastColumn(configuration);
 
-  const headerResponse = await batchGetValues({
-    accessToken,
-    spreadsheetId: sourceSpreadsheetId,
-    ranges: [
-      `${quoteSheetName(sourceTabName)}!A${headerRow}:${lastColumn}${headerRow}`,
-    ],
-  });
-  const headers = headerResponse.valueRanges?.[0]?.values?.[0] ?? [];
-  // Read the governed operational range once. Funnel aggregation continues to
-  // consume only its approved fields, while the server-only audit pipeline can
-  // compare the complete CS record without a second inconsistent provider read.
-  const dataResponse = await batchGetValues({
-    accessToken,
-    spreadsheetId: sourceSpreadsheetId,
-    ranges: [
-      `${quoteSheetName(sourceTabName)}!A${headerRow + 1}:${lastColumn}${maxRows}`,
-    ],
-  });
-  const rows = dataResponse.valueRanges?.[0]?.values ?? [];
+    // Both ranges use identical render options and come from one provider read.
+    const response = await batchGetValues({
+      accessToken,
+      spreadsheetId: sourceSpreadsheetId,
+      ranges: [
+        `${quoteSheetName(sourceTabName)}!A${headerRow}:${lastColumn}${headerRow}`,
+        `${quoteSheetName(sourceTabName)}!A${headerRow + 1}:${lastColumn}${maxRows}`,
+      ],
+      signal,
+    });
+    signal?.throwIfAborted();
+    const headers = response.valueRanges?.[0]?.values?.[0] ?? [];
+    const rows = response.valueRanges?.[1]?.values ?? [];
 
-  return { headers, rows, headerRow };
+    return { headers, rows, headerRow };
+  } catch (error) {
+    if (signal?.aborted) {
+      throw new Error("Lead Sheet 讀取逾時，請稍後重試；其他功能仍可使用。");
+    }
+    throw error;
+  }
 }
 
 export async function readLeadFunnelEventLedger(

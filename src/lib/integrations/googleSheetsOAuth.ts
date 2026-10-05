@@ -167,7 +167,7 @@ export function getMissingGoogleSheetsOAuthConfiguration(
   );
 }
 
-function getOAuthClient() {
+function getOAuthClient(signal?: AbortSignal) {
   const environment = getGoogleSheetsOAuthEnvironmentStatus();
   if (!environment.ready || !environment.redirectUri) {
     throw new Error(
@@ -175,11 +175,19 @@ function getOAuthClient() {
     );
   }
 
-  return new OAuth2Client(
-    env("GOOGLE_SHEETS_OAUTH_CLIENT_ID"),
-    env("GOOGLE_SHEETS_OAUTH_CLIENT_SECRET"),
-    environment.redirectUri
-  );
+  return new OAuth2Client({
+    clientId: env("GOOGLE_SHEETS_OAUTH_CLIENT_ID"),
+    clientSecret: env("GOOGLE_SHEETS_OAUTH_CLIENT_SECRET"),
+    redirectUri: environment.redirectUri,
+    ...(signal
+      ? {
+          transporterOptions: {
+            signal,
+            retryConfig: { retry: 0, noResponseRetries: 0 },
+          },
+        }
+      : {}),
+  });
 }
 
 function getEncryptionKey() {
@@ -242,19 +250,22 @@ function isMissingOAuthTable(error: unknown) {
   );
 }
 
-async function getConnectionRow() {
+async function getConnectionRow(signal?: AbortSignal) {
+  signal?.throwIfAborted();
   if (!hasSupabaseAdminEnv()) {
     return { row: null, tableReady: false };
   }
 
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("google_sheets_oauth_connections")
     .select(
       "id,connection_key,status,scopes,refresh_token_encrypted,connected_at,last_verified_at,last_error_summary,updated_at"
     )
-    .eq("connection_key", OAUTH_CONNECTION_KEY)
-    .maybeSingle();
+    .eq("connection_key", OAUTH_CONNECTION_KEY);
+  if (signal) query = query.abortSignal(signal);
+  const { data, error } = await query.maybeSingle();
+  signal?.throwIfAborted();
 
   if (error) {
     if (isMissingOAuthTable(error)) return { row: null, tableReady: false };
@@ -452,9 +463,14 @@ export async function completeGoogleSheetsOAuthAuthorization(input: {
 }
 
 export async function getGoogleSheetsOAuthAccessToken(
-  options: { requireWrite?: boolean } = {}
+  options: {
+    requireWrite?: boolean;
+    signal?: AbortSignal;
+    recordHealth?: boolean;
+  } = {}
 ) {
-  const { row, tableReady } = await getConnectionRow();
+  const { signal } = options;
+  const { row, tableReady } = await getConnectionRow(signal);
   if (!tableReady) {
     throw new Error("Google Sheets OAuth migration 尚未套用。");
   }
@@ -472,32 +488,44 @@ export async function getGoogleSheetsOAuthAccessToken(
 
   const refreshToken = decryptRefreshToken(row.refresh_token_encrypted);
   if (!refreshToken) {
-    await markGoogleSheetsOAuthConnectionError(
-      "Google 授權憑證無法讀取，請重新連接。"
-    );
+    if (options.recordHealth !== false && !signal?.aborted) {
+      await markGoogleSheetsOAuthConnectionError(
+        "Google 授權憑證無法讀取，請重新連接。"
+      );
+    }
     throw new Error("Google Sheets 授權憑證無法讀取，請由 Master 重新連接。");
   }
 
   try {
-    const client = getOAuthClient();
+    signal?.throwIfAborted();
+    const client = getOAuthClient(signal);
     client.setCredentials({ refresh_token: refreshToken });
     const token = await client.getAccessToken();
+    signal?.throwIfAborted();
     if (!token.token) throw new Error("google_sheets_oauth_access_token_missing");
 
-    const timestamp = new Date().toISOString();
-    await createSupabaseAdminClient()
-      .from("google_sheets_oauth_connections")
-      .update({
-        status: "connected",
-        last_verified_at: timestamp,
-        last_error_summary: null,
-        updated_at: timestamp,
-      })
-      .eq("id", row.id);
+    if (options.recordHealth !== false) {
+      const timestamp = new Date().toISOString();
+      let healthUpdate = createSupabaseAdminClient()
+        .from("google_sheets_oauth_connections")
+        .update({
+          status: "connected",
+          last_verified_at: timestamp,
+          last_error_summary: null,
+          updated_at: timestamp,
+        })
+        .eq("id", row.id);
+      if (signal) healthUpdate = healthUpdate.abortSignal(signal);
+      await healthUpdate;
+      signal?.throwIfAborted();
+    }
     return token.token;
   } catch (error) {
+    signal?.throwIfAborted();
     const message = safeGoogleError(error);
-    await markGoogleSheetsOAuthConnectionError(message);
+    if (options.recordHealth !== false) {
+      await markGoogleSheetsOAuthConnectionError(message);
+    }
     throw new Error(message);
   }
 }
