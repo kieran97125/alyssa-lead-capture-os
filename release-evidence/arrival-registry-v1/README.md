@@ -33,7 +33,14 @@ paused App/Sheet patches or fast-check/Zod review scope is included.
 - Next build and all 14 existing contract checks: pass.
 - Storybook build and design contract: pass.
 - Full tsc: same five known baseline e2e diagnostics; no new diagnostics.
-- Focused visual/axe and hosted gates: pending at initial publication.
+- Focused desktop/mobile unavailable and verified-empty states: 4/4 pass,
+  including axe, retry filter preservation, keyboard focus and inspected images.
+  Linux Chromium 149.0.7827.0 from the reputable @sparticuz/chromium package;
+  local runner only, no repository dependency or CI changes.
+- Hosted Node 22 Design Quality Gate and CRM Playwright passed on the initial
+  published 67bd9b7 tree. Re-run required for the final accessibility evidence
+  commit. The focused workshop tests are run locally; regular hosted app tests
+  skip them when STORYBOOK_BASE_URL is absent.
 
 ## Exact producer / instrumentation checks
 
@@ -63,3 +70,19 @@ rows or arrival records are deleted, and no triggers are removed or stopped.
 Native Spreadsheet service timeouts remain under investigation. Short timer
 completion is not proof of successful work: it can mean busy/backoff. Staff
 editing recovery and live App/Sheet parity remain explicit acceptance gates.
+
+## Live verification limits at the final review
+
+The saved Apps Script timing source was copied back and its exact hash checked.
+A natural capture execution completed admission and then remained in
+source_lookup (native active-workbook / sheet lookup), before row/header reads.
+Computed Sheets API reads still time out; FORMULA reads return only entered
+anchors, not spilled output, and are not evidence of calculated parity.
+
+Fresh raw leaf-source reconstruction found 7 October registry Show and 0
+registry No Show versus 8/2 source-status outcomes. This is an independent
+input check, not a successful live computed projection read. Arrival B7 exists;
+34 rows have actual CS names, 179 retain the explicit source-empty placeholder.
+Production App session is signed out, so protected reporting sync has not run.
+The App merge/deploy and two-cell producer cutover remain unperformed until
+these live acceptance gates can be completed. Authorization is already held.

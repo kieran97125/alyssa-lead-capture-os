@@ -102,7 +102,7 @@ function PerformanceTable({
   snapshot: LeadDashboardSnapshot;
 }) {
   return (
-    <div className="treatment-table-wrap">
+    <div className="treatment-table-wrap" tabIndex={0}>
       <table className="treatment-performance-table lead-dashboard-table">
         <thead>
           <tr>
@@ -367,7 +367,7 @@ export function LeadDashboardPanel({
           <div><Activity size={17} /><div><h2>來源／Campaign 表現</h2></div></div>
           <span>按首次查詢來源歸因</span>
         </div>
-        <div className="treatment-table-wrap">
+        <div className="treatment-table-wrap" tabIndex={0}>
           <table className="treatment-performance-table source-diagnostic-table lead-dashboard-table">
             <thead>
               <tr>
@@ -407,7 +407,7 @@ export function LeadDashboardPanel({
           <div><Clock3 size={17} /><div><h2>本月待到店明細</h2></div></div>
           <span>{snapshot.outstandingRows.length} 個待到店預約</span>
         </div>
-        <div className="treatment-table-wrap">
+        <div className="treatment-table-wrap" tabIndex={0}>
           <table className="treatment-performance-table lead-dashboard-table lead-dashboard-outstanding-table">
             <thead>
               <tr>

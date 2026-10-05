@@ -16,7 +16,7 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
         await expect(panel.getByRole("alert")).toContainText("暫時未能確認 Show／No Show");
         await expect(panel.locator(".lead-dashboard-metric")).toHaveCount(0);
         await expect(panel.locator("table")).toHaveCount(0);
-        const retry = panel.getByRole("link", { name: "重新載入", exact: true });
+        const retry = panel.getByRole("button", { name: "重新載入", exact: true });
         await expect(retry).toHaveAttribute("href", /accountId=gos-beauty/);
         await retry.focus(); await expect(retry).toBeFocused();
       } else {

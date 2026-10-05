@@ -5,6 +5,11 @@ projection as zero customers. Reuse DashboardRegionState and SystemButton;
 preserve the requested filter values in the retry link. Verified empty data
 still renders the usual zero metrics, separate from unavailable data.
 
+The new full-panel checks exposed two existing empty-state accessibility
+defects. The trend kicker now uses the existing command-muted text token,
+and horizontally scrolling dashboard tables accept keyboard focus even when
+they contain no linked rows. No metric or table data changes are involved.
+
 Evidence: focused authority/gateway and capture differential scripts, Next
 build contract checks, Storybook Unavailable/VerifiedEmpty, desktop/mobile
 screenshots and axe checks. Release-specific results are recorded in
