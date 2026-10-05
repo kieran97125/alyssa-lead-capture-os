@@ -9,6 +9,7 @@ import {
   UserRoundX,
   UsersRound,
 } from "lucide-react";
+import { DashboardRegionState } from "@/components/command-center/DashboardRegionState";
 import { BrandMark } from "@/components/command-center/BrandMark";
 import { AccountBrandScopeFields } from "@/components/system/AccountBrandScopeFields";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
@@ -201,7 +202,7 @@ export function LeadDashboardPanel({
             </small>
           </div>
           <p>
-            同一 Omni Account + 電話尾 8 位只計一次；跨 Account 分開計。Lead 按 Created At；Book 按最後更新日期；Show 按確認到店日期；No Show 按預約日期。
+            同一 Omni Account + 電話尾 8 位只計一次；跨 Account 分開計。Lead 按 Created At；Book 按最後更新日期；Show／No Show 跟到店紀錄；Show 按確認到店日期；No Show 按預約日期。
           </p>
         </header>
 
@@ -261,6 +262,19 @@ export function LeadDashboardPanel({
         </form>
       </section>
 
+      {!snapshot.live ? (
+        <>
+          <DashboardRegionState title="Lead、預約及到店暫未能核對" failed
+            retryHref={`/dashboard?${new URLSearchParams({
+              startDate: snapshot.filters.startDate, endDate: snapshot.filters.endDate,
+              ...(snapshot.filters.accountId ? { accountId: snapshot.filters.accountId } : {}),
+              ...(snapshot.filters.brandId ? { brandId: snapshot.filters.brandId } : {}),
+              ...(snapshot.filters.treatment ? { treatment: snapshot.filters.treatment } : {}),
+            })}`} />
+          {snapshot.warnings.map((warning) => <p key={warning} role="alert">{warning}</p>)}
+        </>
+      ) : (
+        <>
       <section className="lead-dashboard-summary" aria-label="Lead Funnel 摘要">
         <SummaryMetric
           label="Lead"
@@ -429,8 +443,8 @@ export function LeadDashboardPanel({
           <strong>計算及資料來源</strong>
           <p>
             Lead 按 Created At；Book 包括已預約、已到店及 no show，按最後更新日期；
-            Show 按確認到店日期；No Show 按預約日期。每個 Account＋電話尾 8 位只計一次，各指標取符合狀態嘅最早有效日期；
-            缺日期唔會借用其他欄位或事件紀錄。品牌及療程沿用首次 Lead 資料。C 欄係目前狀態主要來源；同期間比率唔係固定 cohort。
+            Show／No Show 跟到店紀錄；Show 按確認到店日期；No Show 按預約日期。每個 Account＋電話尾 8 位只計一次，各指標取符合狀態嘅最早有效日期；
+            缺日期唔會借用其他欄位或事件紀錄。品牌及療程沿用首次 Lead 資料。跟進狀態保留 Lead／Book 及待到店流程用途；Show／No Show 以到店紀錄為準。同期間比率唔係固定 cohort。
           </p>
           <p>
             廣告費、CPL、CPBook 同 CPShow 會按所選範圍先加總再計算；
@@ -438,6 +452,8 @@ export function LeadDashboardPanel({
           </p>
         </div>
       </section>
+        </>
+      )}
     </section>
   );
 }

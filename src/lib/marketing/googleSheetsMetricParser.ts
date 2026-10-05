@@ -1,3 +1,4 @@
+import { applyLeadArrivalOutcomeAuthority, arrivalOutcomeAuthorityError, type LeadArrivalOutcomeAuthority } from "@/lib/marketing/leadArrivalOutcomeAuthority";
 import type { LeadFunnelEventLedgerTable } from "@/lib/marketing/leadFunnelEventLedger";
 import { resolveLeadAccount } from "@/lib/marketing/leadAccountScope";
 
@@ -492,6 +493,7 @@ export function buildLeadSheetGroups(input: {
   treatmentAliases?: LeadSheetTreatmentAlias[];
   appsScriptContract?: boolean;
   dedupeByIdentity?: boolean;
+  arrivalOutcomeAuthority?: LeadArrivalOutcomeAuthority;
 }): ParsedLeadSheetGroups {
   const columns = resolveLeadSheetColumns(input.headers);
   const hasAccountColumn = columns.account >= 0;
@@ -529,8 +531,16 @@ export function buildLeadSheetGroups(input: {
     return index >= 0 ? row[index] : "";
   };
 
+  const managedPayloadColumns = input.arrivalOutcomeAuthority && hasAccountColumn
+    ? input.headers.flatMap((header, index) =>
+        ["最後更新日期", "Created At", "品牌", "Account"].includes(String(header)) ? [] : [index])
+    : null;
   input.rows.forEach((rawRow, index) => {
     const rowNumber = index + 2;
+    if (managedPayloadColumns && (
+      !compactString(valueAt(rawRow, "account")) ||
+      !managedPayloadColumns.some((column) => compactString(String(rawRow[column] ?? "")))
+    )) return;
     const selectedValues = leadSheetFieldKeys.map((field) =>
       valueAt(rawRow, field)
     );
@@ -753,7 +763,11 @@ export function buildLeadSheetGroups(input: {
     } satisfies LeadSheetLeadGroup;
   });
 
-  return { groups, diagnostics };
+  return {
+    groups: input.arrivalOutcomeAuthority === undefined ? groups
+      : applyLeadArrivalOutcomeAuthority(groups, input.arrivalOutcomeAuthority),
+    diagnostics,
+  };
 }
 
 export function leadGroupBookDate(group: LeadSheetLeadGroup) {
@@ -784,10 +798,16 @@ export function aggregateLeadSheetPerformance(input: {
   treatmentAliases?: LeadSheetTreatmentAlias[];
   // Accepted for existing callers/audit compatibility; B/A/N/L own KPI dates.
   eventLedger?: LeadFunnelEventLedgerTable | null;
+  arrivalOutcomeAuthority?: LeadArrivalOutcomeAuthority;
+  retainAllAuthoritativeArrivalDates?: boolean;
   dailyThroughDate: string;
   activityThroughDate: string;
   pendingThroughDate: string;
 }): ParsedLeadSheetPerformance {
+  if (input.retainAllAuthoritativeArrivalDates && !input.arrivalOutcomeAuthority) {
+    throw arrivalOutcomeAuthorityError();
+  }
+  const retainArrivalDates = input.retainAllAuthoritativeArrivalDates === true;
   const parsed = buildLeadSheetGroups({
     ...input,
     appsScriptContract: false,
@@ -858,15 +878,15 @@ export function aggregateLeadSheetPerformance(input: {
     }
 
     const showDate = leadGroupShowDate(group);
-    if (showDate && showDate <= input.dailyThroughDate) {
+    if (showDate && (retainArrivalDates || showDate <= input.dailyThroughDate)) {
       getDailyMetric(group.brandId, showDate).shows += 1;
     }
-    if (showDate && showDate <= input.activityThroughDate) {
+    if (showDate && (retainArrivalDates || showDate <= input.activityThroughDate)) {
       addFact({ ...dimensions, metricDate: showDate, metricKind: "show" });
     }
 
     const noShowDate = leadGroupNoShowDate(group);
-    if (noShowDate && noShowDate <= input.activityThroughDate) {
+    if (noShowDate && (retainArrivalDates || noShowDate <= input.activityThroughDate)) {
       addFact({
         ...dimensions,
         metricDate: noShowDate,
