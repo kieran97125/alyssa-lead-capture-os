@@ -1,0 +1,22 @@
+[
+  {
+    "check": "behavior",
+    "exit": 0,
+    "seconds": 1.14
+  },
+  {
+    "check": "production-build",
+    "exit": 0,
+    "seconds": 33.56
+  },
+  {
+    "check": "storybook",
+    "exit": 0,
+    "seconds": 12.26
+  },
+  {
+    "check": "tsc",
+    "exit": 2,
+    "seconds": 15.39
+  }
+]

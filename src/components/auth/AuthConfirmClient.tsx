@@ -4,6 +4,8 @@ import { CheckCircle2, LoaderCircle, TriangleAlert } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { EmailOtpType } from "@supabase/supabase-js";
 import { createSupabaseBrowserAuthClient } from "@/lib/supabase/authBrowser";
+import { safeInternalNextPath } from "@/lib/supabase/authConfig";
+import { isSupabaseUnavailableError } from "@/lib/supabase/requestDeadline";
 
 const supportedOtpTypes = new Set<EmailOtpType>([
   "email",
@@ -23,9 +25,12 @@ export function AuthConfirmClient({
   type: string;
 }) {
   const [error, setError] = useState("");
+  const [temporaryError, setTemporaryError] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
+    const finalizeController = new AbortController();
+    let finalizeTimer: ReturnType<typeof setTimeout> | undefined;
 
     async function confirm() {
       try {
@@ -40,6 +45,7 @@ export function AuthConfirmClient({
             refresh_token: refreshToken,
           });
           if (sessionError) throw sessionError;
+          if (cancelled) return;
           window.history.replaceState(
             null,
             "",
@@ -56,37 +62,55 @@ export function AuthConfirmClient({
             await supabase.auth.exchangeCodeForSession(code);
           if (codeError) throw codeError;
         } else {
-          const { data } = await supabase.auth.getUser();
+          const { data, error: userError } = await supabase.auth.getUser();
+          if (userError) throw userError;
           if (!data.user) throw new Error("missing_auth_confirmation");
         }
 
+        if (cancelled) return;
+        finalizeTimer = setTimeout(() => finalizeController.abort(), 30_000);
         const response = await fetch("/api/auth/finalize", {
           method: "POST",
           headers: {
             "content-type": "application/json",
           },
           body: JSON.stringify({ next }),
+          signal: finalizeController.signal,
         });
+        if (response.status >= 500) throw new Error("auth_unavailable");
         const result = (await response.json()) as {
           ok?: boolean;
           redirectTo?: string;
+          error?: string;
         };
+        if (result.error === "auth_unavailable") {
+          throw new Error("auth_unavailable");
+        }
         if (!response.ok || !result.ok || !result.redirectTo) {
           throw new Error("workspace_invitation_not_active");
         }
-        window.location.replace(result.redirectTo);
-      } catch {
+        if (!cancelled) window.location.replace(safeInternalNextPath(result.redirectTo));
+      } catch (failure) {
         if (!cancelled) {
+          const temporary = isSupabaseUnavailableError(failure) ||
+            (failure instanceof Error && failure.message === "auth_unavailable");
+          setTemporaryError(temporary);
           setError(
-            "邀請連結已過期、已使用，或者呢個電郵未獲授權。請聯絡系統管理員重發安全連結。"
+            temporary
+              ? "登入服務暫時未能完成核對，請稍後重試。"
+              : "邀請連結已過期、已使用，或者呢個電郵未獲授權。請聯絡系統管理員重發安全連結。"
           );
         }
+      } finally {
+        clearTimeout(finalizeTimer);
       }
     }
 
     void confirm();
     return () => {
       cancelled = true;
+      clearTimeout(finalizeTimer);
+      finalizeController.abort();
     };
   }, [code, next, tokenHash, type]);
 
@@ -104,10 +128,10 @@ export function AuthConfirmClient({
             {error}
           </p>
           <a
-            href="/login"
+            href={temporaryError ? safeInternalNextPath(next) : "/login"}
             className="mt-6 inline-flex rounded-full bg-[#5a2348] px-6 py-3 text-sm font-bold text-white"
           >
-            返回登入說明
+            {temporaryError ? "重試進入工作區" : "返回登入說明"}
           </a>
         </>
       ) : (

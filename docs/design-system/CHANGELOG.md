@@ -1,5 +1,16 @@
 # Design System Change Log
 
+## 2026-10-05 — Dashboard availability and usable navigation
+
+- Dashboard renders its authenticated shell before independent Lead, Source Performance and Operations reads finish. Existing successful panels, filters, date sources and cost calculations are retained.
+- Notification counts update the mounted sidebar instead of holding or replacing it, preserving an open mobile menu and focus while optional badges load. Permission checks still gate badge reads; unverifiable authentication never starts Dashboard business queries.
+- Pending panels use the owned Skeleton primitive. Failed Lead or Source reads display an unavailable state with a compact SystemButton retry link preserving the current filters; they do not present zero or synthetic KPIs as a successful production read.
+- Storybook covers pending, unavailable and navigation-with-delayed-badges states. The guarded `/e2e/dashboard-streaming` fixture contains synthetic UI only; it reads no business data.
+- Evidence: `node scripts/test-dashboard-streaming.mjs` exercises actual React server streaming with stalled reads, independent panel completion, shared read counts, fail-closed auth and notification permissions. New desktop/mobile screenshot, axe and menu-persistence checks are in `e2e/dashboard-streaming.spec.ts`. Full design/build evidence is recorded with the release review; no deployment is implied by this entry.
+- Follow-up loading-only review: Node 22 and Node 24 production builds and all 14 contracts pass; Storybook and focused lint pass. In the recovered local Chromium/CJK-font environment, all three new screenshot/axe/menu-persistence cases pass after visual review. Existing foundation axe/contrast checks pass; two existing golden failures produce actual images byte-identical to clean upstream. Existing goldens were preserved, so the full design gate remains explicitly non-green. See `docs/operations/2026-10-05-loading-only-release-review.md` for approval, hosted acceptance and rollback.
+- Hosted PR #100 validation: Design Quality Gate passed all five checks. Full acceptance ran 207 checks: 206 passed and only the newly added mobile streaming golden failed (5,838 differing pixels). Three CI attempts produced byte-identical 390×914 actual images (SHA-256 `52378f94a6a08d2f966178c2f5225bbef3557907ae985a81bab3ad424d25fea9`). Visual review found matching layout, content and controls, with differences concentrated in text rendering between the recovered local runtime and hosted Ubuntu/Chromium. Only that new mobile golden is adopted from the hosted artifact after review; existing foundation/desktop goldens, assertions, tolerances and CI settings remain unchanged. Artifact #11335551116 digest: `1f930140fd64bfe1161f8ad0e057a86e57daf8ec085dd56ea51e3a696da47a5b`. The full hosted gate must run again; the first failure is not waived.
+- Rollback: revert the Dashboard streaming and navigation changes together. No data migration or stored-data rollback is needed. The test fixture and stories can be removed with that revert.
+
 ## 2026-09-29 — Schema-independent metric wording
 
 - Replaced physical date-column letters in the Dashboard explanation with stable field names, so the copy remains correct after the operational column reorder.

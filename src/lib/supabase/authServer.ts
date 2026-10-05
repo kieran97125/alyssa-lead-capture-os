@@ -3,6 +3,7 @@ import "server-only";
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getSupabasePublicAuthConfig } from "@/lib/supabase/authConfig";
+import { createAuthRequestDeadline } from "@/lib/supabase/requestDeadline";
 
 export async function createSupabaseServerAuthClient() {
   const config = getSupabasePublicAuthConfig();
@@ -11,12 +12,15 @@ export async function createSupabaseServerAuthClient() {
   }
 
   const cookieStore = await cookies();
-  return createServerClient(config.url, config.key, {
+  const authDeadline = createAuthRequestDeadline();
+  const supabase = createServerClient(config.url, config.key, {
+    global: { fetch: authDeadline.fetch },
     cookies: {
       getAll() {
         return cookieStore.getAll();
       },
       setAll(cookiesToSet) {
+        if (authDeadline.signal.aborted) return;
         try {
           cookiesToSet.forEach(({ name, value, options }) => {
             cookieStore.set(name, value, options);
@@ -28,4 +32,5 @@ export async function createSupabaseServerAuthClient() {
       },
     },
   });
+  return Object.assign(supabase, { authDeadline });
 }

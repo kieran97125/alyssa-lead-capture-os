@@ -16,6 +16,7 @@ import {
   verifySignedAdminSession,
 } from "@/lib/security/internalAccess";
 import {
+  getSupabasePublicAuthConfig,
   isBreakGlassPasswordEnabled,
   isWorkspaceEmailAuthRequired,
 } from "@/lib/supabase/authConfig";
@@ -167,7 +168,7 @@ function isAdminBackendPath(pathname: string) {
   );
 }
 
-function redirectToLogin(request: NextRequest, error?: string) {
+function redirectToLogin(request: NextRequest, error?: string, authResponse?: NextResponse) {
   const loginUrl = request.nextUrl.clone();
   loginUrl.pathname = "/login";
   loginUrl.search = "";
@@ -182,7 +183,9 @@ function redirectToLogin(request: NextRequest, error?: string) {
   // the user bounce back to the same page with no visible explanation.
   const status =
     request.method === "GET" || request.method === "HEAD" ? 307 : 303;
-  return NextResponse.redirect(loginUrl, status);
+  const response = NextResponse.redirect(loginUrl, status);
+  authResponse?.cookies.getAll().forEach((cookie) => response.cookies.set(cookie));
+  return response;
 }
 
 export async function proxy(request: NextRequest) {
@@ -206,12 +209,17 @@ export async function proxy(request: NextRequest) {
     isInternalRoute(request.nextUrl.pathname)
   ) {
     const emailAuthRequired = isWorkspaceEmailAuthRequired();
+    let unavailableAuthResponse: NextResponse | undefined;
     if (emailAuthRequired || hasSupabaseAuthCookie(request)) {
       const auth = await refreshSupabaseAuth(request);
+      if (auth.unavailable) unavailableAuthResponse = auth.response;
       if (auth.identity) {
-        const member = await getWorkspaceMemberAccess(auth.identity, {
-          activate: true,
-        });
+        let member;
+        try {
+          member = await getWorkspaceMemberAccess(auth.identity, { activate: true });
+        } catch {
+          unavailableAuthResponse = auth.response;
+        }
         if (member) {
           const routeModule = getWorkspaceModuleForPath(
             request.nextUrl.pathname
@@ -220,21 +228,23 @@ export async function proxy(request: NextRequest) {
             requiresMasterAccess(request.nextUrl.pathname) &&
             member.accessLevel !== "master"
           ) {
-            return redirectToLogin(request, "master_required");
+            return redirectToLogin(request, "master_required", auth.response);
           }
           if (routeModule && !canAccessWorkspaceModule(member, routeModule)) {
-            return redirectToLogin(request, "permission_denied");
+            return redirectToLogin(request, "permission_denied", auth.response);
           }
           return auth.response;
         }
       }
 
       if (emailAuthRequired && !isBreakGlassPasswordEnabled()) {
-        return redirectToLogin(request, "not_invited");
+        return redirectToLogin(request, unavailableAuthResponse ? "auth_unavailable" : "not_invited", auth.response);
       }
     }
 
     if (!isAdminPasswordGateEnabled()) {
+      if (unavailableAuthResponse) return redirectToLogin(request, "auth_unavailable", unavailableAuthResponse);
+      if (getSupabasePublicAuthConfig().ready) return redirectToLogin(request);
       return NextResponse.next();
     }
 
@@ -243,6 +253,7 @@ export async function proxy(request: NextRequest) {
     );
 
     if (!session.ok) {
+      if (unavailableAuthResponse) return redirectToLogin(request, "auth_unavailable", unavailableAuthResponse);
       return redirectToLogin(request);
     }
     if (
@@ -257,6 +268,7 @@ export async function proxy(request: NextRequest) {
     ) {
       return redirectToLogin(request, "master_required");
     }
+    if (unavailableAuthResponse) return unavailableAuthResponse;
   }
 
   return attachPublicAttributionCookie(

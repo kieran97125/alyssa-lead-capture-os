@@ -1,6 +1,7 @@
 import "server-only";
 
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
+import { createAuthRequestDeadline } from "@/lib/supabase/requestDeadline";
 import type { VerifiedSupabaseIdentity } from "@/lib/supabase/authProxy";
 import type { InternalAccessContext } from "@/lib/security/internalAccess";
 import {
@@ -30,9 +31,29 @@ export type WorkspaceMemberAccess = InternalAccessContext & {
   isMaster: boolean;
 };
 
+export class WorkspaceAccessUnavailableError extends Error {
+  readonly name = "WorkspaceAccessUnavailableError";
+  constructor() { super("Workspace access verification is temporarily unavailable."); }
+}
+
 export async function getWorkspaceMemberAccess(
   identity: VerifiedSupabaseIdentity,
   options: { activate?: boolean } = {}
+): Promise<WorkspaceMemberAccess | null> {
+  const deadline = createAuthRequestDeadline();
+  try {
+    return await deadline.run(() => lookupWorkspaceMemberAccess(identity, options, deadline.signal));
+  } catch {
+    // Provider errors never mean "not invited" and must not enter an open or
+    // shared-password fallback. Do not include identity/provider details.
+    throw new WorkspaceAccessUnavailableError();
+  }
+}
+
+async function lookupWorkspaceMemberAccess(
+  identity: VerifiedSupabaseIdentity,
+  options: { activate?: boolean },
+  signal: AbortSignal,
 ): Promise<WorkspaceMemberAccess | null> {
   const supabase = createSupabaseAdminClient();
   const columns =
@@ -42,6 +63,8 @@ export async function getWorkspaceMemberAccess(
     .from("workspace_members")
     .select(columns)
     .eq("auth_user_id", identity.userId)
+    .abortSignal(signal)
+    .retry(false)
     .maybeSingle();
 
   if (!member && !error) {
@@ -49,20 +72,15 @@ export async function getWorkspaceMemberAccess(
       .from("workspace_members")
       .select(columns)
       .ilike("email", identity.email)
+      .abortSignal(signal)
+      .retry(false)
       .maybeSingle();
     member = byEmail.data;
     error = byEmail.error;
   }
 
-  if (error || !member) {
-    if (error) {
-      console.warn("workspace_member_identity_lookup_failed", {
-        code: error.code,
-        message: error.message,
-      });
-    }
-    return null;
-  }
+  if (error) throw new WorkspaceAccessUnavailableError();
+  if (!member) return null;
 
   if (
     member.auth_user_id &&
@@ -75,7 +93,7 @@ export async function getWorkspaceMemberAccess(
   }
 
   const status = String(member.status || "invited") as WorkspaceMemberAccess["status"];
-  if (status === "suspended" || status === "removed") return null;
+  if (status !== "invited" && status !== "active") return null;
 
   const memberId = String(member.id);
   const shouldActivate =
@@ -94,13 +112,10 @@ export async function getWorkspaceMemberAccess(
         last_sign_in_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
       })
-      .eq("id", memberId);
+      .eq("id", memberId)
+      .abortSignal(signal);
     if (activationError) {
-      console.warn("workspace_member_activation_failed", {
-        code: activationError.code,
-        message: activationError.message,
-      });
-      return null;
+      throw new WorkspaceAccessUnavailableError();
     }
   }
 
@@ -109,19 +124,19 @@ export async function getWorkspaceMemberAccess(
       .from("workspace_member_brand_access")
       .select("brand_id,status")
       .eq("member_id", memberId)
-      .eq("status", "active"),
+      .eq("status", "active")
+      .abortSignal(signal)
+      .retry(false),
     supabase
       .from("workspace_member_module_permissions")
       .select("module_key,can_access")
-      .eq("member_id", memberId),
+      .eq("member_id", memberId)
+      .abortSignal(signal)
+      .retry(false),
   ]);
 
   if (brandResult.error || moduleResult.error) {
-    console.warn("workspace_member_permissions_lookup_failed", {
-      brandCode: brandResult.error?.code,
-      moduleCode: moduleResult.error?.code,
-    });
-    return null;
+    throw new WorkspaceAccessUnavailableError();
   }
 
   const workspaceRole = normalizeWorkspaceRole(member.workspace_role);

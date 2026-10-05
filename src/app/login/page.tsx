@@ -60,7 +60,9 @@ export default async function LoginPage({
 
           {error && (
             <p className="mt-5 rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-              {error === "invalid_password"
+              {error === "auth_unavailable"
+                ? "暫時未能確認登入狀態，請稍後重試。"
+                : error === "invalid_password"
                 ? "Password 不正確，請再試一次。"
                 : error === "master_required"
                   ? "呢個頁面只限系統擁有人使用。"
@@ -74,6 +76,12 @@ export default async function LoginPage({
                           ? "系統已轉用受邀公司電郵登入。"
                           : "電郵登入設定尚未完成。"}
             </p>
+          )}
+
+          {error === "auth_unavailable" && (
+            <a href={next} className="mt-4 inline-flex font-semibold text-primary underline underline-offset-4">
+              重試進入工作區
+            </a>
           )}
 
           <div className="mt-6 flex gap-3 rounded-2xl border border-[#ead9cf] bg-[#fff9f3] px-4 py-4 text-[#5a2348]">

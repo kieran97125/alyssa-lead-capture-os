@@ -1,0 +1,169 @@
+TAP version 13
+# Subtest: workspace access retains exact allowed brands and module denials
+ok 1 - workspace access retains exact allowed brands and module denials
+  ---
+  duration_ms: 33.953895
+  type: 'test'
+  ...
+# Subtest: missing, suspended, removed, mismatched members remain genuine denials
+ok 2 - missing, suspended, removed, mismatched members remain genuine denials
+  ---
+  duration_ms: 89.187784
+  type: 'test'
+  ...
+# Subtest: HTTP503 with long Retry-After fails immediately without SDK retries or uninvited result
+ok 3 - HTTP503 with long Retry-After fails immediately without SDK retries or uninvited result
+  ---
+  duration_ms: 20.508283
+  type: 'test'
+  ...
+# Subtest: permission lookup faults fail closed even for a valid member
+ok 4 - permission lookup faults fail closed even for a valid member
+  ---
+  duration_ms: 15.8722
+  type: 'test'
+  ...
+# Subtest: invitation activation is awaited, bounded and never automatically retried
+ok 5 - invitation activation is awaited, bounded and never automatically retried
+  ---
+  duration_ms: 75.675667
+  type: 'test'
+  ...
+# Subtest: Proxy auth/member outages redirect with preserved rotated cookies and sanitized next
+ok 6 - Proxy auth/member outages redirect with preserved rotated cookies and sanitized next
+  ---
+  duration_ms: 101.15358
+  type: 'test'
+  ...
+# Subtest: outage never opens fallback; explicit breakglass still requires signature and master constraints
+ok 7 - outage never opens fallback; explicit breakglass still requires signature and master constraints
+  ---
+  duration_ms: 82.614938
+  type: 'test'
+  ...
+# Subtest: server access does not turn provider errors or configured invalid sessions into open access
+ok 8 - server access does not turn provider errors or configured invalid sessions into open access
+  ---
+  duration_ms: 37.450874
+  type: 'test'
+  ...
+# Subtest: finalize distinguishes service503 from invalid401 and genuine denied403 without signing out on service failures
+ok 9 - finalize distinguishes service503 from invalid401 and genuine denied403 without signing out on service failures
+  ---
+  duration_ms: 36.152264
+  type: 'test'
+  ...
+# Subtest: successful finalize does not wait for sign-in telemetry and retains scoped next URL
+ok 10 - successful finalize does not wait for sign-in telemetry and retains scoped next URL
+  ---
+  duration_ms: 17.621245
+  type: 'test'
+  ...
+# Subtest: confirmation service failure is transient; unmount suppresses late navigation without OTP replay
+ok 11 - confirmation service failure is transient; unmount suppresses late navigation without OTP replay
+  ---
+  duration_ms: 81.237102
+  type: 'test'
+  ...
+# lead_dashboard_live_read_failed { code: 'unknown', message: 'Lead Sheet 讀取逾時，請稍後重試；其他功能仍可使用。' }
+# PASS: read-only dashboard, one batch read, shared abort at 4 stages, no token retries, explicit sync preserved
+# Subtest: scripts/test-dashboard-google-read.mjs
+ok 2 - scripts/test-dashboard-google-read.mjs
+  ---
+  duration_ms: 841.178283
+  type: 'test'
+  ...
+# Dashboard streaming verified: shell/navigation available with stalled reads; normalized independent Source; shared command/audit reads; independent Operations; honest Lead unavailable state; optional notification failures and permission boundaries.
+# Subtest: scripts/test-dashboard-streaming.mjs
+ok 3 - scripts/test-dashboard-streaming.mjs
+  ---
+  duration_ms: 878.741911
+  type: 'test'
+  ...
+# Subtest: successful GET preserves request options, JSON, HTTP and response metadata
+ok 14 - successful GET preserves request options, JSON, HTTP and response metadata
+  ---
+  duration_ms: 78.401801
+  type: 'test'
+  ...
+# Subtest: stalled headers time out and abort transport, even if transport ignores cancellation
+ok 15 - stalled headers time out and abort transport, even if transport ignores cancellation
+  ---
+  duration_ms: 50.954383
+  type: 'test'
+  ...
+# Subtest: late headers have their body cancelled after deadline
+ok 16 - late headers have their body cancelled after deadline
+  ---
+  duration_ms: 52.422473
+  type: 'test'
+  ...
+# Subtest: a stalled response body shares the header deadline and cancels its upstream reader
+ok 17 - a stalled response body shares the header deadline and cancels its upstream reader
+  ---
+  duration_ms: 51.509803
+  type: 'test'
+  ...
+# Subtest: caller cancellation is preserved before headers and during body reads
+ok 18 - caller cancellation is preserved before headers and during body reads
+  ---
+  duration_ms: 2.740741
+  type: 'test'
+  ...
+# Subtest: explicit init signal overrides Request signal; pre-aborted calls never start
+ok 19 - explicit init signal overrides Request signal; pre-aborted calls never start
+  ---
+  duration_ms: 1.590321
+  type: 'test'
+  ...
+# Subtest: consumer stream cancellation cancels the original body and fetch signal
+ok 20 - consumer stream cancellation cancels the original body and fetch signal
+  ---
+  duration_ms: 0.959478
+  type: 'test'
+  ...
+# Subtest: HEAD completes at headers and admin writes remain exact pass-through
+ok 21 - HEAD completes at headers and admin writes remain exact pass-through
+  ---
+  duration_ms: 62.182604
+  type: 'test'
+  ...
+# Subtest: installed PostgREST SDK does not retry deadline-aborted reads
+ok 22 - installed PostgREST SDK does not retry deadline-aborted reads
+  ---
+  duration_ms: 61.666696
+  type: 'test'
+  ...
+# Subtest: auth operation deadline covers token refresh POST and blocks subsequent SDK attempts
+ok 23 - auth operation deadline covers token refresh POST and blocks subsequent SDK attempts
+  ---
+  duration_ms: 50.475516
+  type: 'test'
+  ...
+# Subtest: auth getClaims lifecycle is bounded even before a transport call starts
+ok 24 - auth getClaims lifecycle is bounded even before a transport call starts
+  ---
+  duration_ms: 51.322336
+  type: 'test'
+  ...
+# Subtest: Proxy and server auth refuse late cookie writes after timeout
+ok 25 - Proxy and server auth refuse late cookie writes after timeout
+  ---
+  duration_ms: 132.24245
+  type: 'test'
+  ...
+# Subtest: outage classification does not turn invalid/expired sessions into verified access
+ok 26 - outage classification does not turn invalid/expired sessions into verified access
+  ---
+  duration_ms: 0.225213
+  type: 'test'
+  ...
+1..26
+# tests 26
+# suites 0
+# pass 26
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 1108.011477
