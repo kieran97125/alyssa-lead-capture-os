@@ -20,4 +20,4 @@ Revert this PR. The additional encrypted-payload field is ignored by the previou
 
 ## Product learning boundary
 
-Export the configurable current-state summary and truthful additive-snapshot availability pattern to the canonical private Product Learning Log before release. Provider tabs, account and brand mappings, status translations, customer rows, credentials and operational-register automation remain client-specific. Production parity and measured workflow impact remain Needs evidence until observed.
+The configurable current-state summary and additive-snapshot availability pattern are recorded in `kieran97125/leadhub-source-os`, `docs/product-learning/entries/2026-10-06-current-appointment-exceptions.md` (commit `831459ec64987cc3b73c37601da7463304a9ae0a`) and its canonical index (commit `95cd925eb10bf9d19af97e9afc8d07d2c5de1f95`). Classification: Configurable, Enterprise Extension and Needs evidence. Provider tabs, account and brand mappings, status translations, customer rows, credentials and operational-register automation remain client-specific. Production parity and measured workflow impact remain Needs evidence until observed.
