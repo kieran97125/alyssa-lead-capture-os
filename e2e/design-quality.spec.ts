@@ -7,12 +7,12 @@ for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 84
     await page.goto("/e2e/appointment-status", { waitUntil: "networkidle" });
     const summary = page.getByTestId("appointment-status-summary");
     await expect(summary.locator("dd")).toHaveText(["2", "1"]);
-    await expect(summary).toHaveScreenshot(`appointment-status-${name}.png`);
+    await expect.soft(summary).toHaveScreenshot(`appointment-status-${name}.png`);
     await summary.locator("summary").focus();
     await page.keyboard.press("Enter");
     await expect(summary.getByRole("table")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await expect(summary).toHaveScreenshot(`appointment-status-expanded-${name}.png`);
+    await expect.soft(summary).toHaveScreenshot(`appointment-status-expanded-${name}.png`);
     const result = await new AxeBuilder({ page }).include('[data-testid="appointment-status-summary"]')
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(result.violations).toEqual([]);

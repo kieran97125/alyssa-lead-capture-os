@@ -60,6 +60,7 @@ function scalar(value: unknown): boolean {
 export function validateLeadDashboardSavedGroups(value: unknown, brands: SheetBrandReference[]): asserts value is ParsedLeadSheetGroups {
   const parsed = record(value);
   const diagnostics = record(parsed?.diagnostics);
+  if (parsed?.appointmentStatusProjection !== undefined && parsed.appointmentStatusProjection !== "current-appointment-v1") throw unavailable();
   if (!Array.isArray(parsed?.groups) || parsed.groups.length > MAX_ROWS || !diagnostics) throw unavailable();
   for (const key of ["sourceRows", "acceptedRows", "unknownBrandRows", "invalidCreatedDateRows", "invalidShowDateRows", "invalidAppointmentDateRows", "uncategorizedTreatmentRows"]) {
     if (!Number.isSafeInteger(diagnostics[key]) || Number(diagnostics[key]) < 0) throw unavailable();
@@ -71,6 +72,7 @@ export function validateLeadDashboardSavedGroups(value: unknown, brands: SheetBr
   for (const unknownGroup of parsed.groups) {
     const group = record(unknownGroup);
     if (!group) throw unavailable();
+    if (parsed.appointmentStatusProjection && group.appointmentStatus === undefined) throw unavailable();
     for (const key of ["key", "accountId", "accountLabel", "brandId", "brandLabel", "treatmentLabel", "sourceLabel", "campaignLabel", "branchLabel"]) {
       if (typeof group[key] !== "string") throw unavailable();
     }

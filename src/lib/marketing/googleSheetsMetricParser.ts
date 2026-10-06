@@ -120,6 +120,7 @@ export type LeadSheetLeadGroup = {
 };
 
 export type ParsedLeadSheetGroups = {
+  appointmentStatusProjection?: "current-appointment-v1";
   groups: LeadSheetLeadGroup[];
   diagnostics: LeadSheetPerformanceDiagnostics;
 };
@@ -779,7 +780,8 @@ export function buildLeadSheetGroups(input: {
   });
 
   const authoritative = input.arrivalOutcomeAuthority === undefined ? groups : applyLeadArrivalOutcomeAuthority(groups, input.arrivalOutcomeAuthority);
-  return { groups: input.pendingAppointmentAuthority ? applyLeadPendingAppointmentAuthority(authoritative, input.pendingAppointmentAuthority, pendingDimensions) : authoritative, diagnostics };
+  return { groups: input.pendingAppointmentAuthority ? applyLeadPendingAppointmentAuthority(authoritative, input.pendingAppointmentAuthority, pendingDimensions) : authoritative, diagnostics,
+    ...(input.pendingAppointmentAuthority ? { appointmentStatusProjection: "current-appointment-v1" as const } : {}) };
 }
 
 export function leadGroupBookDate(group: LeadSheetLeadGroup) {

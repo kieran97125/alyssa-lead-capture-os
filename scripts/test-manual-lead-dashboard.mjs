@@ -282,6 +282,11 @@ async function verifyRealSnapshotStore() {
       const corrupted = structuredClone(parsed); mutate(corrupted);
       assert.throws(() => realStore.validateLeadDashboardSavedGroups(corrupted, brands), safeUnavailable);
     }
+    const emptyPayload={groups:[],diagnostics:{...parsed.diagnostics,sourceRows:0,acceptedRows:0}};
+    realStore.validateLeadDashboardSavedGroups(emptyPayload, brands);
+    realStore.validateLeadDashboardSavedGroups({...emptyPayload,appointmentStatusProjection:'current-appointment-v1'}, brands);
+    assert.throws(()=>realStore.validateLeadDashboardSavedGroups({...emptyPayload,appointmentStatusProjection:'unknown'}, brands),safeUnavailable);
+    assert.throws(()=>realStore.validateLeadDashboardSavedGroups({...parsed,appointmentStatusProjection:'current-appointment-v1'}, brands),safeUnavailable,'Declared projection must include verified status for every group');
     const appointmentStatusPayload = structuredClone(parsed);
     const statusGroup = appointmentStatusPayload.groups[0];
     statusGroup.pendingAppointment = null; statusGroup.pendingRowNumber = null;

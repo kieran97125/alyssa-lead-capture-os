@@ -448,7 +448,7 @@ export async function getLeadDashboardSnapshot(
 
     return {
       ...model,
-      appointmentStatuses: buildAppointmentStatusSummary({ groups: parsed.groups, brands, filters, allowedBrandIds,
+      appointmentStatuses: buildAppointmentStatusSummary({ groups: parsed.groups, brands, filters, allowedBrandIds, projectionVersion: parsed.appointmentStatusProjection,
         source: appointmentFilters?.source, campaign: appointmentFilters?.campaign }),
       filters,
       costs: costSummaryForModel({

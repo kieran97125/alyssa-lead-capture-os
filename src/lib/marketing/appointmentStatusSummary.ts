@@ -25,8 +25,9 @@ export function buildAppointmentStatusSummary(input: {
   allowedBrandIds?: string[] | null;
   source?: string;
   campaign?: string;
+  projectionVersion?: "current-appointment-v1";
 }): AppointmentStatusSummary {
-  if (input.groups.some(group => group.appointmentStatus === undefined)) return unavailableAppointmentStatuses();
+  if (input.projectionVersion !== "current-appointment-v1" || input.groups.some(group => group.appointmentStatus === undefined)) return unavailableAppointmentStatuses();
   const allowed = input.allowedBrandIds == null ? null : new Set(input.allowedBrandIds);
   const scoped = new Set(brandIdsForScope(input.brands, input.filters.brandId));
   const result: AppointmentStatusSummary = { available: true, cancellations: 0, reschedules: 0, undated: 0, rows: [] };
