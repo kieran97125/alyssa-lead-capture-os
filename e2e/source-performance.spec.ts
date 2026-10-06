@@ -129,7 +129,7 @@ test("Daily Overview supports both brand-first and source-first Spend entry", as
 
   const brandEditor = page.getByTestId("daily-brand-spend-editor");
   await expect(brandEditor).toBeVisible();
-  await expect(brandEditor.getByText("按品牌一次過填晒每日廣告費")).toBeVisible();
+  await expect(brandEditor.getByRole("heading", { name: "按品牌填寫" })).toBeVisible();
   await expect(
     brandEditor
       .locator('[data-spend-source="meta_whatsapp"]')
@@ -162,7 +162,7 @@ test("Daily Overview supports both brand-first and source-first Spend entry", as
 
   const sourceEditor = page.getByTestId("daily-source-spend-editor");
   await expect(sourceEditor).toBeVisible();
-  await expect(sourceEditor.getByText("按 Source 一次過填晒各品牌廣告費")).toBeVisible();
+  await expect(sourceEditor.getByRole("heading", { name: "按 Source 填寫" })).toBeVisible();
   await expect(page.getByTestId("daily-brand-spend-editor")).toHaveCount(0);
   await expect(
     page

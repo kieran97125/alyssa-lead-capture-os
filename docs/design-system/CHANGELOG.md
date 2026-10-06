@@ -1,5 +1,12 @@
 # Design System Change Log
 
+## 2026-10-06 — Compact report descriptions
+
+- PR #106 replaces repeated per-brand diagnostic cards with a compact, accessible disclosure and moves report methodology behind an explicit summary.
+- Daily Overview, Dashboard, Treatment Performance, Source Performance and Period Comparison keep data and actions prominent. Unavailable/stale/arrival-authority alerts and mutation errors retain their existing prominence.
+- Native HTML and existing semantic tokens are sufficient; no dependency, data ownership or calculation changes.
+- Validation, screenshot review and rollback: `decisions/2026-10-06-report-description-density.md`. Hosted checks must pass before merge.
+
 ## 2026-10-05 — Dashboard availability and usable navigation
 
 - Dashboard renders its authenticated shell before independent Lead, Source Performance and Operations reads finish. Existing successful panels, filters, date sources and cost calculations are retained.

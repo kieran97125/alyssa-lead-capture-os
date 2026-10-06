@@ -1,8 +1,8 @@
-import { ArrowDownRight, ArrowUpRight, GitCompareArrows, Info } from "lucide-react";
+import { SystemDataStatus } from "@/components/system/SystemDetails";
+import { ArrowDownRight, ArrowUpRight, GitCompareArrows } from "lucide-react";
 import type { SourcePerformanceSnapshot } from "@/lib/marketing/sourcePerformance";
 import {
   sourceMetricChange,
-  type SourcePerformanceRow,
 } from "@/lib/marketing/sourcePerformanceMath";
 import { ALL_SPEND_TYPES, SPEND_TYPE_LABELS, type SpendType } from "@/lib/marketing/spendTypes";
 
@@ -137,7 +137,7 @@ export function SourceComparisonPanel({
             <p className="text-xs font-black uppercase tracking-[0.14em] text-[#7184a4]">Source mix comparison</p>
             <h2 className="mt-1 text-xl font-black text-[#321428]">Source 預算分佈與效率對比</h2>
             <p className="mt-1 text-sm font-semibold leading-6 text-[#745668]">
-              {currentLabel} vs {previousLabel}。比較 Spend Mix、CPL、CPBook 同 CPShow，分辨表現改變係預算搬位定 Source 效率本身變化。
+              {currentLabel} vs {previousLabel}
             </p>
           </div>
         </div>
@@ -146,12 +146,7 @@ export function SourceComparisonPanel({
         </div>
       </header>
 
-      {Array.from(new Set([...current.warnings, ...previous.warnings])).map((warning) => (
-        <div key={warning} className="mx-5 mt-4 flex gap-2 rounded-xl bg-[#fff7e9] px-3 py-2 text-xs font-bold text-[#805b25]">
-          <Info size={15} className="mt-0.5 shrink-0" />
-          <span>{warning}</span>
-        </div>
-      ))}
+      <SystemDataStatus warnings={[...current.warnings, ...previous.warnings]} className="mx-5 mt-4" />
 
       <div className="p-5 pb-2">
         <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9a5d76]">所選品牌合計</p>

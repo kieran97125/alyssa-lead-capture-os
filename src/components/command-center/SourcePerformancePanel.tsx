@@ -1,4 +1,5 @@
-import { BarChart3, CircleDollarSign, Info } from "lucide-react";
+import { SystemDataStatus } from "@/components/system/SystemDetails";
+import { BarChart3, CircleDollarSign } from "lucide-react";
 import type { SourcePerformanceSnapshot } from "@/lib/marketing/sourcePerformance";
 import type { SourcePerformanceRow } from "@/lib/marketing/sourcePerformanceMath";
 
@@ -97,7 +98,7 @@ export function SourcePerformancePanel({
               廣告費分佈與 Source 效率
             </h2>
             <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#745668]">
-              {snapshot.startDate} 至 {snapshot.endDate}。同一 Source 同時睇 Spend、Lead、Book、Show、CPL、CPBook 同 CPShow，避免只用平 CPL 判斷成效。
+              {snapshot.startDate} 至 {snapshot.endDate}
             </p>
           </div>
         </div>
@@ -109,12 +110,7 @@ export function SourcePerformancePanel({
         </div>
       </header>
 
-      {snapshot.warnings.map((warning) => (
-        <div key={warning} className="mx-5 mt-4 flex gap-2 rounded-xl bg-[#fff7e9] px-3 py-2 text-xs font-bold text-[#805b25]">
-          <Info size={15} className="mt-0.5 shrink-0" />
-          <span>{warning}</span>
-        </div>
-      ))}
+      <SystemDataStatus warnings={snapshot.warnings} className="mx-5 mt-4" />
 
       <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
         {visibleOverall.map((row) => (

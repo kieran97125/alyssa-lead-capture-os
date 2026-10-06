@@ -1271,6 +1271,8 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
   await expect(
     page.getByRole("heading", { name: "本月待到店明細" })
   ).toBeVisible();
+  await expect(page.getByText(/未有療程成本歸屬時會清楚標示為未分配/)).toBeHidden();
+  await page.locator("summary").filter({ hasText: "計算及資料來源" }).click();
   await expect(
     page.getByText(/未有療程成本歸屬時會清楚標示為未分配/)
   ).toBeVisible();
@@ -1489,6 +1491,8 @@ test("Treatment Performance is a Lead Sheet projection with explicit metric cont
   await expect(
     page.locator('[aria-label="1 個成效事件"]').first()
   ).toBeVisible();
+  await expect(page.getByText(/唔會重複讀取舊報表數據/)).toBeHidden();
+  await page.locator("summary").filter({ hasText: "計算口徑與資料來源" }).click();
   await expect(page.getByText(/唔會重複讀取舊報表數據/)).toBeVisible();
 });
 
@@ -1562,6 +1566,8 @@ test("Period Comparison exposes same-window Spend, funnel, CPL and stage-specifi
     page.locator('[aria-label="1 個成效事件"]').first()
   ).toBeVisible();
   await expect(page.getByText(/同期營運比率/)).toBeVisible();
+  await expect(page.getByText(/系統廣告費帳簿/)).toBeHidden();
+  await page.locator("summary").filter({ hasText: "計算口徑與資料來源" }).click();
   await expect(page.getByText(/系統廣告費帳簿/)).toBeVisible();
   await expect(page.getByText(/Meta WhatsApp／Lead Form／Website Form、Google Ads/)).toBeVisible();
   const brandBreakdown = page.getByRole("region", { name: "品牌拆解" });

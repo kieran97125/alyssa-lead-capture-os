@@ -1,3 +1,4 @@
+import { SystemDataStatus, SystemDetails } from "@/components/system/SystemDetails";
 import type { ComponentType } from "react";
 import {
   Activity,
@@ -166,7 +167,7 @@ export default async function TreatmentPerformancePage({
               <p className="command-page-kicker">成效分析</p>
               <h1 className="command-page-title">療程成效</h1>
               <p className="command-page-subtitle">
-                按 Omni Account、品牌、療程、來源同 Campaign 比較 Lead、預約、到店、廣告費及成本效率。
+                按 Account、品牌及療程比較成效
               </p>
               <div className="treatment-source-line">
                 <span
@@ -222,11 +223,7 @@ export default async function TreatmentPerformancePage({
               {message}
             </p>
           ) : null}
-          {snapshot.warnings.map((warning) => (
-            <p key={warning} className="command-status-message">
-              {warning}
-            </p>
-          ))}
+          <SystemDataStatus warnings={snapshot.warnings} />
 
           <section className="command-surface treatment-filter-panel">
             <header>
@@ -411,7 +408,7 @@ export default async function TreatmentPerformancePage({
             <SectionHeading
               eyebrow="Trend view"
               title="療程成效走勢"
-              description="可切換單日與累積；單日睇波動，累積睇整段期間進度。數字會跟上方篩選，橙色圓點代表當日日曆操作。"
+              description="單日／累積 · 橙色圓點為日曆操作"
               icon={Activity}
             />
             <TreatmentPerformanceTrendChartLazy
@@ -529,6 +526,7 @@ export default async function TreatmentPerformancePage({
             ) : null}
           </section>
 
+          <SystemDetails title="計算口徑與資料來源">
           <section className="treatment-definition-note">
             <Info size={17} />
             <div>
@@ -547,6 +545,7 @@ export default async function TreatmentPerformancePage({
               </p>
             </div>
           </section>
+          </SystemDetails>
         </div>
       </div>
     </main>

@@ -1,3 +1,4 @@
+import { SystemDetails } from "@/components/system/SystemDetails";
 import {
   Activity,
   Clock3,
@@ -202,7 +203,7 @@ export function LeadDashboardPanel({
             </small>
           </div>
           <p>
-            同一 Omni Account + 電話尾 8 位只計一次；跨 Account 分開計。Lead 按 Created At；Book 按最後更新日期；Show／No Show 跟到店紀錄；Show 按確認到店日期；No Show 按預約日期。
+            Lead 按建立日 · Book 按更新日 · Show／No Show 跟到店紀錄
           </p>
         </header>
 
@@ -437,6 +438,7 @@ export function LeadDashboardPanel({
         </div>
       </section>
 
+      <SystemDetails title="計算及資料來源">
       <section className="treatment-definition-note lead-dashboard-definition">
         <Info size={17} />
         <div>
@@ -452,6 +454,7 @@ export function LeadDashboardPanel({
           </p>
         </div>
       </section>
+      </SystemDetails>
         </>
       )}
     </section>

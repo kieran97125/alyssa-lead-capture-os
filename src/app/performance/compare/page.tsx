@@ -1,3 +1,4 @@
+import { SystemDataStatus, SystemDetails } from "@/components/system/SystemDetails";
 import { Suspense, type ComponentType } from "react";
 import {
   ArrowDownRight,
@@ -679,6 +680,8 @@ export default async function PeriodComparisonPage({
             </div>
           </section>
 
+          <SystemDataStatus warnings={snapshot.warnings} collapsibleWarnings={snapshot.totals.flatMap((row) => row.quality.warnings)} />
+          <SystemDetails title="計算口徑與資料來源">
           <section className="command-surface period-definition-section">
             <div className="period-section-heading">
               <span>
@@ -713,21 +716,15 @@ export default async function PeriodComparisonPage({
               </article>
             </div>
             <div className="period-warning-list" aria-label="數據狀態提示">
-              {snapshot.warnings.length > 0 ? (
-                snapshot.warnings.map((warning) => (
-                  <p key={warning}>
-                    <TriangleAlert size={15} />
-                    {warning}
-                  </p>
-                ))
-              ) : (
+              {snapshot.warnings.length === 0 ? (
                 <p className="is-good">
                   <CheckCircle2 size={15} />
                   所選範圍未發現重複來源或缺失同步提示。
                 </p>
-              )}
+              ) : null}
             </div>
           </section>
+          </SystemDetails>
         </div>
       </div>
     </main>

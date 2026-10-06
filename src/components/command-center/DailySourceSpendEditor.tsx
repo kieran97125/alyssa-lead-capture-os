@@ -80,13 +80,13 @@ export function DailySourceSpendEditor({
           </span>
           <div>
             <p className="text-xs font-black uppercase tracking-[0.14em] text-[#7184a4]">
-              Source-first Spend entry
+              每日廣告費
             </p>
             <h2 className="mt-1 text-xl font-black text-[#321428]">
-              按 Source 一次過填晒各品牌廣告費
+              按 Source 填寫
             </h2>
             <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#745668]">
-              先揀日期同 Source，再一次更新所有有權限品牌。空白 = 未填；0 = 已確認當日冇投放。
+              空白 = 未填；0 = 已確認當日冇投放。
             </p>
           </div>
         </div>
