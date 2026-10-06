@@ -37,6 +37,16 @@ test("daily report retains available KPIs and editable spend with optional expla
   await expect(methodology.getByText(/CPL = 廣告費/)).toBeVisible();
 });
 
+test("source, permission and fallback warnings remain visible beside collapsed diagnostics", async ({ page }) => {
+  await page.goto("/e2e/report-details?critical=1", { waitUntil: "networkidle" });
+  await expect(page.getByText("每日總覽暫時未能連接正式數據，請聯絡系統管理員。", { exact: true })).toBeVisible();
+  await expect(page.getByText("你目前未獲分配任何品牌嘅療程成效權限。", { exact: true })).toBeVisible();
+  await expect(page.getByText("正式數據庫未連接；目前顯示驗收用同期數據。", { exact: true })).toBeVisible();
+  const status = page.locator("details").filter({ hasText: "資料狀態" });
+  await expect(status.locator("li").first()).toBeHidden();
+  await expect(status.locator("summary")).toHaveText("資料狀態 · 12 項待核對");
+});
+
 async function openSpecimen(page: Page) {
   await page.goto("/e2e/design-system", { waitUntil: "networkidle" });
   await expect(page.getByTestId("design-system-specimen")).toBeVisible();

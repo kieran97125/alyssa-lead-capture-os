@@ -368,7 +368,7 @@ export default async function DailyOverviewPage({
               {message}
             </p>
           ) : null}
-          <SystemDataStatus warnings={snapshot.warnings} />
+          <SystemDataStatus warnings={snapshot.warnings} collapsibleWarnings={snapshot.reportBrands.flatMap((brand) => brand.warnings)} />
 
           <section className="daily-overview-kpis" aria-label="月份累計摘要">
             <OverviewKpi

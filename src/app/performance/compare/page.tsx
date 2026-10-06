@@ -680,7 +680,7 @@ export default async function PeriodComparisonPage({
             </div>
           </section>
 
-          <SystemDataStatus warnings={snapshot.warnings} />
+          <SystemDataStatus warnings={snapshot.warnings} collapsibleWarnings={snapshot.totals.flatMap((row) => row.quality.warnings)} />
           <SystemDetails title="計算口徑與資料來源">
           <section className="command-surface period-definition-section">
             <div className="period-section-heading">

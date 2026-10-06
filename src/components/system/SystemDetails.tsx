@@ -31,18 +31,27 @@ export function SystemDetails({
 
 export function SystemDataStatus({
   warnings,
+  collapsibleWarnings = [],
   className,
 }: {
   warnings: string[];
+  /** Only caller-identified repetitive diagnostics may be collapsed. */
+  collapsibleWarnings?: string[];
   className?: string;
 }) {
   const uniqueWarnings = [...new Set(warnings.filter(Boolean))];
   if (uniqueWarnings.length === 0) return null;
+  const collapsible = new Set(collapsibleWarnings);
+  const diagnostics = uniqueWarnings.filter((warning) => collapsible.has(warning));
+  const prominent = uniqueWarnings.filter((warning) => !collapsible.has(warning));
   return (
-    <SystemDetails title={`資料狀態 · ${uniqueWarnings.length} 項待核對`} className={className}>
+    <div className={className}>
+      {prominent.map((warning) => <p key={warning} className="command-status-message">{warning}</p>)}
+      {diagnostics.length > 0 ? <SystemDetails title={`資料狀態 · ${diagnostics.length} 項待核對`}>
       <ul className="list-disc space-y-1 pl-5">
-        {uniqueWarnings.map((warning) => <li key={warning}>{warning}</li>)}
+        {diagnostics.map((warning) => <li key={warning}>{warning}</li>)}
       </ul>
-    </SystemDetails>
+      </SystemDetails> : null}
+    </div>
   );
 }

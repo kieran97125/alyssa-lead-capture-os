@@ -15,9 +15,17 @@ export const Methodology: Story = {
 };
 export const MultipleWarnings: Story = {
   args: Methodology.args,
-  render: () => <SystemDataStatus warnings={Array.from({ length: 6 }, (_, i) => [`品牌 ${i + 1} 廣告費尚未確認完整。`, `品牌 ${i + 1} Lead 資料更新未成功。`]).flat()} />,
+  render: () => {
+    const warnings = Array.from({ length: 6 }, (_, i) => [`品牌 ${i + 1} 廣告費尚未確認完整。`, `品牌 ${i + 1} Lead 資料更新未成功。`]).flat();
+    return <SystemDataStatus warnings={warnings} collapsibleWarnings={warnings} />;
+  },
 };
 export const EmptyStatus: Story = {
   args: Methodology.args,
   render: () => <SystemDataStatus warnings={[]} />,
+};
+
+export const SourceUnavailable: Story = {
+  args: Methodology.args,
+  render: () => <SystemDataStatus warnings={["正式數據庫未連接；目前顯示驗收用同期數據。"]} />,
 };
