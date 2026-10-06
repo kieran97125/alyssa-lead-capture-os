@@ -3,7 +3,6 @@ import { ArrowDownRight, ArrowUpRight, GitCompareArrows } from "lucide-react";
 import type { SourcePerformanceSnapshot } from "@/lib/marketing/sourcePerformance";
 import {
   sourceMetricChange,
-  type SourcePerformanceRow,
 } from "@/lib/marketing/sourcePerformanceMath";
 import { ALL_SPEND_TYPES, SPEND_TYPE_LABELS, type SpendType } from "@/lib/marketing/spendTypes";
 
