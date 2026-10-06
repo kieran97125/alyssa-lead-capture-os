@@ -78,10 +78,10 @@ export function DailyBrandSpendEditor({
             <BadgeDollarSign size={20} />
           </span>
           <div>
-            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a5d76]">Brand-first Spend entry</p>
-            <h2 className="mt-1 text-xl font-black text-[#321428]">按品牌一次過填晒每日廣告費</h2>
+            <p className="text-xs font-black uppercase tracking-[0.14em] text-[#9a5d76]">每日廣告費</p>
+            <h2 className="mt-1 text-xl font-black text-[#321428]">按品牌填寫</h2>
             <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-[#745668]">
-              先揀日期同品牌，再一次更新 WhatsApp、Lead Form、Website Form 同 Google Ads。空白 = 未填；0 = 已確認當日冇投放。
+              空白 = 未填；0 = 已確認當日冇投放。
             </p>
           </div>
         </div>
@@ -155,7 +155,7 @@ export function DailyBrandSpendEditor({
         <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
           <div>
             <strong className="text-base text-[#321428]">{snapshot.selectedBrandName} · {formatDate(snapshot.selectedDate)}</strong>
-            <p className="mt-1 text-xs font-semibold text-[#8a6477]">四個 Source 同一版完成；上面「廣告費類型」只係快速標示目前 Source，唔會變返逐 Source 入數。</p>
+            <p className="mt-1 text-xs font-semibold text-[#8a6477]">填寫所選品牌的四類廣告費。</p>
           </div>
           <span className={`inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-black ${liveCompletion === 4 ? "bg-[#eaf7ef] text-[#3d7355]" : "bg-[#fff5e8] text-[#8a632b]"}`}>
             {liveCompletion === 4 ? <CheckCircle2 size={14} /> : <TriangleAlert size={14} />}
