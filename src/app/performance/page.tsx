@@ -1,4 +1,8 @@
 import { SystemDataStatus, SystemDetails } from "@/components/system/SystemDetails";
+import { Suspense } from "react";
+import { AppointmentStatusSummary } from "@/components/system/AppointmentStatusSummary";
+import { getLeadDashboardSnapshot } from "@/lib/marketing/leadDashboard";
+import { unavailableAppointmentStatuses } from "@/lib/marketing/appointmentStatusSummary";
 import type { ComponentType } from "react";
 import {
   Activity,
@@ -145,6 +149,9 @@ export default async function TreatmentPerformancePage({
     getCurrentInternalAccess(),
   ]);
   const month = getHkMonthContext();
+  const appointmentSnapshot = getLeadDashboardSnapshot(snapshot.filters, access, {
+    source: snapshot.filters.source, campaign: snapshot.filters.campaign,
+  });
   const previousMonth = previousMonthRange(month.monthStart);
   const message = firstParam(query.message);
   const commandStatus = firstParam(query.command_status);
@@ -402,6 +409,9 @@ export default async function TreatmentPerformancePage({
             />
           </section>
 
+          <Suspense fallback={<AppointmentStatusSummary summary={unavailableAppointmentStatuses()} />}>
+            <AppointmentStatuses result={appointmentSnapshot} />
+          </Suspense>
           <PerformanceCostSummary costs={snapshot.costs} />
 
           <section className="command-surface treatment-trend-card">
@@ -839,4 +849,11 @@ function EmptyTableRow({
       </td>
     </tr>
   );
+}
+
+async function AppointmentStatuses({ result }: {
+  result: ReturnType<typeof getLeadDashboardSnapshot>;
+}) {
+  const snapshot = await result;
+  return <AppointmentStatusSummary summary={snapshot.appointmentStatuses} />;
 }

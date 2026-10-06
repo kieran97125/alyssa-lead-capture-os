@@ -282,6 +282,26 @@ async function verifyRealSnapshotStore() {
       const corrupted = structuredClone(parsed); mutate(corrupted);
       assert.throws(() => realStore.validateLeadDashboardSavedGroups(corrupted, brands), safeUnavailable);
     }
+    const emptyPayload={groups:[],diagnostics:{...parsed.diagnostics,sourceRows:0,acceptedRows:0}};
+    realStore.validateLeadDashboardSavedGroups(emptyPayload, brands);
+    realStore.validateLeadDashboardSavedGroups({...emptyPayload,appointmentStatusProjection:'current-appointment-v1'}, brands);
+    assert.throws(()=>realStore.validateLeadDashboardSavedGroups({...emptyPayload,appointmentStatusProjection:'unknown'}, brands),safeUnavailable);
+    assert.throws(()=>realStore.validateLeadDashboardSavedGroups({...parsed,appointmentStatusProjection:'current-appointment-v1'}, brands),safeUnavailable,'Declared projection must include verified status for every group');
+    const appointmentStatusPayload = structuredClone(parsed);
+    const statusGroup = appointmentStatusPayload.groups[0];
+    statusGroup.pendingAppointment = null; statusGroup.pendingRowNumber = null;
+    statusGroup.appointmentStatus = { rowNumber: statusGroup.currentRowNumber,
+      brandId: statusGroup.brandId, brandLabel: statusGroup.brandLabel, treatmentLabel: statusGroup.treatmentLabel,
+      status: "canceled", appointmentDate: "2026-10-14" };
+    realStore.validateLeadDashboardSavedGroups(appointmentStatusPayload, brands);
+    for (const mutate of [
+      value => { value.groups[0].appointmentStatus.status = "unknown"; },
+      value => { value.groups[0].appointmentStatus.brandId = "unknown"; },
+      value => { value.groups[0].appointmentStatus.rowNumber = 9999; },
+      value => { value.groups[0].appointmentStatus.appointmentDate = "2026-02-30"; },
+      value => { value.groups[0].pendingAppointment = structuredClone(parsed.groups[0].pendingAppointment); },
+    ]) { const bad = structuredClone(appointmentStatusPayload); mutate(bad);
+      assert.throws(() => realStore.validateLeadDashboardSavedGroups(bad, brands), safeUnavailable); }
     const missingUpdate = load("src/lib/marketing/googleSheetsMetricParser.ts").buildLeadSheetGroups({
       headers, rows: [["", "2026-10-01", "未聯絡", "GOS Beauty", "GOS Beauty", "10000008", "", "", "", "GOS First"]],
       brands, sourceBrandId: null, appsScriptContract: false, dedupeByIdentity: true,

@@ -87,7 +87,14 @@ export type LeadSheetGroupRow = {
 
 export type LeadPendingAppointment = { rowNumber: number; appointmentDate: string; brandId: string; brandLabel: string; treatmentLabel: string };
 
+export type LeadAppointmentStatus = Pick<LeadPendingAppointment, "rowNumber" | "brandId" | "brandLabel" | "treatmentLabel"> & {
+  status: "canceled" | "reschedule_requested";
+  appointmentDate: string | null;
+};
+
 export type LeadSheetLeadGroup = {
+  /** Undefined means an older saved snapshot; null means verified no current exception. */
+  appointmentStatus?: LeadAppointmentStatus | null;
   pendingAppointment?: LeadPendingAppointment | null;
   key: string;
   accountId: string;
@@ -113,6 +120,7 @@ export type LeadSheetLeadGroup = {
 };
 
 export type ParsedLeadSheetGroups = {
+  appointmentStatusProjection?: "current-appointment-v1";
   groups: LeadSheetLeadGroup[];
   diagnostics: LeadSheetPerformanceDiagnostics;
 };
@@ -772,7 +780,8 @@ export function buildLeadSheetGroups(input: {
   });
 
   const authoritative = input.arrivalOutcomeAuthority === undefined ? groups : applyLeadArrivalOutcomeAuthority(groups, input.arrivalOutcomeAuthority);
-  return { groups: input.pendingAppointmentAuthority ? applyLeadPendingAppointmentAuthority(authoritative, input.pendingAppointmentAuthority, pendingDimensions) : authoritative, diagnostics };
+  return { groups: input.pendingAppointmentAuthority ? applyLeadPendingAppointmentAuthority(authoritative, input.pendingAppointmentAuthority, pendingDimensions) : authoritative, diagnostics,
+    ...(input.pendingAppointmentAuthority ? { appointmentStatusProjection: "current-appointment-v1" as const } : {}) };
 }
 
 export function leadGroupBookDate(group: LeadSheetLeadGroup) {

@@ -60,6 +60,7 @@ function scalar(value: unknown): boolean {
 export function validateLeadDashboardSavedGroups(value: unknown, brands: SheetBrandReference[]): asserts value is ParsedLeadSheetGroups {
   const parsed = record(value);
   const diagnostics = record(parsed?.diagnostics);
+  if (parsed?.appointmentStatusProjection !== undefined && parsed.appointmentStatusProjection !== "current-appointment-v1") throw unavailable();
   if (!Array.isArray(parsed?.groups) || parsed.groups.length > MAX_ROWS || !diagnostics) throw unavailable();
   for (const key of ["sourceRows", "acceptedRows", "unknownBrandRows", "invalidCreatedDateRows", "invalidShowDateRows", "invalidAppointmentDateRows", "uncategorizedTreatmentRows"]) {
     if (!Number.isSafeInteger(diagnostics[key]) || Number(diagnostics[key]) < 0) throw unavailable();
@@ -71,6 +72,7 @@ export function validateLeadDashboardSavedGroups(value: unknown, brands: SheetBr
   for (const unknownGroup of parsed.groups) {
     const group = record(unknownGroup);
     if (!group) throw unavailable();
+    if (parsed.appointmentStatusProjection && group.appointmentStatus === undefined) throw unavailable();
     for (const key of ["key", "accountId", "accountLabel", "brandId", "brandLabel", "treatmentLabel", "sourceLabel", "campaignLabel", "branchLabel"]) {
       if (typeof group[key] !== "string") throw unavailable();
     }
@@ -80,6 +82,13 @@ export function validateLeadDashboardSavedGroups(value: unknown, brands: SheetBr
         ![null, "last_updated"].includes(group.bookDateSource as string | null) ||
         !["lead", "booked", "show", "no_show"].includes(String(group.currentStatus))) throw unavailable();
     const pending=group.pendingAppointment;
+    if (group.appointmentStatus !== undefined && group.appointmentStatus !== null) {
+      const status = record(group.appointmentStatus);
+      if (!status || !["canceled", "reschedule_requested"].includes(String(status.status)) ||
+          !Number.isSafeInteger(status.rowNumber) || !brandIds.has(String(status.brandId)) ||
+          typeof status.brandLabel !== "string" || typeof status.treatmentLabel !== "string" ||
+          !isoDate(status.appointmentDate)) throw unavailable();
+    }
     if (pending === undefined) throw unavailable();
     if (pending !== undefined && pending !== null) {
       const p=record(pending);
@@ -105,6 +114,7 @@ export function validateLeadDashboardSavedGroups(value: unknown, brands: SheetBr
     }
     if (!Number.isSafeInteger(group.currentRowNumber) || !rows.has(Number(group.currentRowNumber)) ||
         group.pendingRowNumber !== null && (!Number.isSafeInteger(group.pendingRowNumber) || !rows.has(Number(group.pendingRowNumber)))) throw unavailable();
+    if (group.appointmentStatus && (!rows.has(Number(record(group.appointmentStatus)?.rowNumber)) || pending !== null)) throw unavailable();
   }
   if (rowCount !== diagnostics.acceptedRows) throw unavailable();
 }

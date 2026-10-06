@@ -110,7 +110,7 @@ try {
   assert.ok(output.includes('data-dashboard-state="loading"'));
   assert.ok(!output.includes("Source data ready"));
   assert.ok(!output.includes("Lead data ready"));
-  assert.equal(calls.audit.length, 1, "Navigation and audit banner must share the audit read");
+  assert.equal(calls.audit.length, 1, "Navigation retains the audit read without a Dashboard banner");
 
   reads.source.resolve({ live: true, warnings: [] });
   await until(() => output.includes("Source data ready"), "Source panel while Lead is unresolved");
@@ -125,7 +125,7 @@ try {
   reads.creative.resolve(2);
   await until(() => output.includes('data-badges='), "notification failures remain isolated");
   assert.equal(failures.length, 0);
-  assert.match(output, /3(?:<!-- -->)? 項 Lead 資料異常待核對/);
+  assert.ok(!output.includes("項 Lead 資料異常待核對"), "Dashboard must not render the removed audit banner");
   stream.abort();
 
   // Supplied counts and module permissions must still control notification reads.

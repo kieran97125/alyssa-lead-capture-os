@@ -53,7 +53,10 @@ export function applyLeadPendingAppointmentAuthority(groups: LeadSheetLeadGroup[
     const scheduled=appointment ? appointment.date : row.appointmentDate;
     const eligible=row.status === "booked" && (!appointment || appointment.state === "active" && appointment.outcome === "");
     const dims=dimensions.get(row.rowNumber); if (!dims) throw arrivalOutcomeAuthorityError();
-    return { ...g, pendingRowNumber: eligible && scheduled ? row.rowNumber : null,
+    const appointmentStatus = appointment && ["canceled", "reschedule_requested"].includes(appointment.state)
+      ? { ...dims, rowNumber: row.rowNumber, appointmentDate: appointment.date,
+          status: appointment.state as "canceled" | "reschedule_requested" } : null;
+    return { ...g, appointmentStatus, pendingRowNumber: eligible && scheduled ? row.rowNumber : null,
       pendingAppointment: eligible && scheduled ? {...dims,rowNumber:row.rowNumber,appointmentDate:scheduled} : null };
   });
 }

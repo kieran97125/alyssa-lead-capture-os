@@ -6,6 +6,12 @@
 - Keep internal form tokens under More and shorten routine report/planning copy.
 - Controls and saved configuration retain their existing contracts. Evidence and rollback: `decisions/2026-10-06-optional-operator-settings.md`.
 
+## 2026-10-06 — Current appointment statuses
+
+- Remove the Dashboard audit banner while retaining the permission-controlled audit module.
+- Add the shared current cancellation/requested-reschedule summary and optional aggregate details to Dashboard and Marketing Performance.
+- Keep manual refresh, historical snapshot compatibility, scoped attribution and real availability states. Evidence and rollback: `decisions/2026-10-06-current-appointment-statuses.md`.
+
 ## 2026-10-06 — Compact report descriptions
 
 - PR #106 replaces repeated per-brand diagnostic cards with a compact, accessible disclosure and moves report methodology behind an explicit summary.
