@@ -1277,7 +1277,7 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
   await expect(page.getByRole("heading", { name: "預算概覽" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "品牌 KPI 進度" })).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "同步最新數據" })
+    page.getByRole("button", { name: "跟 Lead Sheet 更新" })
   ).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "主要功能" });
   await expect(navigation.getByRole("link")).toHaveCount(15);

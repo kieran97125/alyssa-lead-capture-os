@@ -1,9 +1,6 @@
 import "server-only";
 
-import {
-  normalizeMetaLeadRowsInLiveTable,
-  readLiveLeadTable,
-} from "@/lib/integrations/googleSheetsLeadTable";
+import { readPublishedLeadDashboardSnapshot } from "@/lib/marketing/leadDashboardSnapshotStore";
 import {
   buildLeadSheetGroups,
   normalizeGoogleSheetBrandKey,
@@ -98,16 +95,6 @@ function costSummaryForModel(input: {
 
 function firstString(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
-}
-
-function stringRecord(value: unknown) {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return {};
-  return Object.fromEntries(
-    Object.entries(value).flatMap(([key, item]) => {
-      const normalized = firstString(item);
-      return normalized ? [[key, normalized]] : [];
-    })
-  );
 }
 
 function treatmentAliases(value: unknown): LeadSheetTreatmentAlias[] {
@@ -344,6 +331,9 @@ export async function getLeadDashboardSnapshot(
   }
 
   const access = providedAccess ?? (await getCurrentInternalAccess());
+  if (access.source !== "supabase_auth" && access.source !== "shared_password") {
+    return emptySnapshot(filters, "請先登入，以讀取已儲存 Lead 資料。");
+  }
   const allowedBrandIds =
     access.source === "supabase_auth" && access.accessLevel !== "master"
       ? access.brandIds ?? []
@@ -385,25 +375,8 @@ export async function getLeadDashboardSnapshot(
       (brand) => !allowedBrandIdSet || allowedBrandIdSet.has(brand.id)
     );
     const aliases = treatmentAliases(source.configuration.treatmentAliases);
-    const rawLiveTable = await readLiveLeadTable(source.configuration, {
-      readOnly: true,
-    });
-    const liveTable = await normalizeMetaLeadRowsInLiveTable({
-      configuration: source.configuration,
-      liveTable: rawLiveTable,
-      brands,
-      brandAliases: stringRecord(source.configuration.brandAliases),
-      treatmentAliases: aliases,
-      writeBack: false,
-    });
-    const parsed = buildLeadSheetGroups({
-      ...liveTable,
-      brands,
-      sourceBrandId: null,
-      brandAliases: stringRecord(source.configuration.brandAliases),
-      treatmentAliases: aliases,
-      appsScriptContract: false,
-      dedupeByIdentity: true,
+    const parsed = await readPublishedLeadDashboardSnapshot({
+      dataSourceId: source.id, configuration: source.configuration, brands,
     });
     const accountBrandIds = new Set(
       brandIdsForLeadAccount(visibleBrands, filters.accountId, "permission")
@@ -455,12 +428,7 @@ export async function getLeadDashboardSnapshot(
     });
     const warnings: string[] = [];
     if (source.status !== "connected") {
-      warnings.push("Lead Funnel 連接狀態需要檢查；以下仍為今次即時讀取結果。");
-    }
-    if (!liveTable.normalizationWriteBackOk) {
-      warnings.push(
-        "Meta Lead Form 已即時納入 Dashboard，但 Google Sheet 格式回寫暫時失敗；請檢查 Google Sheets write authorization。"
-      );
+      warnings.push("上次同步狀態需要檢查；以下保留最近一次成功儲存嘅 Lead 資料。");
     }
     if (parsed.diagnostics.unknownBrandRows > 0) {
       warnings.push(
@@ -469,7 +437,7 @@ export async function getLeadDashboardSnapshot(
     }
     if (parsed.diagnostics.invalidCreatedDateRows > 0) {
       warnings.push(
-        `${parsed.diagnostics.invalidCreatedDateRows} 行 Created At 無效，Lead 同舊格式 Book fallback 暫未計入。`
+        `${parsed.diagnostics.invalidCreatedDateRows} 行 Created At 無效，Lead 暫未計入；Book 仍按最後更新日期。`
       );
     }
 
@@ -484,8 +452,8 @@ export async function getLeadDashboardSnapshot(
       }),
       sourceName: source.display_name,
       sourceStatus: source.status,
-      lastSuccessAt: source.last_success_at,
-      loadedAt: new Date().toISOString(),
+      lastSuccessAt: parsed.loadedAt,
+      loadedAt: parsed.loadedAt,
       brandColors,
       trendSeries: buildLeadDashboardTrend({
         groups: parsed.groups,
@@ -501,7 +469,7 @@ export async function getLeadDashboardSnapshot(
       live: true,
     };
   } catch (error) {
-    console.warn("lead_dashboard_live_read_failed", {
+    console.warn("lead_dashboard_saved_read_failed", {
       code:
         error && typeof error === "object" && "code" in error
           ? String(error.code)

@@ -102,9 +102,6 @@ const mocks = {
   "server-only": {},
   "google-auth-library": { OAuth2Client: OfflineOAuthClient, CodeChallengeMethod },
   "@/lib/supabase/admin": { createSupabaseAdminClient: database, hasSupabaseAdminEnv: () => true },
-  "@/lib/security/internalAccessServer": { getCurrentInternalAccess: async () => ({ accessLevel: "master" }) },
-  "@/lib/marketing/operationalAnnotationStore": { getOperationalAnnotations: async () => [] },
-  "@/lib/marketing/performanceCosts": { fetchDailySpendFacts: async () => [] },
   "@/lib/integrations/metaLeadFormSheetNormalizer": {
     normalizeMetaLeadFormRows: () => ({ rows,
       rewrites: [{ rowNumber: 2, values: Array(22).fill("synthetic"), leadId: "synthetic" }] }),
@@ -125,7 +122,6 @@ function load(relativePath) {
   return loadedModule.exports;
 }
 const table = load("src/lib/integrations/googleSheetsLeadTable.ts");
-const dashboard = load("src/lib/marketing/leadDashboard.ts");
 function reset() {
   dbWrites = 0; tokenCalls = 0; sheetCalls = [];
   tokenMode = "success"; connectionMode = "success"; sheetMode = "success";
@@ -133,12 +129,10 @@ function reset() {
 }
 try {
   reset();
-  const snapshot = await dashboard.getLeadDashboardSnapshot({ startDate: "2026-10-01", endDate: "2026-10-03" },
-    { accessLevel: "master" });
-  assert.equal(snapshot.live, true);
-  assert.deepEqual([snapshot.totals.leads, snapshot.totals.bookings, snapshot.totals.shows], [1, 1, 1]);
-  assert.equal(dbWrites, 0, "Dashboard GET must not persist OAuth health");
-  assert.equal(sheetCalls.length, 1, "Dashboard GET reads once and must not normalize/write the Sheet");
+  const readOnlyTable = await table.readLiveLeadTable(configuration, { readOnly: true });
+  assert.deepEqual(readOnlyTable.rows, rows);
+  assert.equal(dbWrites, 0, "Read-only gateway must not persist OAuth health");
+  assert.equal(sheetCalls.length, 1, "Read-only gateway reads once and must not normalize/write the Sheet");
   assert.equal(sheetCalls[0].init.method ?? "GET", "GET");
   assert.deepEqual(sheetCalls[0].url.searchParams.getAll("ranges"), ["'lead'!A1:Y1", "'lead'!A2:Y5000"]);
   assert.equal(sheetCalls[0].url.searchParams.get("valueRenderOption"), "UNFORMATTED_VALUE");
@@ -148,7 +142,7 @@ try {
   assert.equal(sheetCalls[0].init.signal, readSignal, "One deadline spans DB, token and Sheet response/body");
 
   // Advance the provider deadline immediately instead of sleeping for 12 s.
-  // This also exercises the dashboard's safe failure result, without supplying
+  // This also exercises the gateway's safe failure result, without supplying
   // a caller AbortSignal that could hide an absent built-in deadline.
   reset();
   sheetMode = "stall";
@@ -158,11 +152,7 @@ try {
     return activeController.signal;
   };
   try {
-    const unavailable = await dashboard.getLeadDashboardSnapshot(
-      { startDate: "2026-10-01", endDate: "2026-10-03" }, { accessLevel: "master" });
-    assert.equal(unavailable.live, false);
-    assert.equal(unavailable.loadedAt, null);
-    assert.match(unavailable.warnings.join(" "), /Lead Sheet 讀取逾時/);
+    await assert.rejects(table.readLiveLeadTable(configuration, { readOnly: true }), /Lead Sheet 讀取逾時/);
     assert.equal(dbWrites, 0);
     assert.equal(sheetCalls.length, 1);
   } finally {
@@ -194,7 +184,7 @@ try {
   assert.equal(dbWrites, 2, "Explicit sync retains successful OAuth health updates");
   assert.deepEqual(sheetCalls.map(({ url, init }) => [url.pathname.split("/").at(-1), init.method ?? "GET"]),
     [["values:batchGet", "GET"], ["values:batchUpdate", "POST"], ["values:batchClear", "POST"]]);
-  console.log("PASS: read-only dashboard, one batch read, shared abort at 4 stages, no token retries, explicit sync preserved");
+  console.log("PASS: standalone read-only Google gateway, one batch read, shared abort at 4 stages, no token retries, explicit sync preserved");
 } finally {
   globalThis.fetch = originalFetch;
   envNames.forEach((name, index) => {

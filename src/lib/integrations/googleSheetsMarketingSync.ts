@@ -12,11 +12,13 @@ import {
   recordLeadSheetAuditFailure,
   type LeadAuditCaptureResult,
 } from "@/lib/marketing/leadSheetAudit";
+import { publishLeadDashboardSnapshot } from "@/lib/marketing/leadDashboardSnapshotStore";
 import { getHkMonthContext } from "@/lib/marketing/pacing";
 import {
   aggregateDailySpendRows,
   aggregateLeadSheetPerformance,
   type LeadSheetPerformanceDiagnostics,
+  type ParsedLeadSheetGroups,
   type LeadSheetTreatmentAlias,
 } from "@/lib/marketing/googleSheetsMetricParser";
 import {
@@ -432,6 +434,9 @@ async function collectLeadFunnelMetrics(
     dailyMetrics,
     treatmentMetrics,
     diagnostics: parsed.diagnostics,
+    dashboardGroups: normalizedLiveTable.arrivalOutcomeAuthority
+      ? { groups: parsed.groups, diagnostics: parsed.diagnostics } : null,
+    capturedAt: timestamp,
     audit,
   };
 }
@@ -551,6 +556,8 @@ export async function syncMarketingDataSource(
   const startedAt = new Date().toISOString();
   let audit: LeadAuditCaptureResult | null = null;
   let auditSnapshotAttempted = false;
+  let sourceCompletionAt: string | null = null;
+  let sourceCompletionStatus: string | null = null;
   const staleBefore = new Date(Date.now() - 10 * 60 * 1000).toISOString();
   const { data: claimedSource, error: claimError } = await supabase
     .from("marketing_data_sources")
@@ -612,6 +619,8 @@ export async function syncMarketingDataSource(
     let metrics: DailyMetricUpsert[];
     let treatmentMetrics: TreatmentPerformanceMetricUpsert[] = [];
     let diagnostics: LeadSheetPerformanceDiagnostics | null = null;
+    let dashboardGroups: ParsedLeadSheetGroups | null = null;
+    let capturedAt = startedAt;
     if (dataset === "daily_spend") {
       metrics = await collectDailySpendMetrics(
         source,
@@ -640,6 +649,8 @@ export async function syncMarketingDataSource(
       metrics = leadFunnel.dailyMetrics;
       treatmentMetrics = leadFunnel.treatmentMetrics;
       diagnostics = leadFunnel.diagnostics;
+      dashboardGroups = leadFunnel.dashboardGroups;
+      capturedAt = leadFunnel.capturedAt;
     }
     await reconcileMetrics(source, dataset, metrics);
     if (dataset === "lead_funnel") {
@@ -648,7 +659,7 @@ export async function syncMarketingDataSource(
 
     const completedAt = new Date().toISOString();
     const sourceStatus = audit && audit.openAlerts > 0 ? "warning" : "connected";
-    const { error: sourceUpdateError } = await supabase
+    const { data: updatedSource, error: sourceUpdateError } = await supabase
       .from("marketing_data_sources")
       .update({
         status: sourceStatus,
@@ -657,25 +668,42 @@ export async function syncMarketingDataSource(
         last_error_summary: null,
         updated_at: completedAt,
       })
-      .eq("id", source.id);
-    if (sourceUpdateError) throw sourceUpdateError;
-    await supabase.from("marketing_command_center_audit").insert({
-      actor_email: options.actorIdentifier || "google_sheets_sync",
-      action: "data_source.synced",
-      entity_type: "marketing_data_source",
-      entity_id: source.id,
-      brand_id: source.brand_id,
-      after_json: {
-        dataset,
-        metricRows: metrics.length,
-        treatmentMetricRows: treatmentMetrics.length,
-        throughDate,
-        diagnostics,
-        auditRunId: audit?.runId ?? null,
-        auditStatus: audit?.status ?? null,
-        auditOpenAlerts: audit?.openAlerts ?? 0,
-      },
-    });
+      .eq("id", source.id)
+      .eq("status", "syncing").eq("last_sync_at", startedAt)
+      .select("id").single();
+    if (sourceUpdateError || !updatedSource) throw sourceUpdateError || new Error("同步鎖已更新，請核對最新同步狀態。");
+    sourceCompletionAt = completedAt;
+    sourceCompletionStatus = sourceStatus;
+    if (dashboardGroups && audit) {
+      await publishLeadDashboardSnapshot({
+        dataSourceId: source.id, runId: audit.runId, configuration, brands,
+        completedAt, capturedAt, parsed: dashboardGroups,
+      });
+    }
+
+    // A completion-log transport failure must not turn an already published,
+    // validated snapshot into an apparent failed refresh.
+    try {
+      await supabase.from("marketing_command_center_audit").insert({
+        actor_email: options.actorIdentifier || "google_sheets_sync",
+        action: "data_source.synced",
+        entity_type: "marketing_data_source",
+        entity_id: source.id,
+        brand_id: source.brand_id,
+        after_json: {
+          dataset,
+          metricRows: metrics.length,
+          treatmentMetricRows: treatmentMetrics.length,
+          throughDate,
+          diagnostics,
+          auditRunId: audit?.runId ?? null,
+          auditStatus: audit?.status ?? null,
+          auditOpenAlerts: audit?.openAlerts ?? 0,
+        },
+      });
+    } catch {
+      console.warn("marketing_sync_completion_log_unavailable");
+    }
 
     return {
       ok: true,
@@ -716,7 +744,9 @@ export async function syncMarketingDataSource(
         last_error_summary: message,
         updated_at: failedAt,
       })
-      .eq("id", source.id);
+      .eq("id", source.id)
+      .eq("status", sourceCompletionStatus ?? "syncing")
+      .eq("last_sync_at", sourceCompletionAt ?? startedAt);
     return {
       ok: false,
       sourceId: source.id,
@@ -733,16 +763,22 @@ export async function syncMarketingDataSource(
 }
 
 export async function syncAllMarketingGoogleSheets(
-  options: { actorIdentifier?: string } = {}
+  options: { actorIdentifier?: string; purpose?: "manual" | "scheduled" } = {}
 ) {
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
+  let query = supabase
     .from("marketing_data_sources")
     .select("id")
     .eq("provider_key", "google_sheets")
     .eq("configuration->>dataset", "lead_funnel")
     .neq("status", "paused")
     .limit(50);
+  // Managed CS Lead data changes only on an explicit authorized operation.
+  // Keep the scheduled route for other configured funnel sources.
+  if (options.purpose === "scheduled") {
+    query = query.or("configuration->>sourceProfile.is.null,configuration->>sourceProfile.neq.alyssa_workspace_lead_funnel");
+  }
+  const { data, error } = await query;
   if (error) throw error;
 
   return Promise.all(

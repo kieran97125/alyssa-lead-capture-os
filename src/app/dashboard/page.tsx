@@ -260,12 +260,12 @@ async function DashboardSyncStatus({ result, isMaster, returnPath }: {
       <input type="hidden" name="returnPath" value={returnPath} />
       <DashboardRefreshButton
         disabled={refreshDisabled}
-        idleLabel="同步最新數據"
-        pendingLabel="同步數據中…"
+        idleLabel="跟 Lead Sheet 更新"
+        pendingLabel="讀取 Lead Sheet 中…"
       />
-      <small>上次同步：{formatHkDateTime(latestSuccessAt) || "尚未同步"}</small>
+      <small>上次同步作業：{formatHkDateTime(latestSuccessAt) || "尚未同步"} · 按掣先更新</small>
     </form>
-  ) : <small>上次同步：{formatHkDateTime(latestSuccessAt) || "尚未同步"}</small>;
+  ) : <small>上次同步作業：{formatHkDateTime(latestSuccessAt) || "尚未同步"} · 由 Master 手動更新</small>;
 }
 
 async function LeadAuditAlert({ result }: {
@@ -291,7 +291,7 @@ async function LeadDashboardRegion({ result, returnPath }: {
 }) {
   const snapshot = readDashboardData(await result);
   if (!snapshot?.live) {
-    return <DashboardRegionState title="Lead、預約及到店" failed retryHref={returnPath} />;
+    return <DashboardRegionState title="Lead、預約及到店" failed retryHref={returnPath} message="未有可用嘅已同步資料。請由 Master 按「跟 Lead Sheet 更新」。" />;
   }
   return (
     <>

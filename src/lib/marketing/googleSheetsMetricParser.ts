@@ -62,6 +62,7 @@ export type LeadSheetPerformanceDiagnostics = {
 };
 
 export type ParsedLeadSheetPerformance = {
+  groups: LeadSheetLeadGroup[];
   dailyMetrics: ParsedLeadFunnelMetric[];
   metricFacts: ParsedLeadSheetMetricFact[];
   diagnostics: LeadSheetPerformanceDiagnostics;
@@ -906,6 +907,7 @@ export function aggregateLeadSheetPerformance(input: {
   });
 
   return {
+    groups: parsed.groups,
     dailyMetrics: Array.from(dailyMetrics.values()),
     metricFacts: Array.from(metricFacts.values()),
     diagnostics: parsed.diagnostics,

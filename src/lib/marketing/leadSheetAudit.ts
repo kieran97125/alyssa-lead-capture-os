@@ -117,7 +117,7 @@ function decryptionKeyMap() {
   return keys;
 }
 
-function deriveKey(master: Buffer, purpose: "encryption" | "hmac") {
+function deriveKey(master: Buffer, purpose: "encryption" | "hmac" | "dashboard-snapshot") {
   const cacheKey = `${master.toString("hex")}:${purpose}`;
   const cached = derivedKeyCache.get(cacheKey);
   if (cached) return cached;
@@ -215,6 +215,35 @@ export function decryptLeadAuditPayload(input: {
     decipher.final(),
   ]).toString("utf8");
   return JSON.parse(plaintext) as LeadAuditCanonicalRecord;
+}
+
+// A separate HKDF purpose and caller-supplied AAD prevent audit row ciphertext
+// from being replayed as a published Dashboard snapshot (or across sources/runs).
+export type EncryptedLeadDashboardPayload = {
+  keyVersion: string;
+  ciphertext: string;
+  iv: string;
+  authTag: string;
+};
+
+export function encryptLeadDashboardPayload(plaintext: string, aad: string): EncryptedLeadDashboardPayload {
+  const master = decryptionKeyMap().get(ACTIVE_KEY_VERSION);
+  if (!master) throw new Error("Lead Audit active encryption key unavailable.");
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", deriveKey(master, "dashboard-snapshot"), iv);
+  cipher.setAAD(Buffer.from(aad, "utf8"));
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()]);
+  return { keyVersion: ACTIVE_KEY_VERSION, ciphertext: ciphertext.toString("base64"),
+    iv: iv.toString("base64"), authTag: cipher.getAuthTag().toString("base64") };
+}
+
+export function decryptLeadDashboardPayload(payload: EncryptedLeadDashboardPayload, aad: string): string {
+  const master = decryptionKeyMap().get(payload.keyVersion);
+  if (!master) throw new Error("Lead Audit snapshot key unavailable.");
+  const decipher = createDecipheriv("aes-256-gcm", deriveKey(master, "dashboard-snapshot"), Buffer.from(payload.iv, "base64"));
+  decipher.setAAD(Buffer.from(aad, "utf8"));
+  decipher.setAuthTag(Buffer.from(payload.authTag, "base64"));
+  return Buffer.concat([decipher.update(Buffer.from(payload.ciphertext, "base64")), decipher.final()]).toString("utf8");
 }
 
 function normalizeBrandKey(value: string) {

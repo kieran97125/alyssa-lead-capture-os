@@ -5,10 +5,12 @@ export function DashboardRegionState({
   title,
   failed = false,
   retryHref = "/dashboard",
+  message,
 }: {
   title: string;
   failed?: boolean;
   retryHref?: string;
+  message?: string;
 }) {
   return (
     <section
@@ -21,9 +23,9 @@ export function DashboardRegionState({
         <div>
           <h2 className="text-base font-semibold text-system-foreground">{title}</h2>
           <p className="mt-2 text-sm text-system-muted-foreground" role="status">
-            {failed
+            {message ?? (failed
               ? "暫時未能讀取數據，請稍後再試。其他功能仍可使用。"
-              : "正在讀取最新數據… 你可以先使用其他功能。"}
+              : "正在讀取最新數據… 你可以先使用其他功能。")}
           </p>
         </div>
         {failed ? (
