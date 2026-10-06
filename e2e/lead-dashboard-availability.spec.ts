@@ -24,7 +24,7 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
         await expect(panel.locator(".lead-dashboard-metric")).toHaveCount(5);
         await expect(panel.getByRole("alert")).toHaveCount(0);
         await expect(panel.getByText("已同步資料", { exact: true })).toBeVisible();
-        await expect(panel.getByText(/上次成功更新.*10\/5.*HKT/)).toBeVisible();
+        await expect(panel.getByText("上次成功更新 5/10 12:00 HKT", { exact: true })).toBeVisible();
         if (state === "previous-successful-update") {
           await expect(page.getByRole("status")).toContainText("最近一次更新未成功");
         }
