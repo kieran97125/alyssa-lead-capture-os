@@ -1646,6 +1646,8 @@ test("retired monthly Spend workbooks keep read-only historical links", async ({
 }) => {
   await page.goto("/data-sources", { waitUntil: "domcontentloaded" });
 
+  await expect(page.getByText("August Overview_Alyssa_2026")).toBeHidden();
+  await page.locator("summary").filter({ hasText: "舊月份廣告費 ·" }).click();
   await expect(
     page.getByRole("heading", { name: "舊月份廣告費數據表", exact: true })
   ).toBeVisible();

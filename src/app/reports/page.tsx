@@ -18,7 +18,7 @@ export default async function ReportsPage() {
               <p className="command-page-kicker">Management reporting</p>
               <h1 className="command-page-title">報告生成</h1>
               <p className="command-page-subtitle">
-                用同一份不可修改快照生成可搜尋 PDF 或可編輯 PowerPoint，並按需要追加品牌及療程 Breakdown。
+                匯出 PDF、PowerPoint 或文字報告。
               </p>
               <div className="report-generator-trust-row">
                 <span><FileText size={14} /> 可搜尋向量 PDF</span>

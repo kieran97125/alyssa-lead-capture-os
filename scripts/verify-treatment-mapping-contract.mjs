@@ -33,7 +33,7 @@ assert.match(store, /normalizeTreatmentMappingItemCode/);
 assert.match(store, /parseTreatmentMappingKeywords/);
 assert.match(store, /treatment_mapping_rules/);
 
-assert.match(panel, /System source of truth/);
+assert.match(panel, /data-mapping-authority="system"/);
 assert.match(panel, /Google Sheet.*歷史參考/s);
 assert.match(panel, /標準輸出（原 I 欄）/);
 assert.match(panel, /Dashboard 分類/);
