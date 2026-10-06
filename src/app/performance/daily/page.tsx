@@ -1,3 +1,4 @@
+import { SystemDataStatus, SystemDetails } from "@/components/system/SystemDetails";
 import type { ReactNode } from "react";
 import {
   CalendarDays,
@@ -300,7 +301,7 @@ export default async function DailyOverviewPage({
               <p className="command-page-kicker">每日成效</p>
               <h1 className="command-page-title">每日總覽</h1>
               <p className="command-page-subtitle">
-                CS Lead Sheet 提供 Lead／Book／Show；廣告費直接喺系統記錄。每個日期同時睇單日及累計表現，毋須再接駁每月 Spending Sheet。
+                單日及累計 Lead、Book、Show 與廣告費
               </p>
               <div className="daily-overview-source-line">
                 <span>
@@ -367,11 +368,7 @@ export default async function DailyOverviewPage({
               {message}
             </p>
           ) : null}
-          {snapshot.warnings.map((warning) => (
-            <p key={warning} className="command-status-message">
-              {warning}
-            </p>
-          ))}
+          <SystemDataStatus warnings={snapshot.warnings} />
 
           <section className="daily-overview-kpis" aria-label="月份累計摘要">
             <OverviewKpi
@@ -407,13 +404,13 @@ export default async function DailyOverviewPage({
           >
             <div>
               <p className="text-xs font-black uppercase tracking-[0.12em] text-[#9a5d76]">
-                Spend entry mode
+                廣告費輸入
               </p>
               <strong className="mt-1 block text-base text-[#321428]">
-                同一份廣告費帳簿，按工作習慣切換輸入方式
+                選擇輸入方式
               </strong>
               <span className="mt-1 block text-xs font-semibold text-[#806174]">
-                按品牌：一次填 4 個 Source；按 Source：一次填晒各品牌。
+                按品牌或 Source 填寫
               </span>
             </div>
             <nav className="inline-flex rounded-2xl border border-[#ead9cf] bg-[#fffaf7] p-1">
@@ -514,6 +511,7 @@ export default async function DailyOverviewPage({
             </div>
           </section>
 
+          <SystemDetails title="計算口徑與資料來源">
           <section className="daily-overview-method-grid">
             <article className="command-surface">
               <Coins size={18} />
@@ -531,6 +529,7 @@ export default async function DailyOverviewPage({
               </p>
             </article>
           </section>
+          </SystemDetails>
         </div>
       </div>
     </main>

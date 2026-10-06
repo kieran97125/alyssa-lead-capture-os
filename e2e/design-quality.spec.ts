@@ -1,6 +1,42 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
+for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]] as const) {
+  test(`report descriptions remain compact on ${name}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/e2e/report-details", { waitUntil: "networkidle" });
+    const status = page.locator('details').filter({ hasText: "資料狀態" });
+    await expect(status.locator("summary")).toHaveText("資料狀態 · 12 項待核對");
+    await expect(status.locator("li").first()).not.toBeVisible();
+    const bounds = await status.boundingBox();
+    expect(bounds?.height).toBeLessThan(80);
+    await expect(page.getByRole("heading", { name: "Lead／Book／Show" })).toBeInViewport();
+    await expect(page).toHaveScreenshot(`report-details-${name}.png`, { fullPage: true });
+    await status.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(status.locator("li")).toHaveCount(12);
+    await expect(status.locator("li").last()).toBeVisible();
+    const result = await new AxeBuilder({ page })
+      .include('[data-testid="report-details-fixture"]')
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"])
+      .analyze();
+    expect(result.violations).toEqual([]);
+    await page.keyboard.press("Space");
+    await expect(status.locator("li").first()).not.toBeVisible();
+  });
+}
+
+test("daily report retains available KPIs and editable spend with optional explanations", async ({ page }) => {
+  await page.goto("/performance/daily", { waitUntil: "networkidle" });
+  await expect(page.getByRole("heading", { name: "每日總覽" })).toBeVisible();
+  await expect(page.getByTestId("daily-spend-entry-mode-switch")).toBeVisible();
+  const methodology = page.locator("details").filter({ hasText: "計算口徑與資料來源" });
+  await expect(methodology.locator("summary")).toBeVisible();
+  await expect(methodology.getByText(/CPL = 廣告費/)).not.toBeVisible();
+  await methodology.locator("summary").click();
+  await expect(methodology.getByText(/CPL = 廣告費/)).toBeVisible();
+});
+
 async function openSpecimen(page: Page) {
   await page.goto("/e2e/design-system", { waitUntil: "networkidle" });
   await expect(page.getByTestId("design-system-specimen")).toBeVisible();

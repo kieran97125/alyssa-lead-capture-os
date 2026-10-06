@@ -377,14 +377,14 @@ function buildBrandRow(input: {
   const warnings: string[] = [];
   if (spendCoverageDays < expectedSpendDays) {
     warnings.push(
-      `${input.brand.name} 廣告費完整填寫 ${spendCoverageDays}/${expectedSpendDays} 日（四類均已確認，或屬舊未分類資料）`
+      `${input.brand.name} 廣告費已確認 ${spendCoverageDays}/${expectedSpendDays} 日；其餘日期待確認。`
     );
   }
   if (!funnelSource) {
-    warnings.push(`${input.brand.name} 未有 CS Lead Funnel 來源`);
+    warnings.push(`${input.brand.name} 未設定 Lead 資料來源。`);
   } else if (funnelSource.status !== "connected") {
     warnings.push(
-      `${input.brand.name} CS Lead Funnel 狀態：${funnelSource.status}`
+      `${input.brand.name} Lead 資料${funnelSource.status === "paused" ? "已暫停更新" : "更新未成功"}。`
     );
   }
 

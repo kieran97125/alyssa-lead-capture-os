@@ -1,3 +1,4 @@
+import { SystemDataStatus } from "@/components/system/SystemDetails";
 import { Suspense } from "react";
 import { redirect, unstable_rethrow } from "next/navigation";
 import {
@@ -148,7 +149,7 @@ export default async function DashboardPage({
               <p className="command-page-kicker">早晨，{greetingName}</p>
               <h1 className="command-page-title">Dashboard</h1>
               <p className="command-page-subtitle">
-                集中查看 Lead、預約、到店、廣告成本、目標進度同需要處理嘅異常。
+                Lead、預約、到店及廣告成本
               </p>
             </div>
             <div className="command-header-actions">
@@ -335,7 +336,7 @@ async function OperationsRegion({ result, isMaster, returnPath }: {
     .slice(0, 5);
   return (
     <>
-      {snapshot.dataWarnings.map((warning) => <p key={warning} className="command-status-message">{warning}</p>)}
+      <SystemDataStatus warnings={snapshot.dataWarnings} />
       <div className="lead-dashboard-operations-heading">
         <p>Operations control</p>
         <h2>營運控制</h2>
@@ -369,7 +370,7 @@ async function OperationsRegion({ result, isMaster, returnPath }: {
             <SectionHeader
               eyebrow="Funnel pace"
               title="品牌 KPI 進度"
-              description="實際進度會同截至昨日應達值比較；未設定目標時不會發出假警告。"
+              description="截至昨日的目標進度"
               href="/kpis"
               linkLabel="查看完整 KPI"
             />
