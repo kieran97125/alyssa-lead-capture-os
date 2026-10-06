@@ -13,9 +13,12 @@ const configuration = { dataset: "lead_funnel", sourceProfile: "alyssa_workspace
   spreadsheetId: "synthetic-sheet", tabName: "lead", headerRow: 1, maxRows: 30000 };
 const source = { id: "synthetic-source", display_name: "Synthetic Sheet", provider_key: "google_sheets",
   brand_id: null, configuration, status: "connected", last_sync_at: null };
-let mode, events, published, lastGood, requestedPurpose, lastQuery;
+let mode, events, published, lastGood, requestedPurpose, lastQuery, reads, failures, diagnosticLogs;
+const originalInfo = console.info, originalWarn = console.warn, originalError = console.error;
+console.info = console.warn = console.error = (...args) => { diagnosticLogs?.push(args); };
 function reset(nextMode = "success") {
   mode = nextMode; events = []; published = []; lastGood = "previous-good";
+  reads = 0; failures = []; diagnosticLogs = [];
 }
 function database() {
   return { from(table) {
@@ -66,7 +69,10 @@ const mocks = {
   "@/lib/integrations/googleSheetsLeadTable": {
     readLiveLeadTable: async () => {
       events.push("google-read");
-      return { headers, rows, headerRow: 1, arrivalOutcomeAuthority: makeAuthority(mode === "bad-coverage"), pendingAppointmentAuthority: mode === "missing-pending" ? undefined : makePendingAuthority() };
+      reads++;
+      if (mode === "timeout-always" || mode === "timeout-once" && reads === 1) throw authority.arrivalOutcomeAuthorityError("managed_read_timeout", { timeoutMs: 15000 });
+      if (mode === "bad-config") throw authority.arrivalOutcomeAuthorityError("managed_configuration");
+      return { headers, rows, headerRow: 1, arrivalOutcomeAuthority: makeAuthority(mode === "bad-coverage" || mode === "transient-coverage" && reads === 1), pendingAppointmentAuthority: mode === "missing-pending" ? undefined : makePendingAuthority() };
     },
     normalizeMetaLeadRowsInLiveTable: async ({ liveTable }) => ({ ...liveTable, normalizedMetaLeadRows: 0, normalizationWriteBackOk: true }),
   },
@@ -76,7 +82,7 @@ const mocks = {
       return { runId: "synthetic-run", status: mode === "quarantine" ? "quarantined" : "completed",
         openAlerts: 0, quarantined: mode === "quarantine", quarantineReason: "Synthetic quarantine" };
     },
-    recordLeadSheetAuditFailure: async () => { events.push("audit-failure"); },
+    recordLeadSheetAuditFailure: async (input) => { events.push("audit-failure"); failures.push(input); },
   },
   "@/lib/marketing/leadDashboardSnapshotStore": {
     publishLeadDashboardSnapshot: async (input) => {
@@ -133,6 +139,28 @@ for (const failure of ["missing-pending", "bad-coverage", "quarantine", "fail-da
   if (failure !== "fail-publication") assert.ok(!events.includes("publish"));
   if (["missing-pending", "bad-coverage", "quarantine"].includes(failure)) assert.ok(!events.includes("daily"));
 }
+for (const recovery of ["transient-coverage", "timeout-once"]) {
+  reset(recovery);
+  assert.equal((await sync.syncMarketingDataSource(source.id)).ok, true);
+  assert.equal(reads, 2);
+  assert.deepEqual(events.slice(0, 4), ["claim", "google-read", "google-read", "audit"], "Retry revalidates the full snapshot before any write");
+  assert.equal(published.length, 1);
+  assert.equal(failures.length, 0, "A recovered read is not a failed audit or critical alert");
+  assert.equal(published[0].parsed.groups[0].showDate, "2026-10-04");
+  assert.equal(diagnosticLogs.filter(([event]) => event === "lead_sheet_snapshot_read_retry").length, 1);
+  const logs = JSON.stringify(diagnosticLogs);
+  for (const privateValue of ["10000001", "Synthetic private remark", "synthetic-token", "synthetic-sheet"]) assert.ok(!logs.includes(privateValue), "Operational logs must not contain customer cells or credentials");
+}
+for (const failure of ["timeout-always", "bad-config"]) {
+  reset(failure);
+  assert.equal((await sync.syncMarketingDataSource(source.id)).ok, false);
+  assert.equal(reads, failure === "bad-config" ? 1 : 2);
+  assert.equal(lastGood, "previous-good");
+  assert.ok(!events.includes("audit") && !events.includes("daily") && !events.includes("publish"));
+  assert.equal(failures[0].diagnostic.phase, "google_read");
+  assert.equal(failures[0].diagnostic.reason, failure === "bad-config" ? "managed_configuration" : "managed_read_timeout");
+  assert.equal(failures[0].diagnostic.readAttempts.length, reads);
+}
 await sync.syncAllMarketingGoogleSheets({ purpose: "scheduled" });
 assert.ok(lastQuery.some(([kind, value]) => kind === "or" && value === "configuration->>sourceProfile.is.null,configuration->>sourceProfile.neq.alyssa_workspace_lead_funnel"), "Scheduled selection excludes only the managed source and retains other profiles/null");
 await sync.syncAllMarketingGoogleSheets({ purpose: "manual" });
@@ -155,4 +183,5 @@ try {
   if (priorSecret === undefined) delete process.env.CRON_SECRET;
   else process.env.CRON_SECRET = priorSecret;
 }
-console.log("PASS: manual sync reads once, validates arrival coverage, preserves dates/detail, publishes only after audit/facts, retains last-good on failure; scheduled managed reads excluded and cron authorization preserved");
+console.info = originalInfo; console.warn = originalWarn; console.error = originalError;
+console.log("PASS: full-snapshot retry recovers timeout/incoherent reads before writes, permanent failures stop, diagnostics contain no private cells, exhausted retries preserve last-good; audit/fact publication and cron authorization preserved");

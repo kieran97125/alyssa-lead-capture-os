@@ -479,6 +479,7 @@ export async function recordLeadSheetAuditFailure(input: {
   actorIdentifier?: string;
   startedAt: string;
   error: unknown;
+  diagnostic?: { reason: string; counts: Readonly<Record<string, number>>; phase: string; elapsedMs: number; readAttempts: ReadonlyArray<{ attempt: number; elapsedMs: number; reason: string; counts: Readonly<Record<string, number>> }> };
 }) {
   const message =
     input.error instanceof Error && input.error.message.trim()
@@ -496,7 +497,7 @@ export async function recordLeadSheetAuditFailure(input: {
       snapshot_date: hkDate(),
       row_count: 0,
       actor_identifier: input.actorIdentifier || "google_sheets_sync",
-      summary_json: {},
+      summary_json: input.diagnostic ? { syncFailure: input.diagnostic } : {},
       error_summary: message,
       started_at: input.startedAt,
       completed_at: now,
