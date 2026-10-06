@@ -359,7 +359,7 @@ async function collectLeadFunnelMetrics(
       writeBackOk: normalizedLiveTable.normalizationWriteBackOk,
     });
   }
-  const audit = await captureLeadSheetAuditSnapshot({
+  const captureAudit = () => captureLeadSheetAuditSnapshot({
     dataSourceId: source.id,
     actorIdentifier: options.actorIdentifier,
     headers,
@@ -369,6 +369,7 @@ async function collectLeadFunnelMetrics(
     brandAliases: leadBrandAliases,
     startedAt: options.startedAt,
   });
+  const existingAudit = normalizedLiveTable.arrivalOutcomeAuthority ? null : await captureAudit();
   const timestamp = new Date().toISOString();
   const month = getHkMonthContext();
   const parsed = aggregateLeadSheetPerformance({
@@ -381,7 +382,10 @@ async function collectLeadFunnelMetrics(
     dailyThroughDate: throughDate,
     activityThroughDate: month.today,
     pendingThroughDate: addIsoDays(month.today, 400),
+    arrivalOutcomeAuthority: normalizedLiveTable.arrivalOutcomeAuthority,
+    retainAllAuthoritativeArrivalDates: Boolean(normalizedLiveTable.arrivalOutcomeAuthority),
   });
+  const audit = existingAudit ?? await captureAudit();
   const dailyMetrics = parsed.dailyMetrics.map((aggregate) => {
     const metric = emptyMetric({
       brandId: aggregate.brandId,

@@ -1,0 +1,74 @@
+--- live-core-before.gs
++++ live-core-after.gs
+@@ -440,30 +440,48 @@
+   if(!cursor||cursor.version!==1||!Number.isInteger(cursor.accountIndex)||cursor.accountIndex<0||cursor.accountIndex>=OMNI_ACCOUNT_TABS.length||cursor.accountName!==OMNI_ACCOUNT_TABS[cursor.accountIndex]||!Number.isInteger(cursor.nextRow)||cursor.nextRow<2)throw new Error('Invalid capture cursor scope; review required.');
+   return cursor;
+ }
++// Capture-only diagnostics: static phase names/durations, never row values,
++// Account names, IDs or raw provider errors. Logging cannot change work outcome.
++function omniCapturePhaseLog_(entry) {try{console.log(JSON.stringify(entry));}catch(ignored){}}
++function omniCapturePhase_(trace,phase,run) {
++  if(!trace)return run();
++  const started=Date.now();
++  omniCapturePhaseLog_({handler:'captureMissingLeadEvents',phase,state:'start',elapsedMs:started-trace.started});
++  try {
++    const result=run();
++    omniCapturePhaseLog_({handler:'captureMissingLeadEvents',phase,state:'complete',durationMs:Date.now()-started});
++    return result;
++  }catch(error){
++    omniCapturePhaseLog_({handler:'captureMissingLeadEvents',phase,state:'failed',durationMs:Date.now()-started,reason:omniCaptureTimeout_(error||'')?'spreadsheet_timeout':'operation_failed'});
++    throw error;
++  }
++}
+ function captureMissingLeadEvents() {
+   // Background admission happens before any Spreadsheet service access. Never queue a busy sweep.
+-  const lock=LockService.getDocumentLock();if(!lock.tryLock(0))return omniCaptureResult_({added:0,skipped:true,reason:'busy'});
++  const trace={started:Date.now()},lock=LockService.getDocumentLock();if(!omniCapturePhase_(trace,'admission',()=>lock.tryLock(0)))return omniCaptureResult_({added:0,skipped:true,reason:'busy'});
+   let props;
+   try {
+     props=PropertiesService.getScriptProperties();const now=new Date().getTime(),retryAfter=Number(props.getProperty(OMNI_CAPTURE.BACKOFF)||0);
+     if(now<retryAfter)return omniCaptureResult_({added:0,skipped:true,reason:'backoff',retryAfter});
+-    const cursor=omniCaptureCursor_(props),ss=SpreadsheetApp.getActiveSpreadsheet(),account=cursor.accountName,sheet=ss.getSheetByName(account);
+-    if(!sheet)throw new Error('Missing capture Account; cursor unchanged.');
+-    const columns=getOmniColumns_(sheet),width=leadDataWidth_(columns),lastRow=sheet.getLastRow();
++    const cursor=omniCaptureCursor_(props),account=cursor.accountName;
++    const source=omniCapturePhase_(trace,'source_lookup',()=>{const ss=SpreadsheetApp.getActiveSpreadsheet(),sheet=ss.getSheetByName(account);if(!sheet)throw new Error('Missing capture Account; cursor unchanged.');return{ss,sheet};});
++    const ss=source.ss,sheet=source.sheet;
++    const columns=omniCapturePhase_(trace,'source_headers',()=>getOmniColumns_(sheet)),width=leadDataWidth_(columns),lastRow=omniCapturePhase_(trace,'source_bounds',()=>sheet.getLastRow());
+     const firstRow=cursor.nextRow>lastRow?2:cursor.nextRow,count=Math.max(0,Math.min(OMNI_CAPTURE.BATCH,lastRow-firstRow+1));
+-    const values=count?sheet.getRange(firstRow,1,count,width).getValues():[],append=[],pending=new Set();let context;
++    const values=count?omniCapturePhase_(trace,'source_read',()=>sheet.getRange(firstRow,1,count,width).getValues()):[],append=[],pending=new Set();let context;
+     values.forEach((row,index)=>{
+       const record=rowRecord_(row,columns),identity=stableIdentity_(record,account);if(!identity)return;
+-      context=context||getOmniEventContext_(ss);const key=identity+'|lead';if(context.index.has(key)||pending.has(key))return;
++      context=context||getOmniEventContext_(ss,trace);const key=identity+'|lead';if(context.index.has(key)||pending.has(key))return;
+       append.push(buildEventRow_(record,account,firstRow+index,'lead',record.createdAt||today_(),'',clean_(record.status)));pending.add(key);
+     });
+-    const currentLastRow=sheet.getLastRow();
+-    if(currentLastRow<lastRow||JSON.stringify(getOmniColumns_(sheet))!==JSON.stringify(columns)||(count&&JSON.stringify(sheet.getRange(firstRow,1,count,width).getValues())!==JSON.stringify(values)))return omniCaptureResult_({added:0,skipped:true,reason:'source_changed',account});
+-    const added=append.length?appendOmniEventsWithIndex_(context,append):0;
++    const verified=omniCapturePhase_(trace,'source_verify',()=>{const currentLastRow=sheet.getLastRow();return{currentLastRow,changed:currentLastRow<lastRow||JSON.stringify(getOmniColumns_(sheet))!==JSON.stringify(columns)||(count&&JSON.stringify(sheet.getRange(firstRow,1,count,width).getValues())!==JSON.stringify(values))};});
++    const currentLastRow=verified.currentLastRow;
++    if(verified.changed)return omniCaptureResult_({added:0,skipped:true,reason:'source_changed',account});
++    const added=append.length?omniCapturePhase_(trace,'append',()=>appendOmniEventsWithIndex_(context,append)):0;
+     const end=firstRow+count-1,completeAccount=count===0||end>=currentLastRow,nextIndex=completeAccount?(cursor.accountIndex+1)%OMNI_ACCOUNT_TABS.length:cursor.accountIndex;
+     const next={version:1,accountIndex:nextIndex,accountName:OMNI_ACCOUNT_TABS[nextIndex],nextRow:completeAccount?2:end+1};
+     // An ambiguous append or failed cursor write leaves the old batch eligible for deduplicated retry.
+-    props.setProperty(OMNI_CAPTURE.CURSOR,JSON.stringify(next));
++    omniCapturePhase_(trace,'cursor_write',()=>props.setProperty(OMNI_CAPTURE.CURSOR,JSON.stringify(next)));
+     return omniCaptureResult_({added,skipped:false,account,scanned:count,firstRow,lastRow:end,completeAccount,next});
+   }catch(error) {
+     if(props&&omniCaptureTimeout_(error)) {
+@@ -535,9 +553,9 @@
+   const account=clean_(row[15]),brand=clean_(row[5]),phone=last8_(row[6]),created=dateText_(row[10]),type=clean_(row[3]).toLowerCase();
+   return account&&brand&&phone&&created&&type?`${account}|${brand}|${phone}|${created}|${type}`:'';
+ }
+-function getOmniEventContext_(spreadsheet) {
+-  const ledger=ensureEventSheet_(spreadsheet),lastRow=ledger.getLastRow(),index=getEventIndex_(ledger,lastRow);
+-  if(ledger.getLastRow()!==lastRow)throw new Error('Event ledger changed while reading index; retry required.');
++function getOmniEventContext_(spreadsheet,captureTrace) {
++  const ledger=omniCapturePhase_(captureTrace,'ledger_headers',()=>ensureEventSheet_(spreadsheet)),lastRow=omniCapturePhase_(captureTrace,'ledger_bounds',()=>ledger.getLastRow()),index=omniCapturePhase_(captureTrace,'ledger_index',()=>getEventIndex_(ledger,lastRow));
++  omniCapturePhase_(captureTrace,'ledger_verify',()=>{if(ledger.getLastRow()!==lastRow)throw new Error('Event ledger changed while reading index; retry required.');});
+   return{ledger,index,lastRow};
+ }
+ function appendOmniEventsWithIndex_(context,rows) {

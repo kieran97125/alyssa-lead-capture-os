@@ -6600,7 +6600,7 @@ button[data-pending="true"] {
 }
 
 .lead-dashboard-section-heading p {
-  color: #9d6c81;
+  color: var(--command-muted);
   font-size: 10px;
   font-weight: 900;
   letter-spacing: 0.11em;

@@ -8,6 +8,13 @@ import {
 } from "@/lib/integrations/metaLeadFormSheetNormalizer";
 import type { LeadSheetTreatmentAlias } from "@/lib/marketing/googleSheetsMetricParser";
 
+import {
+  parseLeadArrivalOutcomeAuthority, arrivalOutcomeAuthorityError,
+  type LeadArrivalOutcomeAuthority,
+} from "@/lib/marketing/leadArrivalOutcomeAuthority";
+
+const MANAGED_PROFILE = "alyssa_workspace_lead_funnel";
+const MANAGED_READ_TIMEOUT_MS = 15_000;
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
 const MAX_LEAD_ROWS = 50_000;
@@ -29,12 +36,14 @@ export type LeadTableSourceConfiguration = {
   headerRow?: unknown;
   maxRows?: unknown;
   lastColumn?: unknown;
+  sourceProfile?: unknown;
 };
 
 export type LiveLeadTable = {
   headers: unknown[];
   rows: unknown[][];
   headerRow: number;
+  arrivalOutcomeAuthority?: LeadArrivalOutcomeAuthority;
 };
 
 export type NormalizedLiveLeadTable = LiveLeadTable & {
@@ -240,6 +249,11 @@ export async function normalizeMetaLeadRowsInLiveTable(input: {
     treatmentAliases: input.treatmentAliases,
   });
 
+  // Do not move source rows while verifying a projection from the same read.
+  if (input.configuration.sourceProfile === MANAGED_PROFILE &&
+      (!input.liveTable.arrivalOutcomeAuthority || normalized.rewrites.length > 0)) {
+    throw arrivalOutcomeAuthorityError();
+  }
   let normalizationWriteBackOk = true;
   if (input.writeBack !== false && normalized.rewrites.length > 0) {
     try {
@@ -257,9 +271,30 @@ export async function normalizeMetaLeadRowsInLiveTable(input: {
     headers: input.liveTable.headers,
     rows: normalized.rows,
     headerRow: input.liveTable.headerRow,
+    arrivalOutcomeAuthority: input.liveTable.arrivalOutcomeAuthority,
     normalizedMetaLeadRows: normalized.rewrites.length,
     normalizationWriteBackOk,
   };
+}
+
+async function boundedManagedRead<T>(read: (signal: AbortSignal) => Promise<T>, parent?: AbortSignal): Promise<T> {
+  const controller = new AbortController();
+  const signal = parent ? AbortSignal.any([parent, controller.signal]) : controller.signal;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  let aborted: (() => void) | undefined;
+  try {
+    const deadline = new Promise<never>((_, reject) => {
+      aborted = () => reject(arrivalOutcomeAuthorityError());
+      signal.addEventListener("abort", aborted, { once: true });
+      timer = setTimeout(() => controller.abort(), MANAGED_READ_TIMEOUT_MS);
+      if (signal.aborted) aborted();
+    });
+    signal.throwIfAborted();
+    return await Promise.race([read(signal), deadline]);
+  } finally {
+    if (timer) clearTimeout(timer);
+    if (aborted) signal.removeEventListener("abort", aborted);
+  }
 }
 
 export async function readLiveLeadTable(
@@ -291,21 +326,37 @@ export async function readLiveLeadTable(
     const maxRows = Math.min(configuredMaxRows, MAX_LEAD_ROWS);
     const lastColumn = configuredLastColumn(configuration);
 
-    // Both ranges use identical render options and come from one provider read.
-    const response = await batchGetValues({
+    const managed = configuration.sourceProfile === MANAGED_PROFILE;
+    if (managed && (configuration.headerRow !== 1 || sourceTabName !== "lead" || configuration.maxRows !== 30_000)) {
+      throw arrivalOutcomeAuthorityError();
+    }
+    const ranges = [
+      `${quoteSheetName(sourceTabName)}!A${headerRow}:${lastColumn}${headerRow}`,
+      `${quoteSheetName(sourceTabName)}!A${headerRow + 1}:${lastColumn}${maxRows}`,
+      ...(managed ? ["'_funnel_metrics'!A1:L30000"] : []),
+    ];
+    const read = (readSignal?: AbortSignal) => batchGetValues({
       accessToken,
       spreadsheetId: sourceSpreadsheetId,
-      ranges: [
-        `${quoteSheetName(sourceTabName)}!A${headerRow}:${lastColumn}${headerRow}`,
-        `${quoteSheetName(sourceTabName)}!A${headerRow + 1}:${lastColumn}${maxRows}`,
-      ],
-      signal,
+      ranges,
+      signal: readSignal,
     });
+    // Covers both fetch and JSON body, even if a provider ignores abort.
+    const response = managed ? await boundedManagedRead(read, signal) : await read(signal);
     signal?.throwIfAborted();
+    if (managed && (!Array.isArray(response.valueRanges) || response.valueRanges.length !== 3 ||
+        response.valueRanges.some((range) => !Array.isArray(range.values) || !range.values.every(Array.isArray)))) {
+      throw arrivalOutcomeAuthorityError();
+    }
     const headers = response.valueRanges?.[0]?.values?.[0] ?? [];
     const rows = response.valueRanges?.[1]?.values ?? [];
 
-    return { headers, rows, headerRow };
+    if (managed && (headers.length === 0 || headers.filter((header) => header === "Account").length !== 1)) {
+      throw arrivalOutcomeAuthorityError();
+    }
+    return { headers, rows, headerRow, ...(managed ? {
+      arrivalOutcomeAuthority: parseLeadArrivalOutcomeAuthority(response.valueRanges?.[2]?.values),
+    } : {}) };
   } catch (error) {
     if (signal?.aborted) {
       throw new Error("Lead Sheet 讀取逾時，請稍後重試；其他功能仍可使用。");

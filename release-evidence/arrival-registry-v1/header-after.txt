@@ -1,0 +1,1 @@
+=IFERROR(IF(LEFT(FORMULATEXT(A2),LEN("=LET(arrivalAuthority,""registry_only_v1"","))="=LET(arrivalAuthority,""registry_only_v1"",","Identity · arrival-registry-v1","Identity"),"Identity")
