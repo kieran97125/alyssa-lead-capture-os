@@ -13,3 +13,6 @@ type Story = StoryObj<typeof meta>;
 
 export const Loading: Story = {};
 export const Unavailable: Story = { args: { failed: true } };
+export const AwaitingManualUpdate: Story = {
+  args: { failed: true, message: "未有可用嘅已同步資料。請由 Master 按「跟 Lead Sheet 更新」。" },
+};

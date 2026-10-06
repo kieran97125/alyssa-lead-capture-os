@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    const results = await syncAllMarketingGoogleSheets();
+    const results = await syncAllMarketingGoogleSheets({ purpose: "scheduled" });
     const failed = results.filter((result) => !result.ok);
     return NextResponse.json(
       {

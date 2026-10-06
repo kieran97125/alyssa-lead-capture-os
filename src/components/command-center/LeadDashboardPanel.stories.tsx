@@ -12,3 +12,16 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Unavailable: Story = {};
 export const VerifiedEmpty: Story = { args: { snapshot: leadDashboardAvailabilityFixture(true) } };
+export const PreviousSuccessfulUpdate: Story = {
+  render: ({ snapshot }) => <>
+    {snapshot.warnings.map((warning) => <p key={warning} className="command-status-message is-error" role="status">{warning}</p>)}
+    <LeadDashboardPanel snapshot={snapshot} />
+  </>,
+  args: {
+    snapshot: {
+      ...leadDashboardAvailabilityFixture(true),
+      sourceStatus: "error",
+      warnings: ["最近一次更新未成功；以下保留上次成功同步嘅資料。"],
+    },
+  },
+};

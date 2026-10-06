@@ -50,10 +50,10 @@ function formatHkDateTime(value: string | null) {
 }
 
 function statusLabel(status: string, live: boolean) {
-  if (live) return "即時讀取成功";
+  if (live) return "已同步資料";
   if (status === "error") return "來源錯誤";
   if (status === "paused") return "來源已暫停";
-  return "未能即時讀取";
+  return "尚未同步資料";
 }
 
 function SummaryMetric({
@@ -198,7 +198,7 @@ export function LeadDashboardPanel({
             <strong>Lead Sheet</strong>
             <small>
               <DatabaseZap size={13} />
-              更新於 {formatHkDateTime(snapshot.loadedAt)}
+              上次成功更新 {formatHkDateTime(snapshot.loadedAt)}
             </small>
           </div>
           <p>
