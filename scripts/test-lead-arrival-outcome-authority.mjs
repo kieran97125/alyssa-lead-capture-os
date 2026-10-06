@@ -24,6 +24,7 @@ function load(path) {
 }
 const authority = load("src/lib/marketing/leadArrivalOutcomeAuthority.ts");
 const parser = load("src/lib/marketing/googleSheetsMetricParser.ts");
+const pending = load("src/lib/marketing/leadPendingAppointmentAuthority.ts");
 const table = load("src/lib/integrations/googleSheetsLeadTable.ts");
 const headers = ["最後更新日期", "Created At", "跟進狀態", "品牌", "Account", "電話", "預約日期", "確認到店日期", "療程項目"];
 const rows = [["2026-10-02", "2026-10-01", "no show", "GOS Beauty", "GOS Beauty", "10000001", "2026-10-03", "", "Synthetic treatment"]];
@@ -68,10 +69,10 @@ globalThis.fetch = async (url, init) => {
   return { ok: true, json: () => providerMode === "stalled-body" ? new Promise(() => {}) : Promise.resolve(payload) };
 };
 const config = { spreadsheetId: "synthetic_sheet_id_12345", sourceProfile: "alyssa_workspace_lead_funnel", headerRow: 1, tabName: "lead", maxRows: 30000 };
-payload = { valueRanges: [{ values: [headers] }, { values: rows }, { values: projection(fact) }] };
+payload = { valueRanges: [{ values: [headers] }, { values: rows }, { values: projection(fact) }, { values: [pending.PENDING_BRIDGE_HEADERS, ["source_1","GOS Beauty|p:10000001",2,true,"",true,true,true]] }, {values:[pending.PENDING_REGISTRY_HEADERS]}] };
 try {
   const live = await table.readLiveLeadTable(config);
-  assert.deepEqual(calls[0].url.searchParams.getAll("ranges"), ["'lead'!A1:Y1", "'lead'!A2:Y30000", "'_funnel_metrics'!A1:L30000"]);
+  assert.deepEqual(calls[0].url.searchParams.getAll("ranges"), ["'lead'!A1:Y1", "'lead'!A2:Y30000", "'_funnel_metrics'!A1:L30000", "'_metric_identity_bridge'!A1:H30000", "'_appointment_registry'!A1:AA30000"]);
   assert.equal(calls.length, 1); assert.equal(calls[0].url.searchParams.get("dateTimeRenderOption"), "SERIAL_NUMBER");
   assert.equal(calls[0].url.searchParams.get("valueRenderOption"), "UNFORMATTED_VALUE");
   const normalized = await table.normalizeMetaLeadRowsInLiveTable({ configuration: config, liveTable: live, brands, writeBack: true });

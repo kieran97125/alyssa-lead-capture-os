@@ -2,6 +2,8 @@ import { execFileSync } from "node:child_process";
 import { expect, test } from "@playwright/test";
 
 for (const [name, script] of [
+  ["bounded staff row reads preserve operational fields", "scripts/test-edited-account-batch.mjs"],
+  ["current pending appointment authority and independent dimensions", "scripts/test-lead-pending-authority.mjs"],
   ["saved snapshot encryption, authority, permissions and unavailable data", "scripts/test-manual-lead-dashboard.mjs"],
   ["manual sync publication and scheduled source exclusion", "scripts/test-manual-lead-sync.mjs"],
   ["bounded Google gateway remains confined to explicit synchronization", "scripts/test-dashboard-google-read.mjs"],

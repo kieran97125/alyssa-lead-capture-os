@@ -104,7 +104,7 @@ function dashboardDates(startDate: string, endDate: string) {
   return dates;
 }
 
-export function buildLeadDashboardTrend(input: {
+function buildBaseLeadDashboardTrend(input: {
   groups: LeadSheetLeadGroup[];
   filters: LeadDashboardFilters;
   brands: SheetBrandReference[];
@@ -353,7 +353,7 @@ function dimensionRow(input: {
   };
 }
 
-export function buildLeadDashboardModel(input: {
+function buildBaseLeadDashboardModel(input: {
   groups: LeadSheetLeadGroup[];
   brands: SheetBrandReference[];
   treatmentLabels?: string[];
@@ -594,3 +594,41 @@ export function buildLeadDashboardModel(input: {
   };
 }
 
+
+// Historical funnel dimensions and current appointment dimensions have different
+// lifetimes. Aggregate each once, then join pending-only values by the UI key.
+function pendingOnlyGroups(groups: LeadSheetLeadGroup[]) {
+  return groups.flatMap(group => {
+    const pending=group.pendingAppointment;
+    if (!pending) return [];
+    return [{ ...group, brandId:pending.brandId, brandLabel:pending.brandLabel,
+      treatmentLabel:pending.treatmentLabel, firstTouchDate:null, bookDate:null,
+      bookDateSource:null, showDate:null, noShowDate:null } satisfies LeadSheetLeadGroup];
+  });
+}
+function withoutPending(groups: LeadSheetLeadGroup[]) {
+  return groups.map(group => ({...group,pendingRowNumber:null,pendingAppointment:null}));
+}
+export function buildLeadDashboardModel(input: Parameters<typeof buildBaseLeadDashboardModel>[0]): LeadDashboardModel {
+  if (!input.groups.some(g => g.pendingAppointment !== undefined)) return buildBaseLeadDashboardModel(input);
+  const base=buildBaseLeadDashboardModel({...input,groups:withoutPending(input.groups)});
+  const pending=buildBaseLeadDashboardModel({...input,groups:pendingOnlyGroups(input.groups)});
+  const merge=(a:LeadDashboardDimensionRow[],b:LeadDashboardDimensionRow[]) => {
+    const map=new Map(a.map(r => [r.key,r]));
+    for (const row of b) { const old=map.get(row.key); map.set(row.key,old ? {...old,outstanding:row.outstanding} : row); }
+    return [...map.values()];
+  };
+  const options=new Set([...base.treatmentOptions,...pending.treatmentOptions].map(o=>o.value));
+  return {...base,totals:{...base.totals,outstanding:pending.totals.outstanding},
+    accountRows:merge(base.accountRows,pending.accountRows),brandRows:merge(base.brandRows,pending.brandRows),
+    treatmentRows:merge(base.treatmentRows,pending.treatmentRows),campaignRows:merge(base.campaignRows,pending.campaignRows),
+    outstandingRows:pending.outstandingRows,treatmentOptions:[...options].map(value=>({value,label:value}))};
+}
+export function buildLeadDashboardTrend(input: Parameters<typeof buildBaseLeadDashboardTrend>[0]): PerformanceTrendSeries[] {
+  if (!input.groups.some(g => g.pendingAppointment !== undefined)) return buildBaseLeadDashboardTrend(input);
+  const base=buildBaseLeadDashboardTrend({...input,groups:withoutPending(input.groups)});
+  const pending=buildBaseLeadDashboardTrend({...input,groups:pendingOnlyGroups(input.groups),spendFacts:[],annotations:[]});
+  const byKey=new Map(pending.map(s=>[s.key,s]));
+  const keys=new Set(base.map(s=>s.key));
+  return [...base.map(s=>({...s,points:s.points.map((p,i)=>({...p,pendingShows:byKey.get(s.key)?.points[i]?.pendingShows??0}))})),...pending.filter(s=>!keys.has(s.key))];
+}

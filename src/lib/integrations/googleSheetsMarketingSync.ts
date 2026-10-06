@@ -371,6 +371,7 @@ async function collectLeadFunnelMetrics(
     brandAliases: leadBrandAliases,
     startedAt: options.startedAt,
   });
+  if (normalizedLiveTable.arrivalOutcomeAuthority && !normalizedLiveTable.pendingAppointmentAuthority) throw new Error("Current appointment projection is incomplete.");
   const existingAudit = normalizedLiveTable.arrivalOutcomeAuthority ? null : await captureAudit();
   const timestamp = new Date().toISOString();
   const month = getHkMonthContext();
@@ -385,6 +386,7 @@ async function collectLeadFunnelMetrics(
     activityThroughDate: month.today,
     pendingThroughDate: addIsoDays(month.today, 400),
     arrivalOutcomeAuthority: normalizedLiveTable.arrivalOutcomeAuthority,
+    pendingAppointmentAuthority: normalizedLiveTable.pendingAppointmentAuthority,
     retainAllAuthoritativeArrivalDates: Boolean(normalizedLiveTable.arrivalOutcomeAuthority),
   });
   const audit = existingAudit ?? await captureAudit();

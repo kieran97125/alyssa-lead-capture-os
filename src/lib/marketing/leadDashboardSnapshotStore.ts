@@ -13,7 +13,7 @@ import type {
   SheetBrandReference,
 } from "@/lib/marketing/googleSheetsMetricParser";
 
-export const LEAD_DASHBOARD_SNAPSHOT_VERSION = "lead-dashboard-arrival-registry-v1";
+export const LEAD_DASHBOARD_SNAPSHOT_VERSION = "lead-dashboard-arrival-pending-v2";
 const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 const MAX_ROWS = 50_000;
 const unavailable = () => new Error("未有可核對嘅已儲存 Lead 資料；請由 Master 按「跟 Lead Sheet 更新」。");
@@ -79,6 +79,15 @@ export function validateLeadDashboardSavedGroups(value: unknown, brands: SheetBr
         !group.key || keys.has(String(group.key)) || typeof group.usesStageDateContract !== "boolean" || group.usesEventLedger !== false ||
         ![null, "last_updated"].includes(group.bookDateSource as string | null) ||
         !["lead", "booked", "show", "no_show"].includes(String(group.currentStatus))) throw unavailable();
+    const pending=group.pendingAppointment;
+    if (pending === undefined) throw unavailable();
+    if (pending !== undefined && pending !== null) {
+      const p=record(pending);
+      if (!p || !Number.isSafeInteger(p.rowNumber) || p.rowNumber !== group.pendingRowNumber ||
+          !isoDate(p.appointmentDate) || !p.appointmentDate || !brandIds.has(String(p.brandId)) ||
+          typeof p.brandLabel !== "string" || typeof p.treatmentLabel !== "string") throw unavailable();
+    }
+    if (pending === null && group.pendingRowNumber !== null) throw unavailable();
     keys.add(String(group.key));
     for (const key of ["firstTouchDate", "currentEventDate", "bookDate", "showDate", "noShowDate"]) {
       if (!isoDate(group[key])) throw unavailable();

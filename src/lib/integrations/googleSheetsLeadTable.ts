@@ -1,3 +1,4 @@
+import { parseLeadPendingAppointmentAuthority, type LeadPendingAppointmentAuthority } from "@/lib/marketing/leadPendingAppointmentAuthority";
 import "server-only";
 
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
@@ -44,6 +45,7 @@ export type LiveLeadTable = {
   rows: unknown[][];
   headerRow: number;
   arrivalOutcomeAuthority?: LeadArrivalOutcomeAuthority;
+  pendingAppointmentAuthority?: LeadPendingAppointmentAuthority;
 };
 
 export type NormalizedLiveLeadTable = LiveLeadTable & {
@@ -251,7 +253,7 @@ export async function normalizeMetaLeadRowsInLiveTable(input: {
 
   // Do not move source rows while verifying a projection from the same read.
   if (input.configuration.sourceProfile === MANAGED_PROFILE &&
-      (!input.liveTable.arrivalOutcomeAuthority || normalized.rewrites.length > 0)) {
+      (!input.liveTable.arrivalOutcomeAuthority || !input.liveTable.pendingAppointmentAuthority || normalized.rewrites.length > 0)) {
     throw arrivalOutcomeAuthorityError();
   }
   let normalizationWriteBackOk = true;
@@ -272,6 +274,7 @@ export async function normalizeMetaLeadRowsInLiveTable(input: {
     rows: normalized.rows,
     headerRow: input.liveTable.headerRow,
     arrivalOutcomeAuthority: input.liveTable.arrivalOutcomeAuthority,
+    pendingAppointmentAuthority: input.liveTable.pendingAppointmentAuthority,
     normalizedMetaLeadRows: normalized.rewrites.length,
     normalizationWriteBackOk,
   };
@@ -333,7 +336,7 @@ export async function readLiveLeadTable(
     const ranges = [
       `${quoteSheetName(sourceTabName)}!A${headerRow}:${lastColumn}${headerRow}`,
       `${quoteSheetName(sourceTabName)}!A${headerRow + 1}:${lastColumn}${maxRows}`,
-      ...(managed ? ["'_funnel_metrics'!A1:L30000"] : []),
+      ...(managed ? ["'_funnel_metrics'!A1:L30000", "'_metric_identity_bridge'!A1:H30000", "'_appointment_registry'!A1:AA30000"] : []),
     ];
     const read = (readSignal?: AbortSignal) => batchGetValues({
       accessToken,
@@ -344,7 +347,7 @@ export async function readLiveLeadTable(
     // Covers both fetch and JSON body, even if a provider ignores abort.
     const response = managed ? await boundedManagedRead(read, signal) : await read(signal);
     signal?.throwIfAborted();
-    if (managed && (!Array.isArray(response.valueRanges) || response.valueRanges.length !== 3 ||
+    if (managed && (!Array.isArray(response.valueRanges) || response.valueRanges.length !== 5 ||
         response.valueRanges.some((range) => !Array.isArray(range.values) || !range.values.every(Array.isArray)))) {
       throw arrivalOutcomeAuthorityError();
     }
@@ -356,6 +359,7 @@ export async function readLiveLeadTable(
     }
     return { headers, rows, headerRow, ...(managed ? {
       arrivalOutcomeAuthority: parseLeadArrivalOutcomeAuthority(response.valueRanges?.[2]?.values),
+      pendingAppointmentAuthority: parseLeadPendingAppointmentAuthority(response.valueRanges?.[3]?.values, response.valueRanges?.[4]?.values),
     } : {}) };
   } catch (error) {
     if (signal?.aborted) {

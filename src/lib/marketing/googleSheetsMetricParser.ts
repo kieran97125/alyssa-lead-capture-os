@@ -1,3 +1,4 @@
+import { applyLeadPendingAppointmentAuthority, type LeadPendingAppointmentAuthority } from "@/lib/marketing/leadPendingAppointmentAuthority";
 import { applyLeadArrivalOutcomeAuthority, arrivalOutcomeAuthorityError, type LeadArrivalOutcomeAuthority } from "@/lib/marketing/leadArrivalOutcomeAuthority";
 import type { LeadFunnelEventLedgerTable } from "@/lib/marketing/leadFunnelEventLedger";
 import { resolveLeadAccount } from "@/lib/marketing/leadAccountScope";
@@ -84,7 +85,10 @@ export type LeadSheetGroupRow = {
   csRemark: string;
 };
 
+export type LeadPendingAppointment = { rowNumber: number; appointmentDate: string; brandId: string; brandLabel: string; treatmentLabel: string };
+
 export type LeadSheetLeadGroup = {
+  pendingAppointment?: LeadPendingAppointment | null;
   key: string;
   accountId: string;
   accountLabel: string;
@@ -495,6 +499,7 @@ export function buildLeadSheetGroups(input: {
   appsScriptContract?: boolean;
   dedupeByIdentity?: boolean;
   arrivalOutcomeAuthority?: LeadArrivalOutcomeAuthority;
+  pendingAppointmentAuthority?: LeadPendingAppointmentAuthority;
 }): ParsedLeadSheetGroups {
   const columns = resolveLeadSheetColumns(input.headers);
   const hasAccountColumn = columns.account >= 0;
@@ -526,6 +531,7 @@ export function buildLeadSheetGroups(input: {
       row: LeadSheetGroupRow;
     }>
   >();
+  const pendingDimensions = new Map<number, Pick<LeadPendingAppointment, "brandId" | "brandLabel" | "treatmentLabel">>();
   const aliases = input.treatmentAliases ?? [];
   const valueAt = (row: unknown[], field: LeadSheetFieldKey): unknown => {
     const index = columns[field];
@@ -608,6 +614,7 @@ export function buildLeadSheetGroups(input: {
       matchedAlias,
       fallbackLabel: !hasAccountColumn && input.appsScriptContract && !sheetOwnedTreatments ? "其他" : undefined,
     });
+    pendingDimensions.set(rowNumber, { brandId: brand.id, brandLabel: compactString(valueAt(rawRow, "brand")) || brand.name, treatmentLabel: canonicalTreatment });
     if (canonicalTreatment === "未分類療程") {
       diagnostics.uncategorizedTreatmentRows += 1;
     }
@@ -764,11 +771,8 @@ export function buildLeadSheetGroups(input: {
     } satisfies LeadSheetLeadGroup;
   });
 
-  return {
-    groups: input.arrivalOutcomeAuthority === undefined ? groups
-      : applyLeadArrivalOutcomeAuthority(groups, input.arrivalOutcomeAuthority),
-    diagnostics,
-  };
+  const authoritative = input.arrivalOutcomeAuthority === undefined ? groups : applyLeadArrivalOutcomeAuthority(groups, input.arrivalOutcomeAuthority);
+  return { groups: input.pendingAppointmentAuthority ? applyLeadPendingAppointmentAuthority(authoritative, input.pendingAppointmentAuthority, pendingDimensions) : authoritative, diagnostics };
 }
 
 export function leadGroupBookDate(group: LeadSheetLeadGroup) {
@@ -784,6 +788,11 @@ export function leadGroupNoShowDate(group: LeadSheetLeadGroup) {
 }
 
 export function leadGroupCurrentBookedRow(group: LeadSheetLeadGroup) {
+  if (group.pendingAppointment !== undefined) {
+    const p=group.pendingAppointment;
+    const row=p && group.rows.find(r => r.rowNumber === p.rowNumber);
+    return row && p ? { ...row, appointmentDate:p.appointmentDate } : null;
+  }
   if (group.pendingRowNumber === null) return null;
   return (
     group.rows.find((row) => row.rowNumber === group.pendingRowNumber) ?? null
@@ -800,6 +809,7 @@ export function aggregateLeadSheetPerformance(input: {
   // Accepted for existing callers/audit compatibility; B/A/N/L own KPI dates.
   eventLedger?: LeadFunnelEventLedgerTable | null;
   arrivalOutcomeAuthority?: LeadArrivalOutcomeAuthority;
+  pendingAppointmentAuthority?: LeadPendingAppointmentAuthority;
   retainAllAuthoritativeArrivalDates?: boolean;
   dailyThroughDate: string;
   activityThroughDate: string;
@@ -900,6 +910,7 @@ export function aggregateLeadSheetPerformance(input: {
     if (pendingDate && pendingDate <= input.pendingThroughDate) {
       addFact({
         ...dimensions,
+        ...(group.pendingAppointment ? { brandId: group.pendingAppointment.brandId, brandLabel: group.pendingAppointment.brandLabel, treatmentLabel: group.pendingAppointment.treatmentLabel } : {}),
         metricDate: pendingDate,
         metricKind: "pending_show",
       });
