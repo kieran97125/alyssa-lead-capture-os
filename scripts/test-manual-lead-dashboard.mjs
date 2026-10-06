@@ -123,6 +123,10 @@ function load(path) {
 const parsed = load("src/lib/marketing/googleSheetsMetricParser.ts").buildLeadSheetGroups({
   headers, rows, brands, sourceBrandId: null, appsScriptContract: false, dedupeByIdentity: true,
 });
+for (const group of parsed.groups) {
+  const row=group.rows.find(r=>r.rowNumber===group.pendingRowNumber);
+  group.pendingAppointment=row?.appointmentDate ? {rowNumber:row.rowNumber,appointmentDate:row.appointmentDate,brandId:group.brandId,brandLabel:group.brandLabel,treatmentLabel:group.treatmentLabel} : null;
+}
 assert.equal(parsed.groups.length, 7, "Every synthetic identity must be retained in the saved canonical dataset");
 const { getLeadDashboardSnapshot } = load("src/lib/marketing/leadDashboard.ts");
 const counts = (snapshot) => [snapshot.totals.leads, snapshot.totals.bookings,
@@ -270,6 +274,10 @@ async function verifyRealSnapshotStore() {
       (value) => { value.groups[0].brandId = "not-configured"; },
       (value) => { value.groups[0].pendingRowNumber = 9999; },
       (value) => { value.groups[0].rows[0].status = "invalid"; },
+      (value) => { delete value.groups[0].pendingAppointment; },
+      (value) => { value.groups[0].pendingAppointment.appointmentDate="2026-02-30"; },
+      (value) => { value.groups[0].pendingAppointment.brandId="not-permitted"; },
+      (value) => { value.groups[0].pendingAppointment=null; },
     ]) {
       const corrupted = structuredClone(parsed); mutate(corrupted);
       assert.throws(() => realStore.validateLeadDashboardSavedGroups(corrupted, brands), safeUnavailable);
@@ -280,6 +288,7 @@ async function verifyRealSnapshotStore() {
     });
     assert.equal(missingUpdate.groups[0].usesStageDateContract, false);
     assert.equal(missingUpdate.groups[0].bookDate, null);
+    missingUpdate.groups[0].pendingAppointment=null;
     realStore.validateLeadDashboardSavedGroups(missingUpdate, brands);
     resetStore(); state.runs = [makeRun("good-run", {}, payloadFor({ parsed: missingUpdate }))];
     assert.equal((await read()).groups[0].bookDate, null, "A Lead without A remains valid and must never acquire a Created At Book fallback");

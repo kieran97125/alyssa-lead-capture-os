@@ -1,0 +1,13 @@
+{
+  "before_sha256": "ef7882437fa1c53efdf142b72aba25095732d7816cd9c5268f752e61797f88e9",
+  "after_sha256": "af01ab2afcfef3edce7f516faa8a75ea62719d8489a03b2289fcc593797100d4",
+  "changed_functions": [
+    "handleOmniLeadEdit_",
+    "syncTreatmentForRow_"
+  ],
+  "new_function": "omniUpdateEditedAccountRows_",
+  "local_differential_cases": 14,
+  "commit_journal_and_identity_guards_unchanged": true,
+  "native_latency_verified": false,
+  "rollback": "Check exact after fingerprint and intervening edits before reversing change.patch. Do not reinstall triggers or alter recovery history."
+}

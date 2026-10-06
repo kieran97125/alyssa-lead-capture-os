@@ -66,7 +66,7 @@ const mocks = {
   "@/lib/integrations/googleSheetsLeadTable": {
     readLiveLeadTable: async () => {
       events.push("google-read");
-      return { headers, rows, headerRow: 1, arrivalOutcomeAuthority: makeAuthority(mode === "bad-coverage") };
+      return { headers, rows, headerRow: 1, arrivalOutcomeAuthority: makeAuthority(mode === "bad-coverage"), pendingAppointmentAuthority: mode === "missing-pending" ? undefined : makePendingAuthority() };
     },
     normalizeMetaLeadRowsInLiveTable: async ({ liveTable }) => ({ ...liveTable, normalizedMetaLeadRows: 0, normalizationWriteBackOk: true }),
   },
@@ -111,6 +111,10 @@ function makeAuthority(empty) {
 }
 const sync = load("src/lib/integrations/googleSheetsMarketingSync.ts");
 reset();
+function makePendingAuthority() {
+  const p=load("src/lib/marketing/leadPendingAppointmentAuthority.ts");
+  return p.parseLeadPendingAppointmentAuthority([p.PENDING_BRIDGE_HEADERS,["synthetic-source-id","GOS Beauty|p:10000001",2,true,"",true,true,true]],[p.PENDING_REGISTRY_HEADERS]);
+}
 const initial = await sync.syncMarketingDataSource(source.id);
 assert.equal(initial.ok, true, initial.message);
 assert.deepEqual(events, ["claim", "google-read", "audit", "daily", "analysis", "delete-stale-analysis", "source:connected", "publish", "sync-log"]);
@@ -121,13 +125,13 @@ assert.equal(published[0].parsed.groups[0].bookDate, "2026-10-02");
 assert.equal(published[0].parsed.groups[0].showDate, "2026-10-04");
 assert.equal(published[0].parsed.groups[0].noShowDate, null, "Saved output must use registry authority, not the stale source no-show status");
 assert.equal(published[0].parsed.groups[0].rows[0].csRemark, "Synthetic private remark");
-for (const failure of ["bad-coverage", "quarantine", "fail-daily", "fail-analysis", "fail-source-completion", "fail-publication"]) {
+for (const failure of ["missing-pending", "bad-coverage", "quarantine", "fail-daily", "fail-analysis", "fail-source-completion", "fail-publication"]) {
   reset(failure);
   assert.equal((await sync.syncMarketingDataSource(source.id)).ok, false, failure);
   assert.equal(lastGood, "previous-good", `${failure}: retain last-good snapshot`);
   assert.equal(published.length, 0);
   if (failure !== "fail-publication") assert.ok(!events.includes("publish"));
-  if (["bad-coverage", "quarantine"].includes(failure)) assert.ok(!events.includes("daily"));
+  if (["missing-pending", "bad-coverage", "quarantine"].includes(failure)) assert.ok(!events.includes("daily"));
 }
 await sync.syncAllMarketingGoogleSheets({ purpose: "scheduled" });
 assert.ok(lastQuery.some(([kind, value]) => kind === "or" && value === "configuration->>sourceProfile.is.null,configuration->>sourceProfile.neq.alyssa_workspace_lead_funnel"), "Scheduled selection excludes only the managed source and retains other profiles/null");
