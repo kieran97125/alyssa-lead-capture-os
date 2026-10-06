@@ -142,7 +142,7 @@ export default async function FormsPage({
                 Wix 登記表格
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                按品牌、療程、分店管理可嵌入 Wix 的登記表格，避免 Alyssa 同 Ineffable 設定混用。
+                管理登記表格及 Wix 嵌入碼。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
@@ -284,12 +284,6 @@ export default async function FormsPage({
                         >
                           {form.formName}
                         </Link>
-                        <p className="mt-1 text-xs font-semibold text-[#7b5a6a]">
-                          This form belongs to {ops.brand?.name || "未設定品牌"}
-                        </p>
-                        <p className="mt-2 max-w-[250px] break-all font-mono text-[11px] font-semibold text-[#9a5d76]">
-                          {form.publicFormToken}
-                        </p>
                       </td>
                       <td className="border-t border-[#f1e3dc] px-4 py-4 font-semibold text-[#5a2348]">
                         {ops.brand?.name || "未設定"}
@@ -331,6 +325,9 @@ export default async function FormsPage({
                               更多
                             </summary>
                             <div className="mt-2 grid w-72 gap-2 rounded-2xl border border-[#ead9cf] bg-white p-3 shadow-[0_18px_42px_rgba(90,35,72,0.12)]">
+                              <p className="break-all font-mono text-xs text-system-muted-foreground" data-testid="form-public-token">
+                                {form.publicFormToken}
+                              </p>
                               <CopyButton
                                 value={ops.embedCode}
                                 label="複製 Wix 嵌入碼"

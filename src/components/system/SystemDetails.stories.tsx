@@ -29,3 +29,14 @@ export const SourceUnavailable: Story = {
   args: Methodology.args,
   render: () => <SystemDataStatus warnings={["正式數據庫未連接；目前顯示驗收用同期數據。"]} />,
 };
+
+export const OptionalConfiguration: Story = {
+  args: {
+    title: "追蹤設定 · Meta Pixel · 未設定",
+    children: <form className="space-y-3">
+      <label className="block">Meta Pixel ID<input name="metaPixelId" className="ml-3 border border-system-border bg-system-background p-2" /></label>
+      <label className="block"><input type="checkbox" name="metaPixelPageViewOnEmbed" /> 嵌入表格發送 PageView</label>
+      <p>Wix 已安裝同一 Pixel 時請關閉，避免重複 PageView。</p>
+    </form>,
+  },
+};

@@ -42,7 +42,7 @@ export default async function PlanningSettingsPage({
               <h1 className="command-page-title">月度 Budget／KPI 設定</h1>
               <p className="command-page-subtitle">
                 設定 {snapshot.month.label}各品牌預算、Lead、Book、Show
-                及內容產量。儲存後主頁同 KPI 頁會立即使用同一口徑。
+                及內容目標。
               </p>
               <p className="planning-access-note">
                 獲授權經理可修改全部品牌 KPI，其它系統權限不受影響。

@@ -131,7 +131,7 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
           <span className="report-generator-step">01</span>
           <div>
             <h2>報告範圍</h2>
-            <p>本月預設只計到昨日，避免將未完成今日數據當成全日表現。</p>
+            <p>預設截至昨日。</p>
           </div>
           <CalendarRange size={22} />
         </header>
@@ -156,7 +156,7 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
           <span className="report-generator-switch" aria-hidden="true"><span /></span>
           <span>
             <strong>加入上月同期比較</strong>
-            <small>按相同日號窗口比較；月底會按上月實際日數截短。</small>
+            <small>比較相同日期範圍。</small>
           </span>
         </label>
       </section>
@@ -166,7 +166,7 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
           <span className="report-generator-step">02</span>
           <div>
             <h2>Breakdown 頁</h2>
-            <p>「不拆分」係重設；按品牌同按療程可以獨立揀，亦可以同時揀。</p>
+            <p>可同時選擇品牌及療程。</p>
           </div>
           <SplitSquareVertical size={22} />
         </header>
@@ -198,7 +198,7 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
           <span className="report-generator-step">03</span>
           <div>
             <h2>輸出格式</h2>
-            <p>三款格式共用同一 immutable snapshot；數字口徑完全一致，只係輸出載體不同。</p>
+            <p>選擇下載格式。</p>
           </div>
           <Download size={22} />
         </header>
@@ -206,19 +206,19 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
           <label className={format === "pdf" ? "is-selected" : ""}>
             <input type="radio" name="report-format" value="pdf" checked={format === "pdf"} onChange={() => setFormat("pdf")} />
             <FileText size={24} />
-            <span><strong>PDF</strong><small>文字可搜尋、圖表為向量，適合發送及存檔</small></span>
+            <span><strong>PDF</strong><small>適合發送及存檔</small></span>
             {format === "pdf" ? <Check size={17} /> : null}
           </label>
           <label className={format === "pptx" ? "is-selected" : ""}>
             <input type="radio" name="report-format" value="pptx" checked={format === "pptx"} onChange={() => setFormat("pptx")} />
             <Presentation size={24} />
-            <span><strong>PowerPoint</strong><small>文字、圖表、形狀可編輯，適合管理會議再加工</small></span>
+            <span><strong>PowerPoint</strong><small>可編輯文字及圖表</small></span>
             {format === "pptx" ? <Check size={17} /> : null}
           </label>
           <label className={format === "txt" ? "is-selected" : ""}>
             <input type="radio" name="report-format" value="txt" checked={format === "txt"} onChange={() => setFormat("txt")} />
             <AlignLeft size={24} />
-            <span><strong>Dashboard 文字摘要</strong><small>純文字 KPI、同期比較同 Breakdown，方便直接 Copy／WhatsApp／Email</small></span>
+            <span><strong>Dashboard 文字摘要</strong><small>方便複製及分享</small></span>
             {format === "txt" ? <Check size={17} /> : null}
           </label>
         </div>
@@ -233,7 +233,7 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
             <span className="report-generator-step">04</span>
             <div>
               <h2>文字預覽</h2>
-              <p>同下載檔完全相同；可以直接複製去 WhatsApp、Email、ChatGPT 或工作文件。</p>
+              <p>可直接複製及分享。</p>
             </div>
             <button type="button" className="command-secondary-button" onClick={copyText}>
               {copied ? <Check size={16} /> : <Clipboard size={16} />}

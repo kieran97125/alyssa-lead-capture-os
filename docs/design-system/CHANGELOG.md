@@ -1,5 +1,11 @@
 # Design System Change Log
 
+## 2026-10-06 — Optional operator settings
+
+- Remove duplicate settings-home navigation and row descriptions; make tracking, classification, history and source creation optional disclosures.
+- Keep internal form tokens under More and shorten routine report/planning copy.
+- Controls and saved configuration retain their existing contracts. Evidence and rollback: `decisions/2026-10-06-optional-operator-settings.md`.
+
 ## 2026-10-06 — Compact report descriptions
 
 - PR #106 replaces repeated per-brand diagnostic cards with a compact, accessible disclosure and moves report methodology behind an explicit summary.

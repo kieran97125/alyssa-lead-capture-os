@@ -1,7 +1,7 @@
 import { updateBrandAction } from "@/app/settings/actions";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { SettingsBrandPicker } from "@/components/alyssa/SettingsBrandPicker";
-import { SettingsNav } from "@/components/alyssa/SettingsNav";
+import { SystemDetails } from "@/components/system/SystemDetails";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
@@ -75,49 +75,41 @@ export default async function SettingsPage({
     {
       href: "/settings/planning",
       title: "月度 Budget／KPI",
-      description: "設定各品牌預算、Lead、Book、Show 及內容目標",
       count: null,
     },
     {
       href: "/data-sources",
       title: "資料來源",
-      description: "Google Sheets、廣告平台、CRM 及同步健康狀態",
       count: null,
     },
     {
       href: "/settings/brands",
       title: "品牌資料",
-      description: "名稱、品牌識別色、WhatsApp 及 Thank You Page",
       count: null,
     },
     {
       href: `/settings/treatments?brand=${brandSlug}`,
       title: "療程",
-      description: "管理可供表格及 Campaign 使用的療程",
       count: treatments.length,
     },
     {
       href: `/settings/packages?brand=${brandSlug}`,
       title: "Offer／項目及價錢",
-      description: "同一療程下的計劃組別、項目、原價及優惠價",
       count: packages.length,
     },
     {
       href: `/settings/branches?brand=${brandSlug}`,
       title: "分店",
-      description: "地址、營業時間及表格可選分店",
       count: branches.length,
     },
     {
       href: `/forms?brand=${brandSlug}`,
       title: "表格",
-      description: "表格欄位、預設療程、Offer、分店及嵌入設定",
       count: forms.length,
     },
     {
       href: `/landing-pages?brand=${brandSlug}`,
       title: "Landing Pages",
-      description: "已建立及已發布的廣告頁面",
       count: landingPages.length,
     },
   ];
@@ -134,7 +126,7 @@ export default async function SettingsPage({
                 品牌設定
               </h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                先選品牌，再管理療程、Offer、分店、表格及追蹤設定。
+                管理品牌及營運設定。
               </p>
             </div>
             <SettingsBrandPicker
@@ -143,7 +135,6 @@ export default async function SettingsPage({
               basePath="/settings"
             />
           </div>
-          <SettingsNav />
         </header>
 
         {message && <StatusMessage tone={status}>{message}</StatusMessage>}
@@ -168,16 +159,13 @@ export default async function SettingsPage({
                   <IntentPrefetchLink
                     key={item.href}
                     href={item.href}
-                    className="grid gap-2 border-b border-[#f1e3dc] px-5 py-4 transition last:border-b-0 hover:bg-[#fff9f3] sm:grid-cols-[minmax(170px,0.55fr)_minmax(280px,1.25fr)_90px_70px] sm:items-center"
+                    className="grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-[#f1e3dc] px-5 py-4 transition last:border-b-0 hover:bg-[#fff9f3]"
                   >
                     <span className="font-bold text-[#321428]">
                       {item.title}
                     </span>
-                    <span className="text-sm font-semibold leading-6 text-[#6d4a5c]">
-                      {item.description}
-                    </span>
                     <span className="text-sm font-bold text-[#9a5d76]">
-                      {item.count === null ? "共用設定" : `${item.count} 項`}
+                      {item.count === null ? "" : `${item.count} 項`}
                     </span>
                     <span className="text-right text-sm font-bold text-[#5a2348]">
                       管理 →
@@ -187,7 +175,7 @@ export default async function SettingsPage({
               </div>
             </section>
 
-            <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/92 p-5 shadow-[0_18px_50px_rgba(90,35,72,0.06)]">
+            <SystemDetails title={`追蹤設定 · Meta Pixel · ${effectivePixelId ? "已設定" : "未設定"}`} className="mt-5">
               <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                 <div>
                   <p className="alyssa-kicker">Tracking</p>
@@ -195,8 +183,7 @@ export default async function SettingsPage({
                     Meta Pixel
                   </h2>
                   <p className="mt-2 max-w-3xl text-sm leading-6 text-[#6d4a5c]">
-                    儲存一次後，Growth OS Landing Page、表格及新生成的 Wix Embed
-                    會自動使用此品牌 Pixel。
+                    套用於此品牌的廣告頁及表格。
                   </p>
                 </div>
                 <span
@@ -241,11 +228,10 @@ export default async function SettingsPage({
                   />
                   <span>
                     <span className="block text-sm font-bold text-[#321428]">
-                      Wix Embed 亦由 Growth OS 發 PageView
+                      嵌入表格發送 PageView
                     </span>
                     <span className="mt-1 block text-xs font-semibold leading-5 text-[#7b5a6a]">
-                      如果 Wix 已經經 Meta Integration 安裝同一 Pixel，請保持關閉，避免重複
-                      PageView。
+                      Wix 已安裝同一 Pixel 時請關閉，避免重複 PageView。
                     </span>
                   </span>
                 </label>
@@ -256,7 +242,7 @@ export default async function SettingsPage({
                   儲存 Pixel
                 </SubmitButton>
               </form>
-            </section>
+            </SystemDetails>
 
             <details className="mt-5 rounded-[24px] border border-[#ead9cf] bg-white/88">
               <summary className="cursor-pointer px-5 py-4 text-sm font-bold text-[#321428]">

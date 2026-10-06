@@ -1,3 +1,4 @@
+import { SystemDetails } from "@/components/system/SystemDetails";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   createTreatmentMappingRuleAction,
@@ -22,21 +23,14 @@ export async function TreatmentMappingPanel({
   const nextSortOrder = Math.max(0, ...rules.map((rule) => rule.sortOrder)) + 10;
 
   return (
-    <section id="lead-classification-rules" className="mt-8" data-testid="treatment-mapping-manager">
+    <section id="lead-classification-rules" className="mt-8" data-testid="treatment-mapping-manager" data-mapping-authority="system">
+      <SystemDetails title={`療程分類規則 · ${rules.length} 條`}>
       <div className="rounded-[26px] border border-[#d9c7e4] bg-[linear-gradient(135deg,#fff_0%,#fbf7ff_55%,#fff9f3_100%)] p-5 shadow-[0_20px_60px_rgba(90,35,72,0.07)] sm:p-6">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-xs font-bold uppercase tracking-[0.16em] text-[#79539a]">
-                Lead Classification Engine
-              </p>
-              <span className="rounded-full bg-[#efe7f7] px-3 py-1 text-[11px] font-bold text-[#684587]">
-                System source of truth
-              </span>
-            </div>
             <h2 className="mt-2 text-2xl font-bold text-[#321428]">療程分類規則</h2>
             <p className="mt-2 max-w-4xl text-sm leading-6 text-[#6d4a5c]">
-              Growth OS 會用呢度嘅關鍵字將 Lead Sheet 原始「療程／優惠、療程項目、Campaign」標準化，再供 Dashboard、同期比較、療程成效同報告使用。Google Sheet 個「療程管理」只保留做歷史參考，唔再係控制中心。
+              按關鍵字分類 Lead；Google Sheet 療程管理只作歷史參考。
             </p>
           </div>
           <form action={resyncTreatmentMappingAction}>
@@ -136,7 +130,7 @@ export async function TreatmentMappingPanel({
                   label="配對關鍵字"
                   name="keywords"
                   defaultValue={rule.keywords.join(" | ")}
-                  helper="修改後會自動更新 system compatibility cache，再重新同步 Lead classification。"
+                  helper="儲存後會重新套用分類。"
                 />
               </div>
               <MappingTextArea label="標準輸出（原 I 欄）" name="outputLabel" defaultValue={rule.outputLabel} />
@@ -161,10 +155,11 @@ export async function TreatmentMappingPanel({
         ))}
         {rules.length === 0 ? (
           <p className="px-5 py-10 text-center text-sm font-semibold text-[#7b5a6a]">
-            此品牌未有 system-owned 分類規則。可以由上方新增第一條規則。
+            未有分類規則。可在上方新增。
           </p>
         ) : null}
       </div>
+      </SystemDetails>
     </section>
   );
 }

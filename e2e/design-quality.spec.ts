@@ -47,6 +47,27 @@ test("source, permission and fallback warnings remain visible beside collapsed d
   await expect(status.locator("summary")).toHaveText("資料狀態 · 12 項待核對");
 });
 
+for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]] as const) {
+  test(`settings keep management links prominent and configuration optional on ${name}`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/settings", { waitUntil: "networkidle" });
+    await expect(page.getByTestId("settings-management-list").getByRole("link")).toHaveCount(8);
+    await expect(page.getByLabel("Meta Pixel ID")).toBeHidden();
+    await expect(page).toHaveScreenshot(`settings-overview-${name}.png`, { fullPage: true });
+    const tracking = page.locator("summary").filter({ hasText: "追蹤設定 · Meta Pixel" });
+    await tracking.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.getByLabel("Meta Pixel ID")).toBeVisible();
+    await expect(page.getByRole("button", { name: "儲存 Pixel", exact: true })).toBeVisible();
+    await expect(tracking.locator("..")).toHaveScreenshot(`settings-tracking-expanded-${name}.png`);
+    const result = await new AxeBuilder({ page }).include('[data-slot="system-details"]')
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(result.violations).toEqual([]);
+    await page.keyboard.press("Space");
+    await expect(page.getByLabel("Meta Pixel ID")).toBeHidden();
+  });
+}
+
 async function openSpecimen(page: Page) {
   await page.goto("/e2e/design-system", { waitUntil: "networkidle" });
   await expect(page.getByTestId("design-system-specimen")).toBeVisible();

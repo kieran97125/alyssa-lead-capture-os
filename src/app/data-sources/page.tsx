@@ -1,3 +1,4 @@
+import { SystemDetails } from "@/components/system/SystemDetails";
 import {
   Braces,
   CheckCircle2,
@@ -236,6 +237,7 @@ export default async function DataSourcesPage({
             )}
           </section>
 
+          <SystemDetails title={`舊月份廣告費 · ${workbookHistory.length} 個記錄`}>
           <section
             id="monthly-workbook"
             className="command-surface monthly-workbook-section"
@@ -257,7 +259,7 @@ export default async function DataSourcesPage({
                   <History size={17} />
                   <div>
                     <strong>歷史數據表</strong>
-                    <span>只供開啟數據表、核對品牌及查看最後成功時間</span>
+                    <span>只供對數</span>
                   </div>
                 </div>
                 <span>{workbookHistory.length} 個記錄</span>
@@ -280,6 +282,7 @@ export default async function DataSourcesPage({
               )}
             </div>
           </section>
+          </SystemDetails>
 
           <section className="source-summary-grid">
             <SourceSummary
@@ -363,6 +366,7 @@ export default async function DataSourcesPage({
             </div>
           </section>
 
+          <SystemDetails title="新增資料來源 · 進階設定">
           <section
             id="add-source"
             className="command-surface add-source-section"
@@ -372,7 +376,7 @@ export default async function DataSourcesPage({
                 <p>新增連接</p>
                 <h2>CS Lead Sheet 進階設定</h2>
                 <span>
-                  呢區只用作管理 Lead／Book／Show 嘅 CS Lead Sheet。廣告費唔接受再新增 Google Sheet 來源。
+                  連接 CS Lead Sheet；廣告費在每日總覽填寫。
                 </span>
               </div>
               <ShieldCheck size={24} />
@@ -402,14 +406,7 @@ export default async function DataSourcesPage({
                     ))}
                 </select>
               </label>
-              <label>
-                <span>資料格式</span>
-                <select name="dataset" defaultValue="lead_funnel">
-                  <option value="lead_funnel">
-                    Lead Funnel（Lead／Book／Show／療程成效）
-                  </option>
-                </select>
-              </label>
+              <input type="hidden" name="dataset" value="lead_funnel" />
               <label>
                 <span>顯示名稱</span>
                 <input
@@ -449,7 +446,7 @@ export default async function DataSourcesPage({
                       name="headerRow"
                       type="number"
                       min="1"
-                      placeholder="Spend 預設 3；Funnel 預設 1"
+                      placeholder="預設 1"
                     />
                   </label>
                   <label>
@@ -474,7 +471,7 @@ export default async function DataSourcesPage({
 
               <footer>
                 <p>
-                  CS Lead Sheet 只負責 Funnel 指標。新來源先建立為 Draft；完成一次成功同步後先轉為「已連接」。
+                  首次同步成功後會標示為「已連接」。
                 </p>
                 <SubmitButton
                   className="command-primary-button"
@@ -487,6 +484,7 @@ export default async function DataSourcesPage({
               </footer>
             </form>
           </section>
+          </SystemDetails>
         </div>
       </div>
     </main>
