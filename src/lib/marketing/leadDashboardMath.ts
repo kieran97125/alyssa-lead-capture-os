@@ -1,5 +1,6 @@
 import {
   leadGroupBookDate,
+  projectLeadBookMetricGroups,
   leadGroupCurrentBookedRow,
   leadGroupNoShowDate,
   leadGroupShowDate,
@@ -610,6 +611,7 @@ function withoutPending(groups: LeadSheetLeadGroup[]) {
   return groups.map(group => ({...group,pendingRowNumber:null,pendingAppointment:null}));
 }
 export function buildLeadDashboardModel(input: Parameters<typeof buildBaseLeadDashboardModel>[0]): LeadDashboardModel {
+  input = { ...input, groups: projectLeadBookMetricGroups(input.groups) };
   if (!input.groups.some(g => g.pendingAppointment !== undefined)) return buildBaseLeadDashboardModel(input);
   const base=buildBaseLeadDashboardModel({...input,groups:withoutPending(input.groups)});
   const pending=buildBaseLeadDashboardModel({...input,groups:pendingOnlyGroups(input.groups)});
@@ -625,6 +627,7 @@ export function buildLeadDashboardModel(input: Parameters<typeof buildBaseLeadDa
     outstandingRows:pending.outstandingRows,treatmentOptions:[...options].map(value=>({value,label:value}))};
 }
 export function buildLeadDashboardTrend(input: Parameters<typeof buildBaseLeadDashboardTrend>[0]): PerformanceTrendSeries[] {
+  input = { ...input, groups: projectLeadBookMetricGroups(input.groups) };
   if (!input.groups.some(g => g.pendingAppointment !== undefined)) return buildBaseLeadDashboardTrend(input);
   const base=buildBaseLeadDashboardTrend({...input,groups:withoutPending(input.groups)});
   const pending=buildBaseLeadDashboardTrend({...input,groups:pendingOnlyGroups(input.groups),spendFacts:[],annotations:[]});
