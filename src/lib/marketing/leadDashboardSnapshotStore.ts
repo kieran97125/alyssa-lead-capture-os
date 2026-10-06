@@ -112,6 +112,17 @@ export function validateLeadDashboardSavedGroups(value: unknown, brands: SheetBr
       for (const key of ["lastUpdatedDate", "createdDate", "appointmentDate", "confirmationDate"]) if (!isoDate(row[key])) throw unavailable();
       for (const key of ["appointmentTime", "branchLabel", "csRemark"]) if (typeof row[key] !== "string") throw unavailable();
     }
+    if (group.bookDimensions !== undefined) {
+      const book = record(group.bookDimensions);
+      if (group.bookDate === null ? group.bookDimensions !== null : !book) throw unavailable();
+      if (book) {
+        const row = group.rows.map(record).find((row) => row?.rowNumber === book.rowNumber);
+        if (!Number.isSafeInteger(book.rowNumber) || !rows.has(Number(book.rowNumber)) ||
+            !brandIds.has(String(book.brandId)) || typeof book.brandLabel !== "string" ||
+            typeof book.treatmentLabel !== "string" || row?.status === "lead" ||
+            row?.lastUpdatedDate !== group.bookDate) throw unavailable();
+      }
+    }
     if (!Number.isSafeInteger(group.currentRowNumber) || !rows.has(Number(group.currentRowNumber)) ||
         group.pendingRowNumber !== null && (!Number.isSafeInteger(group.pendingRowNumber) || !rows.has(Number(group.pendingRowNumber)))) throw unavailable();
     if (group.appointmentStatus && (!rows.has(Number(record(group.appointmentStatus)?.rowNumber)) || pending !== null)) throw unavailable();

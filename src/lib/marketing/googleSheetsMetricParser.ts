@@ -87,6 +87,8 @@ export type LeadSheetGroupRow = {
 
 export type LeadPendingAppointment = { rowNumber: number; appointmentDate: string; brandId: string; brandLabel: string; treatmentLabel: string };
 
+export type LeadBookDimensions = Pick<LeadPendingAppointment, "rowNumber" | "brandId" | "brandLabel" | "treatmentLabel">;
+
 export type LeadAppointmentStatus = Pick<LeadPendingAppointment, "rowNumber" | "brandId" | "brandLabel" | "treatmentLabel"> & {
   status: "canceled" | "reschedule_requested";
   appointmentDate: string | null;
@@ -113,6 +115,8 @@ export type LeadSheetLeadGroup = {
   currentRowNumber: number;
   bookDate: string | null;
   bookDateSource: "last_updated" | "legacy_created_at" | "event_ledger" | null;
+  /** Undefined is a legacy saved snapshot; null is verified no qualifying Book. */
+  bookDimensions?: LeadBookDimensions | null;
   showDate: string | null;
   noShowDate: string | null;
   pendingRowNumber: number | null;
@@ -727,6 +731,17 @@ export function buildLeadSheetGroups(input: {
         .sort()[0] ?? null;
     const bookDate = earliestStageBookDate;
     const bookDateSource = bookDate ? "last_updated" : null;
+    // Match _dashboard_book_dimensions: first qualifying A date, then the
+    // highest physical source row on that date. B still owns Lead attribution.
+    const bookItem = bookDate ? items
+      .filter((item) => item.row.status !== "lead" && item.row.lastUpdatedDate === bookDate)
+      .sort((left, right) => right.row.rowNumber - left.row.rowNumber)[0] : null;
+    const bookDimensions: LeadBookDimensions | null = bookItem ? {
+      rowNumber: bookItem.row.rowNumber,
+      brandId: bookItem.brand.id,
+      brandLabel: bookItem.brandLabel,
+      treatmentLabel: bookItem.treatmentLabel,
+    } : null;
     // Shared Sheet/system contract: Lead=B, Book=A, Show=N, No Show=L.
     // Count each identity once per metric using its earliest qualifying source
     // row date. Missing A never falls back to B; ledger dates are audit only.
@@ -772,6 +787,7 @@ export function buildLeadSheetGroups(input: {
       currentRowNumber: currentRow.rowNumber,
       bookDate,
       bookDateSource,
+      bookDimensions,
       showDate,
       noShowDate,
       pendingRowNumber,
@@ -786,6 +802,26 @@ export function buildLeadSheetGroups(input: {
 
 export function leadGroupBookDate(group: LeadSheetLeadGroup) {
   return group.bookDate;
+}
+
+export function leadGroupBookDimensions(group: LeadSheetLeadGroup) {
+  return group.bookDimensions ?? group;
+}
+
+// Project independent metric dimensions before filtering/bucketing. Each
+// identity contributes exactly one Book, including a previously created Lead.
+// Legacy saved snapshots keep their prior attribution until a successful sync.
+export function projectLeadBookMetricGroups(groups: LeadSheetLeadGroup[]): LeadSheetLeadGroup[] {
+  return groups.flatMap((group) => {
+    if (!group.bookDate || !group.bookDimensions) return [group];
+    return [
+      { ...group, bookDate: null, bookDateSource: null, bookDimensions: null },
+      { ...group, ...group.bookDimensions, firstTouchDate: null,
+        showDate: null, noShowDate: null, pendingRowNumber: null,
+        pendingAppointment: group.pendingAppointment === undefined ? undefined : null,
+        appointmentStatus: group.appointmentStatus === undefined ? undefined : null },
+    ];
+  });
 }
 
 export function leadGroupShowDate(group: LeadSheetLeadGroup) {
@@ -883,18 +919,21 @@ export function aggregateLeadSheetPerformance(input: {
     };
     const createdDate = group.firstTouchDate;
     const bookDate = leadGroupBookDate(group);
+    const bookDimensions = leadGroupBookDimensions(group);
 
     if (createdDate && createdDate <= input.dailyThroughDate) {
       getDailyMetric(group.brandId, createdDate).leads += 1;
     }
     if (bookDate && bookDate <= input.dailyThroughDate) {
-      getDailyMetric(group.brandId, bookDate).bookings += 1;
+      getDailyMetric(bookDimensions.brandId, bookDate).bookings += 1;
     }
     if (createdDate && createdDate <= input.activityThroughDate) {
       addFact({ ...dimensions, metricDate: createdDate, metricKind: "lead" });
     }
     if (bookDate && bookDate <= input.activityThroughDate) {
-      addFact({ ...dimensions, metricDate: bookDate, metricKind: "book" });
+      addFact({ ...dimensions, brandId: bookDimensions.brandId,
+        brandLabel: bookDimensions.brandLabel, treatmentLabel: bookDimensions.treatmentLabel,
+        metricDate: bookDate, metricKind: "book" });
     }
 
     const showDate = leadGroupShowDate(group);
