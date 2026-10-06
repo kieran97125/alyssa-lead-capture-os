@@ -1,5 +1,6 @@
 import { parseLeadPendingAppointmentAuthority, type LeadPendingAppointmentAuthority } from "@/lib/marketing/leadPendingAppointmentAuthority";
 import "server-only";
+import { LeadSheetSyncError } from "@/lib/marketing/leadSheetSyncDiagnostics";
 
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
 import {
@@ -138,6 +139,9 @@ async function batchGetValues(input: {
     if (response.status === 404) {
       throw new Error("找不到已設定嘅 Lead Sheet 或 lead 分頁。");
     }
+    if (response.status === 429 || response.status >= 500) {
+      throw new LeadSheetSyncError("provider_transient", { httpStatus: response.status }, `Lead Sheet 暫時讀取失敗（HTTP ${response.status}）。`);
+    }
     throw new Error(`Lead Sheet 暫時讀取失敗（HTTP ${response.status}）。`);
   }
 
@@ -254,7 +258,7 @@ export async function normalizeMetaLeadRowsInLiveTable(input: {
   // Do not move source rows while verifying a projection from the same read.
   if (input.configuration.sourceProfile === MANAGED_PROFILE &&
       (!input.liveTable.arrivalOutcomeAuthority || !input.liveTable.pendingAppointmentAuthority || normalized.rewrites.length > 0)) {
-    throw arrivalOutcomeAuthorityError();
+    throw arrivalOutcomeAuthorityError("source_normalization", { rewriteRows: normalized.rewrites.length });
   }
   let normalizationWriteBackOk = true;
   if (input.writeBack !== false && normalized.rewrites.length > 0) {
@@ -287,7 +291,7 @@ async function boundedManagedRead<T>(read: (signal: AbortSignal) => Promise<T>, 
   let aborted: (() => void) | undefined;
   try {
     const deadline = new Promise<never>((_, reject) => {
-      aborted = () => reject(arrivalOutcomeAuthorityError());
+      aborted = () => reject(arrivalOutcomeAuthorityError("managed_read_timeout", { timeoutMs: MANAGED_READ_TIMEOUT_MS }));
       signal.addEventListener("abort", aborted, { once: true });
       timer = setTimeout(() => controller.abort(), MANAGED_READ_TIMEOUT_MS);
       if (signal.aborted) aborted();
@@ -331,7 +335,7 @@ export async function readLiveLeadTable(
 
     const managed = configuration.sourceProfile === MANAGED_PROFILE;
     if (managed && (configuration.headerRow !== 1 || sourceTabName !== "lead" || configuration.maxRows !== 30_000)) {
-      throw arrivalOutcomeAuthorityError();
+      throw arrivalOutcomeAuthorityError("managed_configuration");
     }
     const ranges = [
       `${quoteSheetName(sourceTabName)}!A${headerRow}:${lastColumn}${headerRow}`,
@@ -345,17 +349,25 @@ export async function readLiveLeadTable(
       signal: readSignal,
     });
     // Covers both fetch and JSON body, even if a provider ignores abort.
-    const response = managed ? await boundedManagedRead(read, signal) : await read(signal);
+    let response: Awaited<ReturnType<typeof batchGetValues>>;
+    try {
+      response = managed ? await boundedManagedRead(read, signal) : await read(signal);
+    } catch (error) {
+      if (managed && !signal?.aborted && (error instanceof TypeError || error instanceof SyntaxError)) {
+        throw arrivalOutcomeAuthorityError("provider_transient");
+      }
+      throw error;
+    }
     signal?.throwIfAborted();
-    if (managed && (!Array.isArray(response.valueRanges) || response.valueRanges.length !== 5 ||
-        response.valueRanges.some((range) => !Array.isArray(range.values) || !range.values.every(Array.isArray)))) {
-      throw arrivalOutcomeAuthorityError();
+    if (managed && (!response || !Array.isArray(response.valueRanges) || response.valueRanges.length !== 5 ||
+        response.valueRanges.some((range) => !range || !Array.isArray(range.values) || !range.values.every(Array.isArray)))) {
+      throw arrivalOutcomeAuthorityError("managed_response");
     }
     const headers = response.valueRanges?.[0]?.values?.[0] ?? [];
     const rows = response.valueRanges?.[1]?.values ?? [];
 
     if (managed && (headers.length === 0 || headers.filter((header) => header === "Account").length !== 1)) {
-      throw arrivalOutcomeAuthorityError();
+      throw arrivalOutcomeAuthorityError("source_headers");
     }
     return { headers, rows, headerRow, ...(managed ? {
       arrivalOutcomeAuthority: parseLeadArrivalOutcomeAuthority(response.valueRanges?.[2]?.values),

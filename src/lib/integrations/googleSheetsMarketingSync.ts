@@ -1,4 +1,6 @@
 import "server-only";
+import { arrivalOutcomeAuthorityError } from "@/lib/marketing/leadArrivalOutcomeAuthority";
+import { leadSheetFailureDiagnostic, readValidatedLeadSnapshot, type LeadSheetReadAttempt } from "@/lib/marketing/leadSheetSyncDiagnostics";
 
 import { createHash, randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -28,6 +30,7 @@ import {
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5000;
 const MAX_CONFIGURED_ROWS = 20000;
+type SyncTrace = { phase: string; readAttempts: LeadSheetReadAttempt[] };
 
 type DataSourceRow = {
   id: string;
@@ -340,55 +343,59 @@ async function collectLeadFunnelMetrics(
   configuration: Record<string, unknown>,
   brands: BrandRow[],
   throughDate: string,
-  options: { actorIdentifier?: string; startedAt: string }
+  options: { actorIdentifier?: string; startedAt: string; trace: SyncTrace }
 ) {
-  const rawLiveTable = await readLiveLeadTable(configuration);
   const leadBrandAliases = stringRecord(configuration.brandAliases);
   const leadTreatmentAliases = treatmentAliases(configuration.treatmentAliases);
-  const normalizedLiveTable = await normalizeMetaLeadRowsInLiveTable({
-    configuration,
-    liveTable: rawLiveTable,
-    brands,
-    brandAliases: leadBrandAliases,
-    treatmentAliases: leadTreatmentAliases,
-    writeBack: true,
+  const month = getHkMonthContext();
+  const { normalizedLiveTable, parsed, existingAudit } = await readValidatedLeadSnapshot({
+    managed: configuration.sourceProfile === "alyssa_workspace_lead_funnel",
+    attempts: options.trace.readAttempts,
+    read: async () => {
+      options.trace.phase = "google_read";
+      const rawLiveTable = await readLiveLeadTable(configuration);
+      options.trace.phase = "source_normalization";
+      const normalizedLiveTable = await normalizeMetaLeadRowsInLiveTable({
+        configuration, liveTable: rawLiveTable, brands,
+        brandAliases: leadBrandAliases, treatmentAliases: leadTreatmentAliases,
+        writeBack: true,
+      });
+      const { headers, rows, headerRow } = normalizedLiveTable;
+      if (normalizedLiveTable.arrivalOutcomeAuthority && !normalizedLiveTable.pendingAppointmentAuthority) {
+        throw arrivalOutcomeAuthorityError("projection_missing");
+      }
+      // Preserve the legacy audit order; managed reads validate before writing.
+      options.trace.phase = "audit";
+      const existingAudit = normalizedLiveTable.arrivalOutcomeAuthority ? null : await captureLeadSheetAuditSnapshot({
+        dataSourceId: source.id, actorIdentifier: options.actorIdentifier,
+        headers, rows, headerRow, brands, brandAliases: leadBrandAliases, startedAt: options.startedAt,
+      });
+      options.trace.phase = "projection_validation";
+      const parsed = aggregateLeadSheetPerformance({
+        headers, rows, brands, sourceBrandId: source.brand_id,
+        brandAliases: leadBrandAliases, treatmentAliases: leadTreatmentAliases,
+        dailyThroughDate: throughDate, activityThroughDate: month.today,
+        pendingThroughDate: addIsoDays(month.today, 400),
+        arrivalOutcomeAuthority: normalizedLiveTable.arrivalOutcomeAuthority,
+        pendingAppointmentAuthority: normalizedLiveTable.pendingAppointmentAuthority,
+        retainAllAuthoritativeArrivalDates: Boolean(normalizedLiveTable.arrivalOutcomeAuthority),
+      });
+      return { normalizedLiveTable, parsed, existingAudit };
+    },
   });
   const { headers, rows, headerRow } = normalizedLiveTable;
   if (normalizedLiveTable.normalizedMetaLeadRows > 0) {
     console.info("meta_lead_form_rows_normalized", {
-      sourceId: source.id,
-      rows: normalizedLiveTable.normalizedMetaLeadRows,
+      sourceId: source.id, rows: normalizedLiveTable.normalizedMetaLeadRows,
       writeBackOk: normalizedLiveTable.normalizationWriteBackOk,
     });
   }
   const captureAudit = () => captureLeadSheetAuditSnapshot({
-    dataSourceId: source.id,
-    actorIdentifier: options.actorIdentifier,
-    headers,
-    rows,
-    headerRow,
-    brands,
-    brandAliases: leadBrandAliases,
-    startedAt: options.startedAt,
+    dataSourceId: source.id, actorIdentifier: options.actorIdentifier,
+    headers, rows, headerRow, brands, brandAliases: leadBrandAliases, startedAt: options.startedAt,
   });
-  if (normalizedLiveTable.arrivalOutcomeAuthority && !normalizedLiveTable.pendingAppointmentAuthority) throw new Error("Current appointment projection is incomplete.");
-  const existingAudit = normalizedLiveTable.arrivalOutcomeAuthority ? null : await captureAudit();
+  options.trace.phase = "audit";
   const timestamp = new Date().toISOString();
-  const month = getHkMonthContext();
-  const parsed = aggregateLeadSheetPerformance({
-    headers,
-    rows,
-    brands,
-    sourceBrandId: source.brand_id,
-    brandAliases: leadBrandAliases,
-    treatmentAliases: leadTreatmentAliases,
-    dailyThroughDate: throughDate,
-    activityThroughDate: month.today,
-    pendingThroughDate: addIsoDays(month.today, 400),
-    arrivalOutcomeAuthority: normalizedLiveTable.arrivalOutcomeAuthority,
-    pendingAppointmentAuthority: normalizedLiveTable.pendingAppointmentAuthority,
-    retainAllAuthoritativeArrivalDates: Boolean(normalizedLiveTable.arrivalOutcomeAuthority),
-  });
   const audit = existingAudit ?? await captureAudit();
   const dailyMetrics = parsed.dailyMetrics.map((aggregate) => {
     const metric = emptyMetric({
@@ -556,6 +563,7 @@ export async function syncMarketingDataSource(
   const configuration = source.configuration ?? {};
   let dataset = "unknown";
   const startedAt = new Date().toISOString();
+  const trace: SyncTrace = { phase: "configuration", readAttempts: [] };
   let audit: LeadAuditCaptureResult | null = null;
   let auditSnapshotAttempted = false;
   let sourceCompletionAt: string | null = null;
@@ -638,6 +646,7 @@ export async function syncMarketingDataSource(
         {
           actorIdentifier: options.actorIdentifier,
           startedAt,
+          trace,
         }
       );
       auditSnapshotAttempted = true;
@@ -654,13 +663,16 @@ export async function syncMarketingDataSource(
       dashboardGroups = leadFunnel.dashboardGroups;
       capturedAt = leadFunnel.capturedAt;
     }
+    trace.phase = "daily_metrics";
     await reconcileMetrics(source, dataset, metrics);
     if (dataset === "lead_funnel") {
+      trace.phase = "treatment_metrics";
       await reconcileTreatmentPerformanceMetrics(source, treatmentMetrics);
     }
 
     const completedAt = new Date().toISOString();
     const sourceStatus = audit && audit.openAlerts > 0 ? "warning" : "connected";
+    trace.phase = "source_completion";
     const { data: updatedSource, error: sourceUpdateError } = await supabase
       .from("marketing_data_sources")
       .update({
@@ -677,6 +689,7 @@ export async function syncMarketingDataSource(
     sourceCompletionAt = completedAt;
     sourceCompletionStatus = sourceStatus;
     if (dashboardGroups && audit) {
+      trace.phase = "snapshot_publication";
       await publishLeadDashboardSnapshot({
         dataSourceId: source.id, runId: audit.runId, configuration, brands,
         completedAt, capturedAt, parsed: dashboardGroups,
@@ -707,6 +720,7 @@ export async function syncMarketingDataSource(
       console.warn("marketing_sync_completion_log_unavailable");
     }
 
+    console.info("marketing_sync_completed", { sourceId: source.id, elapsedMs: Date.now() - Date.parse(startedAt), readAttempts: trace.readAttempts });
     return {
       ok: true,
       sourceId: source.id,
@@ -727,6 +741,9 @@ export async function syncMarketingDataSource(
           : `同步完成，共更新 ${metrics.length} 個每日指標。`,
     };
   } catch (syncError) {
+    const diagnostic = { ...leadSheetFailureDiagnostic(syncError), phase: trace.phase,
+      elapsedMs: Date.now() - Date.parse(startedAt), readAttempts: trace.readAttempts };
+    console.error("marketing_sync_failed", { sourceId: source.id, ...diagnostic });
     const message = safeErrorMessage(syncError);
     const failedAt = new Date().toISOString();
     if (dataset === "lead_funnel" && !auditSnapshotAttempted) {
@@ -735,6 +752,7 @@ export async function syncMarketingDataSource(
         actorIdentifier: options.actorIdentifier,
         startedAt,
         error: syncError,
+        diagnostic,
       });
     }
     await supabase
