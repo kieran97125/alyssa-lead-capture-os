@@ -25,3 +25,5 @@ The configurable current-state summary and additive-snapshot availability patter
 Hosted review: run `37451622599` passed production build, Storybook and all existing design cases. Only the new recovered-environment font baselines differed; reviewed mobile closed and desktop expanded actuals replace those two goldens. Screenshot assertions collect both states without weakening their failure semantics.
 
 Hosted run `37452193895` passed 12/13 cases, including the complete desktop state and mobile keyboard/axe checks. The remaining expanded mobile font baseline was visually reviewed (wrapped methodology and keyboard-scrollable detail table) and aligned with its hosted actual; all assertions and tolerances remain unchanged.
+
+Hosted design run `37452687605` passes all 13 cases. Full CRM run `37452687702` passes 224 tests; the four existing saved/empty Dashboard goldens correctly gain the new compact status summary (+162 px). Their desktop/mobile hosted actuals were reviewed and only those four affected layout goldens updated. Availability, encryption, permission, keyboard, axe and existing CRM assertions remain unchanged.
