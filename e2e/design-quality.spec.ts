@@ -59,6 +59,7 @@ for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 84
     await page.keyboard.press("Enter");
     await expect(page.getByLabel("Meta Pixel ID")).toBeVisible();
     await expect(page.getByRole("button", { name: "儲存 Pixel", exact: true })).toBeVisible();
+    await expect(tracking.locator("..")).toHaveScreenshot(`settings-tracking-expanded-${name}.png`);
     const result = await new AxeBuilder({ page }).include('[data-slot="system-details"]')
       .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
     expect(result.violations).toEqual([]);
