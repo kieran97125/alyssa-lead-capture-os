@@ -1,4 +1,5 @@
 import "server-only";
+import { buildAppointmentStatusSummary, unavailableAppointmentStatuses, type AppointmentStatusSummary } from "@/lib/marketing/appointmentStatusSummary";
 
 import { readPublishedLeadDashboardSnapshot } from "@/lib/marketing/leadDashboardSnapshotStore";
 import {
@@ -53,6 +54,7 @@ type BrandRow = SheetBrandReference & {
 };
 
 export type LeadDashboardSnapshot = LeadDashboardModel & {
+  appointmentStatuses: AppointmentStatusSummary;
   filters: LeadDashboardFilters;
   costs: PerformanceCostSummary;
   sourceName: string;
@@ -266,6 +268,7 @@ function fixtureData(filters: LeadDashboardFilters): LeadDashboardSnapshot {
   ];
   return {
     ...model,
+    appointmentStatuses: unavailableAppointmentStatuses(),
     filters,
     costs: costSummaryForModel({ model, filters, brands, spendFacts }),
     sourceName: "Alyssa Workspace Lead Funnel",
@@ -300,6 +303,7 @@ function emptySnapshot(
   });
   return {
     ...model,
+    appointmentStatuses: unavailableAppointmentStatuses(),
     filters,
     costs: costSummaryForModel({
       model,
@@ -321,7 +325,8 @@ function emptySnapshot(
 
 export async function getLeadDashboardSnapshot(
   requestedFilters: Parameters<typeof normalizeLeadDashboardFilters>[0],
-  providedAccess?: InternalAccessContext
+  providedAccess?: InternalAccessContext,
+  appointmentFilters?: { source?: string; campaign?: string }
 ): Promise<LeadDashboardSnapshot> {
   const filters = normalizeLeadDashboardFilters(requestedFilters);
   if (!hasSupabaseAdminEnv()) {
@@ -443,6 +448,8 @@ export async function getLeadDashboardSnapshot(
 
     return {
       ...model,
+      appointmentStatuses: buildAppointmentStatusSummary({ groups: parsed.groups, brands, filters, allowedBrandIds,
+        source: appointmentFilters?.source, campaign: appointmentFilters?.campaign }),
       filters,
       costs: costSummaryForModel({
         model,

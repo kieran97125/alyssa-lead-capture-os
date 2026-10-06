@@ -1,3 +1,4 @@
+import { AppointmentStatusSummary } from "@/components/system/AppointmentStatusSummary";
 import { SystemDetails } from "@/components/system/SystemDetails";
 import {
   Activity,
@@ -314,6 +315,7 @@ export function LeadDashboardPanel({
         />
       </section>
 
+      <AppointmentStatusSummary summary={snapshot.appointmentStatuses} />
       <PerformanceCostSummary costs={snapshot.costs} />
 
       <section className="command-surface lead-dashboard-trend-card">

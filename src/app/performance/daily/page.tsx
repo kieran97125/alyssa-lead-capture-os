@@ -1,5 +1,9 @@
 import { SystemDataStatus, SystemDetails } from "@/components/system/SystemDetails";
 import type { ReactNode } from "react";
+import { Suspense } from "react";
+import { AppointmentStatusSummary } from "@/components/system/AppointmentStatusSummary";
+import { getLeadDashboardSnapshot } from "@/lib/marketing/leadDashboard";
+import { unavailableAppointmentStatuses } from "@/lib/marketing/appointmentStatusSummary";
 import {
   CalendarDays,
   ClipboardPenLine,
@@ -227,6 +231,8 @@ export default async function DailyOverviewPage({
 }) {
   const query = (await searchParams) ?? {};
   const snapshot = await getDailyOverviewSnapshot(query);
+  const appointmentSnapshot = getLeadDashboardSnapshot({ startDate: snapshot.monthStart,
+    endDate: snapshot.throughDate, brandId: snapshot.selectedBrandScope });
   const entryMode: SpendEntryMode =
     firstParam(query.entry_mode) === "source" ? "source" : "brand";
   const brandEditorSnapshot =
@@ -396,6 +402,10 @@ export default async function DailyOverviewPage({
               note={`CPA ${money(snapshot.allBrands.total.costPerShow)}`}
             />
           </section>
+
+          <Suspense fallback={<AppointmentStatusSummary summary={unavailableAppointmentStatuses()} />}>
+            <DailyAppointmentStatuses result={appointmentSnapshot} />
+          </Suspense>
 
           <section
             className="command-surface flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between"
@@ -615,4 +625,9 @@ function BrandMetricRows({
       ))}
     </tr>
   ));
+}
+
+async function DailyAppointmentStatuses({ result }: { result: ReturnType<typeof getLeadDashboardSnapshot> }) {
+  const snapshot = await result;
+  return <AppointmentStatusSummary summary={snapshot.appointmentStatuses} />;
 }

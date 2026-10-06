@@ -87,7 +87,14 @@ export type LeadSheetGroupRow = {
 
 export type LeadPendingAppointment = { rowNumber: number; appointmentDate: string; brandId: string; brandLabel: string; treatmentLabel: string };
 
+export type LeadAppointmentStatus = Pick<LeadPendingAppointment, "rowNumber" | "brandId" | "brandLabel" | "treatmentLabel"> & {
+  status: "canceled" | "reschedule_requested";
+  appointmentDate: string | null;
+};
+
 export type LeadSheetLeadGroup = {
+  /** Undefined means an older saved snapshot; null means verified no current exception. */
+  appointmentStatus?: LeadAppointmentStatus | null;
   pendingAppointment?: LeadPendingAppointment | null;
   key: string;
   accountId: string;

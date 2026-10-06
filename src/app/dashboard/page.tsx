@@ -7,7 +7,6 @@ import {
   DatabaseZap,
   Target,
   TriangleAlert,
-  ShieldAlert,
 } from "lucide-react";
 import { AppNav } from "@/components/alyssa/AppNav";
 import { DashboardRegionState } from "@/components/command-center/DashboardRegionState";
@@ -188,9 +187,6 @@ export default async function DashboardPage({
               {message}
             </p>
           ) : null}
-          <Suspense fallback={null}>
-            <LeadAuditAlert result={leadAuditAlertPromise} />
-          </Suspense>
           <Suspense fallback={<DashboardRegionState title="Lead、預約及到店" />}>
             <LeadDashboardRegion
               result={leadDashboardPromise}
@@ -267,23 +263,6 @@ async function DashboardSyncStatus({ result, isMaster, returnPath }: {
       <small>上次同步作業：{formatHkDateTime(latestSuccessAt) || "尚未同步"} · 按掣先更新</small>
     </form>
   ) : <small>上次同步作業：{formatHkDateTime(latestSuccessAt) || "尚未同步"} · 由 Master 手動更新</small>;
-}
-
-async function LeadAuditAlert({ result }: {
-  result: Promise<DashboardData<number>>;
-}) {
-  const count = readDashboardData(await result);
-  if (!count || count <= 0) return null;
-  return (
-    <a href="/lead-audit?review=open" className="lead-audit-alert-banner">
-      <ShieldAlert size={22} />
-      <div>
-        <strong>{count} 項 Lead 資料異常待核對</strong>
-        <p>系統偵測到舊紀錄被刪除或出現關鍵變動。</p>
-      </div>
-      <span>立即檢查 <ArrowUpRight size={14} /></span>
-    </a>
-  );
 }
 
 async function LeadDashboardRegion({ result, returnPath }: {

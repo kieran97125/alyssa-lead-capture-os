@@ -7,6 +7,7 @@ export function leadDashboardAvailabilityFixture(live: boolean): LeadDashboardSn
   const model = buildLeadDashboardModel({ groups: [], brands: [], filters });
   return {
     ...model, filters,
+    appointmentStatuses: { available: live, cancellations: 0, reschedules: 0, undated: 0, rows: [] },
     costs: calculatePerformanceCostSummary({ spendFacts: [], selectedBrandIds: [], leads: 0, bookings: 0, shows: 0, attributable: true }),
     sourceName: "Synthetic Lead Sheet", sourceStatus: live ? "connected" : "error",
     lastSuccessAt: null, loadedAt: live ? "2026-10-05T04:00:00Z" : null,

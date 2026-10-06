@@ -2,6 +2,28 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]] as const) {
+  test(`appointment status summary ${name} visual and keyboard states`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/e2e/appointment-status", { waitUntil: "networkidle" });
+    const summary = page.getByTestId("appointment-status-summary");
+    await expect(summary.locator("dd")).toHaveText(["2", "1"]);
+    await expect(summary).toHaveScreenshot(`appointment-status-${name}.png`);
+    await summary.locator("summary").focus();
+    await page.keyboard.press("Enter");
+    await expect(summary.getByRole("table")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    await expect(summary).toHaveScreenshot(`appointment-status-expanded-${name}.png`);
+    const result = await new AxeBuilder({ page }).include('[data-testid="appointment-status-summary"]')
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(result.violations).toEqual([]);
+    await page.keyboard.press("Space");
+    await expect(summary.getByRole("table")).toBeHidden();
+    await page.goto("/e2e/appointment-status?unavailable=1", { waitUntil: "networkidle" });
+    await expect(page.getByTestId("appointment-status-summary").locator("dd")).toHaveText(["—", "—"]);
+  });
+}
+
+for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]] as const) {
   test(`report descriptions remain compact on ${name}`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await page.goto("/e2e/report-details", { waitUntil: "networkidle" });
