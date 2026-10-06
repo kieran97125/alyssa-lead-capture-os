@@ -17,6 +17,7 @@ Build contracts, focused lint, Storybook, desktop/mobile visual and keyboard/acc
 - Local production build and all contracts, focused lint and Storybook passed. Settings/source/report acceptance and desktop/mobile configuration accessibility checks passed.
 - The two unchanged foundation screenshot goldens differ in the recovered local browser/font environment; they are retained and hosted gates remain authoritative.
 - Desktop and mobile settings screenshots were visually reviewed; mobile rows now keep title, count and management action in one compact row.
+- The new mobile settings golden uses the visually reviewed hosted-runner capture (390 × 1153), resolving local font differences without changing screenshot tolerances. The initial hosted run passed the other 224 acceptance checks and all other design checks.
 
 ## Rollback
 
