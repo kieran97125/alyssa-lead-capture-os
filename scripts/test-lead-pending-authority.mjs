@@ -57,6 +57,8 @@ assert.equal(current.totals.outstanding,1);assert.equal(current.totals.leads,0);
 const restricted=math.buildLeadDashboardModel({groups:parsed.groups,brands,filters,allowedBrandIds:['a']});assert.equal(restricted.totals.outstanding,1);assert.ok(restricted.outstandingRows.every(r=>r.brandId==='a'));
 const trend=math.buildLeadDashboardTrend({groups:parsed.groups,brands,filters,brandColors:{},annotations:[]});assert.equal(trend.flatMap(s=>s.points).reduce((n,r)=>n+r.pendingShows,0),2);
 const performance=parser.aggregateLeadSheetPerformance({...input,pendingAppointmentAuthority:p.parseLeadPendingAppointmentAuthority(bridge,registry),dailyThroughDate:'2026-10-31',activityThroughDate:'2026-10-31',pendingThroughDate:'2026-12-31'});
+assert.equal(performance.appointmentStatusProjection,'current-appointment-v1');
+assert.equal(statuses.buildAppointmentStatusSummary({projectionVersion:performance.appointmentStatusProjection,groups:performance.groups,brands,filters:statusFilters}).cancellations,1,'Aggregated status stays available after the reporting layer');
 assert.equal(performance.metricFacts.filter(f=>f.metricKind==='pending_show').reduce((n,f)=>n+f.count,0),3);assert.ok(performance.metricFacts.some(f=>f.metricKind==='pending_show'&&f.brandId==='m'&&f.treatmentLabel==='Current treatment'));
 let rejected=0;
 for(const mutate of [

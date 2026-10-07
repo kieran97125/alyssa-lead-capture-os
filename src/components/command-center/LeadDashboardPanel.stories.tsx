@@ -12,6 +12,9 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 export const Unavailable: Story = {};
 export const VerifiedEmpty: Story = { args: { snapshot: leadDashboardAvailabilityFixture(true) } };
+export const SuccessfulWithAuditWarnings: Story = { args: { snapshot: {
+  ...leadDashboardAvailabilityFixture(true), sourceStatus: "warning",
+} } };
 export const PreviousSuccessfulUpdate: Story = {
   render: ({ snapshot }) => <>
     {snapshot.warnings.map((warning) => <p key={warning} className="command-status-message is-error" role="status">{warning}</p>)}

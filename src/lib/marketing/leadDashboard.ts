@@ -432,9 +432,6 @@ export async function getLeadDashboardSnapshot(
       })),
     });
     const warnings: string[] = [];
-    if (source.status !== "connected") {
-      warnings.push("上次同步狀態需要檢查；以下保留最近一次成功儲存嘅 Lead 資料。");
-    }
     if (parsed.diagnostics.unknownBrandRows > 0) {
       warnings.push(
         `${parsed.diagnostics.unknownBrandRows} 行品牌未能對應，暫未計入 Dashboard。`

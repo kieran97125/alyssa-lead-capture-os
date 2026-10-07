@@ -150,7 +150,15 @@ export async function readPublishedLeadDashboardSnapshot(input: SnapshotContext)
     if (payload?.version !== LEAD_DASHBOARD_SNAPSHOT_VERSION || payload.fingerprint !== leadDashboardSnapshotFingerprint(input) ||
         payload.publishedAt !== envelope.publishedAt || !timestamp(payload.capturedAt)) throw unavailable();
     validateLeadDashboardSavedGroups(payload.parsed, input.brands);
-    return { ...payload.parsed, loadedAt: envelope.publishedAt };
+    const parsed = payload.parsed;
+    // A producer release omitted the top-level marker but retained the verified
+    // per-group status projection. Recover only complete, validated nonempty
+    // payloads; old or empty payloads without the marker remain unavailable.
+    const recoverStatusProjection = parsed.appointmentStatusProjection === undefined &&
+      parsed.groups.length > 0 && parsed.groups.every(group => group.appointmentStatus !== undefined);
+    return { ...parsed,
+      ...(recoverStatusProjection ? { appointmentStatusProjection: "current-appointment-v1" as const } : {}),
+      loadedAt: envelope.publishedAt };
   } catch {
     throw unavailable();
   }
