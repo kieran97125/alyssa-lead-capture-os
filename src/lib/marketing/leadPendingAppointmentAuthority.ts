@@ -5,7 +5,7 @@ import type { LeadSheetSyncReason } from "@/lib/marketing/leadSheetSyncDiagnosti
 export const PENDING_BRIDGE_HEADERS = ["Stable Source ID", "Metric Identity", "Current Master Source Row", "Verified Eligible Unique Source", "Current Appointment ID", "Exact Master Row Equality", "Metric Payload Eligible", "Source ID Unique"];
 export const PENDING_REGISTRY_HEADERS = ["Appointment ID", "Lead ID", "Account", "Customer Key", "Phone Last8", "Name", "Brand", "Treatment", "Branch", "Created At", "Appointment Date", "Appointment Time", "Booking Registered At", "Registration Provenance", "State", "Outcome", "Arrival Date", "Outcome Recorded At", "Revision", "Previous Appointment ID", "Queue Entry ID", "Last Seen Status", "Last Seen Schedule", "First Seen At", "Updated At", "Last Generated Arrival Date", "Pending Queue Before"];
 const validated = Symbol("validatedPendingAppointments");
-type Binding = { identity: string; sourceId: string; pointer: string; eligible: boolean };
+type Binding = { identity: string; sourceId: string; pointer: string; eligible: boolean; registrationPending: boolean };
 type Appointment = { leadId: string; account: string; state: string; outcome: string; date: string | null };
 export type LeadPendingAppointmentAuthority = { [validated]: { bridge: Map<number, Binding>; registry: Map<string, Appointment> } };
 const blank = (v: unknown) => v === undefined || v === null || v === "";
@@ -26,12 +26,13 @@ function rows(values: unknown, headers: string[], reason: LeadSheetSyncReason): 
 export function parseLeadPendingAppointmentAuthority(bridgeValues: unknown, registryValues: unknown): LeadPendingAppointmentAuthority {
   const bridge = new Map<number, Binding>(), registry = new Map<string, Appointment>(), sourceIds = new Set<string>();
   for (const r of rows(bridgeValues, PENDING_BRIDGE_HEADERS, "bridge_headers")) {
-    if (r.length !== 8 || !Number.isSafeInteger(r[2]) || Number(r[2]) < 2 || bridge.has(Number(r[2])) || ![3,5,6,7].every(i => typeof r[i] === "boolean") || r[6] === true && (r[3] !== true || r[7] !== true)) throw arrivalOutcomeAuthorityError("bridge_row");
+    const registrationPending = blank(r[0]) && blank(r[4]) && r[3] === false && r[7] === false && r[6] === true;
+    if (r.length !== 8 || !Number.isSafeInteger(r[2]) || Number(r[2]) < 2 || bridge.has(Number(r[2])) || ![3,5,6,7].every(i => typeof r[i] === "boolean") || r[6] === true && !registrationPending && (r[3] !== true || r[7] !== true)) throw arrivalOutcomeAuthorityError("bridge_row");
     if (r[5] !== true) throw arrivalOutcomeAuthorityError("bridge_master_mismatch");
     const sourceId = text(r[0], "bridge_row"), identity = text(r[1], "bridge_row"), pointer = text(r[4], "bridge_row");
-    if (r[6] && (!sourceId || sourceIds.has(sourceId))) throw arrivalOutcomeAuthorityError("bridge_source_duplicate");
-    if (r[6]) sourceIds.add(sourceId);
-    bridge.set(Number(r[2]), { sourceId, identity, pointer, eligible: r[6] === true });
+    if (r[6] && !registrationPending && (!sourceId || sourceIds.has(sourceId))) throw arrivalOutcomeAuthorityError("bridge_source_duplicate");
+    if (r[6] && sourceId) sourceIds.add(sourceId);
+    bridge.set(Number(r[2]), { sourceId, identity, pointer, eligible: r[6] === true, registrationPending });
   }
   for (const r of rows(registryValues, PENDING_REGISTRY_HEADERS, "registry_headers")) {
     const id=text(r[0]), leadId=text(r[1]), account=text(r[2]), state=text(r[14]), outcome=text(r[15]);
@@ -46,6 +47,12 @@ export function applyLeadPendingAppointmentAuthority(groups: LeadSheetLeadGroup[
   for (const g of groups) for (const row of g.rows) {
     const b=data.bridge.get(row.rowNumber), identity=g.accountLabel+"|"+g.key.slice(g.accountId.length+1).replace(/^phone:/,"p:").replace(/^row:/,"r:");
     if (!b?.eligible || b.identity !== identity || accepted.has(row.rowNumber)) throw arrivalOutcomeAuthorityError("bridge_coverage");
+    // Unscheduled new enquiries have no appointment ownership to prove yet.
+    // Count their Account/phone identity while the external ingest worker adds
+    // its durable row ID. Every booking/outcome still requires that ownership.
+    if (b.registrationPending && (row.status !== "lead" || row.appointmentDate || row.confirmationDate)) {
+      throw arrivalOutcomeAuthorityError("bridge_registration_pending", { pendingSourceIds: 1 });
+    }
     accepted.add(row.rowNumber);
   }
   const missingRows = [...data.bridge].filter(([n,b]) => b.eligible && !accepted.has(n)).length;

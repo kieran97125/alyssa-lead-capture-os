@@ -64,3 +64,27 @@ for(const mutate of [
 ]){const b=structuredClone(bridge);mutate(b);assert.throws(()=>build(b),/暫時未能確認/);rejected++;}
 for(const mutate of [r=>r.push(r[1]),r=>{r[1][1]='wrong-owner';},r=>{r[1][2]='GOS Beauty';},r=>{r[1][10]='2026-02-30';},r=>{r[1][14]='unknown-state';}]){const r=structuredClone(registry);mutate(r);assert.throws(()=>build(bridge,r));rejected++;}
 console.log(`PASS: current appointment state/outcome/schedule, rebooking, whole-day latest identity, legacy fallback, independent current dimensions, permission-filtered KPI/detail/trend/facts, ${rejected} fail-closed corrupt/truncated projections`);
+
+// External/Omi API inserts do not trigger native onEdit. An unscheduled enquiry
+// can be counted before row-ID registration, without accepting appointment data.
+const newRows=[['2026-10-07','2026-10-07','待跟進','Alyssa','Alyssa Main','10000901','','','New enquiry']];
+const pendingBridge=[p.PENDING_BRIDGE_HEADERS,['','Alyssa Main|p:10000901',2,false,'',true,true,false]];
+const newFacts=[a.ARRIVAL_METRIC_HEADERS,['Alyssa Main|p:10000901','Alyssa Main','Alyssa','New enquiry','2026-10-07','','','',0,0,0,2]];
+const newInput={headers,rows:newRows,brands,sourceBrandId:null,arrivalOutcomeAuthority:a.parseLeadArrivalOutcomeAuthority(newFacts)};
+const preRegistration=parser.buildLeadSheetGroups({...newInput,pendingAppointmentAuthority:p.parseLeadPendingAppointmentAuthority(pendingBridge,[p.PENDING_REGISTRY_HEADERS])});
+const registeredBridge=structuredClone(pendingBridge);Object.assign(registeredBridge[1],{0:'source-new',3:true,7:true});
+const postRegistration=parser.buildLeadSheetGroups({...newInput,pendingAppointmentAuthority:p.parseLeadPendingAppointmentAuthority(registeredBridge,[p.PENDING_REGISTRY_HEADERS])});
+const liveFilters={...filters,startDate:'2026-10-07',endDate:'2026-10-07'};
+assert.deepEqual(math.buildLeadDashboardModel({groups:preRegistration.groups,brands,filters:liveFilters}).totals,
+  math.buildLeadDashboardModel({groups:postRegistration.groups,brands,filters:liveFilters}).totals,
+  'Registering the row ID must not change any metric');
+assert.equal(preRegistration.groups.length,1);assert.equal(preRegistration.groups[0].pendingAppointment,null);
+for(const change of [r=>{r[2]='已預約';},r=>{r[6]='2026-10-09';},r=>{r[7]='2026-10-07';}]) {
+ const changed=structuredClone(newRows);change(changed[0]);
+ assert.throws(()=>parser.buildLeadSheetGroups({...newInput,rows:changed,pendingAppointmentAuthority:p.parseLeadPendingAppointmentAuthority(pendingBridge,[p.PENDING_REGISTRY_HEADERS])}),e=>e.reason==='bridge_registration_pending');
+}
+for(const change of [b=>{b[1][5]=false;},b=>{b[1][1]='GOS Beauty|p:10000901';},b=>{b[1][4]='appt-unowned';},b=>{b[1][0]='duplicate-present-id';}]) {
+ const corrupt=structuredClone(pendingBridge);change(corrupt);
+ assert.throws(()=>parser.buildLeadSheetGroups({...newInput,pendingAppointmentAuthority:p.parseLeadPendingAppointmentAuthority(corrupt,[p.PENDING_REGISTRY_HEADERS])}));
+}
+console.log('PASS: new unscheduled enquiry syncs before ID registration; metrics stable after registration; appointment evidence, Account mismatch, inconsistent flags and master drift still rejected.');

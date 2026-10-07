@@ -375,18 +375,22 @@ async function updateDestinationHealth(
   try {
     const timestamp = new Date().toISOString();
     const payload: Record<string, unknown> = {
-      status: update.status,
-      last_sync_at: timestamp,
-      last_error_summary: update.lastErrorSummary ?? null,
       updated_at: timestamp,
     };
+    // Lead delivery is not a metric refresh. Preserve the metric sync cursor,
+    // failure and lease when an unrelated website Lead arrives concurrently.
+    if (update.status === "error") {
+      payload.status = "error";
+      payload.last_error_summary = update.lastErrorSummary ?? null;
+    }
     if (update.lastSuccessAt) {
       payload.last_success_at = update.lastSuccessAt;
     }
     await createSupabaseAdminClient()
       .from("marketing_data_sources")
       .update(payload)
-      .eq("id", destinationId);
+      .eq("id", destinationId)
+      .neq("status", "syncing");
   } catch (error) {
     console.warn("google_sheets_lead_destination_status_update_failed", {
       message: error instanceof Error ? error.message : "unknown",

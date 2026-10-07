@@ -7,7 +7,7 @@ export type LeadSheetSyncReason =
   | "arrival_headers" | "arrival_row" | "arrival_cells" | "arrival_identity"
   | "arrival_duplicate" | "arrival_date" | "arrival_coverage"
   | "bridge_headers" | "bridge_row" | "bridge_master_mismatch"
-  | "bridge_source_duplicate" | "bridge_coverage"
+  | "bridge_source_duplicate" | "bridge_coverage" | "bridge_registration_pending"
   | "registry_headers" | "registry_cells" | "registry_row" | "registry_date"
   | "registry_pointer" | "registry_dimensions";
 
@@ -17,7 +17,9 @@ export class LeadSheetSyncError extends Error {
     readonly counts: Readonly<Record<string, number>> = {},
     message = "到店報表資料未完整或格式未能核對，暫時未能確認 Show／No Show；請稍後重試。"
   ) {
-    super(message);
+    super(reason === "bridge_registration_pending"
+      ? "有預約記錄仍待登記穩定 Lead ID；系統會再讀取核對，現有數字會保留。"
+      : message);
     this.name = "LeadSheetSyncError";
   }
 }
@@ -25,7 +27,7 @@ export class LeadSheetSyncError extends Error {
 const retryableReasons = new Set<LeadSheetSyncReason>([
   "managed_read_timeout", "provider_transient", "managed_response",
   "arrival_cells", "arrival_coverage", "bridge_master_mismatch",
-  "bridge_coverage", "registry_cells", "registry_pointer",
+  "bridge_coverage", "registry_cells", "registry_pointer", "bridge_registration_pending",
 ]);
 export type LeadSheetReadAttempt = {
   attempt: number;

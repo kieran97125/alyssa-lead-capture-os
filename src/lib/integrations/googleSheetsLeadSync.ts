@@ -392,6 +392,14 @@ export function alignLeadRowToDestinationHeaders(
       payload.rowValues[index] ?? "",
     ])
   );
+  // API writes do not emit the Sheet's native edit event. Persist the source
+  // identity in the same append as the business fields, before projection reads.
+  // Legacy destinations without this optional header retain their wire layout.
+  const stableLeadKey = payload.leadKey.trim();
+  valueByHeader.set(
+    canonicalHeader("Omni Lead ID"),
+    stableLeadKey ? `lead_${stableLeadKey.replace(/^lead_/, "")}` : ""
+  );
   const normalizedDestinationHeaders = destinationHeaders.map(canonicalHeader);
   const duplicateHeaders = normalizedDestinationHeaders.filter(
     (header, index) =>
@@ -408,6 +416,9 @@ export function alignLeadRowToDestinationHeaders(
   }
 
   const destinationHeaderSet = new Set(normalizedDestinationHeaders);
+  if (destinationHeaderSet.has(canonicalHeader("Omni Lead ID")) && !stableLeadKey) {
+    throw new Error("Google Sheet Lead 缺少穩定來源 ID，寫入已安全停止。");
+  }
   const missingHeaders = REQUIRED_OPERATIONAL_HEADERS.filter(
     (header) => !destinationHeaderSet.has(canonicalHeader(header))
   );
