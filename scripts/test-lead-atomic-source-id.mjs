@@ -1,0 +1,44 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import ts from 'typescript';
+const native=createRequire(import.meta.url),cache=new Map();
+function load(path){if(cache.has(path))return cache.get(path).exports;const m={exports:{}};cache.set(path,m);new Function('require','module','exports',ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>n.startsWith('@/')?load('src/'+n.slice(2)+'.ts'):native(n),m,m.exports);return m.exports;}
+const p=load('src/lib/integrations/googleSheetsLeadSync.ts');
+const payload={headers:p.GOOGLE_SHEETS_LEAD_HEADERS,rowValues:Array(25).fill(''),leadKey:'synthetic-source'};
+const headers=[...p.GOOGLE_SHEETS_LEAD_HEADERS,'Omni Lead ID','Appointment ID','Booking Registered At','到店結果','到店結果更新','Pending Appointment Snapshot'];
+const row=p.alignLeadRowToDestinationHeaders(headers,payload);
+assert.equal(row[25],'lead_synthetic-source');assert.equal(row.length,31);assert.ok(row.slice(26).every(v=>v===''));
+assert.deepEqual(p.alignLeadRowToDestinationHeaders([...p.GOOGLE_SHEETS_LEAD_HEADERS],payload),payload.rowValues);
+assert.equal(p.alignLeadRowToDestinationHeaders(headers,{...payload,leadKey:'lead_synthetic-source'})[25],'lead_synthetic-source');
+assert.throws(()=>p.alignLeadRowToDestinationHeaders(headers,{...payload,leadKey:''}),/缺少穩定來源 ID/);
+assert.throws(()=>p.alignLeadRowToDestinationHeaders([...headers,' Omni Lead ID '],payload),/重複受管理 header/);
+// Exercise the actual native writer's health recorder with a database fixture.
+const updates=[];const db={from(){const q={update(v){updates.push({payload:v,filters:[]});return q;},eq(k,v){updates.at(-1).filters.push(['eq',k,v]);return q;},neq(k,v){updates.at(-1).filters.push(['neq',k,v]);return q;},then(resolve){return Promise.resolve({error:null}).then(resolve);}};return q;}};
+const src=readFileSync(new URL('../src/lib/integrations/googleSheetsLeadNative.ts',import.meta.url),'utf8');
+const start=src.indexOf('async function updateDestinationHealth('),end=src.indexOf('\nexport async function appendLeadViaNativeGoogleSheets',start);
+const code=ts.transpileModule(src.slice(start,end),{compilerOptions:{target:ts.ScriptTarget.ES2022}}).outputText;
+const health=new Function('createSupabaseAdminClient',code+'\nreturn updateDestinationHealth;')(()=>db);
+await health('synthetic-destination',{status:'connected',lastSuccessAt:'2026-10-07T00:00:00Z'});
+assert.equal(updates[0].payload.status,undefined);assert.equal(updates[0].payload.last_sync_at,undefined);assert.equal(updates[0].payload.last_error_summary,undefined);
+assert.ok(updates[0].filters.some(f=>f[0]==='neq'&&f[1]==='status'&&f[2]==='syncing'));
+await health('synthetic-destination',{status:'error',lastErrorSummary:'Synthetic delivery error'});
+assert.equal(updates[1].payload.status,'error');assert.equal(updates[1].payload.last_sync_at,undefined);assert.ok(updates[1].filters.some(f=>f[0]==='neq'&&f[2]==='syncing'));
+console.log('PASS: atomic source ID in aligned append, legacy layout, missing/duplicate ID guards, metric cursor and active sync lease protected.');
+const http=[];
+const destination={id:'synthetic-source',brand_id:null,display_name:'Synthetic destination',configuration:{dataset:'lead_funnel',spreadsheetId:'synthetic_spreadsheet_identity_123456789',tabName:'lead',sourceProfile:'omni-account-v1'}};
+const writerDb={from(){const q={select(){return q;},eq(){return q;},neq(){return q;},limit(){return Promise.resolve({data:[destination],error:null});},update(){return q;},then(resolve){return Promise.resolve({error:null}).then(resolve);}};return q;}};
+const writerModule={exports:{}};
+new Function('require','module','exports','fetch',ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{
+ if(name==='server-only')return{};
+ if(name==='@/lib/integrations/googleSheetsOAuth')return{getGoogleSheetsOAuthStatus:async()=>({writeEnabled:true}),getGoogleSheetsOAuthAccessToken:async()=> 'synthetic-token'};
+ if(name==='@/lib/integrations/googleSheetsLeadSync')return p;
+ if(name==='@/lib/supabase/admin')return{createSupabaseAdminClient:()=>writerDb,hasSupabaseAdminEnv:()=>true};
+ throw Error('Unexpected writer dependency');
+},writerModule,writerModule.exports,async(url,options={})=>{http.push({url,options});return{ok:true,json:async()=>options.method==='POST'?{updates:{updatedRows:1,updatedRange:'synthetic'}}:{values:[headers]}};});
+const writeResult=await writerModule.exports.appendLeadViaNativeGoogleSheets({brandId:'synthetic-brand',payload:{...payload,brand:'Alyssa',treatmentOffer:'Synthetic treatment',treatmentItem:'Synthetic treatment'}});
+assert.equal(writeResult.attempted,true);assert.equal(http.length,2);
+const posted=JSON.parse(http[1].options.body).values[0];
+assert.equal(posted[25],'lead_synthetic-source');assert.equal(posted[20],'Alyssa Aesthetics');assert.ok(posted.slice(26).every(v=>v===''));
+assert.ok(decodeURIComponent(http[1].url).includes("'Alyssa Aesthetics'!A1:AE:append"));
+console.log('PASS: actual native append sends routed business fields and source ID in one HTTP write; no background edit event required.');
