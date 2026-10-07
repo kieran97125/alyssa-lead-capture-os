@@ -5,7 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 // The same component can also be checked in the workshop when supplied.
 const workshop = process.env.STORYBOOK_BASE_URL;
 for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: "mobile", width: 390, height: 844 }]) {
-  for (const state of ["unavailable", "verified-empty", "previous-successful-update"]) {
+  for (const state of ["unavailable", "verified-empty", "previous-successful-update", "successful-with-audit-warnings"]) {
     test(`Lead authority ${state} ${viewport.name}`, async ({ page }) => {
       await page.setViewportSize(viewport);
       await page.goto(workshop
@@ -25,11 +25,15 @@ for (const viewport of [{ name: "desktop", width: 1440, height: 1000 }, { name: 
         await expect(panel.getByRole("alert")).toHaveCount(0);
         await expect(panel.getByText("已同步資料", { exact: true })).toBeVisible();
         await expect(panel.getByText("上次成功更新 5/10 12:00 HKT", { exact: true })).toBeVisible();
+        if (state === "successful-with-audit-warnings") {
+          await expect(page.getByText("上次同步狀態需要檢查", { exact: false })).toHaveCount(0);
+          await expect(panel.getByTestId("appointment-status-summary").locator("dd")).toHaveText(["0", "0"]);
+        }
         if (state === "previous-successful-update") {
           await expect(page.getByRole("status").filter({ hasText: "最近一次更新未成功" })).toContainText("最近一次更新未成功");
         }
       }
-      await expect(panel).toHaveScreenshot(`lead-authority-${state}-${viewport.name}.png`, { animations: "disabled" });
+      await expect(panel).toHaveScreenshot(`lead-authority-${state === "successful-with-audit-warnings" ? "verified-empty" : state}-${viewport.name}.png`, { animations: "disabled" });
       expect((await new AxeBuilder({ page }).include('[aria-label="Lead Dashboard"]').withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
     });
   }

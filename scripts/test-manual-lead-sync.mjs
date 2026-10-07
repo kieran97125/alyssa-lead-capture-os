@@ -126,6 +126,8 @@ assert.equal(initial.ok, true, initial.message);
 assert.deepEqual(events, ["claim", "google-read", "audit", "daily", "analysis", "delete-stale-analysis", "source:connected", "publish", "sync-log"]);
 assert.equal(published.length, 1);
 assert.equal(published[0].parsed.groups.length, 1);
+assert.equal(published[0].parsed.appointmentStatusProjection, "current-appointment-v1", "Aggregation and publication must retain current appointment availability");
+assert.equal(published[0].parsed.groups[0].appointmentStatus, null);
 assert.equal(published[0].parsed.groups[0].firstTouchDate, "2026-10-01");
 assert.equal(published[0].parsed.groups[0].bookDate, "2026-10-02");
 assert.equal(published[0].parsed.groups[0].showDate, "2026-10-04");

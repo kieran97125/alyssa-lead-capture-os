@@ -444,7 +444,8 @@ async function collectLeadFunnelMetrics(
     treatmentMetrics,
     diagnostics: parsed.diagnostics,
     dashboardGroups: normalizedLiveTable.arrivalOutcomeAuthority
-      ? { groups: parsed.groups, diagnostics: parsed.diagnostics } : null,
+      ? { groups: parsed.groups, diagnostics: parsed.diagnostics,
+          ...(parsed.appointmentStatusProjection ? { appointmentStatusProjection: parsed.appointmentStatusProjection } : {}) } : null,
     capturedAt: timestamp,
     audit,
   };

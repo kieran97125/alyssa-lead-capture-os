@@ -294,12 +294,30 @@ async function verifyRealSnapshotStore() {
     assert.throws(()=>realStore.validateLeadDashboardSavedGroups({...emptyPayload,appointmentStatusProjection:'unknown'}, brands),safeUnavailable);
     assert.throws(()=>realStore.validateLeadDashboardSavedGroups({...parsed,appointmentStatusProjection:'current-appointment-v1'}, brands),safeUnavailable,'Declared projection must include verified status for every group');
     const appointmentStatusPayload = structuredClone(parsed);
+    appointmentStatusPayload.groups.forEach(group => { group.appointmentStatus = null; });
     const statusGroup = appointmentStatusPayload.groups[0];
     statusGroup.pendingAppointment = null; statusGroup.pendingRowNumber = null;
     statusGroup.appointmentStatus = { rowNumber: statusGroup.currentRowNumber,
       brandId: statusGroup.brandId, brandLabel: statusGroup.brandLabel, treatmentLabel: statusGroup.treatmentLabel,
       status: "canceled", appointmentDate: "2026-10-14" };
     realStore.validateLeadDashboardSavedGroups(appointmentStatusPayload, brands);
+    resetStore(); state.runs = [makeRun("good-run", {}, payloadFor({ parsed: appointmentStatusPayload }))];
+    const recoveredStatuses = await read();
+    assert.equal(recoveredStatuses.appointmentStatusProjection, "current-appointment-v1");
+    assert.deepEqual(recoveredStatuses.groups, appointmentStatusPayload.groups);
+    assert.equal(state.writeAttempts, 0, "Compatibility recovery must not write or require another sync");
+    const statusSummary = load("src/lib/marketing/appointmentStatusSummary.ts").buildAppointmentStatusSummary({
+      groups: recoveredStatuses.groups, brands, filters: {...filters,endDate:"2026-10-31",accountId:"",brandId:"",treatment:""},
+      projectionVersion: recoveredStatuses.appointmentStatusProjection,
+    });
+    assert.equal(statusSummary.available, true);assert.equal(statusSummary.cancellations, 1);
+    const partialStatusPayload = structuredClone(appointmentStatusPayload);delete partialStatusPayload.groups[1].appointmentStatus;
+    resetStore();state.runs = [makeRun("good-run", {}, payloadFor({parsed:partialStatusPayload}))];
+    assert.equal((await read()).appointmentStatusProjection, undefined, "Partial legacy status data must not produce a false zero");
+    resetStore();state.runs = [makeRun("good-run", {}, payloadFor({parsed:emptyPayload}))];
+    assert.equal((await read()).appointmentStatusProjection, undefined);
+    resetStore();state.runs = [makeRun("good-run", {}, payloadFor({parsed:{...emptyPayload,appointmentStatusProjection:"current-appointment-v1"}}))];
+    assert.equal((await read()).appointmentStatusProjection, "current-appointment-v1", "Explicit verified empty projection retains real zeros");
     for (const mutate of [
       value => { value.groups[0].appointmentStatus.status = "unknown"; },
       value => { value.groups[0].appointmentStatus.brandId = "unknown"; },
@@ -479,7 +497,12 @@ try {
   assert.equal(priorGood.live, true, "A later provider refresh failure must retain the last published good data");
   assert.deepEqual(counts(priorGood), [5, 5, 1, 1, 3]);
   assert.equal(priorGood.loadedAt, savedAt);
-  assert.ok(priorGood.warnings.length > 0, "The saved result must indicate the later source health failure");
+  assert.deepEqual(priorGood.warnings, [], "Source health must not add the removed generic status paragraph to valid saved Lead data");
+  reset();source.status="warning";
+  const successfulWithAuditWarnings = await getLeadDashboardSnapshot(filters, master);
+  assert.equal(successfulWithAuditWarnings.live,true);
+  assert.deepEqual(counts(successfulWithAuditWarnings),[5,5,1,1,3]);
+  assert.deepEqual(successfulWithAuditWarnings.warnings,[]);
 
   await verifyRealSnapshotStore();
 

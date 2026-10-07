@@ -181,3 +181,7 @@ The release PR, merge commit, Vercel deployment and test run are appended after 
 - Expanded the Brief into the reclaimed workspace width, added sticky Tiptap text-colour controls, and separated explanatory screenshots from production-material UI.
 - Replaced the permanent asset/discussion rail with an on-demand version-history side sheet while preserving all underlying records and actions.
 - Rollback: revert PR #83; no database migration or historical data rewrite is required.
+# 2026-10-07 — Saved appointment counts
+
+Preserve current appointment authority through reporting adapters, recover complete validated saved status data without another sync, and remove the requested generic source-status paragraph. Add desktop/mobile successful-audit-warning coverage using the existing verified-empty goldens. No new visual component or dependency. See `decisions/2026-10-07-appointment-status-projection-recovery.md` for evidence and rollback.
+

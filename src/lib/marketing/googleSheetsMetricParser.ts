@@ -62,11 +62,9 @@ export type LeadSheetPerformanceDiagnostics = {
   uncategorizedTreatmentRows: number;
 };
 
-export type ParsedLeadSheetPerformance = {
-  groups: LeadSheetLeadGroup[];
+export type ParsedLeadSheetPerformance = ParsedLeadSheetGroups & {
   dailyMetrics: ParsedLeadFunnelMetric[];
   metricFacts: ParsedLeadSheetMetricFact[];
-  diagnostics: LeadSheetPerformanceDiagnostics;
 };
 
 export type LeadSheetStatus = "lead" | "booked" | "show" | "no_show";
@@ -966,10 +964,9 @@ export function aggregateLeadSheetPerformance(input: {
   });
 
   return {
-    groups: parsed.groups,
+    ...parsed,
     dailyMetrics: Array.from(dailyMetrics.values()),
     metricFacts: Array.from(metricFacts.values()),
-    diagnostics: parsed.diagnostics,
   };
 }
 
