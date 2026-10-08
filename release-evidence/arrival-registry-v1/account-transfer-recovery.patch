@@ -1,0 +1,18 @@
+Install scripts/apps-script/account-transfer-recovery.gs alongside the currently
+deployed bound script. In oa2ProcessAccount_, after the context/account/queue read
+and immediately after oa2ReplaySourceAnchors_(ctx,snap), add:
+
+  oa2RehomeMovedAccountAppointments_(ss,ctx,snap);
+
+In handleOmniLeadEdit_, immediately after admitted = true (under DocumentLock),
+add the explicit pending-repair admission before handling the current edit:
+
+  omniEditStage_(trace,'requested_account_recovery',()=>oa2RunRequestedAccountTransferRepair_(e.source));
+
+requestOmniArrivalAccountTransferRepair only queues the operator's request; the
+current operator does not need to interrupt colleagues to acquire the lock.
+The request is cleared only after successful guarded commit.
+
+This uses the existing DocumentLock, source compare-before-commit, checkpoint
+journal, queue IDs and registry commit. Do not install by replacing the newer
+live bound project with the older repository base script.

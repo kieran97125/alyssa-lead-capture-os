@@ -155,7 +155,6 @@ export default async function DashboardPage({
               <Suspense fallback={<small role="status">讀取同步狀態中…</small>}>
                 <DashboardSyncStatus
                   result={commandSnapshotPromise}
-                  isMaster={isMaster}
                   returnPath={dashboardReturnPath}
                 />
               </Suspense>
@@ -234,9 +233,8 @@ type CommandResult = Promise<
   DashboardData<Awaited<ReturnType<typeof getCommandCenterSnapshot>>>
 >;
 
-async function DashboardSyncStatus({ result, isMaster, returnPath }: {
+async function DashboardSyncStatus({ result, returnPath }: {
   result: CommandResult;
-  isMaster: boolean;
   returnPath: string;
 }) {
   const snapshot = readDashboardData(await result);
@@ -251,8 +249,8 @@ async function DashboardSyncStatus({ result, isMaster, returnPath }: {
     .filter((value): value is string => Boolean(value))
     .sort((left, right) => right.localeCompare(left))[0] ?? null;
   const refreshDisabled =
-    !isMaster || !snapshot.schemaReady || leadSheetSources.length === 0;
-  return isMaster ? (
+    !snapshot.schemaReady || leadSheetSources.length === 0;
+  return (
     <form action={refreshDashboardDataAction} className="command-refresh-form">
       <input type="hidden" name="returnPath" value={returnPath} />
       <DashboardRefreshButton
@@ -262,7 +260,7 @@ async function DashboardSyncStatus({ result, isMaster, returnPath }: {
       />
       <small>上次同步作業：{formatHkDateTime(latestSuccessAt) || "尚未同步"} · 按掣先更新</small>
     </form>
-  ) : <small>上次同步作業：{formatHkDateTime(latestSuccessAt) || "尚未同步"} · 由 Master 手動更新</small>;
+  );
 }
 
 async function LeadDashboardRegion({ result, returnPath }: {
@@ -271,7 +269,7 @@ async function LeadDashboardRegion({ result, returnPath }: {
 }) {
   const snapshot = readDashboardData(await result);
   if (!snapshot?.live) {
-    return <DashboardRegionState title="Lead、預約及到店" failed retryHref={returnPath} message="未有可用嘅已同步資料。請由 Master 按「跟 Lead Sheet 更新」。" />;
+    return <DashboardRegionState title="Lead、預約及到店" failed retryHref={returnPath} message="未有可用嘅已同步資料。請按「跟 Lead Sheet 更新」。" />;
   }
   return (
     <>
