@@ -1,6 +1,12 @@
 import { expect, test } from '@playwright/test';
 
-test('ordinary colleague sees the same Lead Sheet update button', async ({ browser },testInfo) => {
+test('ordinary colleague sees the same Lead Sheet update button', async ({ browser, page: masterPage },testInfo) => {
+  await masterPage.goto('/dashboard');
+  const masterButton=masterPage.getByRole('button',{name:'跟 Lead Sheet 更新',exact:true});
+  await expect(masterButton).toBeVisible();
+  // The offline CI fixture has no connected source. Source availability must
+  // affect every role equally; a colleague must not acquire a role-only gate.
+  const sourceAvailable=await masterButton.isEnabled();
   const context=await browser.newContext({storageState:{cookies:[],origins:[]}});
   const page=await context.newPage();
   try {
@@ -10,8 +16,13 @@ test('ordinary colleague sees the same Lead Sheet update button', async ({ brows
     await page.getByRole('button',{name:'管理員登入',exact:true}).click();
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
     const button=page.getByRole('button',{name:'跟 Lead Sheet 更新',exact:true});
-    await expect(button).toBeVisible();await expect(button).toBeEnabled();
-    await button.focus();await expect(button).toBeFocused();
+    await expect(button).toBeVisible();
+    if(sourceAvailable) {
+      await expect(button).toBeEnabled();
+      await button.focus();await expect(button).toBeFocused();
+    } else {
+      await expect(button).toBeDisabled();
+    }
     await expect(page.getByText('由 Master 手動更新')).toHaveCount(0);
     await page.screenshot({path:testInfo.outputPath('all-staff-sheet-refresh.png'),animations:'disabled'});
     await page.goto('/performance');
