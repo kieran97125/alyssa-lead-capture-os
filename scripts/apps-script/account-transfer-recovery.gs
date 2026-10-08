@@ -46,3 +46,26 @@ function repairOmniArrivalAccountTransfers() {
     return result;
   } finally {lock.releaseLock();}
 }
+
+/** A repair request can be admitted by the next staff edit that already owns
+ * the DocumentLock. It never writes business data outside that lock, and only
+ * clears the request after the normal guarded commit succeeds.
+ */
+function requestOmniArrivalAccountTransferRepair() {
+  PropertiesService.getScriptProperties().setProperty('OMNI_ACCOUNT_TRANSFER_REPAIR_PENDING','true');
+  console.log(JSON.stringify({handler:'account_transfer_recovery',queued:true}));
+  return {queued:true};
+}
+function oa2RunRequestedAccountTransferRepair_(ss) {
+  const props=PropertiesService.getScriptProperties();
+  if(props.getProperty('OMNI_ACCOUNT_TRANSFER_REPAIR_PENDING')!=='true')return null;
+  try {
+    const result=oa2ProcessAccount_(ss,ss.getSheetByName('Alyssa Main'),'scan',null,false);
+    props.deleteProperty('OMNI_ACCOUNT_TRANSFER_REPAIR_PENDING');
+    console.log(JSON.stringify({handler:'account_transfer_recovery',completed:true,changes:result.changes}));
+    return result;
+  } catch(ignored) {
+    console.log(JSON.stringify({handler:'account_transfer_recovery',completed:false,queued:true}));
+    return null;
+  }
+}

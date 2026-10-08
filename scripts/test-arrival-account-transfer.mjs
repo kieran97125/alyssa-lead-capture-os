@@ -28,3 +28,15 @@ for(const [changes,row,count] of [[{},record,2],[{},record,0],[{leadId:'other'},
  assert.deepEqual(ctx.appointments,before);assert.equal(ctx.events.length,0);assert.equal(ctx.errors.length,1);
 }
 console.log('PASS: unique open Account transfer preserves booking/outcomes/queue/history, rejects ambiguous ownership and is idempotent');
+let pending,commits=0,fail=false;
+sandbox.console={log:()=>{}};
+sandbox.PropertiesService={getScriptProperties:()=>({getProperty:()=>pending,
+ setProperty:(_,value)=>{pending=value;},deleteProperty:()=>{pending=undefined;}})};
+sandbox.oa2ProcessAccount_=()=>{commits++;if(fail)throw Error('synthetic failure');return{changes:3};};
+const ss={getSheetByName:name=>name};
+assert.equal(sandbox.oa2RunRequestedAccountTransferRepair_(ss),null);assert.equal(commits,0);
+sandbox.requestOmniArrivalAccountTransferRepair();assert.equal(pending,'true');
+fail=true;assert.equal(sandbox.oa2RunRequestedAccountTransferRepair_(ss),null);assert.equal(pending,'true');
+fail=false;assert.equal(sandbox.oa2RunRequestedAccountTransferRepair_(ss).changes,3);assert.equal(pending,undefined);
+assert.equal(sandbox.oa2RunRequestedAccountTransferRepair_(ss),null);assert.equal(commits,2);
+console.log('PASS: explicit repair request survives failure and clears only after successful normal commit');
