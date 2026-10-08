@@ -2,6 +2,53 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 
 for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]] as const) {
+  test(`Google Slides report generation ${name} default, success and error states`, async ({ page }) => {
+    await page.setViewportSize({ width, height });
+    await page.goto("/e2e/report-generator", { waitUntil: "networkidle" });
+    await page.evaluate(async () => { await document.fonts.ready; });
+    const form = page.getByTestId("report-generator-fixture");
+    await expect(form.getByRole("radio", { name: /Google Slides/ })).toBeChecked();
+    await expect(form.getByRole("radio", { name: /PowerPoint/ })).toHaveCount(0);
+    await expect(form.getByRole("checkbox", { name: /加入上月同期比較/ })).toHaveCount(0);
+    await expect(form.getByRole("button", { name: /按療程/ })).toHaveCount(0);
+    await expect(form).toHaveScreenshot(`report-google-slides-${name}.png`);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    let downloads = 0, requests = 0;
+    page.on("download", () => downloads++);
+    await page.route("**/api/internal/reports/export", async (route) => {
+      requests++;
+      expect(route.request().postDataJSON().format).toBe("google_slides");
+      expect(route.request().postDataJSON().comparison).toBe(false);
+      expect(route.request().postDataJSON().breakdowns).toEqual([]);
+      await route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({
+        format: "google_slides", presentation: {
+          name: "2026-10-08_2026-10-01_2026-10-07_CS_AD報數",
+          url: "https://docs.google.com/presentation/d/e2e-report-id/edit",
+        },
+      }) });
+    });
+    const generate = form.getByRole("button", { name: "生成 Google Slides", exact: true });
+    await generate.focus();
+    await page.keyboard.press("Enter");
+    const result = form.getByTestId("report-slides-result");
+    await expect(result.getByRole("link", { name: "開啟 Google Slides" })).toHaveAttribute("href", "https://docs.google.com/presentation/d/e2e-report-id/edit");
+    await expect(result).toHaveScreenshot(`report-google-slides-result-${name}.png`);
+    expect(requests).toBe(1); expect(downloads).toBe(0);
+    await page.unroute("**/api/internal/reports/export");
+    await page.route("**/api/internal/reports/export", route => route.fulfill({ status: 409, contentType: "application/json", body: JSON.stringify({
+      code: "drive_authorization_required", message: "請由管理員連接 Google Drive 報告權限。",
+    }) }));
+    await generate.click();
+    await expect(form.getByRole("alert")).toHaveText("請由管理員連接 Google Drive 報告權限。");
+    await expect(result).toHaveCount(0);
+    await expect(generate).toBeEnabled();
+    const violations = await new AxeBuilder({ page }).include('[data-testid="report-generator-fixture"]')
+      .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(violations.violations).toEqual([]);
+  });
+}
+
+for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]] as const) {
   test(`appointment status summary ${name} visual and keyboard states`, async ({ page }) => {
     await page.setViewportSize({ width, height });
     await page.goto("/e2e/appointment-status", { waitUntil: "networkidle" });

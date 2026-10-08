@@ -15,6 +15,7 @@ function reportFilename(startDate: string, endDate: string, extension: string) {
 }
 
 export async function POST(request: Request) {
+  const exportSignal = AbortSignal.any([request.signal, AbortSignal.timeout(55_000)]);
   try {
     const access = await requireModuleAccess("performance");
     if (!access.allowed) {
@@ -30,6 +31,20 @@ export async function POST(request: Request) {
     const input = await request.json().catch(() => null);
     const normalized = normalizeReportExportRequest(input);
     const snapshot = await buildReportSnapshot(normalized);
+
+    if (normalized.format === "google_slides" || normalized.format === "pptx") {
+      const { exportReportToGoogleSlides } = await import("@/lib/reports/googleSlides");
+      const presentation = await exportReportToGoogleSlides(snapshot, { signal: exportSignal });
+      return NextResponse.json({ format: "google_slides", presentation }, {
+        status: 201,
+        headers: {
+          "cache-control": "private, no-store, max-age=0",
+          "x-content-type-options": "nosniff",
+          "x-report-id": snapshot.reportId,
+          "x-report-snapshot-id": snapshot.snapshotId,
+        },
+      });
+    }
     const headers = new Headers({
       "cache-control": "private, no-store, max-age=0",
       "content-disposition": `attachment; filename="${reportFilename(normalized.startDate, normalized.endDate, normalized.format)}"`,
@@ -43,17 +58,6 @@ export async function POST(request: Request) {
       const output = renderReportText(snapshot);
       headers.set("content-type", "text/plain; charset=utf-8");
       return new Response(output, { status: 200, headers });
-    }
-
-    if (normalized.format === "pptx") {
-      const { renderReportPptx } = await import("@/lib/reports/pptx");
-      const output = await renderReportPptx(snapshot);
-      headers.set("content-type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
-      const body = output.buffer.slice(
-        output.byteOffset,
-        output.byteOffset + output.byteLength
-      ) as ArrayBuffer;
-      return new Response(body, { status: 200, headers });
     }
 
     const { renderReportPdf } = await import("@/lib/reports/pdf");

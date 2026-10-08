@@ -47,17 +47,11 @@ import {
   reportMetrics,
   reportSpendTotal,
 } from "@/lib/reports/metrics";
+import { buildReportSeries, type SeriesMetricFact } from "@/lib/reports/seriesData";
 
 type MetricKind = "lead" | "book" | "show" | "no_show" | "pending_show";
 
-type MetricFact = {
-  brandId: string;
-  brandLabel: string;
-  metricDate: string;
-  metricKind: MetricKind;
-  treatmentLabel: string;
-  metricCount: number;
-};
+type MetricFact = SeriesMetricFact;
 
 type SpendFact = {
   brandId: string;
@@ -157,14 +151,17 @@ export function normalizeReportExportRequest(input: unknown): ReportExportReques
     startDate = addDays(endDate, -(MAX_REPORT_DAYS - 1));
   }
 
-  const requestedFormat = cleanText(body.format, 10) as ReportOutputFormat;
+  const requestedFormatToken = cleanText(body.format, 20);
+  const requestedFormat = (requestedFormatToken === "pptx"
+    ? "google_slides"
+    : requestedFormatToken) as ReportOutputFormat;
   return {
     startDate,
     endDate,
     brandScope: cleanText(body.brandScope, 100),
     comparison: body.comparison !== false,
     breakdowns: normalizeBreakdowns(body.breakdowns),
-    format: reportOutputFormats.includes(requestedFormat) ? requestedFormat : "pdf",
+    format: reportOutputFormats.includes(requestedFormat) ? requestedFormat : "google_slides",
   };
 }
 
@@ -480,9 +477,17 @@ function fixtureData(brands: BrandSetting[], startDate: string, endDate: string)
       ];
       counts.forEach(([metricKind, metricCount]) => {
         if (metricCount > 0) {
+          const token = `${brand.slug} ${brand.name}`.toLowerCase();
+          const accountLabel = token.includes("gos") ? "GOS Beauty"
+            : token.includes("ineffable") ? "Ineffable"
+            : token.includes("skin") ? "Skin Light"
+            : "Alyssa Aesthetics";
           metricFacts.push({
             brandId: brand.id,
             brandLabel: brand.name,
+            accountLabel,
+            sourceLabel: "",
+            campaignLabel: "",
             metricDate: date,
             metricKind,
             treatmentLabel,
@@ -524,7 +529,7 @@ async function fetchMetricFacts(input: {
   for (let offset = 0; offset < 50_000; offset += PAGE_SIZE) {
     const { data, error } = await supabase
       .from("marketing_treatment_performance_daily")
-      .select("brand_id,brand_label,metric_date,metric_kind,treatment_label,metric_count")
+      .select("account_label,brand_id,brand_label,metric_date,metric_kind,treatment_label,source_label,campaign_label,metric_count")
       .eq("data_source_id", input.sourceId)
       .in("brand_id", input.brandIds)
       .gte("metric_date", input.startDate)
@@ -537,6 +542,9 @@ async function fetchMetricFacts(input: {
       ...page.map((row) => ({
         brandId: String(row.brand_id ?? ""),
         brandLabel: cleanText(row.brand_label, 120) || "未分類品牌",
+        accountLabel: cleanText(row.account_label, 120),
+        sourceLabel: cleanText(row.source_label, 160),
+        campaignLabel: cleanText(row.campaign_label, 180),
         metricDate: String(row.metric_date ?? ""),
         metricKind: String(row.metric_kind ?? "lead") as MetricKind,
         treatmentLabel: cleanText(row.treatment_label, 160) || "未分類療程",
@@ -639,7 +647,10 @@ async function persistSnapshot(snapshot: ReportSnapshot, format: ReportOutputFor
     brand_ids: snapshot.selection.brands.map((brand) => brand.id),
     comparison_json: snapshot.comparison,
     split_dimensions: snapshot.selection.breakdowns,
-    output_format: format,
+    // Google Slides is converted from the sole editable presentation artifact.
+    // Preserve the existing immutable snapshot storage constraint without a
+    // schema migration; the delivery endpoint records the native Slides URL.
+    output_format: format === "google_slides" ? "pptx" : format,
     metric_contract_version: snapshot.metricContractVersion,
     snapshot_json: snapshot,
     data_quality_json: snapshot.dataQuality,
@@ -765,6 +776,13 @@ export async function buildReportSnapshot(
     brandRows,
     treatmentRows,
     spendMix: buildSpendMix(currentSpends),
+    series: buildReportSeries({
+      brands: selectedBrands,
+      metricFacts: currentFacts,
+      spendFacts: currentSpends,
+      dates: currentDates,
+      sourceAvailable: Boolean(source && source.status === "connected"),
+    }),
     insights: narrative.insights,
     actions: narrative.actions,
     dataQuality: {

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
-function run(env: NodeJS.ProcessEnv = {}) {
+function run(env: Partial<NodeJS.ProcessEnv> = {}) {
   return spawnSync(process.execPath, [
     '--import', resolve('e2e/fixtures/auth-config-fetch-mock.mjs'),
     resolve('scripts/sync-supabase-auth-email-templates.mjs'),

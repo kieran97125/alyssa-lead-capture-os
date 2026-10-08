@@ -3,10 +3,15 @@ import { expect, test } from "@playwright/test";
 test.describe("Growth report exports", () => {
   test.setTimeout(90_000);
 
-  test("supports composable breakdowns and generates PDF, PPTX plus Dashboard text", async ({ page }) => {
+  test("supports composable breakdowns and generates PDF plus Dashboard text; Slides remains the default", async ({ page }) => {
     await page.goto("/reports", { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("heading", { name: "報告生成", exact: true })).toBeVisible();
+    await expect(page.getByRole("radio", { name: /Google Slides/ })).toBeChecked();
+    await expect(page.getByRole("radio", { name: /PowerPoint/ })).toHaveCount(0);
+    await page.getByRole("radio", { name: /^PDF/ }).focus();
+    await page.keyboard.press("Space");
+    await expect(page.getByRole("radio", { name: /^PDF/ })).toBeChecked();
     const noBreakdown = page.getByRole("button", { name: /不拆分/ });
     const brandBreakdown = page.getByRole("button", { name: /按品牌/ });
     const treatmentBreakdown = page.getByRole("button", { name: /按療程/ });
@@ -35,7 +40,7 @@ test.describe("Growth report exports", () => {
       breakdowns: ["brand", "treatment"],
     };
 
-    const exportBinaryReport = async (format: "pdf" | "pptx") =>
+    const exportBinaryReport = async (format: "pdf") =>
       page.evaluate(
         async (request) => {
           const response = await fetch("/api/internal/reports/export", {
@@ -64,12 +69,6 @@ test.describe("Growth report exports", () => {
     expect(pdf.contentDisposition).toContain(".pdf");
     expect(pdf.snapshotId).toBeTruthy();
     expect(pdf.prefix).toEqual([37, 80, 68, 70]);
-
-    const pptx = await exportBinaryReport("pptx");
-    expect(pptx.ok, `PPTX export returned ${pptx.status}`).toBe(true);
-    expect(pptx.contentType).toContain("presentationml.presentation");
-    expect(pptx.contentDisposition).toContain(".pptx");
-    expect(pptx.prefix.slice(0, 2)).toEqual([80, 75]);
 
     const text = await page.evaluate(
       async (request) => {

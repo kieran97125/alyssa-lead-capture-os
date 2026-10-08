@@ -1,12 +1,13 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useMemo, useRef, useState, type FormEvent } from "react";
 import {
   AlignLeft,
   CalendarRange,
   Check,
   Clipboard,
   Download,
+  ExternalLink,
   FileText,
   Layers3,
   LoaderCircle,
@@ -14,6 +15,7 @@ import {
   RotateCcw,
   SplitSquareVertical,
 } from "lucide-react";
+import { SystemButton } from "@/components/system/SystemButton";
 import type {
   ReportBreakdownDimension,
   ReportGeneratorOptions,
@@ -26,23 +28,30 @@ function downloadName(disposition: string | null, fallback: string) {
 }
 
 function formatName(format: ReportOutputFormat) {
-  if (format === "pptx") return "PPTX";
+  if (format === "google_slides" || format === "pptx") return "Google Slides";
   if (format === "txt") return "文字摘要";
   return "PDF";
 }
 
-export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptions }) {
+export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: {
+  options: ReportGeneratorOptions;
+  canConnectGoogleDrive?: boolean;
+}) {
   const [startDate, setStartDate] = useState(options.defaultStartDate);
   const [endDate, setEndDate] = useState(options.defaultEndDate);
   const [brandScope, setBrandScope] = useState("");
   const [comparison, setComparison] = useState(true);
   const [breakdowns, setBreakdowns] = useState<ReportBreakdownDimension[]>([]);
-  const [format, setFormat] = useState<ReportOutputFormat>("pdf");
+  const [format, setFormat] = useState<ReportOutputFormat>("google_slides");
   const [pending, setPending] = useState(false);
+  const submitting = useRef(false);
   const [error, setError] = useState("");
+  const [authorizationRequired, setAuthorizationRequired] = useState(false);
   const [lastDownload, setLastDownload] = useState("");
+  const [lastPresentation, setLastPresentation] = useState<{ name: string; url: string } | null>(null);
   const [lastText, setLastText] = useState("");
   const [copied, setCopied] = useState(false);
+  const isSlides = format === "google_slides" || format === "pptx";
 
   const breakdownLabel = useMemo(() => {
     if (breakdowns.length === 0) return "不拆分";
@@ -82,9 +91,13 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (submitting.current) return;
+    submitting.current = true;
     setPending(true);
     setError("");
+    setAuthorizationRequired(false);
     setLastDownload("");
+    setLastPresentation(null);
     setLastText("");
     setCopied(false);
     try {
@@ -95,14 +108,25 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
           startDate,
           endDate,
           brandScope,
-          comparison,
-          breakdowns,
+          comparison: isSlides ? false : comparison,
+          breakdowns: isSlides ? [] : breakdowns,
           format,
         }),
       });
       if (!response.ok) {
-        const payload = await response.json().catch(() => null) as { message?: string } | null;
+        const payload = await response.json().catch(() => null) as { message?: string; code?: string } | null;
+        setAuthorizationRequired(payload?.code === "drive_authorization_required");
         throw new Error(payload?.message || "暫時未能生成報告，請稍後再試。");
+      }
+      if (format === "google_slides") {
+        const payload = await response.json() as { presentation?: { name?: string; url?: string } };
+        const presentation = payload.presentation;
+        if (!presentation?.name || !presentation.url ||
+            !/^https:\/\/docs\.google\.com\/presentation\/d\/[a-zA-Z0-9_-]+\//.test(presentation.url)) {
+          throw new Error("Google Slides 已提交，但未能確認連結。請先查看報告資料夾。");
+        }
+        setLastPresentation({ name: presentation.name, url: presentation.url });
+        return;
       }
       const filename = downloadName(
         response.headers.get("content-disposition"),
@@ -120,6 +144,7 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "暫時未能生成報告，請稍後再試。");
     } finally {
+      submitting.current = false;
       setPending(false);
     }
   }
@@ -151,17 +176,17 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
             </select>
           </label>
         </div>
-        <label className="report-generator-switch-row">
+        {!isSlides ? <label className="report-generator-switch-row">
           <input type="checkbox" checked={comparison} onChange={(event) => setComparison(event.target.checked)} />
           <span className="report-generator-switch" aria-hidden="true"><span /></span>
           <span>
             <strong>加入上月同期比較</strong>
             <small>比較相同日期範圍。</small>
           </span>
-        </label>
+        </label> : null}
       </section>
 
-      <section className="command-surface report-generator-section">
+      {!isSlides ? <section className="command-surface report-generator-section">
         <header>
           <span className="report-generator-step">02</span>
           <div>
@@ -191,29 +216,28 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
           今次設定：<strong>{breakdownLabel}</strong>
           {breakdowns.length === 2 ? "；會追加兩組獨立頁面，不會做品牌 × 療程交叉表。" : "。"}
         </p>
-      </section>
+      </section> : null}
 
       <section className="command-surface report-generator-section">
         <header>
-          <span className="report-generator-step">03</span>
+          <span className="report-generator-step">{isSlides ? "02" : "03"}</span>
           <div>
             <h2>輸出格式</h2>
-            <p>選擇下載格式。</p>
           </div>
-          <Download size={22} />
+          <Presentation size={22} aria-hidden="true" />
         </header>
         <div className="report-format-picker" role="radiogroup" aria-label="輸出格式">
+          <label className={format === "google_slides" ? "is-selected" : ""}>
+            <input type="radio" name="report-format" value="google_slides" checked={format === "google_slides"} onChange={() => setFormat("google_slides")} />
+            <Presentation size={24} aria-hidden="true" />
+            <span><strong>Google Slides</strong><small>儲存到報告資料夾</small></span>
+            {format === "google_slides" ? <Check size={17} aria-hidden="true" /> : null}
+          </label>
           <label className={format === "pdf" ? "is-selected" : ""}>
             <input type="radio" name="report-format" value="pdf" checked={format === "pdf"} onChange={() => setFormat("pdf")} />
-            <FileText size={24} />
+            <FileText size={24} aria-hidden="true" />
             <span><strong>PDF</strong><small>適合發送及存檔</small></span>
-            {format === "pdf" ? <Check size={17} /> : null}
-          </label>
-          <label className={format === "pptx" ? "is-selected" : ""}>
-            <input type="radio" name="report-format" value="pptx" checked={format === "pptx"} onChange={() => setFormat("pptx")} />
-            <Presentation size={24} />
-            <span><strong>PowerPoint</strong><small>可編輯文字及圖表</small></span>
-            {format === "pptx" ? <Check size={17} /> : null}
+            {format === "pdf" ? <Check size={17} aria-hidden="true" /> : null}
           </label>
           <label className={format === "txt" ? "is-selected" : ""}>
             <input type="radio" name="report-format" value="txt" checked={format === "txt"} onChange={() => setFormat("txt")} />
@@ -225,7 +249,20 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
       </section>
 
       {error ? <p className="command-status-message is-error" role="alert">{error}</p> : null}
+      {authorizationRequired && canConnectGoogleDrive ? (
+        <SystemButton variant="outline" nativeButton={false} role="link" render={<a href="/reports?reconnect_drive=1" />}>
+          <Presentation size={16} aria-hidden="true" />重新連接 Google Drive
+        </SystemButton>
+      ) : null}
       {lastDownload ? <p className="command-status-message is-success" role="status">已生成並下載：{lastDownload}</p> : null}
+      {lastPresentation ? (
+        <section className="command-surface report-generator-section" aria-label="Google Slides 生成結果" data-testid="report-slides-result">
+          <p className="command-status-message is-success" role="status">已儲存到報告資料夾：{lastPresentation.name}</p>
+          <SystemButton variant="outline" nativeButton={false} role="link" render={<a href={lastPresentation.url} target="_blank" rel="noopener noreferrer" />}>
+            <ExternalLink size={16} aria-hidden="true" />開啟 Google Slides
+          </SystemButton>
+        </section>
+      ) : null}
 
       {lastText ? (
         <section className="command-surface report-generator-section" data-testid="report-text-preview">
@@ -235,12 +272,12 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
               <h2>文字預覽</h2>
               <p>可直接複製及分享。</p>
             </div>
-            <button type="button" className="command-secondary-button" onClick={copyText}>
+            <SystemButton type="button" variant="outline" onClick={copyText}>
               {copied ? <Check size={16} /> : <Clipboard size={16} />}
               {copied ? "已複製" : "複製全文"}
-            </button>
+            </SystemButton>
           </header>
-          <pre className="max-h-[560px] overflow-auto whitespace-pre-wrap rounded-[18px] border border-[#ead9cf] bg-[#fffdfb] p-5 text-sm leading-6 text-[#321428]">
+          <pre className="max-h-[560px] overflow-auto whitespace-pre-wrap rounded-[var(--radius-panel)] border border-system-border bg-system-card p-5 text-sm leading-6 text-system-foreground">
             {lastText}
           </pre>
         </section>
@@ -248,13 +285,13 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
 
       <footer className="report-generator-submit-row">
         <div>
-          <strong>{format === "pdf" ? "可搜尋 PDF" : format === "pptx" ? "可編輯 PowerPoint" : "Dashboard 純文字摘要"}</strong>
-          <span>{startDate} 至 {endDate} · {breakdownLabel}</span>
+          <strong>{format === "pdf" ? "可搜尋 PDF" : format === "google_slides" ? "Google Slides · CS／AD 報數" : "Dashboard 純文字摘要"}</strong>
+          <span>{startDate} 至 {endDate} · {isSlides ? "標準系列報告" : breakdownLabel}</span>
         </div>
-        <button type="submit" className="command-primary-button" disabled={pending || !startDate || !endDate}>
-          {pending ? <LoaderCircle className="report-generator-spinner" size={17} /> : <Download size={17} />}
-          {pending ? "建立快照並生成…" : `生成 ${formatName(format)}`}
-        </button>
+        <SystemButton type="submit" className="command-primary-button" disabled={pending || !startDate || !endDate} aria-busy={pending}>
+          {pending ? <LoaderCircle className="report-generator-spinner" size={17} aria-hidden="true" /> : format === "google_slides" ? <Presentation size={17} aria-hidden="true" /> : <Download size={17} aria-hidden="true" />}
+          {pending ? "生成中…" : `生成 ${formatName(format)}`}
+        </SystemButton>
       </footer>
     </form>
   );

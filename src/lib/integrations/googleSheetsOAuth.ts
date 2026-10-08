@@ -16,6 +16,10 @@ import {
 
 export const GOOGLE_SHEETS_WRITE_SCOPE =
   "https://www.googleapis.com/auth/spreadsheets";
+// Requested only by the explicit Master report-delivery consent action.
+// drive.file cannot access this pre-existing folder without a Picker grant.
+export const GOOGLE_DRIVE_REPORT_SCOPE = "https://www.googleapis.com/auth/drive";
+export type GoogleOAuthPurpose = "sheets" | "reports";
 const OAUTH_CONNECTION_KEY = "marketing_dashboard";
 const OAUTH_STATE_COOKIE_NAME = "growth_os_google_sheets_oauth";
 const OAUTH_STATE_MAX_AGE_SECONDS = 10 * 60;
@@ -58,6 +62,7 @@ export type GoogleSheetsOAuthStatus = GoogleSheetsOAuthEnvironmentStatus & {
   tableReady: boolean;
   connected: boolean;
   writeEnabled: boolean;
+  reportDeliveryEnabled: boolean;
   connectionStatus: OAuthConnectionRow["status"] | null;
   connectedAt: string | null;
   lastVerifiedAt: string | null;
@@ -67,6 +72,7 @@ export type GoogleSheetsOAuthStatus = GoogleSheetsOAuthEnvironmentStatus & {
 export type GoogleSheetsOAuthCookiePayload = {
   state: string;
   codeVerifier: string;
+  purpose?: GoogleOAuthPurpose;
 };
 
 function env(name: string) {
@@ -291,6 +297,9 @@ export async function getGoogleSheetsOAuthStatus(): Promise<GoogleSheetsOAuthSta
       writeEnabled: Boolean(
         connected && row?.scopes?.includes(GOOGLE_SHEETS_WRITE_SCOPE)
       ),
+      reportDeliveryEnabled: Boolean(
+        connected && row?.scopes?.includes(GOOGLE_DRIVE_REPORT_SCOPE)
+      ),
       connectionStatus: row?.status ?? null,
       connectedAt: row?.connected_at ?? null,
       lastVerifiedAt: row?.last_verified_at ?? null,
@@ -305,6 +314,7 @@ export async function getGoogleSheetsOAuthStatus(): Promise<GoogleSheetsOAuthSta
       tableReady: false,
       connected: false,
       writeEnabled: false,
+      reportDeliveryEnabled: false,
       connectionStatus: null,
       connectedAt: null,
       lastVerifiedAt: null,
@@ -313,14 +323,18 @@ export async function getGoogleSheetsOAuthStatus(): Promise<GoogleSheetsOAuthSta
   }
 }
 
-export async function createGoogleSheetsOAuthAuthorizationRequest() {
+export async function createGoogleSheetsOAuthAuthorizationRequest(
+  purpose: GoogleOAuthPurpose = "sheets"
+) {
   const client = getOAuthClient();
   const { codeVerifier, codeChallenge } = await client.generateCodeVerifierAsync();
   const state = randomBytes(32).toString("base64url");
   const authorizationUrl = client.generateAuthUrl({
     access_type: "offline",
     prompt: "consent",
-    scope: [GOOGLE_SHEETS_WRITE_SCOPE],
+    scope: purpose === "reports"
+      ? [GOOGLE_SHEETS_WRITE_SCOPE, GOOGLE_DRIVE_REPORT_SCOPE]
+      : [GOOGLE_SHEETS_WRITE_SCOPE],
     state,
     code_challenge: codeChallenge,
     code_challenge_method: CodeChallengeMethod.S256,
@@ -379,7 +393,8 @@ export function parseGoogleSheetsOAuthCookie(value: string | undefined | null) {
     ) {
       return null;
     }
-    return { state: parsed.state, codeVerifier: parsed.codeVerifier };
+    if (parsed.purpose && !["sheets", "reports"].includes(parsed.purpose)) return null;
+    return { state: parsed.state, codeVerifier: parsed.codeVerifier, purpose: parsed.purpose || "sheets" };
   } catch {
     return null;
   }
@@ -408,6 +423,7 @@ function safeGoogleError(error: unknown) {
 export async function completeGoogleSheetsOAuthAuthorization(input: {
   code: string;
   codeVerifier: string;
+  purpose?: GoogleOAuthPurpose;
 }) {
   const client = getOAuthClient();
 
@@ -434,7 +450,14 @@ export async function completeGoogleSheetsOAuthAuthorization(input: {
     if (!returnedScopes.includes(GOOGLE_SHEETS_WRITE_SCOPE)) {
       throw new Error("google_sheets_oauth_required_scope_missing");
     }
-    const scopes = [GOOGLE_SHEETS_WRITE_SCOPE];
+    if (input.purpose === "reports" && !returnedScopes.includes(GOOGLE_DRIVE_REPORT_SCOPE)) {
+      return { ok: false as const, message: "Google Drive 報告權限未獲授權，現有 Google Sheets 連接未有改動。" };
+    }
+    const approvedScopes = input.purpose === "reports"
+      ? [GOOGLE_SHEETS_WRITE_SCOPE, GOOGLE_DRIVE_REPORT_SCOPE]
+      : [GOOGLE_SHEETS_WRITE_SCOPE];
+    const scopes = approvedScopes
+      .filter((scope) => returnedScopes.includes(scope));
     const supabase = createSupabaseAdminClient();
     const { error } = await supabase
       .from("google_sheets_oauth_connections")
@@ -453,7 +476,7 @@ export async function completeGoogleSheetsOAuthAuthorization(input: {
       );
     if (error) throw error;
 
-    return { ok: true as const, message: "Google Sheets 已成功連接。" };
+    return { ok: true as const, message: input.purpose === "reports" ? "Google Drive 報告儲存已成功連接。" : "Google Sheets 已成功連接。" };
   } catch (error) {
     console.warn("google_sheets_oauth_callback_failed", {
       message: error instanceof Error ? error.message : "unknown",
@@ -465,6 +488,7 @@ export async function completeGoogleSheetsOAuthAuthorization(input: {
 export async function getGoogleSheetsOAuthAccessToken(
   options: {
     requireWrite?: boolean;
+    requireReports?: boolean;
     signal?: AbortSignal;
     recordHealth?: boolean;
   } = {}
@@ -484,6 +508,10 @@ export async function getGoogleSheetsOAuthAccessToken(
     throw new Error(
       "Google Sheets 目前只具唯讀權限；請由 Master 重新連接一次以啟用 Lead 寫入。"
     );
+  }
+
+  if (options.requireReports && !row.scopes?.includes(GOOGLE_DRIVE_REPORT_SCOPE)) {
+    throw new Error("Google Drive 報告儲存未獲授權，請由 Master 使用報告頁的連接 Google Drive 完成授權。");
   }
 
   const refreshToken = decryptRefreshToken(row.refresh_token_encrypted);

@@ -1,6 +1,6 @@
 export const REPORT_METRIC_CONTRACT_VERSION = "growth-os-report-v1";
 
-export const reportOutputFormats = ["pdf", "pptx", "txt"] as const;
+export const reportOutputFormats = ["pdf", "pptx", "txt", "google_slides"] as const;
 export type ReportOutputFormat = (typeof reportOutputFormats)[number];
 
 export const reportBreakdownDimensions = ["brand", "treatment"] as const;
@@ -85,6 +85,55 @@ export type ReportDataQuality = {
   warnings: string[];
 };
 
+export type ReportSeriesGroupKey =
+  | "alyssa-ads"
+  | "alyssa-medical-ads"
+  | "kol-traffic"
+  | "gos"
+  | "ib"
+  | "skin-light";
+
+/** Presentation-only grouping. Original Account/Brand identities stay intact. */
+export type ReportSeries = {
+  version: "cs-ad-series-v1";
+  available: boolean;
+  warnings: string[];
+  groupRows: Array<{
+    key: ReportSeriesGroupKey;
+    label: string;
+    metrics: ReportMetrics;
+    available: boolean;
+  }>;
+  dailyRows: Array<{
+    groupKey: ReportSeriesGroupKey;
+    date: string;
+    metrics: ReportMetrics;
+  }>;
+  treatmentRows: Array<{
+    groupKey: ReportSeriesGroupKey;
+    key: string;
+    label: string;
+    metrics: ReportMetrics;
+  }>;
+  arrivalSourceRows: Array<{
+    groupKey?: ReportSeriesGroupKey;
+    key: "AD" | "KOL" | "OG" | "unclassified";
+    label: string;
+    shows: number | null;
+    noShows: number | null;
+    pendingShows: number | null;
+    available: boolean;
+  }>;
+  auditRows: Array<{
+    key: string;
+    accountLabel: string;
+    brandLabel: string;
+    groupKey: ReportSeriesGroupKey | null;
+    groupLabel: string;
+    metrics: ReportMetrics;
+  }>;
+};
+
 export type ReportSnapshot = {
   schemaVersion: 1;
   metricContractVersion: typeof REPORT_METRIC_CONTRACT_VERSION;
@@ -117,6 +166,7 @@ export type ReportSnapshot = {
     status: string;
     lastSuccessAt: string | null;
   }>;
+  series?: ReportSeries;
 };
 
 export type ReportGeneratorOptions = {

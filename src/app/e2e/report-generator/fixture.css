@@ -1,0 +1,33 @@
+/* QA typography is local and fixed; these rules never match the product page. */
+@font-face {
+  font-family: "Report Fixture Noto";
+  src: url("/report-assets/fonts/NotoSansTC-Regular.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 400;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Report Fixture Noto";
+  src: url("/report-assets/fonts/NotoSansTC-Bold.ttf") format("truetype");
+  font-style: normal;
+  font-weight: 700;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Report Fixture Symbols";
+  src: url("/e2e-fonts/report-symbols.woff2") format("woff2");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: block;
+  unicode-range: U+55BA, U+5605, U+FF01, U+FF05, U+FF08-FF09, U+FF0B-FF0D, U+FF0F, U+FF1A-FF1B, U+FF1F, U+FF3B, U+FF3D, U+FF5B-FF5E;
+}
+
+[data-testid="report-generator-fixture"],
+[data-testid="report-generator-fixture"] input,
+[data-testid="report-generator-fixture"] select,
+[data-testid="report-generator-fixture"] button,
+[data-testid="report-generator-fixture"] a {
+  font-family: "Report Fixture Symbols", "Report Fixture Noto", sans-serif;
+}

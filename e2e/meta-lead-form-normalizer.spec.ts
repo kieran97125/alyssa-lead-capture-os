@@ -158,7 +158,7 @@ test("normalizer refuses to rewrite when the destination header contract changed
     "Demo Lau",
     "p:+85261234567",
   ];
-  const changedHeaders = [...GOOGLE_SHEETS_LEAD_V3_HEADERS];
+  const changedHeaders: string[] = [...GOOGLE_SHEETS_LEAD_V3_HEADERS];
   changedHeaders[changedHeaders.indexOf("電話")] = "Other Phone Header";
 
   const result = normalizeMetaLeadFormRows({
