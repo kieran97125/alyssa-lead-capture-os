@@ -26,7 +26,7 @@ const admin = {
     update: () => ({ eq: async () => { writes++; return {}; } }),
   }),
 };
-const module = { exports: {} };
+const oauthModule = { exports: {} };
 const mocks = {
   "server-only": {}, "google-auth-library": { OAuth2Client, CodeChallengeMethod: { S256: "S256" } },
   "@/lib/supabase/admin": { createSupabaseAdminClient: () => admin, hasSupabaseAdminEnv: () => true },
@@ -34,8 +34,8 @@ const mocks = {
 new Function("require", "module", "exports", ts.transpileModule(
   readFileSync(new URL("../src/lib/integrations/googleSheetsOAuth.ts", import.meta.url), "utf8"),
   { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }
-).outputText)(name => mocks[name] ?? require(name), module, module.exports);
-const oauth = module.exports;
+).outputText)(name => mocks[name] ?? require(name), oauthModule, oauthModule.exports);
+const oauth = oauthModule.exports;
 function load(path, routeMocks) {
   const routeModule = { exports: {} };
   new Function("require", "module", "exports", ts.transpileModule(
@@ -101,10 +101,19 @@ try {
   const start = load("src/app/api/integrations/google-sheets/start/route.ts", routeMocks);
   const callback = load("src/app/api/integrations/google-sheets/callback/route.ts", routeMocks);
   const request = new Request("https://app.example.test/api/integrations/google-sheets/start?purpose=reports", { method: "POST" });
-  assert.ok((await start.POST(request)).headers.get("location").startsWith("/login?"));
-  assert.equal(starts, 0, "Staff cannot start report consent");
-  session = { ok: false };
-  await start.POST(request); assert.equal(starts, 0, "Anonymous request cannot start report consent");
+  for (const [query, destination] of [["?purpose=reports", "/reports"], ["?purpose=sheets", "/data-sources"], ["", "/data-sources"]]) {
+    const loginRequest = new Request(`https://app.example.test/api/integrations/google-sheets/start${query}`, { method: "POST" });
+    for (const masterRequired of [false, true]) {
+      session = masterRequired ? { ok: true, access: { accessLevel: "admin" } } : { ok: false };
+      const response = await start.POST(loginRequest);
+      const location = new URL(response.headers.get("location"), "https://app.example.test");
+      assert.equal(response.status, 303);
+      assert.equal(location.pathname, "/login");
+      assert.equal(location.searchParams.get("next"), destination, "Login must return to the requested integration page");
+      assert.equal(location.searchParams.get("error"), masterRequired ? "master_required" : null);
+      assert.equal(starts, 0, "Anonymous and staff requests cannot start consent");
+    }
+  }
   session = { ok: true, access: { accessLevel: "master" } };
   const authorized = await start.POST(request);
   assert.equal(starts, 1);

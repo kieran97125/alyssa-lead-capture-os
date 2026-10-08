@@ -14,7 +14,7 @@ The primary submit, copy and open actions reuse `SystemButton`. Loading disables
 
 ## Google authorization
 
-Normal Sheets connection remains Sheets-only. The Master-only report connection action requests Sheets and Drive scopes in an explicit Google consent screen. Signed OAuth state carries the request purpose through the callback. Only approved returned scopes are stored. A declined Drive grant or a report missing its required scope leaves an existing Sheets connection intact.
+Normal Sheets connection remains Sheets-only. The Master-only report connection action requests Sheets and Drive scopes in an explicit Google consent screen. Signed OAuth state carries the request purpose through the callback. Login after an expired session or a Master-required redirect returns report connections to `/reports` and Sheets connections to `/data-sources`. Only approved returned scopes are stored. A declined Drive grant or a report missing its required scope leaves an existing Sheets connection intact.
 
 An existing target folder requires Drive access. This implementation uses explicit full Drive consent because a `drive.file` grant requires a Picker folder grant and the app has no Picker configuration. The connection action describes Google's requested file access before redirecting to Google. The delivery code only writes into the configured folder and never changes sharing.
 
@@ -37,11 +37,15 @@ After upload, the server reads the created file and checks its native presentati
 
 Local full-suite run with fallback Chromium 149.0.7827.0: **9 passed, 6 failed**. The six failures compare unrelated appointment/settings/design-foundation snapshots against a different system font/browser environment (2–6% pixel differences). Those baselines remain unchanged. New report typography is now pinned to local assets for reproducible baselines; the official Ubuntu/Chromium CI remains the authority for the complete visual gate. Local browser acquisition required a scratch-only Chromium package because the Playwright CDN download returned a truncated archive. No runtime/configuration override or extra browser dependency is part of the repository.
 
+Official PR #125 CI at `c3a8aa9`: **Design Quality Gate** and **Alyssa CRM Playwright** both passed, including the complete visual gate in the standard environment.
+
 Live verification must confirm a native presentation in the configured folder with the application's authorized Google identity. Connector folder visibility alone does not prove application OAuth access.
 
 ## Product learning
 
 Classification: **Configurable**. Approved presentation rendering, scoped snapshot construction, native artifact conversion and verified delivery links are reusable. The folder, template, report grouping, business identity and Google connection remain client-specific. This implementation must be abstracted and reviewed before inclusion in Growth OS Core.
+
+Canonical learning was published in the private source repository: [entries/2026-10-08-approved-editable-report-template.md at ec5fb328](https://github.com/kieran97125/leadhub-source-os/blob/ec5fb32827845bd7b0b662c58b450a42f474e07f/entries/2026-10-08-approved-editable-report-template.md).
 
 ## Rollback
 

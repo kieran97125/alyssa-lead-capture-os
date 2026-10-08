@@ -19,8 +19,8 @@ function resultRedirect(message: string, purpose = "sheets") {
   });
 }
 
-function loginRedirect(masterRequired: boolean) {
-  const params = new URLSearchParams({ next: "/data-sources" });
+function loginRedirect(masterRequired: boolean, purpose: "sheets" | "reports") {
+  const params = new URLSearchParams({ next: purpose === "reports" ? "/reports" : "/data-sources" });
   if (masterRequired) params.set("error", "master_required");
   return new NextResponse(null, {
     status: 303,
@@ -31,8 +31,8 @@ function loginRedirect(masterRequired: boolean) {
 export async function POST(request: Request) {
   const purpose = new URL(request.url).searchParams.get("purpose") === "reports" ? "reports" : "sheets";
   const session = await verifyCurrentInternalAccess();
-  if (!session.ok) return loginRedirect(false);
-  if (session.access.accessLevel !== "master") return loginRedirect(true);
+  if (!session.ok) return loginRedirect(false, purpose);
+  if (session.access.accessLevel !== "master") return loginRedirect(true, purpose);
 
   const connectionStatus = await getGoogleSheetsOAuthStatus();
   const missing = getMissingGoogleSheetsOAuthConfiguration(connectionStatus);
