@@ -1,6 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  outputFileTracingIncludes: {
+    "/api/internal/reports/export": ["./assets/report-templates/*.pptx"],
+  },
   async headers() {
     return [
       {

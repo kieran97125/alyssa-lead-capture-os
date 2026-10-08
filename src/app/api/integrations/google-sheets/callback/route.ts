@@ -10,8 +10,8 @@ import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/commandCenter";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { verifyCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
-function resultRedirect(request: NextRequest, ok: boolean, message: string) {
-  const url = new URL("/data-sources", request.url);
+function resultRedirect(request: NextRequest, ok: boolean, message: string, purpose = "sheets") {
+  const url = new URL(purpose === "reports" ? "/reports" : "/data-sources", request.url);
   url.searchParams.set("command_status", ok ? "success" : "error");
   url.searchParams.set("message", message);
   return NextResponse.redirect(url);
@@ -35,11 +35,12 @@ export async function GET(request: NextRequest) {
   const storedState = parseGoogleSheetsOAuthCookie(
     request.cookies.get(googleSheetsOAuthStateCookie.name)?.value
   );
+  const purpose = storedState?.purpose || "sheets";
   const session = await verifyCurrentInternalAccess();
 
   if (!session.ok || session.access.accessLevel !== "master") {
     return clearStateCookie(
-      resultRedirect(request, false, "Google 授權只限系統擁有人完成。")
+      resultRedirect(request, false, "Google 授權只限系統擁有人完成。", purpose)
     );
   }
   if (
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
     !hasMatchingGoogleSheetsOAuthState(storedState.state, state)
   ) {
     return clearStateCookie(
-      resultRedirect(request, false, "Google 授權驗證已過期或無效，請重新開始。")
+      resultRedirect(request, false, "Google 授權驗證已過期或無效，請重新開始。", purpose)
     );
   }
   if (googleError) {
@@ -58,19 +59,20 @@ export async function GET(request: NextRequest) {
         false,
         googleError === "access_denied"
           ? "你取消咗 Google 授權，未有作出任何更改。"
-          : "Google 授權未能完成，請再試一次。"
+          : "Google 授權未能完成，請再試一次。", purpose
       )
     );
   }
   if (!code) {
     return clearStateCookie(
-      resultRedirect(request, false, "Google 未有返回有效授權碼，請重新開始。")
+      resultRedirect(request, false, "Google 未有返回有效授權碼，請重新開始。", purpose)
     );
   }
 
   const result = await completeGoogleSheetsOAuthAuthorization({
     code,
     codeVerifier: storedState.codeVerifier,
+    purpose,
   });
   if (result.ok) {
     try {
@@ -78,10 +80,10 @@ export async function GET(request: NextRequest) {
         .from("marketing_command_center_audit")
         .insert({
           actor_email: MASTER_ACCOUNT_EMAIL,
-          action: "google_sheets_oauth.connected",
+          action: purpose === "reports" ? "google_drive_reports_oauth.connected" : "google_sheets_oauth.connected",
           entity_type: "google_sheets_oauth_connection",
           entity_id: "marketing_dashboard",
-          after_json: { scope: "spreadsheets.read_write" },
+          after_json: { scope: purpose === "reports" ? "spreadsheets.read_write,drive.report_delivery" : "spreadsheets.read_write" },
         });
     } catch (error) {
       console.warn("google_sheets_oauth_audit_write_failed", {
@@ -90,7 +92,8 @@ export async function GET(request: NextRequest) {
     }
     revalidatePath("/dashboard");
     revalidatePath("/data-sources");
+    revalidatePath("/reports");
   }
 
-  return clearStateCookie(resultRedirect(request, result.ok, result.message));
+  return clearStateCookie(resultRedirect(request, result.ok, result.message, purpose));
 }
