@@ -30,7 +30,7 @@
     "test:creative": "playwright test e2e/creative-production.spec.ts",
     "verify:calendar-edit-contract": "node scripts/verify-calendar-edit-contract.mjs",
     "verify:lead-sheet-book-date-contract": "node scripts/verify-lead-sheet-book-date-contract.mjs",
-    "verify:lead-sync-recovery-contract": "node scripts/test-lead-atomic-source-id.mjs && node scripts/test-lead-arrival-outcome-authority.mjs && node scripts/test-lead-pending-authority.mjs && node scripts/test-manual-lead-sync.mjs && node scripts/test-dashboard-google-read.mjs && node scripts/test-lead-sync-failure-diagnostics.mjs",
+    "verify:lead-sync-recovery-contract": "node scripts/test-lead-atomic-source-id.mjs && node scripts/test-lead-arrival-outcome-authority.mjs && node scripts/test-lead-pending-authority.mjs && node scripts/test-manual-lead-sync.mjs && node scripts/test-dashboard-google-read.mjs && node scripts/test-lead-sync-failure-diagnostics.mjs && node scripts/test-all-staff-sheet-refresh.mjs && node scripts/test-arrival-account-transfer.mjs",
     "verify:lead-book-dimensions-contract": "node scripts/test-lead-book-dimensions.mjs && node scripts/test-manual-lead-dashboard.mjs"
   },
   "dependencies": {

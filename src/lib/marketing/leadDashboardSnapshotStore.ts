@@ -16,7 +16,7 @@ import type {
 export const LEAD_DASHBOARD_SNAPSHOT_VERSION = "lead-dashboard-arrival-pending-v2";
 const MAX_SNAPSHOT_BYTES = 64 * 1024 * 1024;
 const MAX_ROWS = 50_000;
-const unavailable = () => new Error("未有可核對嘅已儲存 Lead 資料；請由 Master 按「跟 Lead Sheet 更新」。");
+const unavailable = () => new Error("未有可核對嘅已儲存 Lead 資料；請按「跟 Lead Sheet 更新」。");
 type SnapshotContext = {
   dataSourceId: string;
   configuration: Record<string, unknown>;

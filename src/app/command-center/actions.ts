@@ -654,17 +654,15 @@ export async function refreshDashboardDataAction(formData: FormData) {
     "/dashboard"
   );
   const access = await ensureCommandCenterAction(returnPath, {
-    masterOnly: true,
+    masterOnly: false,
   });
   if (!access.ok) redirectWithResult(returnPath, access);
 
   let results;
   try {
     results = await syncAllMarketingGoogleSheets({
-      actorIdentifier:
-        access.accessLevel === "master"
-          ? MASTER_ACCOUNT_EMAIL
-          : "shared_admin",
+      actorIdentifier: access.actorIdentifier,
+      purpose: "manual",
     });
   } catch (error) {
     console.warn("marketing_dashboard_manual_refresh_failed", {

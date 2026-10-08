@@ -195,7 +195,6 @@ export default async function TreatmentPerformancePage({
             </div>
 
             <div className="command-header-actions">
-              {access.accessLevel === "master" ? (
                 <form
                   action={refreshDashboardDataAction}
                   className="command-refresh-form"
@@ -208,7 +207,6 @@ export default async function TreatmentPerformancePage({
                   <DashboardRefreshButton disabled={refreshDisabled} />
                   <small>同步後會更新本頁數據</small>
                 </form>
-              ) : null}
               {access.accessLevel === "master" ? (
                 <IntentPrefetchLink
                   href="/data-sources"
