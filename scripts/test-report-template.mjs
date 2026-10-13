@@ -104,8 +104,8 @@ const tables = slide => nodes(slide, A, "tbl").map(table => child(table, A, "tr"
 const baseSnapshot = fixture();
 const baseBytes = await renderReportPptx(baseSnapshot);
 const base = await inspect(baseBytes);
-assert.equal(base.slides.length, 16, "The approved seven-day report uses its 18-page structure");
-assert.equal(base.tableCount, 18, "All 20 tables remain native and editable");
+assert.equal(base.slides.length, 16, "The seven-day report removes unnecessary continuation pages");
+assert.equal(base.tableCount, 18, "All 18 output tables remain native and editable");
 assert.equal(tables(base.slides[1])[0].find(row => row[0] === "GOS Beauty")[1], "0.00", "Explicit zero advertising spend remains zero");
 assert.equal(tables(base.slides[1])[0].find(row => row[0] === "Ineffable Beauty")[1], "未有資料", "Missing spend is never a zero");
 assert.equal(tables(base.slides[2])[0].find(row => row[0] === "Ineffable Beauty")[3], "未有資料", "Missing costs remain unavailable");
@@ -338,5 +338,5 @@ selectedSnapshot.daily = selectedSnapshot.daily.map(row => ({ ...row, metrics: t
 const selectedSlides = await inspect(await renderReportPptx(selectedSnapshot));
 const selectedText = selectedSlides.slides.flatMap(slide => nodes(slide, A, "t").map(node => node.textContent)).join("\n");
 assert.ok(!selectedText.includes("KOL + Traffic"), "Excluded Account has no summary/daily/treatment/audit group");
-assert.equal(selectedSlides.slides.length, 15, "Remove both excluded KOL treatment pages");
+assert.equal(selectedSlides.slides.length, 15, "Remove the excluded KOL treatment page");
 console.log("PASS: selected Account PPTX removes KOL group and pages, retains approved layout and valid table bounds");

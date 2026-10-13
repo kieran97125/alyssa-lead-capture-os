@@ -125,15 +125,15 @@ function applyTableFit(slide: Document, index: number, fit?: TableFit) {
   const layout = tableLayout(slide, index);
   const totalWidth = layout.columns.reduce((sum, width) => sum + width, 0);
   const widths = layout.columns.length === 7
-    ? [totalWidth * 0.56, ...layout.columns.slice(1).map(width => width * totalWidth * 0.44 / (totalWidth - layout.columns[0]))]
+    ? [totalWidth * 0.60, ...layout.columns.slice(1).map(width => width * totalWidth * 0.40 / (totalWidth - layout.columns[0]))]
     : [totalWidth * 0.22, totalWidth * 0.5, ...layout.columns.slice(2).map(width => width * totalWidth * 0.28 / layout.columns.slice(2).reduce((sum, value) => sum + value, 0))];
   direct(direct(layout.table, A, "tblGrid")[0], A, "gridCol").forEach((column, i) => column.setAttribute("w", String(Math.round(widths[i]))));
   const transform = direct(layout.frame, P, "xfrm")[0];
-  direct(transform, A, "off")[0].setAttribute("y", String(170 * EMU_PER_PIXEL));
+  direct(transform, A, "off")[0].setAttribute("y", String(150 * EMU_PER_PIXEL));
   layout.rows.forEach((row, i) => {
     row.setAttribute("h", "1");
     direct(row, A, "tc").forEach(cell => {
-      const pointSize = Math.min(cellFont(cell) * 72 / 96, fit.fontSize + (i === 0 ? 1 : 0));
+      const pointSize = Math.min(cellFont(cell) * 72 / 96, i === 0 ? 11 : fit.fontSize);
       [...elements(cell, A, "rPr"), ...elements(cell, A, "endParaRPr"), ...elements(cell, A, "defRPr")].forEach(style => style.setAttribute("sz", String(Math.round(pointSize * 100))));
       const properties = direct(cell, A, "tcPr")[0];
       if (properties) {
