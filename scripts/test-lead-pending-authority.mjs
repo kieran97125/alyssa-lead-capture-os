@@ -64,8 +64,41 @@ let rejected=0;
 for(const mutate of [
  b=>b.pop(),b=>b.push(b[1]),b=>{b[1][5]=false;},b=>{b[1][7]=false;},b=>{b[1][1]='Alyssa Main|p:99999999';},b=>{b[1][4]='unknown';},b=>{b[1][0]='wrong-owner';},b=>{b[1][3]=false;},b=>{b[0][0]='obsolete';}
 ]){const b=structuredClone(bridge);mutate(b);assert.throws(()=>build(b),/暫時未能確認/);rejected++;}
-for(const mutate of [r=>r.push(r[1]),r=>{r[1][1]='wrong-owner';},r=>{r[1][2]='GOS Beauty';},r=>{r[1][10]='2026-02-30';},r=>{r[1][14]='unknown-state';}]){const r=structuredClone(registry);mutate(r);assert.throws(()=>build(bridge,r));rejected++;}
+for(const mutate of [r=>r.push(r[1]),r=>{r[1][1]='wrong-owner';},r=>{r[4][2]='Unknown Account';},r=>{r[1][10]='2026-02-30';},r=>{r[1][14]='unknown-state';}]){const r=structuredClone(registry);mutate(r);assert.throws(()=>build(bridge,r));rejected++;}
 console.log(`PASS: current appointment state/outcome/schedule, rebooking, whole-day latest identity, legacy fallback, independent current dimensions, permission-filtered KPI/detail/trend/facts, ${rejected} fail-closed corrupt/truncated projections`);
+
+// Moving an existing durable Lead leaves closed appointment evidence attributed
+// to its former Account. The latest verified Sheet row owns current dimensions.
+const movedRegistry=structuredClone(registry);
+for(const i of [1,2,3])movedRegistry[i][2]='Alyssa Aesthetics';
+const moved=build(bridge,movedRegistry);
+assert.deepEqual(moved.groups.map(g=>[g.leadDate,g.bookDate,g.showDate,g.noShowDate]),
+  parsed.groups.map(g=>[g.leadDate,g.bookDate,g.showDate,g.noShowDate]),'Account relocation leaves authoritative historical funnel dates untouched');
+for(const i of [0,1,2]) {
+ assert.equal(moved.groups[i].pendingAppointment,null,'Closed evidence never resurrects a booked source row as pending');
+}
+assert.equal(moved.groups[0].appointmentStatus,null);
+assert.equal(moved.groups[1].appointmentStatus,null);
+assert.deepEqual(moved.groups[2].appointmentStatus,parsed.groups[2].appointmentStatus,'Same-Lead current cancellation follows latest Sheet dimensions after relocation');
+assert.equal(statuses.buildAppointmentStatusSummary({projectionVersion:moved.appointmentStatusProjection,groups:moved.groups,brands,filters:statusFilters}).cancellations,1);
+assert.deepEqual(math.buildLeadDashboardModel({groups:moved.groups,brands,filters}).totals,model.totals);
+assert.deepEqual(movedRegistry,(()=>{const copy=structuredClone(registry);for(const i of [1,2,3])copy[i][2]='Alyssa Aesthetics';return copy;})(),'Reading a moved Lead never rewrites historical registry data');
+const supersededRegistry=structuredClone(movedRegistry);supersededRegistry[3][14]='superseded';
+assert.equal(build(bridge,supersededRegistry).groups[2].pendingAppointment,null);
+for(const state of ['active','unscheduled','reschedule_requested','canceled','superseded']) {
+ const transferred=structuredClone(movedRegistry);transferred[1][14]=state;transferred[1][15]='';
+ const result=build(bridge,transferred).groups[0];
+ assert.equal(Boolean(result.pendingAppointment),state==='active','Latest Sheet Account owns same-Lead active scheduling without waiting for registry rehoming');
+ assert.equal(result.appointmentStatus?.status??null,['canceled','reschedule_requested'].includes(state)?state:null);
+ assert.equal(result.accountLabel,'Alyssa Main');
+}
+for(const mutate of [r=>{r[1][1]='wrong-owner';},r=>{r[1][2]='Unknown Account';},r=>r.splice(1,1)]) {
+ const corrupt=structuredClone(movedRegistry);mutate(corrupt);
+ assert.throws(()=>build(bridge,corrupt),e=>e.reason==='registry_pointer');
+}
+const rebookedRegistry=structuredClone(movedRegistry);rebookedRegistry[1][2]='Alyssa Main';rebookedRegistry[1][14]='active';rebookedRegistry[1][15]='';
+assert.ok(build(bridge,rebookedRegistry).groups[0].pendingAppointment,'A correctly owned active rebooking remains pending despite a prior authoritative Show');
+console.log('PASS: moved durable Leads retain exact stable ownership across all appointment states, follow latest Sheet dimensions, preserve funnel dates/history, reject missing/wrong/unknown ownership and retain rebooking.');
 
 // External/Omi API inserts do not trigger native onEdit. An unscheduled enquiry
 // can be counted before row-ID registration, without accepting appointment data.
