@@ -3,12 +3,12 @@ import { expect, test } from "@playwright/test";
 test.describe("Growth report exports", () => {
   test.setTimeout(90_000);
 
-  test("supports composable breakdowns and generates PDF plus Dashboard text; Slides remains the default", async ({ page }) => {
+  test("supports composable breakdowns and generates PDF plus Dashboard text; PowerPoint remains the default", async ({ page }) => {
     await page.goto("/reports", { waitUntil: "domcontentloaded" });
 
     await expect(page.getByRole("heading", { name: "報告生成", exact: true })).toBeVisible();
-    await expect(page.getByRole("radio", { name: /Google Slides/ })).toBeChecked();
-    await expect(page.getByRole("radio", { name: /PowerPoint/ })).toHaveCount(0);
+    await expect(page.getByRole("radio", { name: /PowerPoint/ })).toBeChecked();
+    await expect(page.getByRole("radio", { name: /Google Slides/ })).toHaveCount(0);
     await page.getByRole("radio", { name: /^PDF/ }).focus();
     await page.keyboard.press("Space");
     await expect(page.getByRole("radio", { name: /^PDF/ })).toBeChecked();
@@ -40,7 +40,7 @@ test.describe("Growth report exports", () => {
       breakdowns: ["brand", "treatment"],
     };
 
-    const exportBinaryReport = async (format: "pdf") =>
+    const exportBinaryReport = async (format: "pdf" | "pptx") =>
       page.evaluate(
         async (request) => {
           const response = await fetch("/api/internal/reports/export", {
@@ -63,6 +63,11 @@ test.describe("Growth report exports", () => {
         { ...baseRequest, format }
       );
 
+    const pptx = await exportBinaryReport("pptx");
+    expect(pptx.ok, `PPTX export returned ${pptx.status}`).toBe(true);
+    expect(pptx.contentType).toContain("application/vnd.openxmlformats-officedocument.presentationml.presentation");
+    expect(pptx.contentDisposition).toContain(".pptx");
+    expect(pptx.snapshotId).toBeTruthy(); expect(pptx.prefix).toEqual([80, 75, 3, 4]);
     const pdf = await exportBinaryReport("pdf");
     expect(pdf.ok, `PDF export returned ${pdf.status}`).toBe(true);
     expect(pdf.contentType).toContain("application/pdf");

@@ -7,7 +7,6 @@ import {
   Check,
   Clipboard,
   Download,
-  ExternalLink,
   FileText,
   Layers3,
   LoaderCircle,
@@ -28,30 +27,26 @@ function downloadName(disposition: string | null, fallback: string) {
 }
 
 function formatName(format: ReportOutputFormat) {
-  if (format === "google_slides" || format === "pptx") return "Google Slides";
+  if (format === "pptx") return "PowerPoint";
   if (format === "txt") return "文字摘要";
   return "PDF";
 }
 
-export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: {
-  options: ReportGeneratorOptions;
-  canConnectGoogleDrive?: boolean;
-}) {
+export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptions }) {
   const [startDate, setStartDate] = useState(options.defaultStartDate);
   const [endDate, setEndDate] = useState(options.defaultEndDate);
   const [brandScope, setBrandScope] = useState("");
+  const [accountIds, setAccountIds] = useState<string[] | null>(null);
   const [comparison, setComparison] = useState(true);
   const [breakdowns, setBreakdowns] = useState<ReportBreakdownDimension[]>([]);
-  const [format, setFormat] = useState<ReportOutputFormat>("google_slides");
+  const [format, setFormat] = useState<ReportOutputFormat>("pptx");
   const [pending, setPending] = useState(false);
   const submitting = useRef(false);
   const [error, setError] = useState("");
-  const [authorizationRequired, setAuthorizationRequired] = useState(false);
   const [lastDownload, setLastDownload] = useState("");
-  const [lastPresentation, setLastPresentation] = useState<{ name: string; url: string } | null>(null);
   const [lastText, setLastText] = useState("");
   const [copied, setCopied] = useState(false);
-  const isSlides = format === "google_slides" || format === "pptx";
+  const isPresentation = format === "pptx";
 
   const breakdownLabel = useMemo(() => {
     if (breakdowns.length === 0) return "不拆分";
@@ -95,9 +90,7 @@ export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: 
     submitting.current = true;
     setPending(true);
     setError("");
-    setAuthorizationRequired(false);
     setLastDownload("");
-    setLastPresentation(null);
     setLastText("");
     setCopied(false);
     try {
@@ -108,25 +101,15 @@ export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: 
           startDate,
           endDate,
           brandScope,
-          comparison: isSlides ? false : comparison,
-          breakdowns: isSlides ? [] : breakdowns,
+          accountIds,
+          comparison: isPresentation ? false : comparison,
+          breakdowns: isPresentation ? [] : breakdowns,
           format,
         }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null) as { message?: string; code?: string } | null;
-        setAuthorizationRequired(payload?.code === "drive_authorization_required");
         throw new Error(payload?.message || "暫時未能生成報告，請稍後再試。");
-      }
-      if (format === "google_slides") {
-        const payload = await response.json() as { presentation?: { name?: string; url?: string } };
-        const presentation = payload.presentation;
-        if (!presentation?.name || !presentation.url ||
-            !/^https:\/\/docs\.google\.com\/presentation\/d\/[a-zA-Z0-9_-]+\//.test(presentation.url)) {
-          throw new Error("Google Slides 已提交，但未能確認連結。請先查看報告資料夾。");
-        }
-        setLastPresentation({ name: presentation.name, url: presentation.url });
-        return;
       }
       const filename = downloadName(
         response.headers.get("content-disposition"),
@@ -176,7 +159,23 @@ export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: 
             </select>
           </label>
         </div>
-        {!isSlides ? <label className="report-generator-switch-row">
+        <fieldset className="mt-5 border-0 p-0">
+          <legend className="mb-2 text-sm font-semibold">Account 範圍</legend>
+          <p className="mb-3 text-sm text-system-muted-foreground">可揀多個 Account；取消 Alyssa Main 可排除 KOL + Traffic。只計已選品牌範圍內的資料。</p>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {options.accountOptions.map(option => (
+              <label key={option.value} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" checked={accountIds === null || accountIds.includes(option.value)} onChange={() => setAccountIds(current => {
+                  const selected = current ?? options.accountOptions.map(account => account.value);
+                  return selected.includes(option.value) ? selected.filter(id => id !== option.value) : [...selected, option.value];
+                })} />
+                <span>{option.label}</span>
+              </label>
+            ))}
+          </div>
+          {accountIds?.length === 0 ? <p role="alert" className="command-status-message is-error">請至少揀選一個 Account。</p> : null}
+        </fieldset>
+        {!isPresentation ? <label className="report-generator-switch-row">
           <input type="checkbox" checked={comparison} onChange={(event) => setComparison(event.target.checked)} />
           <span className="report-generator-switch" aria-hidden="true"><span /></span>
           <span>
@@ -186,7 +185,7 @@ export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: 
         </label> : null}
       </section>
 
-      {!isSlides ? <section className="command-surface report-generator-section">
+      {!isPresentation ? <section className="command-surface report-generator-section">
         <header>
           <span className="report-generator-step">02</span>
           <div>
@@ -220,18 +219,18 @@ export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: 
 
       <section className="command-surface report-generator-section">
         <header>
-          <span className="report-generator-step">{isSlides ? "02" : "03"}</span>
+          <span className="report-generator-step">{isPresentation ? "02" : "03"}</span>
           <div>
             <h2>輸出格式</h2>
           </div>
           <Presentation size={22} aria-hidden="true" />
         </header>
         <div className="report-format-picker" role="radiogroup" aria-label="輸出格式">
-          <label className={format === "google_slides" ? "is-selected" : ""}>
-            <input type="radio" name="report-format" value="google_slides" checked={format === "google_slides"} onChange={() => setFormat("google_slides")} />
+          <label className={format === "pptx" ? "is-selected" : ""}>
+            <input type="radio" name="report-format" value="pptx" checked={format === "pptx"} onChange={() => setFormat("pptx")} />
             <Presentation size={24} aria-hidden="true" />
-            <span><strong>Google Slides</strong><small>儲存到報告資料夾</small></span>
-            {format === "google_slides" ? <Check size={17} aria-hidden="true" /> : null}
+            <span><strong>PowerPoint</strong><small>直接下載可編輯 PPT</small></span>
+            {format === "pptx" ? <Check size={17} aria-hidden="true" /> : null}
           </label>
           <label className={format === "pdf" ? "is-selected" : ""}>
             <input type="radio" name="report-format" value="pdf" checked={format === "pdf"} onChange={() => setFormat("pdf")} />
@@ -249,20 +248,7 @@ export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: 
       </section>
 
       {error ? <p className="command-status-message is-error" role="alert">{error}</p> : null}
-      {authorizationRequired && canConnectGoogleDrive ? (
-        <SystemButton variant="outline" nativeButton={false} role="link" render={<a href="/reports?reconnect_drive=1" />}>
-          <Presentation size={16} aria-hidden="true" />重新連接 Google Drive
-        </SystemButton>
-      ) : null}
       {lastDownload ? <p className="command-status-message is-success" role="status">已生成並下載：{lastDownload}</p> : null}
-      {lastPresentation ? (
-        <section className="command-surface report-generator-section" aria-label="Google Slides 生成結果" data-testid="report-slides-result">
-          <p className="command-status-message is-success" role="status">已儲存到報告資料夾：{lastPresentation.name}</p>
-          <SystemButton variant="outline" nativeButton={false} role="link" render={<a href={lastPresentation.url} target="_blank" rel="noopener noreferrer" />}>
-            <ExternalLink size={16} aria-hidden="true" />開啟 Google Slides
-          </SystemButton>
-        </section>
-      ) : null}
 
       {lastText ? (
         <section className="command-surface report-generator-section" data-testid="report-text-preview">
@@ -285,11 +271,11 @@ export function ReportGeneratorForm({ options, canConnectGoogleDrive = false }: 
 
       <footer className="report-generator-submit-row">
         <div>
-          <strong>{format === "pdf" ? "可搜尋 PDF" : format === "google_slides" ? "Google Slides · CS／AD 報數" : "Dashboard 純文字摘要"}</strong>
-          <span>{startDate} 至 {endDate} · {isSlides ? "標準系列報告" : breakdownLabel}</span>
+          <strong>{format === "pdf" ? "可搜尋 PDF" : format === "pptx" ? "PowerPoint · CS／AD 報數" : "Dashboard 純文字摘要"}</strong>
+          <span>{startDate} 至 {endDate} · {isPresentation ? "標準系列報告" : breakdownLabel}</span>
         </div>
-        <SystemButton type="submit" className="command-primary-button" disabled={pending || !startDate || !endDate} aria-busy={pending}>
-          {pending ? <LoaderCircle className="report-generator-spinner" size={17} aria-hidden="true" /> : format === "google_slides" ? <Presentation size={17} aria-hidden="true" /> : <Download size={17} aria-hidden="true" />}
+        <SystemButton type="submit" className="command-primary-button" disabled={pending || !startDate || !endDate || accountIds?.length === 0} aria-busy={pending}>
+          {pending ? <LoaderCircle className="report-generator-spinner" size={17} aria-hidden="true" /> : format === "pptx" ? <Presentation size={17} aria-hidden="true" /> : <Download size={17} aria-hidden="true" />}
           {pending ? "生成中…" : `生成 ${formatName(format)}`}
         </SystemButton>
       </footer>

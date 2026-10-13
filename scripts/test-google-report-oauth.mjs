@@ -149,13 +149,13 @@ try {
   session = { ok: true, access: { accessLevel: "master" } };
   let element = await page.default({ searchParams: Promise.resolve({}) });
   assert.equal(findElements(element, "form").length, 0, "Connected state stays compact");
-  assert.equal(findElements(element, MockGenerator)[0].props.canConnectGoogleDrive, true);
+  assert.equal(findElements(element, MockGenerator)[0].props.canConnectGoogleDrive, undefined);
   element = await page.default({ searchParams: Promise.resolve({ reconnect_drive: "1" }) });
-  assert.equal(findElements(element, "form")[0].props.action, "/api/integrations/google-sheets/start?purpose=reports", "Revoked token has a reachable Master reconnect action");
+  assert.equal(findElements(element, "form").length, 0, "PPTX generation has no Drive connection dependency");
   session = { ok: true, access: { accessLevel: "admin" } }; driveEnabled = false;
-  element = await page.default({ searchParams: Promise.resolve({ reconnect_drive: "1" }) });
-  assert.equal(findElements(element, "form").length, 0, "Query parameters cannot expose consent to staff");
-  assert.equal(findElements(element, MockGenerator)[0].props.canConnectGoogleDrive, false);
+  element = await page.default({ searchParams: Promise.resolve({}) });
+  assert.equal(findElements(element, "form").length, 0);
+
 } finally {
   for (const key of Object.keys(process.env)) if (!(key in savedEnvironment)) delete process.env[key];
   Object.assign(process.env, savedEnvironment);

@@ -86,6 +86,7 @@ export function renderReportText(snapshot: ReportSnapshot) {
     `報告編號：${snapshot.reportId}`,
     `報告期間：${snapshot.current.label}`,
     `品牌範圍：${snapshot.selection.brandLabel}`,
+    `Account 範圍：${snapshot.selection.accountLabels?.join("、") || "全部 Account"}`,
     `生成時間：${snapshot.generatedAt}`,
     "",
     "## Dashboard 摘要",

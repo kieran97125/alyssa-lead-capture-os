@@ -48,6 +48,7 @@ import {
   reportSpendTotal,
 } from "@/lib/reports/metrics";
 import { buildReportSeries, type SeriesMetricFact } from "@/lib/reports/seriesData";
+import { accountsForAllowedBrands, brandIdsForLeadAccount, leadAccountById } from "@/lib/marketing/leadAccountScope";
 
 type MetricKind = "lead" | "book" | "show" | "no_show" | "pending_show";
 
@@ -152,16 +153,23 @@ export function normalizeReportExportRequest(input: unknown): ReportExportReques
   }
 
   const requestedFormatToken = cleanText(body.format, 20);
-  const requestedFormat = (requestedFormatToken === "pptx"
-    ? "google_slides"
-    : requestedFormatToken) as ReportOutputFormat;
+  const requestedFormat = requestedFormatToken as ReportOutputFormat;
+  let accountIds: string[] | null = null;
+  if (body.accountIds !== undefined && body.accountIds !== null) {
+    if (!Array.isArray(body.accountIds) || body.accountIds.length === 0 || body.accountIds.length > 6 ||
+        body.accountIds.some(id => typeof id !== "string" || !leadAccountById(id))) {
+      throw new ReportExportError("請至少揀選一個有效 Account。", 400, "invalid_account_selection");
+    }
+    accountIds = [...new Set(body.accountIds.map(id => leadAccountById(id)!.id))];
+  }
   return {
     startDate,
     endDate,
     brandScope: cleanText(body.brandScope, 100),
+    accountIds,
     comparison: body.comparison !== false,
     breakdowns: normalizeBreakdowns(body.breakdowns),
-    format: reportOutputFormats.includes(requestedFormat) ? requestedFormat : "google_slides",
+    format: reportOutputFormats.includes(requestedFormat) ? requestedFormat : "pptx",
   };
 }
 
@@ -195,6 +203,11 @@ export async function getReportGeneratorOptions(): Promise<ReportGeneratorOption
       { value: "", label: "全部品牌" },
       ...brandScopeOptions(brands),
     ],
+    accountOptions: accountsForAllowedBrands(brands, brands.map(brand => brand.id)).map(account => ({
+      value: account.id,
+      label: account.id === "alyssa-main" ? `${account.label}（KOL + Traffic）` : account.label,
+      brandIds: brandIdsForLeadAccount(brands, account.id),
+    })),
   };
 }
 
@@ -677,7 +690,14 @@ export async function buildReportSnapshot(
     getConfiguredBrands(),
     getCurrentInternalAccess(),
   ]);
-  const selectedBrands = scopedBrands(availableBrands, request.brandScope);
+  const brandScoped = scopedBrands(availableBrands, request.brandScope);
+  const allowedAccounts = accountsForAllowedBrands(availableBrands, availableBrands.map(brand => brand.id));
+  const accountIds = request.accountIds ?? null;
+  if (accountIds && (accountIds.length === 0 || accountIds.some(id => !allowedAccounts.some(account => account.id === id)))) {
+    throw new ReportExportError("你揀選嘅 Account 不存在，或者未獲授權。", 403, "account_scope_denied");
+  }
+  const accountBrandIds = accountIds ? new Set(accountIds.flatMap(id => brandIdsForLeadAccount(availableBrands, id))) : null;
+  const selectedBrands = accountBrandIds ? brandScoped.filter(brand => accountBrandIds.has(brand.id)) : brandScoped;
   if (selectedBrands.length === 0) {
     throw new ReportExportError("你目前未獲分配任何可匯出品牌。", 403, "brand_scope_denied");
   }
@@ -693,13 +713,16 @@ export async function buildReportSnapshot(
     ? await loadProductionFacts(brandIds, combinedStart, combinedEnd)
     : fixtureData(selectedBrands, combinedStart, combinedEnd);
 
-  const currentFacts = rangeFacts(loaded.metricFacts, request.startDate, request.endDate);
-  const currentSpends = rangeFacts(loaded.spendFacts, request.startDate, request.endDate);
+  const accountFacts = accountIds ? loaded.metricFacts.filter(fact => accountIds.includes(leadAccountById(fact.accountLabel)?.id ?? "")) : loaded.metricFacts;
+  const spendBrandIds = accountIds ? new Set(accountIds.flatMap(id => brandIdsForLeadAccount(selectedBrands, id, "spend"))) : null;
+  const accountSpends = spendBrandIds ? loaded.spendFacts.filter(fact => spendBrandIds.has(fact.brandId)) : loaded.spendFacts;
+  const currentFacts = rangeFacts(accountFacts, request.startDate, request.endDate);
+  const currentSpends = rangeFacts(accountSpends, request.startDate, request.endDate);
   const previousFacts = request.comparison
-    ? rangeFacts(loaded.metricFacts, previousStartDate, previousEndDate)
+    ? rangeFacts(accountFacts, previousStartDate, previousEndDate)
     : [];
   const previousSpends = request.comparison
-    ? rangeFacts(loaded.spendFacts, previousStartDate, previousEndDate)
+    ? rangeFacts(accountSpends, previousStartDate, previousEndDate)
     : [];
   const currentTotals = aggregateMetrics(currentFacts, currentSpends);
   const previousTotals = request.comparison
@@ -708,7 +731,7 @@ export async function buildReportSnapshot(
   const brandRows = buildBrandRows(selectedBrands, currentFacts, currentSpends);
   const treatmentRows = buildTreatmentRows(currentFacts);
   const currentDates = listDates(request.startDate, request.endDate);
-  const coverage = spendCoverage(currentDates, brandIds, currentSpends);
+  const coverage = spendCoverage(currentDates, spendBrandIds ? brandIds.filter(id => spendBrandIds.has(id)) : brandIds, currentSpends);
   const narrative = buildNarrative({
     current: currentTotals,
     previous: previousTotals,
@@ -755,6 +778,8 @@ export async function buildReportSnapshot(
     selection: {
       brandScope: request.brandScope,
       brandLabel,
+      accountIds,
+      accountLabels: accountIds ? accountIds.map(id => leadAccountById(id)!.label) : ["全部 Account"],
       brands: selectedBrands.map(reportBrand),
       breakdowns: request.breakdowns,
     },
@@ -782,6 +807,7 @@ export async function buildReportSnapshot(
       spendFacts: currentSpends,
       dates: currentDates,
       sourceAvailable: Boolean(source && source.status === "connected"),
+      accountIds,
     }),
     insights: narrative.insights,
     actions: narrative.actions,

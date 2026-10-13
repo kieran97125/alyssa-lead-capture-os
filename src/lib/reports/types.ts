@@ -11,6 +11,8 @@ export type ReportExportRequest = {
   startDate: string;
   endDate: string;
   brandScope: string;
+  /** null/omitted preserves all authorized Accounts; an empty selection is invalid. */
+  accountIds?: string[] | null;
   comparison: boolean;
   breakdowns: ReportBreakdownDimension[];
   format: ReportOutputFormat;
@@ -149,6 +151,8 @@ export type ReportSnapshot = {
   selection: {
     brandScope: string;
     brandLabel: string;
+    accountIds?: string[] | null;
+    accountLabels?: string[];
     brands: ReportBrand[];
     breakdowns: ReportBreakdownDimension[];
   };
@@ -173,4 +177,5 @@ export type ReportGeneratorOptions = {
   defaultStartDate: string;
   defaultEndDate: string;
   brandOptions: Array<{ value: string; label: string }>;
+  accountOptions: Array<{ value: string; label: string; brandIds: string[] }>;
 };

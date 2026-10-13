@@ -12,6 +12,11 @@ export default function ReportGeneratorFixturePage() {
         <h1 className="command-page-title">報告生成</h1>
         <ReportGeneratorForm options={{
           defaultStartDate: "2026-10-01", defaultEndDate: "2026-10-07",
+          accountOptions: [
+            { value: "alyssa-main", label: "Alyssa Main（KOL + Traffic）", brandIds: ["alyssa"] },
+            { value: "alyssa-aesthetics", label: "Alyssa Aesthetics", brandIds: ["alyssa", "am"] },
+            { value: "gos-beauty", label: "GOS Beauty", brandIds: ["gos"] },
+          ],
           brandOptions: [{ value: "", label: "全部品牌" }, { value: "gos", label: "GOS Beauty" }],
         }} />
       </div>

@@ -201,7 +201,7 @@ type Page = { exemplar: number; tables?: string[][][]; shapes?: Record<number, s
 
 function pagesFor(snapshot: ReportSnapshot, sourceSlides: Document[]): Page[] {
   const series = snapshot.series;
-  const groups = REPORT_SERIES_GROUPS.map(group => series?.groupRows.find(row => row.key === group.key) ?? { ...group, available: false, metrics: empty() });
+  const groups = REPORT_SERIES_GROUPS.filter(group => !snapshot.selection.accountIds || series?.groupRows.some(row => row.key === group.key)).map(group => series?.groupRows.find(row => row.key === group.key) ?? { ...group, available: false, metrics: empty() });
   const byGroup = (key: ReportSeriesGroupKey) => groups.find(group => group.key === key)!;
   const startMonth = Number(snapshot.current.startDate.slice(5, 7));
   const endMonth = Number(snapshot.current.endDate.slice(5, 7));
@@ -220,14 +220,19 @@ function pagesFor(snapshot: ReportSnapshot, sourceSlides: Document[]): Page[] {
   for (const daily of chunks(snapshot.daily, 7)) pages.push({ exemplar: 5, tables: [[...daily.map(row => [row.date.slice(5).replace("-", "/"), ...metricCells(row.metrics)]), ["合計", ...metricCells(sum(daily.map(row => row.metrics)))]]] });
   const dateChunks = chunks(snapshot.daily.map(row => row.date), 7);
   for (let pair = 0; pair < 3; pair++) for (const dates of dateChunks) {
-    const tables = groups.slice(pair * 2, pair * 2 + 2).map(group => {
+    const pairGroups = REPORT_SERIES_GROUPS.slice(pair * 2, pair * 2 + 2).map(item => groups.find(group => group.key === item.key));
+    if (pairGroups.every(group => !group)) continue;
+    const tables = pairGroups.map(group => {
+      if (!group) return [["未選取 Account", ...dash(4)], ["合計", ...dash(4)]];
       const rows = dates.map(date => series?.dailyRows.find(row => row.groupKey === group.key && row.date === date));
       return [...rows.map((row, i) => [dates[i].slice(5).replace("-", "/"), ...(group.available && row ? metricCells(row.metrics) : dash(4))]), ["合計", ...(group.available ? metricCells(sum(rows.flatMap(row => row ? [row.metrics] : []))) : dash(4))]];
     });
-    pages.push({ exemplar: 6 + pair, tables });
+    const titleIds = [[78, 80], [91, 93], [104, 106]][pair];
+    pages.push({ exemplar: 6 + pair, tables, shapes: Object.fromEntries(pairGroups.map((group, index) => [titleIds[index], group?.label ?? "未選取 Account"])) });
   }
   const treatmentExemplars: Array<[ReportSeriesGroupKey, number]> = [["alyssa-ads", 9], ["alyssa-medical-ads", 10], ["kol-traffic", 11], ["gos", 13], ["ib", 14], ["skin-light", 15]];
   for (const [key, exemplar] of treatmentExemplars) {
+    if (!groups.some(group => group.key === key)) continue;
     const data = series?.treatmentRows.filter(row => row.groupKey === key) ?? [];
     const totalCells = (metrics: ReportMetrics) => ["本頁小計", ...metricCells(metrics), "", ""];
     const splits = paginateNativeRows(tableLayout(sourceSlides[exemplar - 1], 0), data.map(row => ({ values: [row.label, ...efficiencyCells(row.metrics)], metrics: row.metrics })), totalCells, 7);
@@ -275,6 +280,12 @@ export async function renderReportPptx(snapshot: ReportSnapshot): Promise<Uint8A
     if (/\{\{/.test(xml)) throw new Error("Unfilled report template slot");
     zip.file(`ppt/slides/slide${i + 1}.xml`, xml);
     zip.file(`ppt/slides/_rels/slide${i + 1}.xml.rels`, sourceRelationships[page.exemplar - 1]);
+  }
+  // Selected Accounts can produce fewer pages than the approved base deck.
+  // Remove unused source XML instead of retaining stale template values.
+  for (let i = pages.length + 1; i <= sourceSlides.length; i++) {
+    zip.remove(`ppt/slides/slide${i}.xml`);
+    zip.remove(`ppt/slides/_rels/slide${i}.xml.rels`);
   }
   const presentation = parse(await zip.file("ppt/presentation.xml")!.async("string"));
   const list = elements(presentation, P, "sldIdLst")[0];
