@@ -1,5 +1,6 @@
 import { reportMetrics, reportSpendTotal } from "@/lib/reports/metrics";
 import type { ReportMetrics, ReportSeries, ReportSeriesGroupKey } from "@/lib/reports/types";
+import { leadAccountById } from "@/lib/marketing/leadAccountScope";
 
 type SeriesBrand = { id: string; name: string; slug: string };
 export type SeriesMetricFact = {
@@ -84,7 +85,14 @@ export function buildReportSeries(input: {
   spendFacts: SeriesSpendFact[];
   dates: string[];
   sourceAvailable: boolean;
+  accountIds?: string[] | null;
 }): ReportSeries {
+  const accountGroups: Record<string, ReportSeriesGroupKey[]> = {
+    "alyssa-main": ["kol-traffic"], "alyssa-aesthetics": ["alyssa-ads", "alyssa-medical-ads"],
+    "alyssa-medical": ["alyssa-medical-ads"], "gos-beauty": ["gos"], "ineffable": ["ib"], "skin-light": ["skin-light"],
+  };
+  const selectedGroups = input.accountIds ? new Set(input.accountIds.flatMap(id => accountGroups[id] ?? [])) : null;
+  const groups = REPORT_SERIES_GROUPS.filter(group => !selectedGroups || selectedGroups.has(group.key));
   const brands = new Map(input.brands.map(brand => [brand.id, brand]));
   const dates = new Set(input.dates);
   const allowedGroups = new Set(input.brands.flatMap(possibleGroupsForBrand));
@@ -94,6 +102,7 @@ export function buildReportSeries(input: {
   const warnings = new Set<string>();
 
   for (const fact of input.metricFacts) {
+    if (input.accountIds && !input.accountIds.includes(leadAccountById(fact.accountLabel)?.id ?? "")) continue;
     const brand = brands.get(fact.brandId);
     if (!brand || !dates.has(fact.metricDate)) continue;
     const key = reportSeriesGroupForFact(fact, brand);
@@ -124,7 +133,7 @@ export function buildReportSeries(input: {
     spendByGroup.set(key, rows);
   }
 
-  const groupRows: ReportSeries["groupRows"] = REPORT_SERIES_GROUPS.map(group => {
+  const groupRows: ReportSeries["groupRows"] = groups.map(group => {
     const available = input.sourceAvailable && allowedGroups.has(group.key) && !invalidGroups.has(group.key);
     return { ...group, available, metrics: aggregate(groupFacts.get(group.key) ?? [], (spendByGroup.get(group.key) ?? []).map(row => row.amount), group.key !== "kol-traffic") };
   });
@@ -146,7 +155,7 @@ export function buildReportSeries(input: {
   // The persisted facts' sourceLabel describes Lead acquisition. The accepted
   // arrival projection does not publish its separate AD/KOL/OG source field.
   // Keep absence explicit; never relabel acquisition sources as arrival sources.
-  const arrivalSourceRows: ReportSeries["arrivalSourceRows"] = REPORT_SERIES_GROUPS.flatMap(group => (["AD", "KOL", "OG", "unclassified"] as const).map(key => ({
+  const arrivalSourceRows: ReportSeries["arrivalSourceRows"] = groups.flatMap(group => (["AD", "KOL", "OG", "unclassified"] as const).map(key => ({
     groupKey: group.key, key, label: key === "unclassified" ? "未分類" : key,
     shows: null, noShows: null, pendingShows: null, available: false,
   })));

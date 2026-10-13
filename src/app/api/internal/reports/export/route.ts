@@ -32,7 +32,7 @@ export async function POST(request: Request) {
     const normalized = normalizeReportExportRequest(input);
     const snapshot = await buildReportSnapshot(normalized);
 
-    if (normalized.format === "google_slides" || normalized.format === "pptx") {
+    if (normalized.format === "google_slides") {
       const { exportReportToGoogleSlides } = await import("@/lib/reports/googleSlides");
       const presentation = await exportReportToGoogleSlides(snapshot, { signal: exportSignal });
       return NextResponse.json({ format: "google_slides", presentation }, {
@@ -52,6 +52,13 @@ export async function POST(request: Request) {
       "x-report-id": snapshot.reportId,
       "x-report-snapshot-id": snapshot.snapshotId,
     });
+
+    if (normalized.format === "pptx") {
+      const { renderReportPptx } = await import("@/lib/reports/pptx");
+      const output = await renderReportPptx(snapshot);
+      headers.set("content-type", "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+      return new Response(new Uint8Array(output), { status: 200, headers });
+    }
 
     if (normalized.format === "txt") {
       const { renderReportText } = await import("@/lib/reports/text");

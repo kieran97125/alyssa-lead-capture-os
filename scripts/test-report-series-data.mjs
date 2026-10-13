@@ -123,3 +123,15 @@ assert.equal(projected.groupRows.find(row => row.key === "alyssa-ads").metrics.b
 assert.equal(projected.groupRows.find(row => row.key === "alyssa-medical-ads").metrics.bookings, 1);
 assert.equal(projected.groupRows.reduce((total, row) => total + row.metrics.leads, 0), 0, "An old Lead's new Book must not manufacture an in-period Lead");
 console.log("PASS: six report-only groups, stage-specific Brand/Account attribution, Medical merge, scoped aggregate audit, daily/treatment parity, no duplicated Spend, missing-vs-zero, missing Account/source and honest arrival-source availability");
+
+const adsOnly = buildReportSeries({ ...input, accountIds: ["alyssa-aesthetics", "alyssa-medical"] });
+assert.ok(adsOnly.groupRows.every(row => row.key !== "kol-traffic"));
+assert.equal(adsOnly.auditRows.reduce((total, row) => total + row.metrics.leads, 0), 17);
+assert.equal(adsOnly.auditRows.reduce((total, row) => total + row.metrics.bookings, 0), 3);
+assert.ok(adsOnly.auditRows.every(row => !/Main/.test(row.accountLabel)));
+assert.ok(adsOnly.dailyRows.every(row => row.groupKey !== "kol-traffic"));
+const mainOnly = buildReportSeries({ ...input, accountIds: ["alyssa-main"] });
+assert.equal(mainOnly.groupRows.length, 1);
+assert.equal(mainOnly.groupRows[0].metrics.leads, 5);
+assert.equal(mainOnly.groupRows[0].metrics.spend, null);
+console.log("PASS: selected Accounts exclude KOL across groups, daily, treatment and audit facts without duplicating Spend");

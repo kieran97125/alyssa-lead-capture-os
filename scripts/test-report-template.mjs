@@ -322,3 +322,16 @@ if (process.env.REPORT_TEMPLATE_QA_DIR) {
   writeFileSync(path.join(process.env.REPORT_TEMPLATE_QA_DIR, "audit-labels.json"), JSON.stringify(auditStressSnapshot, null, 2));
 }
 console.log(`PASS: approved 18-slide/20-table base, exact template geometry/fonts/styles, stale-data sanitation, XML escaping, zero versus missing, unavailable account costs, restricted groups, ${long.slides.length}-slide pagination, all dates/treatments, natural Chinese labels on ${naturalPages.length} pages, accepted 160-character label (${boundaryFragments.fragments} fragments), 120-character audit labels (${auditStressContinuations} continuations), exact fragment reconstruction, reconciled totals, footer numbering and table bounds`);
+
+const selectedSnapshot = fixture();
+selectedSnapshot.selection.accountIds = ["alyssa-aesthetics", "gos-beauty", "ineffable", "skin-light"];
+for (const field of ["groupRows", "dailyRows", "treatmentRows", "auditRows", "arrivalSourceRows"]) {
+  selectedSnapshot.series[field] = selectedSnapshot.series[field].filter(row => (row.groupKey ?? row.key) !== "kol-traffic");
+}
+selectedSnapshot.current.totals = total(selectedSnapshot.series.groupRows.map(row => row.metrics));
+selectedSnapshot.daily = selectedSnapshot.daily.map(row => ({ ...row, metrics: total(selectedSnapshot.series.dailyRows.filter(fact => fact.date === row.date).map(fact => fact.metrics)) }));
+const selectedSlides = await inspect(await renderReportPptx(selectedSnapshot));
+const selectedText = selectedSlides.slides.flatMap(slide => nodes(slide, A, "t").map(node => node.textContent)).join("\n");
+assert.ok(!selectedText.includes("KOL + Traffic"), "Excluded Account has no summary/daily/treatment/audit group");
+assert.equal(selectedSlides.slides.length, 16, "Remove both excluded KOL treatment pages");
+console.log("PASS: selected Account PPTX removes KOL group and pages, retains approved layout and valid table bounds");

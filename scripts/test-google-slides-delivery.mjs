@@ -135,18 +135,27 @@ try {
   const route = load("src/app/api/internal/reports/export/route.ts", {
     "next/server": { NextResponse: { json: (body, init) => new Response(JSON.stringify(body), { ...init, headers: { ...init.headers, "content-type": "application/json" } }) } },
     "@/lib/security/internalAccessServer": { requireModuleAccess: async () => ({ allowed }) },
-    "@/lib/reports/snapshot": { ReportExportError, normalizeReportExportRequest: input => ({ ...input, format: input.format === "pptx" ? "google_slides" : input.format }), buildReportSnapshot: async () => snapshot },
+    "@/lib/reports/snapshot": { ReportExportError, normalizeReportExportRequest: input => input, buildReportSnapshot: async () => snapshot },
+    "@/lib/reports/pptx": { renderReportPptx: async () => new Uint8Array([80, 75, 3, 4]) },
     "@/lib/reports/googleSlides": { exportReportToGoogleSlides: async (_snapshot, options) => { assert.ok(options.signal); delivered++; return result; } },
   });
   const request = format => new Request("https://app.example.test/api/internal/reports/export", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ format }) });
-  for (const format of ["google_slides", "pptx"]) {
+  for (const format of ["google_slides"]) {
     const response = await route.POST(request(format));
     assert.equal(response.status, 201); assert.equal(response.headers.get("content-disposition"), null);
     assert.equal(response.headers.get("x-report-snapshot-id"), snapshot.snapshotId);
     assert.deepEqual(await response.json(), { format: "google_slides", presentation: result });
   }
+  const downloaded = await route.POST(request("pptx"));
+  assert.equal(downloaded.status, 200);
+  assert.equal(downloaded.headers.get("content-type"), "application/vnd.openxmlformats-officedocument.presentationml.presentation");
+  assert.match(downloaded.headers.get("content-disposition"), /\.pptx"/);
+  assert.equal(downloaded.headers.get("x-report-snapshot-id"), snapshot.snapshotId);
+  assert.deepEqual([...new Uint8Array(await downloaded.arrayBuffer())], [80, 75, 3, 4]);
+  assert.equal(delivered, 1, "PPTX download must not access Google Drive");
   allowed = false;
   assert.equal((await route.POST(request("google_slides"))).status, 403);
-  assert.equal(delivered, 2, "Unauthorized request must not create a file");
+  assert.equal((await route.POST(request("pptx"))).status, 403);
+  assert.equal(delivered, 1, "Unauthorized request must not create a file");
 } finally { globalThis.fetch = originalFetch; }
 console.log("PASS: native Slides conversion, HKT naming, folder/MIME/URL verification, bounded cancellation, safe scope failures, single creation, authenticated JSON API.");

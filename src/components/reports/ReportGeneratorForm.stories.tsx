@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { ReportGeneratorForm } from "@/components/reports/ReportGeneratorForm";
 
 const meta = {
-  title: "Reports/Google Slides Generator",
+  title: "Reports/PowerPoint Generator",
   component: ReportGeneratorForm,
   parameters: { layout: "fullscreen" },
   tags: ["autodocs"],
@@ -10,6 +10,11 @@ const meta = {
     options: {
       defaultStartDate: "2026-10-01",
       defaultEndDate: "2026-10-07",
+      accountOptions: [
+        { value: "alyssa-main", label: "Alyssa Main（KOL + Traffic）", brandIds: ["alyssa"] },
+        { value: "alyssa-aesthetics", label: "Alyssa Aesthetics", brandIds: ["alyssa", "am"] },
+        { value: "gos-beauty", label: "GOS Beauty", brandIds: ["gos"] },
+      ],
       brandOptions: [{ value: "", label: "全部品牌" }, { value: "gos", label: "GOS Beauty" }],
     },
   },
@@ -19,7 +24,7 @@ const meta = {
 export default meta;
 type Story = StoryObj<typeof meta>;
 
-export const GoogleSlidesDefault: Story = {};
+export const PowerPointDefault: Story = {};
 export const SingleBrand: Story = {
   args: { options: { ...meta.args.options, brandOptions: [{ value: "", label: "GOS Beauty" }] } },
 };
