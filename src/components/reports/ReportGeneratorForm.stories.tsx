@@ -25,6 +25,6 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const PowerPointDefault: Story = {};
-export const SingleBrand: Story = {
-  args: { options: { ...meta.args.options, brandOptions: [{ value: "", label: "GOS Beauty" }] } },
+export const SingleAccount: Story = {
+  args: { options: { ...meta.args.options, accountOptions: [{ value: "gos-beauty", label: "GOS Beauty", brandIds: ["gos"] }] } },
 };

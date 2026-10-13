@@ -35,7 +35,6 @@ function formatName(format: ReportOutputFormat) {
 export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptions }) {
   const [startDate, setStartDate] = useState(options.defaultStartDate);
   const [endDate, setEndDate] = useState(options.defaultEndDate);
-  const [brandScope, setBrandScope] = useState("");
   const [accountIds, setAccountIds] = useState<string[] | null>(null);
   const [comparison, setComparison] = useState(true);
   const [breakdowns, setBreakdowns] = useState<ReportBreakdownDimension[]>([]);
@@ -100,7 +99,6 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
         body: JSON.stringify({
           startDate,
           endDate,
-          brandScope,
           accountIds,
           comparison: isPresentation ? false : comparison,
           breakdowns: isPresentation ? [] : breakdowns,
@@ -152,16 +150,9 @@ export function ReportGeneratorForm({ options }: { options: ReportGeneratorOptio
             <span>結束日期</span>
             <input type="date" value={endDate} max={options.defaultEndDate} onChange={(event) => setEndDate(event.target.value)} required />
           </label>
-          <label>
-            <span>品牌範圍</span>
-            <select value={brandScope} onChange={(event) => setBrandScope(event.target.value)}>
-              {options.brandOptions.map((option) => <option key={`${option.value}:${option.label}`} value={option.value}>{option.label}</option>)}
-            </select>
-          </label>
         </div>
         <fieldset className="mt-5 border-0 p-0">
           <legend className="mb-2 text-sm font-semibold">Account 範圍</legend>
-          <p className="mb-3 text-sm text-system-muted-foreground">可揀多個 Account；取消 Alyssa Main 可排除 KOL + Traffic。只計已選品牌範圍內的資料。</p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {options.accountOptions.map(option => (
               <label key={option.value} className="flex items-center gap-2 text-sm">
