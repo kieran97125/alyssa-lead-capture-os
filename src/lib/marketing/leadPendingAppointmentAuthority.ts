@@ -1,4 +1,5 @@
 import { arrivalOutcomeAuthorityError } from "@/lib/marketing/leadArrivalOutcomeAuthority";
+import { leadAccountById } from "@/lib/marketing/leadAccountScope";
 import type { LeadSheetLeadGroup, LeadPendingAppointment } from "@/lib/marketing/googleSheetsMetricParser";
 import type { LeadSheetSyncReason } from "@/lib/marketing/leadSheetSyncDiagnostics";
 
@@ -62,7 +63,11 @@ export function applyLeadPendingAppointmentAuthority(groups: LeadSheetLeadGroup[
     const row=[...g.rows].sort((a,b)=>(b.lastUpdatedDate??b.createdDate??"9999-12-31").localeCompare(a.lastUpdatedDate??a.createdDate??"9999-12-31") || b.rowNumber-a.rowNumber)[0];
     const binding=data.bridge.get(row.rowNumber)!;
     const appointment=binding.pointer ? data.registry.get(binding.pointer) : undefined;
-    if (binding.pointer && (!appointment || appointment.leadId !== binding.sourceId || appointment.account !== g.accountLabel)) throw arrivalOutcomeAuthorityError("registry_pointer");
+    if (binding.pointer && (!appointment || appointment.leadId !== binding.sourceId)) throw arrivalOutcomeAuthorityError("registry_pointer");
+    // Stable Lead ownership survives a manual Account relocation. The verified
+    // latest master row owns current Account/brand/treatment dimensions; registry
+    // Account is historical metadata and must not block an otherwise exact owner.
+    if (appointment && leadAccountById(appointment.account)?.label !== appointment.account) throw arrivalOutcomeAuthorityError("registry_pointer");
     const scheduled=appointment ? appointment.date : row.appointmentDate;
     const eligible=row.status === "booked" && (!appointment || appointment.state === "active" && appointment.outcome === "");
     const dims=dimensions.get(row.rowNumber); if (!dims) throw arrivalOutcomeAuthorityError("registry_dimensions");
