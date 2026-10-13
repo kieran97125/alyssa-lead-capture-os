@@ -7,12 +7,22 @@ function oa2EnsureUnqueuedSourceShow_(ctx,record,queue) {
   if(oa2Status_(record.status)!=='show' || !record.leadId)return null;
   const day=oa2Date_(record.confirmedAt);
   let a=record.appointmentId?ctx.appointments[record.appointmentId]:null;
+  if(record.appointmentId && !a)throw new Error('Source appointment pointer has no registry owner.');
   if(a && (a.leadId!==record.leadId || a.account!==record.account))return null;
-  if(queue.some(q=>q.appointmentId && a && q.appointmentId===a.id ||
-      q.account===record.account && q.customerKey===record.customerKey && oa2Outcome_(q.outcome)==='Show' && (!day || oa2Date_(q.arrivalDate)===day)))return null;
+  // A customer can own multiple visits, including undated or same-day visits.
+  // Only the same durable appointment owns an existing arrival queue row.
+  const ownerId=a?a.id:'appt_'+oa2Hash_(record.leadId+'|source-show');
+  const owned=queue.filter(q=>q.appointmentId===ownerId);
+  if(owned.length>1)throw new Error('Arrival appointment has duplicate queue ownership.');
+  if(owned.length)return null;
+  if(queue.some(q=>!q.appointmentId && q.account===record.account &&
+      q.customerKey===record.customerKey && oa2Outcome_(q.outcome)==='Show' &&
+      (!day || !oa2Date_(q.arrivalDate) || oa2Date_(q.arrivalDate)===day))) {
+    throw new Error('Historical arrival has no stable appointment owner; verify its identity before recovery.');
+  }
   if(a && (!['active','unscheduled'].includes(a.state) || a.outcome))return null;
   if(!a) {
-    const id='appt_'+oa2Hash_(record.leadId+'|source-show');
+    const id=ownerId;
     a=ctx.appointments[id];
     if(a && (a.leadId!==record.leadId || a.account!==record.account || a.outcome!=='Show'))throw new Error('Source arrival identity is already owned.');
     if(!a) {
