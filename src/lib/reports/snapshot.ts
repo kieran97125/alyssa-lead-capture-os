@@ -744,9 +744,13 @@ export async function buildReportSnapshot(
     coverage,
   });
   const source = loaded.source;
+  // A successful validated refresh may retain row-quality warnings. Its
+  // accepted facts remain usable; only failed/unverified sources are unavailable.
+  const sourceAvailable = Boolean(source && (source.status === "connected" ||
+    source.status === "warning" && source.lastSuccessAt));
   const warnings: string[] = [];
   if (!source) warnings.push("未找到 Lead Sheet 資料來源；漏斗指標可能未有數據。");
-  if (source && source.status !== "connected") warnings.push("Lead Sheet 尚未完成成功同步，數據可能未更新。");
+  if (source && !sourceAvailable) warnings.push("Lead Sheet 尚未完成成功同步，數據可能未更新。");
   if (currentFacts.length === 0) warnings.push("揀選日期內未有 Lead Sheet 漏斗彙總。");
   if (coverage.complete < coverage.expected) {
     warnings.push(`廣告費完整度為 ${coverage.complete}/${coverage.expected} 個品牌日；成本指標只供方向判讀。`);
@@ -810,7 +814,7 @@ export async function buildReportSnapshot(
       metricFacts: currentFacts,
       spendFacts: currentSpends,
       dates: currentDates,
-      sourceAvailable: Boolean(source && source.status === "connected"),
+      sourceAvailable,
       accountIds,
     }),
     insights: narrative.insights,
