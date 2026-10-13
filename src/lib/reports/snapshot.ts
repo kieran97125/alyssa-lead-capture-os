@@ -165,7 +165,7 @@ export function normalizeReportExportRequest(input: unknown): ReportExportReques
   return {
     startDate,
     endDate,
-    brandScope: cleanText(body.brandScope, 100),
+    brandScope: accountIds ? "" : cleanText(body.brandScope, 100),
     accountIds,
     comparison: body.comparison !== false,
     breakdowns: normalizeBreakdowns(body.breakdowns),
@@ -690,15 +690,15 @@ export async function buildReportSnapshot(
     getConfiguredBrands(),
     getCurrentInternalAccess(),
   ]);
-  const brandScoped = scopedBrands(availableBrands, request.brandScope);
-  const allowedAccounts = accountsForAllowedBrands(availableBrands, availableBrands.map(brand => brand.id));
   const accountIds = request.accountIds ?? null;
+  const effectiveBrandScope = accountIds ? "" : request.brandScope;
+  const brandScoped = scopedBrands(availableBrands, effectiveBrandScope);
+  const allowedAccounts = accountsForAllowedBrands(availableBrands, availableBrands.map(brand => brand.id));
   if (accountIds && (accountIds.length === 0 || accountIds.some(id => !allowedAccounts.some(account => account.id === id)))) {
     throw new ReportExportError("你揀選嘅 Account 不存在，或者未獲授權。", 403, "account_scope_denied");
   }
   const accountBrandIds = accountIds ? new Set(accountIds.flatMap(id => brandIdsForLeadAccount(availableBrands, id))) : null;
-  const selectedBrands = accountBrandIds ? brandScoped.filter(brand => accountBrandIds.has(brand.id)) : brandScoped;
-  if (selectedBrands.length === 0) {
+  if (brandScoped.length === 0) {
     throw new ReportExportError("你目前未獲分配任何可匯出品牌。", 403, "brand_scope_denied");
   }
 
@@ -708,12 +708,16 @@ export async function buildReportSnapshot(
     ? previousStartDate
     : request.startDate;
   const combinedEnd = request.endDate;
-  const brandIds = selectedBrands.map((brand) => brand.id);
+  // Read all authorized Brands before Account filtering. Configured Account
+  // defaults must not exclude a Brand actually present under that Account.
+  const brandIds = brandScoped.map((brand) => brand.id);
   const loaded = hasSupabaseAdminEnv()
     ? await loadProductionFacts(brandIds, combinedStart, combinedEnd)
-    : fixtureData(selectedBrands, combinedStart, combinedEnd);
+    : fixtureData(brandScoped, combinedStart, combinedEnd);
 
   const accountFacts = accountIds ? loaded.metricFacts.filter(fact => accountIds.includes(leadAccountById(fact.accountLabel)?.id ?? "")) : loaded.metricFacts;
+  const selectedBrandIds = accountBrandIds ? new Set([...accountBrandIds, ...accountFacts.map(fact => fact.brandId)]) : null;
+  const selectedBrands = selectedBrandIds ? brandScoped.filter(brand => selectedBrandIds.has(brand.id)) : brandScoped;
   const spendBrandIds = accountIds ? new Set(accountIds.flatMap(id => brandIdsForLeadAccount(selectedBrands, id, "spend"))) : null;
   const accountSpends = spendBrandIds ? loaded.spendFacts.filter(fact => spendBrandIds.has(fact.brandId)) : loaded.spendFacts;
   const currentFacts = rangeFacts(accountFacts, request.startDate, request.endDate);
@@ -756,9 +760,9 @@ export async function buildReportSnapshot(
   const generatedAt = new Date().toISOString();
   const reportId = `GR-${generatedAt.slice(0, 10).replaceAll("-", "")}-${randomUUID().slice(0, 8).toUpperCase()}`;
   const snapshotId = randomUUID();
-  const brandLabel = request.brandScope
-    ? brandScopeLabel(availableBrands, request.brandScope)
-    : "全部品牌";
+  const brandLabel = effectiveBrandScope
+    ? brandScopeLabel(availableBrands, effectiveBrandScope)
+    : "所選 Account 全部品牌";
   const snapshotBase: ReportSnapshot = {
     schemaVersion: 1,
     metricContractVersion: REPORT_METRIC_CONTRACT_VERSION,
@@ -774,9 +778,9 @@ export async function buildReportSnapshot(
           ? "system-owner"
           : "system-admin",
     },
-    title: titleForScope(request.brandScope, selectedBrands),
+    title: titleForScope(effectiveBrandScope, selectedBrands),
     selection: {
-      brandScope: request.brandScope,
+      brandScope: effectiveBrandScope,
       brandLabel,
       accountIds,
       accountLabels: accountIds ? accountIds.map(id => leadAccountById(id)!.label) : ["全部 Account"],

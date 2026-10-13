@@ -7,6 +7,7 @@ for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 84
     await page.goto("/e2e/report-generator", { waitUntil: "networkidle" });
     await page.evaluate(async () => { await document.fonts.ready; });
     const form = page.getByTestId("report-generator-fixture");
+    await expect(form.getByLabel("品牌範圍")).toHaveCount(0);
     await expect(form.getByRole("radio", { name: /PowerPoint/ })).toBeChecked();
     await expect(form.getByRole("radio", { name: /Google Slides/ })).toHaveCount(0);
     await expect(form.getByRole("checkbox", { name: /加入上月同期比較/ })).toHaveCount(0);
@@ -22,6 +23,7 @@ for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 84
       const request = route.request().postDataJSON();
       expect(request.format).toBe("pptx"); expect(request.comparison).toBe(false);
       expect(request.breakdowns).toEqual([]);
+      expect(request.brandScope).toBeUndefined();
       expect(request.accountIds).toEqual(["alyssa-aesthetics", "gos-beauty"]);
       await route.fulfill({ status: 200, headers: {
         "content-type": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
