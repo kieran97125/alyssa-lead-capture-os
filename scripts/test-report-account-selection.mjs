@@ -22,7 +22,7 @@ const mocks = {
         select() { return query; }, eq() { return query; }, order() { return query; }, limit() { return query; },
         in(_column, values) { ids = values; if (table === "marketing_treatment_performance_daily") metricQueries.push(values); return query; },
         gte(_column, value) { start = value; return query; }, lte(_column, value) { end = value; return query; },
-        maybeSingle: async () => ({ data: { id: "synthetic-source", status: "connected", display_name: "Synthetic Sheet" }, error: null }),
+        maybeSingle: async () => ({ data: { id: "synthetic-source", status: production.status ?? "connected", last_success_at: production.lastSuccessAt ?? null, display_name: "Synthetic Sheet" }, error: null }),
         insert: async () => ({ error: null }),
         range: async () => ({ data: (table === "marketing_treatment_performance_daily" ? production.metrics : production.spends)
           .filter(row => ids.includes(row.brand_id) && (row.metric_date ?? row.spend_date) >= start && (row.metric_date ?? row.spend_date) <= end), error: null }),
@@ -98,5 +98,16 @@ assert.equal(mixedMain.series.groupRows[0].metrics.leads, 9);
 assert.deepEqual(mixedMain.selection.brands.map(brand => brand.id), ["a", "m", "g"]);
 assert.equal(mixedMain.current.totals.spend, null, "Including another Brand's Account facts never transfers paid Spend to KOL");
 assert.equal(mixedMain.dataQuality.spendExpectedBrandDays, 0);
+production.status = "warning"; production.lastSuccessAt = "2026-10-07T04:00:00Z";
+const validatedWarning = await build(normalize({ accountIds: ["alyssa-main"], comparison: false }));
+assert.equal(validatedWarning.series.groupRows[0].available, true, "Validated source facts remain visible despite row-quality warnings");
+assert.equal(validatedWarning.current.totals.leads, 9);
+assert.ok(!validatedWarning.dataQuality.warnings.some(message => message.includes("尚未完成成功同步")));
+production.lastSuccessAt = null;
+const unverifiedWarning = await build(normalize({ accountIds: ["alyssa-main"], comparison: false }));
+assert.equal(unverifiedWarning.series.groupRows[0].available, false, "Warning state without a successful refresh is unverified");
+production.status = "error"; production.lastSuccessAt = "2026-10-01T04:00:00Z";
+const failedSource = await build(normalize({ accountIds: ["alyssa-main"], comparison: false }));
+assert.equal(failedSource.series.groupRows[0].available, false, "An old success never marks a failed current refresh as healthy");
 production = null;
 console.log("PASS: Account-only report selection includes every authorized Account Brand, ignores stale Brand filters, reconciles totals, rejects invalid/unauthorized Accounts and isolates KOL Spend");
