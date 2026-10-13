@@ -17,11 +17,32 @@ for(const state of ['canceled','completed','reschedule_requested','superseded'])
   ctx=context();ctx.appointments.old={...a,id:'old',state,outcome:state==='completed'?'No Show':''};
   assert.equal(s.oa2EnsureUnqueuedSourceShow_(ctx,{...record,appointmentId:'old'},[]),null);assert.equal(ctx.events.length,0);
 }
-ctx=context();assert.equal(s.oa2EnsureUnqueuedSourceShow_(ctx,{...record},[{account:record.account,customerKey:record.customerKey,outcome:'已到店',arrivalDate:record.confirmedAt}]),null,'Existing historical visit is not duplicated');
+ctx=context();assert.equal(s.oa2EnsureUnqueuedSourceShow_(ctx,{...record},[{appointmentId:a.id,account:record.account,customerKey:record.customerKey,outcome:'已到店',arrivalDate:record.confirmedAt}]),null,'The same stable historical appointment is not duplicated');
 ctx=context();ctx.appointments.old={...a,id:'old',state:'active',outcome:''};assert.equal(s.oa2EnsureUnqueuedSourceShow_(ctx,{...record,appointmentId:'old'},[{appointmentId:'old'}]),null,'Staff-owned queue outcome remains authoritative');
+// A different appointment for the same person cannot suppress this missing visit.
+for(const confirmedAt of ['',record.confirmedAt]) {
+  for(const appointmentId of [undefined,'new-appointment']) {
+    ctx=context();r={...record,confirmedAt,appointmentId};
+    if(appointmentId)ctx.appointments[appointmentId]={...a,id:appointmentId,state:'active',outcome:'',arrivalDate:'',queueId:''};
+    const historical={appointmentId:'other-appointment',account:record.account,customerKey:record.customerKey,outcome:'已到店',arrivalDate:record.confirmedAt};
+    const recovered=s.oa2EnsureUnqueuedSourceShow_(ctx,r,[historical]);
+    assert.ok(recovered,'Same-customer history must not suppress a different appointment');
+    assert.equal(recovered.id,appointmentId||a.id);assert.equal(recovered.arrivalDate,confirmedAt);
+    assert.equal(ctx.events.length,1);assert.equal(historical.appointmentId,'other-appointment');
+    assert.equal(s.oa2EnsureUnqueuedSourceShow_(ctx,r,[historical,{appointmentId:recovered.id}]),null);
+    assert.equal(ctx.events.length,1,'Repeated recovery remains idempotent');
+  }
+}
+// Incomplete ownership is a repair conflict, never a reason to invent a visit.
+ctx=context();assert.throws(()=>s.oa2EnsureUnqueuedSourceShow_(ctx,{...record},[{account:record.account,customerKey:record.customerKey,outcome:'Show',arrivalDate:record.confirmedAt}]),/no stable appointment owner/);
+assert.equal(Object.keys(ctx.appointments).length,0);assert.equal(ctx.events.length,0);
+ctx=context();assert.throws(()=>s.oa2EnsureUnqueuedSourceShow_(ctx,{...record,appointmentId:'missing-registry'},[]),/no registry owner/);
+assert.equal(Object.keys(ctx.appointments).length,0);assert.equal(ctx.events.length,0);
+ctx=context();assert.throws(()=>s.oa2EnsureUnqueuedSourceShow_(ctx,{...record},[{appointmentId:a.id},{appointmentId:a.id}]),/duplicate queue ownership/);
+assert.equal(Object.keys(ctx.appointments).length,0);assert.equal(ctx.events.length,0);
 ctx=context();ctx.appointments.old={...a,id:'old',account:'Other Account',state:'completed',outcome:'Show'};
 assert.equal(s.oa2IsHistoricalCrossAccountRecord_(ctx,{...record,appointmentId:'old'}),true,'A completed visit stays with its existing owner after its source row moves');
 ctx.appointments.old.outcome='';assert.equal(s.oa2IsHistoricalCrossAccountRecord_(ctx,{...record,appointmentId:'old'}),false,'An open appointment still uses normal verified transfer');
 const sheet={getLastColumn:()=>5,getRange:(row,col,n,w)=>({getDisplayValues:()=>[['Account','來源','試做價','開單金額','總金額']],getValues:()=>[[...['GOS Beauty','',0,'',''].slice(col-1,col-1+w)]]})};
 assert.equal(s.oa2QueueRowHasManualData_(sheet,10),true,'An entered zero prevents blank-slot reuse');
-console.log('PASS: direct Show creates a stable queue owner, missing actual dates stay blank, unscheduled identity is retained, existing outcomes/history stay authoritative, repeat repair is idempotent and manual zero blocks allocation');
+console.log('PASS: stable appointment deduplication; same-day and undated repeat visits; idempotency; authoritative outcomes; historical Account retention; manual zero protection');
