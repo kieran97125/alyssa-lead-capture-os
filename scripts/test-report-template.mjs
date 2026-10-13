@@ -91,6 +91,9 @@ async function inspect(bytes) {
       const table = nodes(frame, A, "tbl")[0];
       if (!table) continue;
       const actualHeight = child(table, A, "tr").reduce((sum, row) => sum + Number(row.getAttribute("h")), 0);
+      for (const properties of nodes(table, A, "tcPr")) for (const name of ["marL", "marR", "marT", "marB"]) {
+        if (properties.hasAttribute(name)) assert.match(properties.getAttribute(name), /^\d+$/, "Native table margins use integer EMUs");
+      }
       assert.equal(height, actualHeight, `Native table frame height must match all rows on page ${index + 1}`);
       assert.ok(x >= 0 && y >= 0 && x + width <= 12192000 && y + height <= 6350000, `Native table exceeds content canvas on page ${index + 1}`);
     }
@@ -101,17 +104,17 @@ const tables = slide => nodes(slide, A, "tbl").map(table => child(table, A, "tr"
 const baseSnapshot = fixture();
 const baseBytes = await renderReportPptx(baseSnapshot);
 const base = await inspect(baseBytes);
-assert.equal(base.slides.length, 18, "The approved seven-day report uses its 18-page structure");
-assert.equal(base.tableCount, 20, "All 20 tables remain native and editable");
+assert.equal(base.slides.length, 16, "The seven-day report removes unnecessary continuation pages");
+assert.equal(base.tableCount, 18, "All 18 output tables remain native and editable");
 assert.equal(tables(base.slides[1])[0].find(row => row[0] === "GOS Beauty")[1], "0.00", "Explicit zero advertising spend remains zero");
 assert.equal(tables(base.slides[1])[0].find(row => row[0] === "Ineffable Beauty")[1], "未有資料", "Missing spend is never a zero");
 assert.equal(tables(base.slides[2])[0].find(row => row[0] === "Ineffable Beauty")[3], "未有資料", "Missing costs remain unavailable");
 assert.equal(tables(base.slides[1])[0].find(row => row[0] === "GOS Beauty")[2], "2/3–9", "Spend period uses the approved compact same-month form");
 assert.equal(tables(base.slides[2])[0].find(row => row[0] === "GOS Beauty")[1], "2/3–9", "Cost period fits the approved narrow column");
 assert.ok(base.allText.includes('gos:療程 1 & <緊緻> "A" \'B\''), "Special XML characters round-trip as exact editable text");
-assert.ok((await base.zip.file("ppt/slides/slide13.xml").async("string")).includes("&amp;"), "XML ampersands are escaped");
+assert.ok((await base.zip.file("ppt/slides/slide12.xml").async("string")).includes("&amp;"), "XML ampersands are escaped");
 for (const [index, slide] of base.slides.entries()) {
-  const original = parse(await template.file(`ppt/slides/slide${index + 1}.xml`).async("string"));
+  const original = parse(await template.file(`ppt/slides/slide${index < 11 ? index + 1 : index + 2}.xml`).async("string"));
   const shapes = nodes(slide, P, "sp");
   for (const shape of nodes(original, P, "sp")) {
     const id = nodes(shape, P, "cNvPr")[0].getAttribute("id");
@@ -124,6 +127,7 @@ for (const [index, slide] of base.slides.entries()) {
   const actualTables = nodes(slide, A, "tbl"); const expectedTables = nodes(original, A, "tbl");
   actualTables.forEach((table, tableIndex) => {
     const expected = expectedTables[tableIndex];
+    if (index === 15) return;
     for (const tag of ["tblPr", "tblGrid"]) assert.equal(serializer.serializeToString(child(table, A, tag)[0]), serializer.serializeToString(child(expected, A, tag)[0]), `Table grid and style retained ${index + 1}`);
     assert.equal(serializer.serializeToString(child(table, A, "tr")[0]), serializer.serializeToString(child(expected, A, "tr")[0]), `Table header retained ${index + 1}`);
     const actualRows = child(table, A, "tr"); const originalRows = child(expected, A, "tr");
@@ -139,12 +143,14 @@ for (const [index, slide] of base.slides.entries()) {
     });
   });
   nodes(slide, P, "graphicFrame").forEach((frame, frameIndex) => {
+    if (index === 15) return;
     const expected = nodes(original, P, "graphicFrame")[frameIndex];
     const transform = child(frame, P, "xfrm")[0]; const expectedTransform = child(expected, P, "xfrm")[0];
     assert.equal(serializer.serializeToString(child(transform, A, "off")[0]), serializer.serializeToString(child(expectedTransform, A, "off")[0]), `Table position retained ${index + 1}`);
     assert.equal(child(transform, A, "ext")[0].getAttribute("cx"), child(expectedTransform, A, "ext")[0].getAttribute("cx"), `Table width retained ${index + 1}`);
   });
 }
+await verifyStressCellStyles([base.slides.at(-1)], 17, "Combined Brand audit");
 const restricted = await inspect(await renderReportPptx(fixture({ restricted: true })));
 const groupRows = tables(restricted.slides[3])[0];
 assert.ok(groupRows.filter(row => ["Alyssa 廣告", "Alyssa Medical 廣告", "KOL + Traffic", "Ineffable Beauty", "Skin Light"].includes(row[0])).every(row => row.slice(1).every(value => value === "—")), "Restricted groups reveal no performance values");
@@ -259,30 +265,32 @@ function verifyFragments(pages, expected, textColumns, description) {
 async function verifyStressCellStyles(pages, exemplar, description) {
   const original = parse(await template.file(`ppt/slides/slide${exemplar}.xml`).async("string"));
   const expected = nodes(original, A, "tbl")[0];
-  const expectedRows = child(expected, A, "tr");
-  for (const slide of pages) {
-    const table = nodes(slide, A, "tbl")[0];
-    for (const tag of ["tblPr", "tblGrid"]) assert.equal(serializer.serializeToString(child(table, A, tag)[0]), serializer.serializeToString(child(expected, A, tag)[0]), `${description}: approved native grid and table style remain exact`);
-    const rows = child(table, A, "tr");
-    assert.equal(serializer.serializeToString(rows[0]), serializer.serializeToString(expectedRows[0]), `${description}: approved header remains exact`);
-    rows.slice(1).forEach((row, rowIndex) => {
-      const prototype = rowIndex === rows.length - 2 ? expectedRows.at(-1) : expectedRows[1 + rowIndex % 2];
-      child(row, A, "tc").forEach((cell, column) => {
-        const expectedCell = child(prototype, A, "tc")[column];
-        assert.equal(serializer.serializeToString(child(cell, A, "tcPr")[0]), serializer.serializeToString(child(expectedCell, A, "tcPr")[0]), `${description}: every fragment retains approved cell fill, borders and margins`);
-        const font = nodes(expectedCell, A, "rPr")[0];
-        for (const actualFont of nodes(cell, A, "rPr")) assert.equal(serializer.serializeToString(actualFont), serializer.serializeToString(font), `${description}: wrapping never shrinks or changes approved typography`);
-      });
-    });
+  const expectedWidth = child(child(expected, A, "tblGrid")[0], A, "gridCol").reduce((sum,c)=>sum+Number(c.getAttribute("w")),0);
+  for(const slide of pages) {
+    const table=nodes(slide,A,"tbl")[0];
+    assert.equal(serializer.serializeToString(child(table,A,"tblPr")[0]),serializer.serializeToString(child(expected,A,"tblPr")[0]),description+": native table style remains exact");
+    const width=child(child(table,A,"tblGrid")[0],A,"gridCol").reduce((sum,c)=>sum+Number(c.getAttribute("w")),0);
+    assert.ok(Math.abs(width-expectedWidth)<=3,description+": outer table width retained");
+    for(const font of nodes(table,A,"rPr")) {
+      assert.ok(Number(font.getAttribute("sz"))>=1100,description+": readable 11-point floor");
+      assert.equal(nodes(font,A,"latin")[0]?.getAttribute("typeface"),"Noto Sans TC",description+": approved typeface retained");
+    }
   }
 }
 const naturalFixture = treatmentFixture(promotionLabels);
 const naturalBytes = await renderReportPptx(naturalFixture.snapshot);
 const natural = await inspect(naturalBytes);
 const naturalPages = natural.slides.filter(slide => text(slide).includes("GOS Beauty 療程成效"));
-assert.ok(naturalPages.length > 1, "Seven real promotion labels paginate before wrapped rows exceed the content canvas");
+assert.equal(naturalPages.length, 1, "Seven real promotion labels share one readable brand slide");
 verifyFragments(naturalPages, naturalFixture.rows.map(row => ({ values: [row.label], metricCells: efficiencyCells(row.metrics) })), 1, "66–80-character promotion labels");
 await verifyStressCellStyles(naturalPages, 13, "66–80-character promotion labels");
+const denseLabels = [promotionLabels[0], promotionLabels[1], ...["甲", "乙", "丙"].map(token => acceptedLongLabel.slice(0, -1) + token), "斑", "龍眼", "龍眼眼周護理$380", "BTL 胸部 $380", "BTL 腰腹 $268", "未分類療程"];
+const denseFixture = treatmentFixture(denseLabels);
+const dense = await inspect(await renderReportPptx(denseFixture.snapshot));
+const densePages = dense.slides.filter(slide => text(slide).includes("GOS Beauty 療程成效"));
+assert.equal(densePages.length, 1, "Eleven mixed-length treatments, including three 160-character names, fit one brand page");
+verifyFragments(densePages, denseFixture.rows.map(row => ({ values: [row.label], metricCells: efficiencyCells(row.metrics) })), 1, "Dense eleven-treatment brand table");
+await verifyStressCellStyles(densePages, 13, "Dense eleven-treatment brand table");
 const boundaryFixture = treatmentFixture([acceptedLongLabel]);
 const boundaryBytes = await renderReportPptx(boundaryFixture.snapshot);
 const boundary = await inspect(boundaryBytes);
@@ -298,17 +306,14 @@ assert.ok(auditStressSnapshot.series.auditRows.every(row => row.accountLabel.len
 const auditStressBytes = await renderReportPptx(auditStressSnapshot);
 const auditStress = await inspect(auditStressBytes);
 let auditStressContinuations = 0, auditStressContinuationPages = 0;
-for (const [key, exemplar] of [["alyssa-ads", 17], ["gos", 18]]) {
-  const source = auditStressSnapshot.series.auditRows.find(row => row.groupKey === key);
-  const titleId = exemplar === 17 ? "217" : "227";
-  const pages = auditStress.slides.filter(slide => nodes(slide, P, "sp").some(shape => nodes(shape, P, "cNvPr")[0].getAttribute("id") === titleId));
-  const fragments = verifyFragments(pages, [{ values: [source.groupLabel, `${source.accountLabel}\n${source.brandLabel}`], metricCells: countCells(source.metrics) }], 2, "120-character account and brand labels");
-  auditStressContinuations += fragments.continuations;
-  auditStressContinuationPages += fragments.continuationPages;
-  await verifyStressCellStyles(pages, exemplar, "120-character account and brand labels");
+{
+  const pages=auditStress.slides.filter(slide=>text(slide).includes("來源分組核對"));
+  const fragments=verifyFragments(pages,auditStressSnapshot.series.auditRows.map(source=>({values:[source.groupLabel,`${source.accountLabel}\n${source.brandLabel}`],metricCells:countCells(source.metrics)})),2,"120-character account and brand labels");
+  auditStressContinuations=fragments.continuations; auditStressContinuationPages=fragments.continuationPages;
+  await verifyStressCellStyles(pages,17,"120-character account and brand labels");
 }
-assert.ok(auditStressContinuations > 0, "Oversize audit account and brand labels split into editable continuation rows");
-assert.ok(auditStressContinuationPages > 0, "Audit fixture exercises zero-subtotal continuation-only pages");
+assert.equal(auditStressContinuations, 0, "Long Account and Brand labels fit without unnecessary continuation rows");
+assert.equal(auditStressContinuationPages, 0, "No empty audit continuation pages");
 if (process.env.REPORT_TEMPLATE_QA_DIR) {
   mkdirSync(process.env.REPORT_TEMPLATE_QA_DIR, { recursive: true });
   writeFileSync(path.join(process.env.REPORT_TEMPLATE_QA_DIR, "base.pptx"), baseBytes);
@@ -321,7 +326,7 @@ if (process.env.REPORT_TEMPLATE_QA_DIR) {
   writeFileSync(path.join(process.env.REPORT_TEMPLATE_QA_DIR, "audit-labels.pptx"), auditStressBytes);
   writeFileSync(path.join(process.env.REPORT_TEMPLATE_QA_DIR, "audit-labels.json"), JSON.stringify(auditStressSnapshot, null, 2));
 }
-console.log(`PASS: approved 18-slide/20-table base, exact template geometry/fonts/styles, stale-data sanitation, XML escaping, zero versus missing, unavailable account costs, restricted groups, ${long.slides.length}-slide pagination, all dates/treatments, natural Chinese labels on ${naturalPages.length} pages, accepted 160-character label (${boundaryFragments.fragments} fragments), 120-character audit labels (${auditStressContinuations} continuations), exact fragment reconstruction, reconciled totals, footer numbering and table bounds`);
+console.log(`PASS: approved template with 16-slide/18-table base, exact template geometry/fonts/styles, stale-data sanitation, XML escaping, zero versus missing, unavailable account costs, restricted groups, ${long.slides.length}-slide pagination, all dates/treatments, natural Chinese labels on ${naturalPages.length} pages, accepted 160-character label (${boundaryFragments.fragments} fragments), 120-character audit labels (${auditStressContinuations} continuations), exact fragment reconstruction, reconciled totals, footer numbering and table bounds`);
 
 const selectedSnapshot = fixture();
 selectedSnapshot.selection.accountIds = ["alyssa-aesthetics", "gos-beauty", "ineffable", "skin-light"];
@@ -333,5 +338,5 @@ selectedSnapshot.daily = selectedSnapshot.daily.map(row => ({ ...row, metrics: t
 const selectedSlides = await inspect(await renderReportPptx(selectedSnapshot));
 const selectedText = selectedSlides.slides.flatMap(slide => nodes(slide, A, "t").map(node => node.textContent)).join("\n");
 assert.ok(!selectedText.includes("KOL + Traffic"), "Excluded Account has no summary/daily/treatment/audit group");
-assert.equal(selectedSlides.slides.length, 16, "Remove both excluded KOL treatment pages");
+assert.equal(selectedSlides.slides.length, 15, "Remove the excluded KOL treatment page");
 console.log("PASS: selected Account PPTX removes KOL group and pages, retains approved layout and valid table bounds");

@@ -119,6 +119,55 @@ function rowText(row: Element) {
   return direct(row, A, "tc").map(cell => direct(elements(cell, A, "txBody")[0], A, "p").map(paragraph => elements(paragraph, A, "t").map(node => node.textContent ?? "").join("")).join("\n"));
 }
 type DataRow = { values: string[]; metrics: ReportMetrics };
+type TableFit = { fontSize: number };
+function applyTableFit(slide: Document, index: number, fit?: TableFit) {
+  if (!fit) return;
+  const layout = tableLayout(slide, index);
+  const totalWidth = layout.columns.reduce((sum, width) => sum + width, 0);
+  const widths = layout.columns.length === 7
+    ? [totalWidth * 0.60, ...layout.columns.slice(1).map(width => width * totalWidth * 0.40 / (totalWidth - layout.columns[0]))]
+    : [totalWidth * 0.22, totalWidth * 0.5, ...layout.columns.slice(2).map(width => width * totalWidth * 0.28 / layout.columns.slice(2).reduce((sum, value) => sum + value, 0))];
+  direct(direct(layout.table, A, "tblGrid")[0], A, "gridCol").forEach((column, i) => column.setAttribute("w", String(Math.round(widths[i]))));
+  const transform = direct(layout.frame, P, "xfrm")[0];
+  direct(transform, A, "off")[0].setAttribute("y", String(150 * EMU_PER_PIXEL));
+  layout.rows.forEach((row, i) => {
+    row.setAttribute("h", "1");
+    direct(row, A, "tc").forEach(cell => {
+      const pointSize = Math.min(cellFont(cell) * 72 / 96, i === 0 ? 11 : fit.fontSize);
+      [...elements(cell, A, "rPr"), ...elements(cell, A, "endParaRPr"), ...elements(cell, A, "defRPr")].forEach(style => style.setAttribute("sz", String(Math.round(pointSize * 100))));
+      const properties = direct(cell, A, "tcPr")[0];
+      if (properties) {
+        properties.setAttribute("marT", String(Math.round(1.5 * EMU_PER_PIXEL)));
+        properties.setAttribute("marB", String(Math.round(1.5 * EMU_PER_PIXEL)));
+        properties.setAttribute("marL", String(6 * EMU_PER_PIXEL));
+        properties.setAttribute("marR", String(6 * EMU_PER_PIXEL));
+      }
+    });
+  });
+  const header = layout.rows[0];
+  header.setAttribute("h", String(measuredRowHeight(rowText(header), header, widths)));
+}
+/** Prefer one brand table: widen labels and reduce type before adding a page. */
+function fitNativeRows(slide: Document, rows: DataRow[], totalCells: (metrics: ReportMetrics) => string[]) {
+  const serializer = new XMLSerializer();
+  const original = serializer.serializeToString(slide);
+  const fits = (layout: TableLayout) => {
+    const height = measuredRowHeight(rowText(layout.rows[0]), layout.rows[0], layout.columns)
+      + measuredRowHeight(totalCells(sum(rows.map(row => row.metrics))), layout.rows.at(-1)!, layout.columns)
+      + rows.reduce((height, row, i) => height + measuredRowHeight(row.values, layout.rows[1 + i % 2], layout.columns), 0);
+    return layout.top + height <= CONTENT_BOTTOM;
+  };
+  let layout = tableLayout(slide, 0);
+  if (fits(layout)) return { parts: rows.length ? [rows] : [[]], fit: undefined };
+  let fit: TableFit = { fontSize: 11 };
+  for (let fontSize = 18; fontSize >= 11; fontSize -= 0.5) {
+    const trial = parse(original); fit = { fontSize }; applyTableFit(trial, 0, fit);
+    layout = tableLayout(trial, 0);
+    if (fits(layout)) return { parts: [rows], fit };
+  }
+  // Only genuinely oversized sets paginate, at the same bounded readable size.
+  return { parts: paginateNativeRows(layout, rows, totalCells, Infinity), fit };
+}
 function splitDataRow(row: DataRow, prototype: Element, columns: number[], maxHeight: number): DataRow[] {
   if (measuredRowHeight(row.values, prototype, columns) <= maxHeight) return [row];
   const remaining = row.values.map(value => Array.from(value));
@@ -197,7 +246,7 @@ function sum(rows: ReportMetrics[]): ReportMetrics {
   const spends = rows.flatMap(row => row.spend === null ? [] : [row.spend]);
   return reportMetrics(counts, spends.length ? spends.reduce((a, b) => a + b, 0) : null);
 }
-type Page = { exemplar: number; tables?: string[][][]; shapes?: Record<number, string> };
+type Page = { exemplar: number; tables?: string[][][]; shapes?: Record<number, string>; tableFit?: TableFit };
 
 function pagesFor(snapshot: ReportSnapshot, sourceSlides: Document[]): Page[] {
   const series = snapshot.series;
@@ -235,25 +284,22 @@ function pagesFor(snapshot: ReportSnapshot, sourceSlides: Document[]): Page[] {
     if (!groups.some(group => group.key === key)) continue;
     const data = series?.treatmentRows.filter(row => row.groupKey === key) ?? [];
     const totalCells = (metrics: ReportMetrics) => ["本頁小計", ...metricCells(metrics), "", ""];
-    const splits = paginateNativeRows(tableLayout(sourceSlides[exemplar - 1], 0), data.map(row => ({ values: [row.label, ...efficiencyCells(row.metrics)], metrics: row.metrics })), totalCells, 7);
-    if (key === "kol-traffic" && splits.length === 1) splits.push([]);
+    const { parts: splits, fit } = fitNativeRows(sourceSlides[exemplar - 1], data.map(row => ({ values: [row.label, ...efficiencyCells(row.metrics)], metrics: row.metrics })), totalCells);
     splits.forEach((rows, i) => {
       const source = key === "kol-traffic" && i > 0 ? 12 : exemplar;
       const titleId = ({ 9: 114, 10: 124, 11: 134, 12: 144, 13: 154, 14: 164, 15: 174 } as Record<number, number>)[source];
       const available = byGroup(key).available;
-      pages.push({ exemplar: source, shapes: { [titleId]: `${byGroup(key).label} 療程成效${i > 0 ? "（續）" : ""}` }, tables: [[...rows.map(row => row.values), ...(rows.length ? [] : [[available ? "本期沒有療程記錄" : "未有可用資料", ...dash(6)]]), ["本頁小計", ...(available ? metricCells(sum(rows.map(row => row.metrics))) : dash(4)), "", ""]]] });
+      pages.push({ exemplar: source, tableFit: fit, shapes: { [titleId]: `${byGroup(key).label} 療程成效${i > 0 ? "（續）" : ""}` }, tables: [[...rows.map(row => row.values), ...(rows.length ? [] : [[available ? "本期沒有療程記錄" : "未有可用資料", ...dash(6)]]), [splits.length === 1 ? "合計" : "本頁小計", ...(available ? metricCells(sum(rows.map(row => row.metrics))) : dash(4)), "", ""]]] });
     });
   }
   const sourceKeys = ["AD", "KOL", "OG", "unclassified"] as const;
   const sourceValues = groups.map(group => sourceKeys.map(key => series?.arrivalSourceRows.find(row => row.groupKey === group.key && row.key === key)));
   pages.push({ exemplar: 16, shapes: { 210: sourceValues.some(rows => rows.some(row => !row?.available)) ? "未有可核對嘅到店來源資料" : "" }, tables: [[...groups.map((group, i) => [group.label, ...sourceValues[i].map(row => row?.available && row.shows !== null ? String(row.shows) : "—"), group.available ? String(group.metrics.shows) : "—"]), ["合計", ...sourceKeys.map((_, index) => sourceValues.every(rows => rows[index]?.available) ? String(sourceValues.reduce((count, rows) => count + (rows[index]?.shows ?? 0), 0)) : "—"), String(totals.shows)]]] });
   const audit = series?.auditRows ?? [];
-  const primary = audit.filter(row => row.groupKey?.startsWith("alyssa-") || row.groupKey === "kol-traffic" || row.groupKey === null);
-  const other = audit.filter(row => !primary.includes(row));
-  for (const [rows, exemplar] of [[primary, 17], [other, 18]] as const) {
+  for (const [rows, exemplar] of [[audit, 17]] as const) {
     const totalCells = (metrics: ReportMetrics) => ["本頁小計", "", ...metricCells(metrics)];
-    const parts = paginateNativeRows(tableLayout(sourceSlides[exemplar - 1], 0), rows.map(row => ({ values: [row.groupLabel, `${row.accountLabel}\n${row.brandLabel}`, ...metricCells(row.metrics)], metrics: row.metrics })), totalCells, exemplar === 17 ? 4 : 3);
-    for (const part of parts) pages.push({ exemplar, tables: [[...part.map(row => row.values), ...(part.length ? [] : [["本期沒有記錄", "", ...dash(4)]]), totalCells(sum(part.map(row => row.metrics)))]] });
+    const { parts, fit } = fitNativeRows(sourceSlides[exemplar - 1], rows.map(row => ({ values: [row.groupLabel, `${row.accountLabel}\n${row.brandLabel}`, ...metricCells(row.metrics)], metrics: row.metrics })), totalCells);
+    for (const part of parts) pages.push({ exemplar, tableFit: fit, tables: [[...part.map(row => row.values), ...(part.length ? [] : [["本期沒有記錄", "", ...dash(4)]]), totalCells(sum(part.map(row => row.metrics)))]] });
   }
   return pages;
 }
@@ -273,6 +319,7 @@ export async function renderReportPptx(snapshot: ReportSnapshot): Promise<Uint8A
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
     const slide = parse(sourceSlides[page.exemplar - 1]);
+    applyTableFit(slide, 0, page.tableFit);
     Object.entries(page.shapes ?? {}).forEach(([id, text]) => setShape(slide, Number(id), text));
     if (page.exemplar > 1) { setShape(slide, footerIds[page.exemplar - 1], footer); setShape(slide, pageIds[page.exemplar - 1], String(i + 1).padStart(2, "0")); }
     page.tables?.forEach((rows, table) => setTable(slide, table, rows, page.exemplar !== 3));
