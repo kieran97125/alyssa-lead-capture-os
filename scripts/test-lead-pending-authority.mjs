@@ -72,8 +72,8 @@ console.log(`PASS: current appointment state/outcome/schedule, rebooking, whole-
 const movedRegistry=structuredClone(registry);
 for(const i of [1,2,3])movedRegistry[i][2]='Alyssa Aesthetics';
 const moved=build(bridge,movedRegistry);
-assert.deepEqual(moved.groups.map(g=>[g.leadDate,g.bookDate,g.showDate,g.noShowDate]),
-  parsed.groups.map(g=>[g.leadDate,g.bookDate,g.showDate,g.noShowDate]),'Account relocation leaves authoritative historical funnel dates untouched');
+assert.deepEqual(moved.groups.map(g=>[g.firstTouchDate,g.bookDate,g.showDate,g.noShowDate]),
+  parsed.groups.map(g=>[g.firstTouchDate,g.bookDate,g.showDate,g.noShowDate]),'Account relocation leaves authoritative historical funnel dates untouched');
 for(const i of [0,1,2]) {
  assert.equal(moved.groups[i].pendingAppointment,null,'Closed evidence never resurrects a booked source row as pending');
 }
