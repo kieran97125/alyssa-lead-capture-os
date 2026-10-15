@@ -1,0 +1,26 @@
+import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
+import {createRequire} from 'node:module';
+import ts from 'typescript';
+const nativeRequire=createRequire(import.meta.url),cache=new Map(),mocks={'server-only':{}};
+function load(path){if(cache.has(path))return cache.get(path).exports;const m={exports:{}};cache.set(path,m);const code=ts.transpileModule(readFileSync(new URL('../'+path,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText;new Function('require','module','exports',code)(id=>mocks[id]??(id.startsWith('@/')?load('src/'+id.slice(2)+'.ts'):nativeRequire(id)),m,m.exports);return m.exports;}
+const {buildArrivalRevenue,ARRIVAL_REVENUE_HEADERS}=load('src/lib/reports/arrivalRevenue.ts');
+const brands=[{id:'a',name:'Alyssa',slug:'alyssa'},{id:'m',name:'Aesthetics Medical',slug:'aesthetics'},{id:'g',name:'GOS Beauty',slug:'gos-beauty'},{id:'i',name:'Ineffable',slug:'ineffable'}];
+const make=(id,account='GOS Beauty',brand='GOS Beauty',day='2026-10-03',outcome='已到店',trial=100,order='',total=trial,treatment='Treatment')=>[brand,outcome,day,account,treatment,id,trial,order,total];
+const rows=[make('one'),make('two','GOS Beauty','GOS Beauty','2026-10-03','已到店',100,1000,1100),make('repeat-same-customer'),make('explicit-zero','GOS Beauty','GOS Beauty','2026-10-04','已到店',0,0,0),make('unentered','GOS Beauty','GOS Beauty','2026-10-04','已到店','','',0),make('pending','GOS Beauty','GOS Beauty','2026-10-03','待到店',100,900,1000),make('no-show','GOS Beauty','GOS Beauty','2026-10-03','No Show',100,900,1000),make('previous','GOS Beauty','GOS Beauty','2026-09-30'),make('future','GOS Beauty','GOS Beauty','2026-10-08'),make('main','Alyssa Main','Alyssa','2026-10-03','已到店',588,25352,25940,'SlimCut'),make('medical-in-aa','Alyssa Aesthetics','Aesthetics Medical','2026-10-03','已到店',0,500,500,'Medical'),make('empty-ib','Ineffable','Ineffable','2026-10-03','已到店','','',0),make('denied','GOS Beauty','Not authorized','2026-10-03','已到店',99999,99999,199998)];
+const input={table:{headers:[...ARRIVAL_REVENUE_HEADERS],rows,readAt:'2026-10-07T04:00:00Z'},brands,startDate:'2026-10-01',endDate:'2026-10-07',spendFacts:[{brandId:'g',spendDate:'2026-10-03',amount:200},{brandId:'a',spendDate:'2026-10-03',amount:300},{brandId:'m',spendDate:'2026-10-03',amount:100}]};
+const all=buildArrivalRevenue(input),gos=all.accountRows.find(r=>r.accountId==='gos-beauty');
+assert.deepEqual(gos.metrics,{attendedVisits:5,orderVisits:1,trialRevenue:300,orderRevenue:1000,totalRevenue:1300,closeRate:0.2,roas:6.5});
+assert.equal(all.accountRows.length,3,'Accounts with no monetary entry are omitted');assert.equal(all.accountRows.find(r=>r.accountId==='alyssa-main').metrics.roas,null,'KOL has no allocated paid Spend');
+assert.equal(all.treatmentRows.filter(r=>r.accountId==='gos-beauty').reduce((n,r)=>n+r.metrics.totalRevenue,0),gos.metrics.totalRevenue);
+assert.equal(all.totals.totalRevenue,27740);assert.equal(all.totals.orderVisits,3);assert.equal(all.totals.attendedVisits,7);assert.equal(all.totals.closeRate,3/7,'Closing rate uses the matched visit denominator, never average account rates or first-Show customers');
+const chosen=buildArrivalRevenue({...input,accountIds:['gos-beauty']});assert.equal(chosen.totals.totalRevenue,1300);assert.equal(chosen.accountRows.length,1);assert.ok(!JSON.stringify(chosen).includes('SlimCut'));
+assert.equal(all.totals.roas,null,'A combined return must not attribute organic/KOL revenue to paid Spend');assert.equal(chosen.totals.roas,6.5);
+const restricted=buildArrivalRevenue({...input,brands:brands.filter(b=>b.id==='g')});assert.deepEqual(restricted.accountRows.map(r=>r.accountId),['gos-beauty']);
+const authority=buildArrivalRevenue({...input,table:{...input.table,rows:[make('ah-override','GOS Beauty','GOS Beauty','2026-10-03','已到店',100,1000,900),make('blank-total','GOS Beauty','GOS Beauty','2026-10-03','已到店','HK$ 0.10','0.20','')]}});assert.equal(authority.totals.totalRevenue,900.3,'AH is authoritative and AF+AG is used only when AH is absent');assert.equal(authority.totals.trialRevenue,100.1);assert.equal(authority.totals.orderRevenue,1000.2);
+assert.throws(()=>buildArrivalRevenue({...input,table:{...input.table,rows:[rows[0],rows[0]]}}),/重複/);
+assert.throws(()=>buildArrivalRevenue({...input,table:{...input.table,rows:[make('bad','GOS Beauty','GOS Beauty','2026-10-03','已到店','#REF!')]}}),/格式/);
+assert.throws(()=>buildArrivalRevenue({...input,table:{...input.table,headers:[...ARRIVAL_REVENUE_HEADERS,'總金額']}}),/重複/);
+const reverse=buildArrivalRevenue({...input,table:{...input.table,headers:[...ARRIVAL_REVENUE_HEADERS].reverse(),rows:rows.map(r=>[...r].reverse())}});assert.deepEqual(reverse,all,'Header reordering cannot swap financial fields');
+assert.ok(!JSON.stringify(all).includes('repeat-same-customer'),'No appointment IDs or raw customer rows enter reports');
+console.log('PASS: AH authority, trial/order separation, entered zero versus blank, repeated visits, selected Account and Brand access, actual arrival date, closing denominator, ROAS, cents, header reordering, duplicate ownership and report privacy');

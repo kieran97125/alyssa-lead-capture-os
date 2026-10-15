@@ -96,6 +96,18 @@ export function renderReportText(snapshot: ReportSnapshot) {
   if (snapshot.comparison) {
     lines.push("", "## 上月同期比較", ...comparisonLines(snapshot));
   }
+  if (snapshot.arrivalRevenue?.accountRows.length) {
+    lines.push("", "## 到店收益及開單率");
+    const revenue = snapshot.arrivalRevenue;
+    for (const account of revenue.accountRows) {
+      const rows = [{ label: account.label, metrics: account.metrics }, ...revenue.treatmentRows.filter(row => row.accountId === account.accountId)];
+      for (const row of rows) {
+        const m = row.metrics;
+        lines.push("", row.label, `試做收入：${money(m.trialRevenue)}`, `開單收入：${money(m.orderRevenue)}`, `總收益：${money(m.totalRevenue)}`, `開單／到店：${m.orderVisits}/${m.attendedVisits}`, `開單率：${percent(m.closeRate)}`);
+        if (m.roas !== null) lines.push(`ROAS：${m.roas.toFixed(2)}×`);
+      }
+    }
+  }
 
   if (snapshot.selection.breakdowns.includes("brand")) {
     lines.push("", ...breakdownLines("按品牌拆分", snapshot.brandRows));

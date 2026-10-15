@@ -171,6 +171,24 @@ export type ReportSnapshot = {
     lastSuccessAt: string | null;
   }>;
   series?: ReportSeries;
+  arrivalRevenue?: ReportArrivalRevenue;
+};
+
+export type ReportRevenueMetrics = {
+  attendedVisits: number;
+  orderVisits: number;
+  trialRevenue: number;
+  orderRevenue: number;
+  totalRevenue: number;
+  closeRate: number | null;
+  roas: number | null;
+};
+export type ReportArrivalRevenue = {
+  version: "arrival-revenue-v1";
+  readAt: string;
+  accountRows: Array<{ accountId: string; label: string; metrics: ReportRevenueMetrics }>;
+  treatmentRows: Array<{ accountId: string; accountLabel: string; label: string; metrics: ReportRevenueMetrics }>;
+  totals: ReportRevenueMetrics;
 };
 
 export type ReportGeneratorOptions = {
