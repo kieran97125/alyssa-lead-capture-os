@@ -32,8 +32,11 @@ base,QUERY(data,"select Col1,Col2,sum(Col5),sum(Col6),sum(Col7),sum(Col8),sum(Co
 summary,FILTER(base,INDEX(base,,8)>0),
 spend,MAP(INDEX(summary,,1),INDEX(summary,,2),LAMBDA(acct,brand,IF($G$4<>"All","",LET(amount,SUMIFS('_revenue_spend'!D2:D50000,'_revenue_spend'!A2:A50000,">="&$A$4,'_revenue_spend'!A2:A50000,"<"&($C$4+1),'_revenue_spend'!B2:B50000,acct,'_revenue_spend'!C2:C50000,brand),IF(amount>0,amount,""))))),
 summaryRows,HSTACK(ARRAYFORMULA(IF(INDEX(summary,,1)=INDEX(summary,,2),INDEX(summary,,1),INDEX(summary,,1)&"／"&INDEX(summary,,2))),CHOOSECOLS(summary,3,4,5,6,7),ARRAYFORMULA(INDEX(summary,,6)/INDEX(summary,,7)),spend,MAP(INDEX(summary,,5),spend,LAMBDA(rev,cost,IF(N(cost)>0,rev/cost,""))),MAP(INDEX(summary,,5),spend,LAMBDA(rev,cost,IF(N(cost)>0,(rev-cost)/cost,"")))),
+accountData,IFNA(FILTER(data,INDEX(data,,1)="Alyssa Aesthetics"),MAKEARRAY(1,10,LAMBDA(r,c,0))),
+accountSpend,IF($G$4<>"All","",LET(amount,SUMIFS('_revenue_spend'!D2:D50000,'_revenue_spend'!A2:A50000,">="&$A$4,'_revenue_spend'!A2:A50000,"<"&($C$4+1),'_revenue_spend'!B2:B50000,"Alyssa Aesthetics"),IF(amount>0,amount,""))),
+accountRow,HSTACK("Alyssa Aesthetics（合計）",SUM(INDEX(accountData,,5)),SUM(INDEX(accountData,,6)),SUM(INDEX(accountData,,7)),SUM(INDEX(accountData,,8)),SUM(INDEX(accountData,,9)),IF(SUM(INDEX(accountData,,9))>0,SUM(INDEX(accountData,,8))/SUM(INDEX(accountData,,9)),""),accountSpend,IF(N(accountSpend)>0,SUM(INDEX(accountData,,7))/accountSpend,""),IF(N(accountSpend)>0,(SUM(INDEX(accountData,,7))-accountSpend)/accountSpend,"")),
 baseTreatments,QUERY(data,"select Col1,Col2,Col3,sum(Col5),sum(Col6),sum(Col7),sum(Col8),sum(Col9),sum(Col10) group by Col1,Col2,Col3 label Col1 '',Col2 '',Col3 '',sum(Col5) '',sum(Col6) '',sum(Col7) '',sum(Col8) '',sum(Col9) '',sum(Col10) ''",0),
 treatments,FILTER(baseTreatments,INDEX(baseTreatments,,9)>0),
 treatmentRows,HSTACK(ARRAYFORMULA(IF(INDEX(treatments,,1)=INDEX(treatments,,2),INDEX(treatments,,1),INDEX(treatments,,1)&"／"&INDEX(treatments,,2))&"／"&INDEX(treatments,,3)),CHOOSECOLS(treatments,4,5,6,7,8),ARRAYFORMULA(INDEX(treatments,,7)/INDEX(treatments,,8)),MAKEARRAY(ROWS(treatments),3,LAMBDA(r,c,""))),
-VSTACK(${header},summaryRows,MAKEARRAY(1,10,LAMBDA(r,c,"")),${header},treatmentRows)))),"")`);
+IF(COUNTIF(INDEX(summary,,1),"Alyssa Aesthetics")>0,VSTACK(${header},accountRow,summaryRows,MAKEARRAY(1,10,LAMBDA(r,c,"")),${header},treatmentRows),VSTACK(${header},summaryRows,MAKEARRAY(1,10,LAMBDA(r,c,"")),${header},treatmentRows))))),"")`);
 }
