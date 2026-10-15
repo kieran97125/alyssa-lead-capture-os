@@ -328,6 +328,19 @@ if (process.env.REPORT_TEMPLATE_QA_DIR) {
 }
 console.log(`PASS: approved template with 16-slide/18-table base, exact template geometry/fonts/styles, stale-data sanitation, XML escaping, zero versus missing, unavailable account costs, restricted groups, ${long.slides.length}-slide pagination, all dates/treatments, natural Chinese labels on ${naturalPages.length} pages, accepted 160-character label (${boundaryFragments.fragments} fragments), 120-character audit labels (${auditStressContinuations} continuations), exact fragment reconstruction, reconciled totals, footer numbering and table bounds`);
 
+const revenueSnapshot=fixture();
+const revenueMetric={attendedVisits:7,orderVisits:3,trialRevenue:700,orderRevenue:3000,totalRevenue:3700,closeRate:3/7,roas:1.25};
+revenueSnapshot.arrivalRevenue={version:'arrival-revenue-v1',readAt:'2028-02-03T00:00:00Z',accountRows:[{accountId:'gos-beauty',label:'GOS Beauty',metrics:revenueMetric}],treatmentRows:[{accountId:'gos-beauty',accountLabel:'GOS Beauty',label:'脫毛護理',metrics:revenueMetric}],totals:revenueMetric};
+const revenueBytes=await renderReportPptx(revenueSnapshot),revenueDeck=await inspect(revenueBytes),revenueZip=await JSZip.loadAsync(revenueBytes),baseZip=await JSZip.loadAsync(baseBytes);
+for(let i=1;i<=3;i++)assert.equal(await revenueZip.file(`ppt/slides/slide${i}.xml`).async('string'),await baseZip.file(`ppt/slides/slide${i}.xml`).async('string'),'First three approved pages stay identical');
+assert.equal(revenueDeck.slides.length,17);assert.ok(text(revenueDeck.slides[3]).includes('到店收益及開單率'));assert.ok(text(revenueDeck.slides[4]).includes('Lead'));
+const revenueTable=tables(revenueDeck.slides[3])[0];assert.deepEqual(revenueTable[0],['Account／療程','試做收入 HK$','開單收入 HK$','總收益 HK$','開單／到店','開單率','ROAS']);
+assert.deepEqual(revenueTable[1],['GOS Beauty','700.00','3,000.00','3,700.00','3/7','42.9%','1.25×']);assert.equal(revenueTable[2][0],'GOS Beauty／脫毛護理');
+const longRevenue=structuredClone(revenueSnapshot);longRevenue.arrivalRevenue.treatmentRows=Array.from({length:35},(_,i)=>({...longRevenue.arrivalRevenue.treatmentRows[0],label:`療程 ${i+1} `+'完整保留原有療程名稱'.repeat(10)}));
+const longRevenueDeck=await inspect(await renderReportPptx(longRevenue));const revenuePages=longRevenueDeck.slides.filter(s=>text(s).includes('到店收益及開單率'));assert.ok(revenuePages.length>1);for(const p of revenuePages)assert.equal(tables(p)[0].at(-1)[0],'所選 Account 合計');
+if(process.env.REPORT_TEMPLATE_QA_DIR)writeFileSync(path.join(process.env.REPORT_TEMPLATE_QA_DIR,'arrival-revenue.pptx'),revenueBytes);
+console.log('PASS: financial report begins on page 4, original pages 1–3 unchanged, editable revenue/closing-rate/ROAS tables, treatment income, full-data continuation and numbered footers');
+
 const selectedSnapshot = fixture();
 selectedSnapshot.selection.accountIds = ["alyssa-aesthetics", "gos-beauty", "ineffable", "skin-light"];
 for (const field of ["groupRows", "dailyRows", "treatmentRows", "auditRows", "arrivalSourceRows"]) {

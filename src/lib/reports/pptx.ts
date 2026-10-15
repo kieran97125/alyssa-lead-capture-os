@@ -5,7 +5,7 @@ import JSZip from "jszip";
 import { DOMParser, XMLSerializer, type Document, type Element } from "@xmldom/xmldom";
 import { reportMetrics } from "@/lib/reports/metrics";
 import { REPORT_SERIES_GROUPS } from "@/lib/reports/seriesData";
-import type { ReportMetrics, ReportSeriesGroupKey, ReportSnapshot } from "@/lib/reports/types";
+import type { ReportMetrics, ReportRevenueMetrics, ReportSeriesGroupKey, ReportSnapshot } from "@/lib/reports/types";
 
 export const REPORT_PRESENTATION_TEMPLATE = "cs-ad-series-v1";
 const A = "http://schemas.openxmlformats.org/drawingml/2006/main";
@@ -246,7 +246,62 @@ function sum(rows: ReportMetrics[]): ReportMetrics {
   const spends = rows.flatMap(row => row.spend === null ? [] : [row.spend]);
   return reportMetrics(counts, spends.length ? spends.reduce((a, b) => a + b, 0) : null);
 }
-type Page = { exemplar: number; tables?: string[][][]; shapes?: Record<number, string>; tableFit?: TableFit };
+type Page = { exemplar: number; tables?: string[][][]; shapes?: Record<number, string>; tableFit?: TableFit; revenueFont?: number; revenueSummaries?: number[] };
+
+/** Financial rows reuse the approved cost table's native cells and typography. */
+function configureRevenueTable(slide: Document, fontSize: number) {
+  const layout = tableLayout(slide, 0), grid = direct(layout.table, A, "tblGrid")[0];
+  const totalWidth = layout.columns.reduce((a, b) => a + b, 0), weights = [36, 12, 12, 13, 10, 9, 8];
+  const prototype = direct(grid, A, "gridCol").at(-1)!;
+  while (direct(grid, A, "gridCol").length < 7) grid.appendChild(prototype.cloneNode(true));
+  direct(grid, A, "gridCol").forEach((col, i) => col.setAttribute("w", String(Math.round(totalWidth * weights[i] / 100))));
+  const headers = ["Account／療程", "試做收入 HK$", "開單收入 HK$", "總收益 HK$", "開單／到店", "開單率", "ROAS"];
+  layout.rows.forEach((row, index) => {
+    const last = direct(row, A, "tc").at(-1)!;
+    while (direct(row, A, "tc").length < 7) row.appendChild(last.cloneNode(true));
+    row.setAttribute("h", "1");
+    direct(row, A, "tc").forEach((cell, i) => {
+      if (!index) setText(cell, headers[i]);
+      [...elements(cell, A, "rPr"), ...elements(cell, A, "endParaRPr"), ...elements(cell, A, "defRPr")].forEach(style => style.setAttribute("sz", String(Math.round((index ? fontSize : 11) * 100))));
+      const props = direct(cell, A, "tcPr")[0];
+      if (props) for (const [name, value] of [["marL", 6], ["marR", 6], ["marT", 2], ["marB", 2]] as const) props.setAttribute(name, String(value * EMU_PER_PIXEL));
+    });
+  });
+  const transform = direct(layout.frame, P, "xfrm")[0];
+  direct(transform, A, "off")[0].setAttribute("y", String(180 * EMU_PER_PIXEL));
+}
+function revenueCells(m: ReportRevenueMetrics) {
+  return [money(m.trialRevenue), money(m.orderRevenue), money(m.totalRevenue), `${m.orderVisits}/${m.attendedVisits}`, rate(m.closeRate), m.roas === null ? "" : `${m.roas.toFixed(2)}×`];
+}
+function revenuePages(snapshot: ReportSnapshot, source: Document): Page[] {
+  const revenue = snapshot.arrivalRevenue;
+  if (!revenue?.accountRows.length) return [];
+  const rows = revenue.accountRows.flatMap(account => [
+    { summary: true, values: [account.label, ...revenueCells(account.metrics)] },
+    ...revenue.treatmentRows.filter(t => t.accountId === account.accountId).map(t => ({ summary: false, values: [`${account.label}／${t.label}`, ...revenueCells(t.metrics)] })),
+  ]);
+  const total = ["所選 Account 合計", ...revenueCells(revenue.totals)];
+  const original = new XMLSerializer().serializeToString(source);
+  let fontSize = 18, layout: TableLayout;
+  for (;; fontSize -= 0.5) {
+    const trial = parse(original); configureRevenueTable(trial, fontSize); layout = tableLayout(trial, 0);
+    const height = measuredRowHeight(rowText(layout.rows[0]), layout.rows[0], layout.columns) + measuredRowHeight(total, layout.rows.at(-1)!, layout.columns)
+      + rows.reduce((h, r) => h + measuredRowHeight(r.values, layout.rows[1], layout.columns), 0);
+    if (layout.top + height <= CONTENT_BOTTOM || fontSize <= 13) break;
+  }
+  const headerHeight = measuredRowHeight(rowText(layout!.rows[0]), layout!.rows[0], layout!.columns), totalHeight = measuredRowHeight(total, layout!.rows.at(-1)!, layout!.columns);
+  const available = CONTENT_BOTTOM - layout!.top - headerHeight - totalHeight;
+  const fragments = rows.flatMap(row => splitDataRow({ values: row.values, metrics: empty() }, layout!.rows[1], layout!.columns, available).map(part => ({ ...row, values: part.values })));
+  const parts: typeof fragments[] = []; let current: typeof fragments = [], used = 0;
+  for (const row of fragments) {
+    const height = measuredRowHeight(row.values, layout!.rows[1], layout!.columns);
+    if (current.length && used + height > available) { parts.push(current); current = []; used = 0; }
+    current.push(row); used += height;
+  }
+  if (current.length) parts.push(current);
+  return parts.map((part, i) => ({ exemplar: 3, revenueFont: fontSize, revenueSummaries: part.flatMap((r, index) => r.summary ? [index + 1] : []),
+    shapes: { 194: "REVENUE", 195: `到店收益及開單率${i ? "（續）" : ""}` }, tables: [[...part.map(r => r.values), total]] }));
+}
 
 function pagesFor(snapshot: ReportSnapshot, sourceSlides: Document[]): Page[] {
   const series = snapshot.series;
@@ -264,6 +319,7 @@ function pagesFor(snapshot: ReportSnapshot, sourceSlides: Document[]): Page[] {
     { exemplar: 1, shapes: { 38: snapshot.current.label, 40: String(totals.leads), 42: String(totals.bookings), 44: String(totals.shows), 46: String(totals.noShows) } },
     { exemplar: 2, shapes: { 188: snapshot.dataQuality.spendCompleteBrandDays < snapshot.dataQuality.spendExpectedBrandDays ? "部分廣告費未齊" : "" }, tables: [[...groups.map(group => [group.label, money(group.metrics.spend), group.metrics.spend === null ? "未有資料" : shortPeriod, "—"]), ["已入帳合計", money(covered ? groups.reduce((value, group) => value + (group.metrics.spend ?? 0), 0) : null), "", ""]]] },
     { exemplar: 3, tables: [groups.map(group => [group.label, group.metrics.spend === null ? "未有資料" : shortPeriod, money(group.metrics.spend), ...[group.metrics.cpl, group.metrics.costPerBooking, group.metrics.costPerShow].map(value => group.available ? cost(value, group.metrics.spend) : "未有資料")])] },
+    ...revenuePages(snapshot, sourceSlides[2]),
     { exemplar: 4, shapes: { 58: series?.warnings[0] ?? "" }, tables: [[...groups.map(group => [group.label, ...(group.available ? efficiencyCells(group.metrics) : dash(6))]), ["合計", ...efficiencyCells(totals)]]] },
   ];
   for (const daily of chunks(snapshot.daily, 7)) pages.push({ exemplar: 5, tables: [[...daily.map(row => [row.date.slice(5).replace("-", "/"), ...metricCells(row.metrics)]), ["合計", ...metricCells(sum(daily.map(row => row.metrics)))]]] });
@@ -319,10 +375,15 @@ export async function renderReportPptx(snapshot: ReportSnapshot): Promise<Uint8A
   for (let i = 0; i < pages.length; i++) {
     const page = pages[i];
     const slide = parse(sourceSlides[page.exemplar - 1]);
+    if (page.revenueFont !== undefined) configureRevenueTable(slide, page.revenueFont);
     applyTableFit(slide, 0, page.tableFit);
     Object.entries(page.shapes ?? {}).forEach(([id, text]) => setShape(slide, Number(id), text));
     if (page.exemplar > 1) { setShape(slide, footerIds[page.exemplar - 1], footer); setShape(slide, pageIds[page.exemplar - 1], String(i + 1).padStart(2, "0")); }
     page.tables?.forEach((rows, table) => setTable(slide, table, rows, page.exemplar !== 3));
+    if (page.revenueFont !== undefined) {
+      const rows = tableLayout(slide, 0).rows;
+      [...(page.revenueSummaries ?? []), rows.length - 1].forEach(index => elements(rows[index], A, "rPr").forEach(style => style.setAttribute("b", "1")));
+    }
     const xml = serializer.serializeToString(slide);
     if (/\{\{/.test(xml)) throw new Error("Unfilled report template slot");
     zip.file(`ppt/slides/slide${i + 1}.xml`, xml);

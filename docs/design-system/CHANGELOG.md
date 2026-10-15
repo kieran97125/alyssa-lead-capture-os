@@ -1,5 +1,11 @@
 # Design System Change Log
 
+## 2026-10-15 — Arrival revenue and closing rates
+
+- Insert the selected-Account and treatment revenue section from page 4 of the approved editable presentation, with trial/order/total revenue, visit closing rates and comparable paid ROAS.
+- Retain the first three slides, source data and report controls. Reuse the native table and bound type size before continuation pages.
+- Calculation, source-read validation, visual evidence and rollback: `decisions/2026-10-15-arrival-revenue-report.md`. Hosted release gates are required; private source rows are excluded from repository evidence.
+
 ## 2026-10-06 — Optional operator settings
 
 - Remove duplicate settings-home navigation and row descriptions; make tracking, classification, history and source creation optional disclosures.

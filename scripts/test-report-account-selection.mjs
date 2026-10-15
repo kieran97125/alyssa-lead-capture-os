@@ -10,8 +10,10 @@ const brands = [
   { id: "i", name: "Ineffable", slug: "ineffable" },
 ];
 let production = null;
+let revenueRows = [], revenueFailure = false;
 const metricQueries = [];
 const mocks = {
+  "@/lib/integrations/googleSheetsLeadTable": { readLiveArrivalRevenueTable: async configuration => { assert.equal(configuration.spreadsheetId,'synthetic_workbook_12345678');if(revenueFailure)throw Error('Synthetic read failure');return { headers: ["品牌", "結果", "到店日期", "Account", "療程", "Appointment ID", "試做價", "開單金額", "總金額"], rows: revenueRows, readAt: "2026-10-07T04:00:00Z" }; } },
   "server-only": {},
   "@/lib/data/configuration": { getConfiguredBrands: async () => brands },
   "@/lib/supabase/admin": {
@@ -22,7 +24,7 @@ const mocks = {
         select() { return query; }, eq() { return query; }, order() { return query; }, limit() { return query; },
         in(_column, values) { ids = values; if (table === "marketing_treatment_performance_daily") metricQueries.push(values); return query; },
         gte(_column, value) { start = value; return query; }, lte(_column, value) { end = value; return query; },
-        maybeSingle: async () => ({ data: { id: "synthetic-source", status: production.status ?? "connected", last_success_at: production.lastSuccessAt ?? null, display_name: "Synthetic Sheet" }, error: null }),
+        maybeSingle: async () => ({ data: { id: "synthetic-source", status: production.status ?? "connected", last_success_at: production.lastSuccessAt ?? null, display_name: "Synthetic Sheet", configuration: { sourceProfile: "alyssa_workspace_lead_funnel", spreadsheetId: "synthetic_workbook_12345678" } }, error: null }),
         insert: async () => ({ error: null }),
         range: async () => ({ data: (table === "marketing_treatment_performance_daily" ? production.metrics : production.spends)
           .filter(row => ids.includes(row.brand_id) && (row.metric_date ?? row.spend_date) >= start && (row.metric_date ?? row.spend_date) <= end), error: null }),
@@ -98,6 +100,10 @@ assert.equal(mixedMain.series.groupRows[0].metrics.leads, 9);
 assert.deepEqual(mixedMain.selection.brands.map(brand => brand.id), ["a", "m", "g"]);
 assert.equal(mixedMain.current.totals.spend, null, "Including another Brand's Account facts never transfers paid Spend to KOL");
 assert.equal(mixedMain.dataQuality.spendExpectedBrandDays, 0);
+revenueRows=[['Alyssa','已到店','2026-10-02','Alyssa Main','Synthetic treatment','synthetic-main',100,900,1000],['GOS Beauty','已到店','2026-10-02','GOS Beauty','Synthetic treatment','synthetic-gos',100,0,100]];
+const mainRevenue=await build(normalize({accountIds:['alyssa-main'],comparison:false}));
+assert.deepEqual(mainRevenue.arrivalRevenue.accountRows.map(r=>r.accountId),['alyssa-main']);assert.equal(mainRevenue.arrivalRevenue.totals.totalRevenue,1000);assert.equal(mainRevenue.arrivalRevenue.totals.closeRate,1);assert.notEqual(mainRevenue.snapshotSha256,mixedMain.snapshotSha256);assert.equal(mainRevenue.current.totals.leads,mixedMain.current.totals.leads,'Financial data never changes Lead/Book/Show metrics');
+revenueFailure=true;await assert.rejects(build(normalize({accountIds:['alyssa-main']})),error=>error.code==='arrival_revenue_unavailable'&&error.status===503);revenueFailure=false;revenueRows=[];
 production.status = "warning"; production.lastSuccessAt = "2026-10-07T04:00:00Z";
 const validatedWarning = await build(normalize({ accountIds: ["alyssa-main"], comparison: false }));
 assert.equal(validatedWarning.series.groupRows[0].available, true, "Validated source facts remain visible despite row-quality warnings");

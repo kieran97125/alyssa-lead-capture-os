@@ -49,6 +49,8 @@ import {
 } from "@/lib/reports/metrics";
 import { buildReportSeries, type SeriesMetricFact } from "@/lib/reports/seriesData";
 import { accountsForAllowedBrands, brandIdsForLeadAccount, leadAccountById } from "@/lib/marketing/leadAccountScope";
+import { readLiveArrivalRevenueTable, type LeadTableSourceConfiguration } from "@/lib/integrations/googleSheetsLeadTable";
+import { buildArrivalRevenue } from "@/lib/reports/arrivalRevenue";
 
 type MetricKind = "lead" | "book" | "show" | "no_show" | "pending_show";
 
@@ -66,6 +68,7 @@ type SourceFact = {
   name: string;
   status: string;
   lastSuccessAt: string | null;
+  configuration?: LeadTableSourceConfiguration & { brandAliases?: Record<string, string> };
 };
 
 type BaseCounts = {
@@ -610,7 +613,7 @@ async function loadProductionFacts(
   const supabase = createSupabaseAdminClient();
   const { data, error } = await supabase
     .from("marketing_data_sources")
-    .select("id,display_name,status,last_success_at")
+    .select("id,display_name,status,last_success_at,configuration")
     .eq("provider_key", "google_sheets")
     .eq("configuration->>sourceProfile", "alyssa_workspace_lead_funnel")
     .limit(1)
@@ -622,6 +625,7 @@ async function loadProductionFacts(
         name: String(data.display_name || "Lead Sheet"),
         status: String(data.status || "draft"),
         lastSuccessAt: typeof data.last_success_at === "string" ? data.last_success_at : null,
+        configuration: data.configuration as SourceFact["configuration"],
       } satisfies SourceFact)
     : null;
   const [metricFacts, spendFacts] = await Promise.all([
@@ -743,11 +747,22 @@ export async function buildReportSnapshot(
     treatmentRows,
     coverage,
   });
-  const source = loaded.source;
+  const source: SourceFact | null = loaded.source;
   // A successful validated refresh may retain row-quality warnings. Its
   // accepted facts remain usable; only failed/unverified sources are unavailable.
   const sourceAvailable = Boolean(source && (source.status === "connected" ||
     source.status === "warning" && source.lastSuccessAt));
+  let arrivalRevenue: ReportSnapshot["arrivalRevenue"];
+  if (hasSupabaseAdminEnv() && sourceAvailable) {
+    try {
+      if (!source?.configuration) throw new Error("Missing arrival source configuration");
+      const table = await readLiveArrivalRevenueTable(source.configuration);
+      arrivalRevenue = buildArrivalRevenue({ table, brands: brandScoped, brandAliases: source.configuration.brandAliases,
+        accountIds, startDate: request.startDate, endDate: request.endDate, spendFacts: currentSpends });
+    } catch {
+      throw new ReportExportError("未能核實到店收益資料，請稍後重新生成。", 503, "arrival_revenue_unavailable");
+    }
+  }
   const warnings: string[] = [];
   if (!source) warnings.push("未找到 Lead Sheet 資料來源；漏斗指標可能未有數據。");
   if (source && !sourceAvailable) warnings.push("Lead Sheet 尚未完成成功同步，數據可能未更新。");
@@ -809,6 +824,7 @@ export async function buildReportSnapshot(
     brandRows,
     treatmentRows,
     spendMix: buildSpendMix(currentSpends),
+    ...(arrivalRevenue ? { arrivalRevenue } : {}),
     series: buildReportSeries({
       brands: selectedBrands,
       metricFacts: currentFacts,
@@ -831,6 +847,7 @@ export async function buildReportSnapshot(
       warnings,
     },
     sources: [
+      ...(arrivalRevenue ? [{ name: "到店紀錄金額", status: "connected", lastSuccessAt: arrivalRevenue.readAt }] : []),
       {
         name: source?.name || "Lead Sheet",
         status: source?.status || "missing",

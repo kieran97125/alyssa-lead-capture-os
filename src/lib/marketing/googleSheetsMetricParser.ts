@@ -304,7 +304,7 @@ function automaticBrandAliases(brand: SheetBrandReference) {
   return Array.from(values).filter(Boolean);
 }
 
-function buildBrandLookup(
+export function buildGoogleSheetBrandLookup(
   brands: SheetBrandReference[],
   aliases: Record<string, string> = {}
 ) {
@@ -513,7 +513,7 @@ export function buildLeadSheetGroups(input: {
 }): ParsedLeadSheetGroups {
   const columns = resolveLeadSheetColumns(input.headers);
   const hasAccountColumn = columns.account >= 0;
-  const brandLookup = buildBrandLookup(input.brands, input.brandAliases);
+  const brandLookup = buildGoogleSheetBrandLookup(input.brands, input.brandAliases);
   const sourceBrand = input.sourceBrandId
     ? input.brands.find((brand) => brand.id === input.sourceBrandId) ?? null
     : null;
