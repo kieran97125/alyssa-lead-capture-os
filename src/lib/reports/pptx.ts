@@ -5,6 +5,7 @@ import JSZip from "jszip";
 import { DOMParser, XMLSerializer, type Document, type Element } from "@xmldom/xmldom";
 import { reportMetrics } from "@/lib/reports/metrics";
 import { REPORT_SERIES_GROUPS } from "@/lib/reports/seriesData";
+import { arrivalRevenueDisplayRows } from "@/lib/reports/arrivalRevenue";
 import type { ReportMetrics, ReportRevenueMetrics, ReportSeriesGroupKey, ReportSnapshot } from "@/lib/reports/types";
 
 export const REPORT_PRESENTATION_TEMPLATE = "cs-ad-series-v1";
@@ -255,7 +256,7 @@ function configureRevenueTable(slide: Document, fontSize: number) {
   const prototype = direct(grid, A, "gridCol").at(-1)!;
   while (direct(grid, A, "gridCol").length < 7) grid.appendChild(prototype.cloneNode(true));
   direct(grid, A, "gridCol").forEach((col, i) => col.setAttribute("w", String(Math.round(totalWidth * weights[i] / 100))));
-  const headers = ["Account／療程", "試做收入 HK$", "開單收入 HK$", "總收益 HK$", "開單／到店", "開單率", "ROAS"];
+  const headers = ["Account／品牌／療程", "試做收入 HK$", "開單收入 HK$", "總收益 HK$", "開單／到店", "開單率", "ROAS"];
   layout.rows.forEach((row, index) => {
     const last = direct(row, A, "tc").at(-1)!;
     while (direct(row, A, "tc").length < 7) row.appendChild(last.cloneNode(true));
@@ -276,10 +277,7 @@ function revenueCells(m: ReportRevenueMetrics) {
 function revenuePages(snapshot: ReportSnapshot, source: Document): Page[] {
   const revenue = snapshot.arrivalRevenue;
   if (!revenue?.accountRows.length) return [];
-  const rows = revenue.accountRows.flatMap(account => [
-    { summary: true, values: [account.label, ...revenueCells(account.metrics)] },
-    ...revenue.treatmentRows.filter(t => t.accountId === account.accountId).map(t => ({ summary: false, values: [`${account.label}／${t.label}`, ...revenueCells(t.metrics)] })),
-  ]);
+  const rows = arrivalRevenueDisplayRows(revenue).map(row => ({ summary: row.summary, values: [row.label, ...revenueCells(row.metrics)] }));
   const total = ["所選 Account 合計", ...revenueCells(revenue.totals)];
   const original = new XMLSerializer().serializeToString(source);
   let fontSize = 18, layout: TableLayout;

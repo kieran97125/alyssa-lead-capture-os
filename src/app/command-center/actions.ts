@@ -23,6 +23,7 @@ import {
   syncMarketingDataSource,
 } from "@/lib/integrations/googleSheetsMarketingSync";
 import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/commandCenter";
+import { refreshInstalledMarketingSpendProjections } from "@/lib/integrations/googleSheetsSpendProjection";
 import { canEditDailySpendAccess } from "@/lib/marketing/dailyOverview";
 import {
   SPEND_TYPE_LABELS,
@@ -415,6 +416,7 @@ export async function saveDailySpendAction(formData: FormData) {
       : {};
   const savedCount = Number(result.savedCount ?? 0);
   const deletedCount = Number(result.deletedCount ?? 0);
+  const revenueSpendReady = await refreshInstalledMarketingSpendProjections();
   revalidateCommandCenter(
     "/performance/daily",
     "/performance/compare",
@@ -424,7 +426,7 @@ export async function saveDailySpendAction(formData: FormData) {
   );
   redirectWithResult(returnPath, {
     ok: true,
-    message: `${spendDate} ${SPEND_TYPE_LABELS[spendType]} 已更新：儲存 ${savedCount} 個品牌${deletedCount > 0 ? `，清除 ${deletedCount} 個舊值` : ""}。`,
+    message: `${spendDate} ${SPEND_TYPE_LABELS[spendType]} 已更新：儲存 ${savedCount} 個品牌${deletedCount > 0 ? `，清除 ${deletedCount} 個舊值` : ""}。${revenueSpendReady ? "" : "mkt_dashboard 廣告費暫未更新，請稍後按「跟 Lead Sheet 更新」重試。"}`,
   });
 }
 
@@ -696,6 +698,7 @@ export async function refreshDashboardDataAction(formData: FormData) {
   }
 
   const failed = results.filter((result) => !result.ok);
+  const revenueSpendReady = failed.length === 0 ? await refreshInstalledMarketingSpendProjections() : true;
   const metricRows = results.reduce(
     (total, result) => total + result.metricRows,
     0
@@ -715,7 +718,7 @@ export async function refreshDashboardDataAction(formData: FormData) {
     ok: failed.length === 0,
     message:
       failed.length === 0
-        ? `CS Lead 已同步：${results.length}/${results.length} 個來源成功，共更新 ${metricRows} 個每日指標及 ${analysisRows} 個療程成效組合。`
+        ? `CS Lead 已同步：${results.length}/${results.length} 個來源成功，共更新 ${metricRows} 個每日指標及 ${analysisRows} 個療程成效組合。${revenueSpendReady ? "" : "mkt_dashboard 廣告費暫未更新，請稍後重試。"}`
         : `已更新 ${results.length - failed.length}/${results.length} 個來源；${failed
             .map((result) => result.sourceName)
             .join("、")} 需要再檢查。`,

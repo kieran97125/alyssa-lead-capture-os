@@ -10,7 +10,7 @@ const make=(id,account='GOS Beauty',brand='GOS Beauty',day='2026-10-03',outcome=
 const rows=[make('one'),make('two','GOS Beauty','GOS Beauty','2026-10-03','已到店',100,1000,1100),make('repeat-same-customer'),make('explicit-zero','GOS Beauty','GOS Beauty','2026-10-04','已到店',0,0,0),make('unentered','GOS Beauty','GOS Beauty','2026-10-04','已到店','','',0),make('pending','GOS Beauty','GOS Beauty','2026-10-03','待到店',100,900,1000),make('no-show','GOS Beauty','GOS Beauty','2026-10-03','No Show',100,900,1000),make('previous','GOS Beauty','GOS Beauty','2026-09-30'),make('future','GOS Beauty','GOS Beauty','2026-10-08'),make('main','Alyssa Main','Alyssa','2026-10-03','已到店',588,25352,25940,'SlimCut'),make('medical-in-aa','Alyssa Aesthetics','Aesthetics Medical','2026-10-03','已到店',0,500,500,'Medical'),make('empty-ib','Ineffable','Ineffable','2026-10-03','已到店','','',0),make('denied','GOS Beauty','Not authorized','2026-10-03','已到店',99999,99999,199998)];
 const input={table:{headers:[...ARRIVAL_REVENUE_HEADERS],rows,readAt:'2026-10-07T04:00:00Z'},brands,startDate:'2026-10-01',endDate:'2026-10-07',spendFacts:[{brandId:'g',spendDate:'2026-10-03',amount:200},{brandId:'a',spendDate:'2026-10-03',amount:300},{brandId:'m',spendDate:'2026-10-03',amount:100}]};
 const all=buildArrivalRevenue(input),gos=all.accountRows.find(r=>r.accountId==='gos-beauty');
-assert.deepEqual(gos.metrics,{attendedVisits:5,orderVisits:1,trialRevenue:300,orderRevenue:1000,totalRevenue:1300,closeRate:0.2,roas:6.5});
+assert.deepEqual(gos.metrics,{attendedVisits:5,orderVisits:1,trialRevenue:300,orderRevenue:1000,totalRevenue:1300,closeRate:0.2,roas:6.5,adSpend:200,adRoi:5.5});
 assert.equal(all.accountRows.length,3,'Accounts with no monetary entry are omitted');assert.equal(all.accountRows.find(r=>r.accountId==='alyssa-main').metrics.roas,null,'KOL has no allocated paid Spend');
 assert.equal(all.treatmentRows.filter(r=>r.accountId==='gos-beauty').reduce((n,r)=>n+r.metrics.totalRevenue,0),gos.metrics.totalRevenue);
 assert.equal(all.totals.totalRevenue,27740);assert.equal(all.totals.orderVisits,3);assert.equal(all.totals.attendedVisits,7);assert.equal(all.totals.closeRate,3/7,'Closing rate uses the matched visit denominator, never average account rates or first-Show customers');
@@ -24,3 +24,16 @@ assert.throws(()=>buildArrivalRevenue({...input,table:{...input.table,headers:[.
 const reverse=buildArrivalRevenue({...input,table:{...input.table,headers:[...ARRIVAL_REVENUE_HEADERS].reverse(),rows:rows.map(r=>[...r].reverse())}});assert.deepEqual(reverse,all,'Header reordering cannot swap financial fields');
 assert.ok(!JSON.stringify(all).includes('repeat-same-customer'),'No appointment IDs or raw customer rows enter reports');
 console.log('PASS: AH authority, trial/order separation, entered zero versus blank, repeated visits, selected Account and Brand access, actual arrival date, closing denominator, ROAS, cents, header reordering, duplicate ownership and report privacy');
+
+const split=buildArrivalRevenue({...input,table:{...input.table,rows:[make('beauty','Alyssa Aesthetics','Alyssa','2026-10-03','已到店',100,1000,1100,'Shared category'),make('medical','Alyssa Aesthetics','Aesthetics Medical','2026-10-03','已到店',200,2000,2200,'Shared category'),make('no-entry','Alyssa Aesthetics','Alyssa','2026-10-03','已到店','','',0,'No monetary entry')]}});
+assert.equal(split.accountRows[0].metrics.totalRevenue,3300);
+assert.equal(split.accountRows[0].metrics.attendedVisits,3,'Unentered visits remain in the Account denominator');
+assert.deepEqual(split.brandRows.map(r=>[r.label,r.metrics.totalRevenue,r.metrics.adSpend,r.metrics.roas,r.metrics.adRoi]),[['Alyssa Aesthetics',1100,300,1100/300,800/300],['Aesthetics Medical',2200,100,22,21]]);
+assert.equal(split.treatmentRows.length,2,'Same treatment label remains separate by actual Brand; unentered treatments are hidden');
+assert.ok(split.treatmentRows.every(r=>r.metrics.roas===null&&r.metrics.adRoi===null),'No treatment Spend allocation is fabricated');
+const display=load('src/lib/reports/arrivalRevenue.ts').arrivalRevenueDisplayRows(split);
+assert.ok(display.some(r=>r.label==='Alyssa Aesthetics／Aesthetics Medical／Shared category'));
+assert.equal(display.filter(r=>!r.summary).length,2);
+const legacy={...split,brandRows:undefined,treatmentRows:split.treatmentRows.map(({brandId,brandLabel,...r})=>r)};
+assert.equal(load('src/lib/reports/arrivalRevenue.ts').arrivalRevenueDisplayRows(legacy).length,3,'Older immutable snapshots remain renderable');
+console.log('PASS: actual Brand separation inside an Account, independent paid denominators, weighted Account totals, zero/blank treatment omission and legacy rendering');

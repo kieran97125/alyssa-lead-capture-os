@@ -183,12 +183,15 @@ export type ReportRevenueMetrics = {
   totalRevenue: number;
   closeRate: number | null;
   roas: number | null;
+  adSpend?: number | null;
+  adRoi?: number | null;
 };
 export type ReportArrivalRevenue = {
   version: "arrival-revenue-v1";
   readAt: string;
   accountRows: Array<{ accountId: string; label: string; metrics: ReportRevenueMetrics }>;
-  treatmentRows: Array<{ accountId: string; accountLabel: string; label: string; metrics: ReportRevenueMetrics }>;
+  brandRows?: Array<{ accountId: string; brandId: string; label: string; metrics: ReportRevenueMetrics }>;
+  treatmentRows: Array<{ accountId: string; accountLabel: string; brandId?: string; brandLabel?: string; label: string; metrics: ReportRevenueMetrics }>;
   totals: ReportRevenueMetrics;
 };
 
