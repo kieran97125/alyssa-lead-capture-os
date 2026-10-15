@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';import{readFileSync}from'node:fs';import{createRequire}from'node:module';import ts from'typescript';
 const require=createRequire(import.meta.url),cache=new Map();const mocks={'server-only':{},'@/lib/integrations/googleSheetsOAuth':{getGoogleSheetsOAuthAccessToken:async()=> 'synthetic-token'},'@/lib/integrations/metaLeadFormSheetNormalizer':{normalizeMetaLeadFormRows:()=>({})}};
 function load(p){if(cache.has(p))return cache.get(p).exports;const m={exports:{}};cache.set(p,m);new Function('require','module','exports',ts.transpileModule(readFileSync(new URL('../'+p,import.meta.url),'utf8'),{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(n=>mocks[n]??(n.startsWith('@/')?load('src/'+n.slice(2)+'.ts'):require(n)),m,m.exports);return m.exports;}
-const {readLiveArrivalRevenueTable:read}=load('src/lib/integrations/googleSheetsLeadTable.ts');const {ARRIVAL_REVENUE_HEADERS}=load('src/lib/reports/arrivalRevenue.ts');
+const {readLiveArrivalRevenueTable:read,readLiveReportTreatmentTable:readCategories}=load('src/lib/integrations/googleSheetsLeadTable.ts');const {ARRIVAL_REVENUE_HEADERS}=load('src/lib/reports/arrivalRevenue.ts');
 const headers=Array(38).fill(''),positions=[0,6,7,10,13,22,31,32,33];positions.forEach((col,i)=>headers[col]=ARRIVAL_REVENUE_HEADERS[i]);
 const rows=[['GOS Beauty','已到店',46298,'GOS Beauty','Treatment','synthetic-appointment',100,900,1000]];
 const originalFetch=globalThis.fetch,originalTimeout=globalThis.setTimeout;let calls=[],mode='ok';
@@ -14,5 +14,9 @@ try{
  await assert.rejects(read({...config,sourceProfile:'other'}));await assert.rejects(read({...config,spreadsheetId:'https://untrusted.invalid'}));assert.equal(calls.length,3);
  mode='changed';await assert.rejects(read(config),/欄位讀取期間有變/);
  mode='stalled';globalThis.setTimeout=(callback,ms,...args)=>originalTimeout(callback,ms===15000?1:ms,...args);await assert.rejects(read(config),error=>error.reason==='managed_read_timeout');assert.equal(calls.at(-1).init.signal.aborted,true);
+ globalThis.setTimeout=originalTimeout;calls=[];
+ const categoryHeaders=['Lookup Key','Account','Brand','Original Treatment','Dashboard 技術分類'];
+ globalThis.fetch=async(url,init)=>{const u=new URL(url);calls.push({url:u,init});if(!u.pathname.endsWith('values:batchGet'))return{ok:true,json:async()=>({sheets:[{properties:{title:'_dashboard_treatment_map',gridProperties:{rowCount:5000,columnCount:5}}}]})};return{ok:true,json:async()=>({valueRanges:u.searchParams.getAll('ranges').length===1?[{values:[categoryHeaders]}]:[{values:[['Alyssa Aesthetics']]},{values:[['SlimCut offer']]},{values:[['SlimCut']]},{values:[categoryHeaders]}]})};};
+ const categoryTable=await readCategories(config);assert.deepEqual(categoryTable.rows,[['Alyssa Aesthetics','SlimCut offer','SlimCut']]);assert.equal(calls.length,3);assert.deepEqual(calls[2].url.searchParams.getAll('ranges'),["'_dashboard_treatment_map'!B2:B5000","'_dashboard_treatment_map'!D2:D5000","'_dashboard_treatment_map'!E2:E5000","'_dashboard_treatment_map'!A1:E1"]);assert.ok(calls.every(c=>c.init.cache==='no-store'&&c.init.signal),'Classification reads retain the shared deadline and no-store policy');
 }finally{globalThis.fetch=originalFetch;globalThis.setTimeout=originalTimeout;}
-console.log('PASS: configured managed workbook, metadata-bounded header-resolved financial columns, one values snapshot, no customer/phone/CS reads, changed-header rejection, read-only and bounded timeout');
+console.log('PASS: configured managed workbook, metadata-bounded header-resolved financial/category columns, one values snapshot per source, no customer/phone/CS reads, changed-header rejection, read-only and bounded timeout');

@@ -11,9 +11,14 @@ const brands = [
 ];
 let production = null;
 let revenueRows = [], revenueFailure = false;
+let categoryFailure = false;
+const categoryRows = [["Alyssa Main", "Sheet treatment", "Synthetic category"], ["Alyssa Main", "Synthetic treatment", "Synthetic category"]];
 const metricQueries = [];
 const mocks = {
-  "@/lib/integrations/googleSheetsLeadTable": { readLiveArrivalRevenueTable: async configuration => { assert.equal(configuration.spreadsheetId,'synthetic_workbook_12345678');if(revenueFailure)throw Error('Synthetic read failure');return { headers: ["品牌", "結果", "到店日期", "Account", "療程", "Appointment ID", "試做價", "開單金額", "總金額"], rows: revenueRows, readAt: "2026-10-07T04:00:00Z" }; } },
+  "@/lib/integrations/googleSheetsLeadTable": {
+    readLiveReportTreatmentTable: async configuration => { assert.equal(configuration.spreadsheetId,'synthetic_workbook_12345678');if(categoryFailure)throw Error('Synthetic category failure');return { headers:["Account","Original Treatment","Dashboard 技術分類"], rows:categoryRows, readAt:"2026-10-07T04:00:00Z" }; },
+    readLiveArrivalRevenueTable: async configuration => { assert.equal(configuration.spreadsheetId,'synthetic_workbook_12345678');if(revenueFailure)throw Error('Synthetic read failure');return { headers: ["品牌", "結果", "到店日期", "Account", "療程", "Appointment ID", "試做價", "開單金額", "總金額"], rows: revenueRows, readAt: "2026-10-07T04:00:00Z" }; }
+  },
   "server-only": {},
   "@/lib/data/configuration": { getConfiguredBrands: async () => brands },
   "@/lib/supabase/admin": {
@@ -100,10 +105,15 @@ assert.equal(mixedMain.series.groupRows[0].metrics.leads, 9);
 assert.deepEqual(mixedMain.selection.brands.map(brand => brand.id), ["a", "m", "g"]);
 assert.equal(mixedMain.current.totals.spend, null, "Including another Brand's Account facts never transfers paid Spend to KOL");
 assert.equal(mixedMain.dataQuality.spendExpectedBrandDays, 0);
+assert.deepEqual(mixedMain.series.treatmentRows.map(r=>r.label),['Synthetic category']);
+assert.equal(mixedMain.series.treatmentRows[0].metrics.leads,9);
+assert.equal(mixedMain.treatmentGrouping.version,'lead-sheet-treatment-categories-v1');
 revenueRows=[['Alyssa','已到店','2026-10-02','Alyssa Main','Synthetic treatment','synthetic-main',100,900,1000],['GOS Beauty','已到店','2026-10-02','GOS Beauty','Synthetic treatment','synthetic-gos',100,0,100]];
 const mainRevenue=await build(normalize({accountIds:['alyssa-main'],comparison:false}));
+assert.equal(mainRevenue.arrivalRevenue.treatmentRows[0].label,'Synthetic category','Revenue and funnel breakdowns share the native category');
 assert.deepEqual(mainRevenue.arrivalRevenue.accountRows.map(r=>r.accountId),['alyssa-main']);assert.equal(mainRevenue.arrivalRevenue.totals.totalRevenue,1000);assert.equal(mainRevenue.arrivalRevenue.totals.closeRate,1);assert.notEqual(mainRevenue.snapshotSha256,mixedMain.snapshotSha256);assert.equal(mainRevenue.current.totals.leads,mixedMain.current.totals.leads,'Financial data never changes Lead/Book/Show metrics');
 revenueFailure=true;await assert.rejects(build(normalize({accountIds:['alyssa-main']})),error=>error.code==='arrival_revenue_unavailable'&&error.status===503);revenueFailure=false;revenueRows=[];
+categoryFailure=true;await assert.rejects(build(normalize({accountIds:['alyssa-main']})),error=>error.code==='treatment_categories_unavailable'&&error.status===503);categoryFailure=false;
 production.status = "warning"; production.lastSuccessAt = "2026-10-07T04:00:00Z";
 const validatedWarning = await build(normalize({ accountIds: ["alyssa-main"], comparison: false }));
 assert.equal(validatedWarning.series.groupRows[0].available, true, "Validated source facts remain visible despite row-quality warnings");

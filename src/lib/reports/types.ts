@@ -172,6 +172,7 @@ export type ReportSnapshot = {
   }>;
   series?: ReportSeries;
   arrivalRevenue?: ReportArrivalRevenue;
+  treatmentGrouping?: { version: "lead-sheet-treatment-categories-v1"; readAt: string };
 };
 
 export type ReportRevenueMetrics = {

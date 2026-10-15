@@ -1,5 +1,11 @@
 # Design System Change Log
 
+## 2026-10-15 — Canonical treatment rows in manual reports
+
+- Group report treatment performance by the native Treatment Performance categories for each Account, and recalculate ratios from merged counts.
+- Reuse those categories in revenue treatment rows while retaining the approved editable template and source-owned metrics.
+- Validation, source boundary and rollback: `decisions/2026-10-15-report-treatment-categories.md`. Hosted release evidence is recorded in the PR.
+
 ## 2026-10-15 — Arrival revenue and closing rates
 
 - Insert the selected-Account and treatment revenue section from page 4 of the approved editable presentation, with trial/order/total revenue, visit closing rates and comparable paid ROAS.
