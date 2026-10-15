@@ -334,7 +334,7 @@ revenueSnapshot.arrivalRevenue={version:'arrival-revenue-v1',readAt:'2028-02-03T
 const revenueBytes=await renderReportPptx(revenueSnapshot),revenueDeck=await inspect(revenueBytes),revenueZip=await JSZip.loadAsync(revenueBytes),baseZip=await JSZip.loadAsync(baseBytes);
 for(let i=1;i<=3;i++)assert.equal(await revenueZip.file(`ppt/slides/slide${i}.xml`).async('string'),await baseZip.file(`ppt/slides/slide${i}.xml`).async('string'),'First three approved pages stay identical');
 assert.equal(revenueDeck.slides.length,17);assert.ok(text(revenueDeck.slides[3]).includes('到店收益及開單率'));assert.ok(text(revenueDeck.slides[4]).includes('Lead'));
-const revenueTable=tables(revenueDeck.slides[3])[0];assert.deepEqual(revenueTable[0],['Account／療程','試做收入 HK$','開單收入 HK$','總收益 HK$','開單／到店','開單率','ROAS']);
+const revenueTable=tables(revenueDeck.slides[3])[0];assert.deepEqual(revenueTable[0],['Account／品牌／療程','試做收入 HK$','開單收入 HK$','總收益 HK$','開單／到店','開單率','ROAS']);
 assert.deepEqual(revenueTable[1],['GOS Beauty','700.00','3,000.00','3,700.00','3/7','42.9%','1.25×']);assert.equal(revenueTable[2][0],'GOS Beauty／脫毛護理');
 const longRevenue=structuredClone(revenueSnapshot);longRevenue.arrivalRevenue.treatmentRows=Array.from({length:35},(_,i)=>({...longRevenue.arrivalRevenue.treatmentRows[0],label:`療程 ${i+1} `+'完整保留原有療程名稱'.repeat(10)}));
 const longRevenueDeck=await inspect(await renderReportPptx(longRevenue));const revenuePages=longRevenueDeck.slides.filter(s=>text(s).includes('到店收益及開單率'));assert.ok(revenuePages.length>1);for(const p of revenuePages)assert.equal(tables(p)[0].at(-1)[0],'所選 Account 合計');
@@ -353,3 +353,13 @@ const selectedText = selectedSlides.slides.flatMap(slide => nodes(slide, A, "t")
 assert.ok(!selectedText.includes("KOL + Traffic"), "Excluded Account has no summary/daily/treatment/audit group");
 assert.equal(selectedSlides.slides.length, 15, "Remove the excluded KOL treatment page");
 console.log("PASS: selected Account PPTX removes KOL group and pages, retains approved layout and valid table bounds");
+
+const brandRevenue=structuredClone(revenueSnapshot);
+brandRevenue.arrivalRevenue.accountRows=[{accountId:'alyssa-aesthetics',label:'Alyssa Aesthetics',metrics:revenueMetric}];
+brandRevenue.arrivalRevenue.brandRows=[{accountId:'alyssa-aesthetics',brandId:'beauty',label:'Alyssa Aesthetics',metrics:revenueMetric},{accountId:'alyssa-aesthetics',brandId:'medical',label:'Aesthetics Medical',metrics:revenueMetric}];
+brandRevenue.arrivalRevenue.treatmentRows=[{accountId:'alyssa-aesthetics',accountLabel:'Alyssa Aesthetics',brandId:'beauty',label:'Shared treatment',metrics:revenueMetric},{accountId:'alyssa-aesthetics',accountLabel:'Alyssa Aesthetics',brandId:'medical',label:'Shared treatment',metrics:revenueMetric}];
+const brandDeck=await inspect(await renderReportPptx(brandRevenue)),brandTable=tables(brandDeck.slides[3])[0];
+assert.ok(brandTable.some(row=>row[0]==='Alyssa Aesthetics（合計）'));
+assert.equal(brandTable.filter(row=>row[0]==='Alyssa Aesthetics／Aesthetics Medical／Shared treatment').length,1);
+assert.equal(brandTable.filter(row=>row[0]==='Alyssa Aesthetics／Shared treatment').length,1,'Same category cannot be rendered under both Brands');
+console.log('PASS: Account/Brand/treatment revenue hierarchy preserves separate medical labels in editable native tables');

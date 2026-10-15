@@ -3,6 +3,7 @@ import type {
   ReportMetrics,
   ReportSnapshot,
 } from "@/lib/reports/types";
+import { arrivalRevenueDisplayRows } from "@/lib/reports/arrivalRevenue";
 
 function integer(value: number) {
   return Math.round(value).toLocaleString("zh-HK");
@@ -99,13 +100,10 @@ export function renderReportText(snapshot: ReportSnapshot) {
   if (snapshot.arrivalRevenue?.accountRows.length) {
     lines.push("", "## 到店收益及開單率");
     const revenue = snapshot.arrivalRevenue;
-    for (const account of revenue.accountRows) {
-      const rows = [{ label: account.label, metrics: account.metrics }, ...revenue.treatmentRows.filter(row => row.accountId === account.accountId)];
-      for (const row of rows) {
+    for (const row of arrivalRevenueDisplayRows(revenue)) {
         const m = row.metrics;
         lines.push("", row.label, `試做收入：${money(m.trialRevenue)}`, `開單收入：${money(m.orderRevenue)}`, `總收益：${money(m.totalRevenue)}`, `開單／到店：${m.orderVisits}/${m.attendedVisits}`, `開單率：${percent(m.closeRate)}`);
         if (m.roas !== null) lines.push(`ROAS：${m.roas.toFixed(2)}×`);
-      }
     }
   }
 

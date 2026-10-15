@@ -1,5 +1,11 @@
 # Design System Change Log
 
+## 2026-10-15 — Brand-owned revenue and native financial reporting
+
+- Separate medical Brand revenue inside mixed Accounts, preserving Account totals and the approved editable presentation.
+- Add filtered native Account/Brand and treatment financial reporting with canonical paid Spend, ROAS and advertising ROI; omit missing financial data and unsupported treatment returns.
+- Evidence, source ownership, compatibility and rollback: `decisions/2026-10-15-revenue-brand-dashboard.md`.
+
 ## 2026-10-15 — Canonical treatment rows in manual reports
 
 - Group report treatment performance by the native Treatment Performance categories for each Account, and recalculate ratios from merged counts.

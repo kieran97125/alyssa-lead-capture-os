@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import ts from 'typescript';
-let access,authenticated=true,allowed=true,ready=true,calls=[];
+let access,authenticated=true,allowed=true,ready=true,calls=[],projectionCalls=0,projectionReady=true;
 const mocks={
  'next/navigation':{redirect:path=>{throw Object.assign(new Error('redirect'),{path});}},
  'next/cache':{revalidatePath:()=>{}},
@@ -10,6 +10,7 @@ const mocks={
   requireModuleAccess:async()=>({allowed,access}),
  },
  '@/lib/supabase/admin':{hasSupabaseAdminEnv:()=>ready},
+ '@/lib/integrations/googleSheetsSpendProjection':{refreshInstalledMarketingSpendProjections:async()=>{projectionCalls++;return projectionReady;}},
  '@/lib/marketing/commandCenter':{MASTER_ACCOUNT_EMAIL:'owner@example.test'},
  '@/lib/integrations/googleSheetsMarketingSync':{
   syncAllMarketingGoogleSheets:async options=>{calls.push(options);return[{ok:true,metricRows:1,analysisRows:1}];},
@@ -36,4 +37,8 @@ for(const denial of ['unauthenticated','module-denied','unavailable']) {
  const path=await run(module.exports.refreshDashboardDataAction);
  assert.ok(path.startsWith('/login')||path.includes('command_status=error'));assert.equal(calls.length,0);
 }
+authenticated=true;allowed=true;ready=true;projectionReady=false;
+const warning=decodeURIComponent(await run(module.exports.refreshDashboardDataAction));
+assert.ok(warning.includes('command_status=success')&&warning.includes('廣告費暫未更新'),'Optional Spend export outage never reports a completed Lead sync as failed');
+assert.equal(projectionCalls,8,'Only successful authorized refreshes publish Spend');
 console.log('PASS: all 7 active roles can refresh with their audit identity; unauthenticated/denied requests never sync; source administration remains Master-only');
