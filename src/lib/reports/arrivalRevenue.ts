@@ -1,6 +1,7 @@
 import { accountsForAllowedBrands, brandIdsForLeadAccount, leadAccountById } from "@/lib/marketing/leadAccountScope";
 import { buildGoogleSheetBrandLookup, normalizeGoogleSheetBrandKey, parseGoogleSheetDate, type SheetBrandReference } from "@/lib/marketing/googleSheetsMetricParser";
 import type { ReportArrivalRevenue, ReportRevenueMetrics } from "@/lib/reports/types";
+import type { ReportTreatmentClassifier } from "@/lib/reports/treatmentCategories";
 
 export const ARRIVAL_REVENUE_HEADERS = ["品牌", "結果", "到店日期", "Account", "療程", "Appointment ID", "試做價", "開單金額", "總金額"] as const;
 export type ArrivalRevenueTable = { headers: unknown[]; rows: unknown[][]; readAt: string };
@@ -27,6 +28,7 @@ export function buildArrivalRevenue(input: {
   table: ArrivalRevenueTable; brands: SheetBrandReference[]; brandAliases?: Record<string, string>;
   accountIds?: string[] | null; startDate: string; endDate: string;
   spendFacts: Array<{ brandId: string; spendDate: string; amount: number }>;
+  classifyTreatment?: ReportTreatmentClassifier;
 }): ReportArrivalRevenue {
   const headers = input.table.headers.map(text);
   const indices = ARRIVAL_REVENUE_HEADERS.map(header => {
@@ -61,7 +63,7 @@ export function buildArrivalRevenue(input: {
     const entered = a !== null || b !== null || (c !== null && c !== 0);
     const parent = accounts.get(account.id) ?? { label: account.label, metrics: empty(), entered: false };
     accounts.set(account.id, parent);
-    const label = text(treatment) || "未分類療程", key = JSON.stringify([account.id, label]);
+    const label = input.classifyTreatment?.(account.label, text(treatment)) ?? (text(treatment) || "未分類療程"), key = JSON.stringify([account.id, label]);
     const child = treatments.get(key) ?? { accountId: account.id, accountLabel: account.label, label, metrics: empty(), entered: false };
     treatments.set(key, child);
     for (const group of [parent, child]) {

@@ -49,8 +49,9 @@ import {
 } from "@/lib/reports/metrics";
 import { buildReportSeries, type SeriesMetricFact } from "@/lib/reports/seriesData";
 import { accountsForAllowedBrands, brandIdsForLeadAccount, leadAccountById } from "@/lib/marketing/leadAccountScope";
-import { readLiveArrivalRevenueTable, type LeadTableSourceConfiguration } from "@/lib/integrations/googleSheetsLeadTable";
+import { readLiveArrivalRevenueTable, readLiveReportTreatmentTable, type LeadTableSourceConfiguration } from "@/lib/integrations/googleSheetsLeadTable";
 import { buildArrivalRevenue } from "@/lib/reports/arrivalRevenue";
+import { buildReportTreatmentClassifier, type ReportTreatmentClassifier } from "@/lib/reports/treatmentCategories";
 
 type MetricKind = "lead" | "book" | "show" | "no_show" | "pending_show";
 
@@ -732,12 +733,54 @@ export async function buildReportSnapshot(
   const previousSpends = request.comparison
     ? rangeFacts(accountSpends, previousStartDate, previousEndDate)
     : [];
+  const source: SourceFact | null = loaded.source;
+  // Validated facts may retain source warnings without becoming unavailable.
+  const sourceAvailable = Boolean(source && (source.status === "connected" ||
+    source.status === "warning" && source.lastSuccessAt));
+  let treatmentGrouping: ReportSnapshot["treatmentGrouping"];
+  let classifyTreatment: ReportTreatmentClassifier | undefined;
+  let arrivalRevenue: ReportSnapshot["arrivalRevenue"];
+  if (hasSupabaseAdminEnv() && sourceAvailable) {
+    const configuration = source!.configuration;
+    const [categories, arrivalTable] = await Promise.all([
+      (async () => {
+        try {
+          if (!configuration) throw new Error("Missing classification source configuration");
+          const table = await readLiveReportTreatmentTable(configuration);
+          return { table, classify: buildReportTreatmentClassifier(table) };
+        } catch {
+          throw new ReportExportError("未能核實療程分類，請稍後重新生成。", 503, "treatment_categories_unavailable");
+        }
+      })(),
+      (async () => {
+        try {
+          if (!configuration) throw new Error("Missing arrival source configuration");
+          return await readLiveArrivalRevenueTable(configuration);
+        } catch {
+          throw new ReportExportError("未能核實到店收益資料，請稍後重新生成。", 503, "arrival_revenue_unavailable");
+        }
+      })(),
+    ]);
+    classifyTreatment = categories.classify;
+    treatmentGrouping = { version: "lead-sheet-treatment-categories-v1", readAt: categories.table.readAt };
+    try {
+      arrivalRevenue = buildArrivalRevenue({ table: arrivalTable, brands: brandScoped, brandAliases: configuration!.brandAliases,
+        accountIds, startDate: request.startDate, endDate: request.endDate, spendFacts: currentSpends, classifyTreatment });
+    } catch {
+      throw new ReportExportError("未能核實到店收益資料，請稍後重新生成。", 503, "arrival_revenue_unavailable");
+    }
+  }
+  // Classify copies of the stage-specific facts; stored facts and their ownership
+  // remain untouched. Every downstream treatment view uses the same categories.
+  const classify = classifyTreatment;
+  const reportFacts = classify ? currentFacts.map(fact => ({ ...fact,
+    treatmentLabel: classify(fact.accountLabel, fact.treatmentLabel) })) : currentFacts;
   const currentTotals = aggregateMetrics(currentFacts, currentSpends);
   const previousTotals = request.comparison
     ? aggregateMetrics(previousFacts, previousSpends)
     : null;
   const brandRows = buildBrandRows(selectedBrands, currentFacts, currentSpends);
-  const treatmentRows = buildTreatmentRows(currentFacts);
+  const treatmentRows = buildTreatmentRows(reportFacts);
   const currentDates = listDates(request.startDate, request.endDate);
   const coverage = spendCoverage(currentDates, spendBrandIds ? brandIds.filter(id => spendBrandIds.has(id)) : brandIds, currentSpends);
   const narrative = buildNarrative({
@@ -747,22 +790,6 @@ export async function buildReportSnapshot(
     treatmentRows,
     coverage,
   });
-  const source: SourceFact | null = loaded.source;
-  // A successful validated refresh may retain row-quality warnings. Its
-  // accepted facts remain usable; only failed/unverified sources are unavailable.
-  const sourceAvailable = Boolean(source && (source.status === "connected" ||
-    source.status === "warning" && source.lastSuccessAt));
-  let arrivalRevenue: ReportSnapshot["arrivalRevenue"];
-  if (hasSupabaseAdminEnv() && sourceAvailable) {
-    try {
-      if (!source?.configuration) throw new Error("Missing arrival source configuration");
-      const table = await readLiveArrivalRevenueTable(source.configuration);
-      arrivalRevenue = buildArrivalRevenue({ table, brands: brandScoped, brandAliases: source.configuration.brandAliases,
-        accountIds, startDate: request.startDate, endDate: request.endDate, spendFacts: currentSpends });
-    } catch {
-      throw new ReportExportError("未能核實到店收益資料，請稍後重新生成。", 503, "arrival_revenue_unavailable");
-    }
-  }
   const warnings: string[] = [];
   if (!source) warnings.push("未找到 Lead Sheet 資料來源；漏斗指標可能未有數據。");
   if (source && !sourceAvailable) warnings.push("Lead Sheet 尚未完成成功同步，數據可能未更新。");
@@ -825,9 +852,10 @@ export async function buildReportSnapshot(
     treatmentRows,
     spendMix: buildSpendMix(currentSpends),
     ...(arrivalRevenue ? { arrivalRevenue } : {}),
+    ...(treatmentGrouping ? { treatmentGrouping } : {}),
     series: buildReportSeries({
       brands: selectedBrands,
-      metricFacts: currentFacts,
+      metricFacts: reportFacts,
       spendFacts: currentSpends,
       dates: currentDates,
       sourceAvailable,
@@ -847,6 +875,7 @@ export async function buildReportSnapshot(
       warnings,
     },
     sources: [
+      ...(treatmentGrouping ? [{ name: "Treatment Performance 療程分類", status: "connected", lastSuccessAt: treatmentGrouping.readAt }] : []),
       ...(arrivalRevenue ? [{ name: "到店紀錄金額", status: "connected", lastSuccessAt: arrivalRevenue.readAt }] : []),
       {
         name: source?.name || "Lead Sheet",
