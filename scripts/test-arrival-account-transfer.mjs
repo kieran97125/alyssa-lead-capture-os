@@ -7,6 +7,7 @@ const sandbox={OMNI_ACCOUNT_TABS:['Alyssa Main','Alyssa Aesthetics'],
   oa2Event_:(ctx,a,type,before,origin)=>ctx.events.push({type,before,origin}),
 };
 vm.createContext(sandbox);vm.runInContext(source,sandbox);
+vm.runInContext(readFileSync(new URL('./apps-script/arrival-source-reconciliation.gs',import.meta.url),'utf8'),sandbox);
 const appointment={id:'appointment',leadId:'lead',account:'Alyssa Aesthetics',phone:'10000001',
   customerKey:'Alyssa Aesthetics|p:10000001',state:'active',outcome:'',date:'2026-10-12',time:'11:00',
   bookedAt:'2026-10-01T02:00:00Z',queueId:'stable-queue',revision:3,previousId:'previous',provenance:'observed_booking_edit'};
@@ -28,6 +29,9 @@ for(const [changes,row,count] of [[{},record,2],[{},record,0],[{leadId:'other'},
  assert.deepEqual(ctx.appointments,before);assert.equal(ctx.events.length,0);assert.equal(ctx.errors.length,1);
 }
 console.log('PASS: unique open Account transfer preserves booking/outcomes/queue/history, rejects ambiguous ownership and is idempotent');
+const completed=context({outcome:'Show',state:'completed'});
+assert.equal(sandbox.oa2RehomeMovedAccountAppointments_({},completed,{records:[{...record,meaningful:true}]}),0);
+assert.equal(completed.errors.length,0,'A source move after completion does not abort unrelated Account records');
 let pending,commits=0,fail=false;
 sandbox.console={log:()=>{}};
 sandbox.PropertiesService={getScriptProperties:()=>({getProperty:()=>pending,

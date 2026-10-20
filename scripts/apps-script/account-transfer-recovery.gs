@@ -21,7 +21,8 @@ function oa2TransferOpenAppointmentAccount_(ctx, record, sourceCount) {
 
 function oa2RehomeMovedAccountAppointments_(ss,ctx,snap) {
   const moved=snap.records.filter(r=>r.meaningful && r.appointmentId &&
-    ctx.appointments[r.appointmentId] && ctx.appointments[r.appointmentId].account!==r.account);
+    ctx.appointments[r.appointmentId] && ctx.appointments[r.appointmentId].account!==r.account &&
+    !oa2IsHistoricalCrossAccountRecord_(ctx,r));
   if(!moved.length)return 0;
   const ids=new Set(moved.map(r=>r.leadId)),counts={};
   OMNI_ACCOUNT_TABS.forEach(name=>{
