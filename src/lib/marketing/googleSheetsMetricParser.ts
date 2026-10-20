@@ -564,13 +564,25 @@ export function buildLeadSheetGroups(input: {
     if (!selectedValues.some((value) => compactString(value))) return;
     diagnostics.sourceRows += 1;
 
+    const brandValue = valueAt(rawRow, "brand");
     const explicitBrand = brandLookup.get(
-      normalizeGoogleSheetBrandKey(valueAt(rawRow, "brand"))
+      normalizeGoogleSheetBrandKey(brandValue)
     );
+    const blankBrand = brandValue === undefined || brandValue === null ||
+      (typeof brandValue === "string" && !compactString(brandValue));
+    // New managed enquiries can reach the master before the native worker fills
+    // Brand. Use the existing configured canonical Account alias in that gap;
+    // an explicit unknown Brand or an unconfigured Account still fails closed.
+    const canonicalAccount = input.arrivalOutcomeAuthority && blankBrand
+      ? resolveLeadAccount(valueAt(rawRow, "account"))
+      : null;
+    const accountBrand = canonicalAccount
+      ? brandLookup.get(normalizeGoogleSheetBrandKey(canonicalAccount.label))
+      : undefined;
     // Account-first Sheets own D and K. A campaign keyword must not move a
     // customer to another Brand or silently rewrite an explicit treatment.
     const rowBrand = hasAccountColumn
-      ? explicitBrand || (compactString(valueAt(rawRow, "brand")) ? null : sourceBrand)
+      ? explicitBrand || (compactString(brandValue) ? null : sourceBrand || accountBrand)
       : sourceBrand || explicitBrand;
     const rowBrandAliases = rowBrand
       ? new Set(automaticBrandAliases(rowBrand))
