@@ -62,6 +62,47 @@ assert.equal(parser.aggregateLeadSheetPerformance(future).metricFacts.filter((f)
 assert.equal(parser.aggregateLeadSheetPerformance({ ...future, retainAllAuthoritativeArrivalDates: true }).metricFacts.filter((f) => f.metricKind === "show").length, 1);
 assert.throws(() => parser.aggregateLeadSheetPerformance({ ...future, arrivalOutcomeAuthority: undefined, retainAllAuthoritativeArrivalDates: true }), /暫時未能確認/);
 
+// A source enquiry can arrive before the native worker has populated Brand.
+// Its configured Account mapping must retain the same identities as the Sheet
+// projection; coverage checks must not be relaxed to hide the missing groups.
+const accountBrands = [{ id: "main-brand", name: "Synthetic Main Brand", slug: "main-brand" }];
+const accountAliases = { "Alyssa Main": "main-brand" };
+const enquiryRows = ["10000011", "10000011", "10000012", "10000013"].map((phone) =>
+  ["2026-10-20", "2026-10-20", "", "", "Alyssa Main", phone, "", "", "Synthetic enquiry"]);
+const enquiryFacts = ["10000011", "10000012", "10000013"].map((phone, index) =>
+  [`Alyssa Main|p:${phone}`, "Alyssa Main", "", "Synthetic enquiry", "2026-10-20", "", "", "", 0, 0, 0, [2, 4, 5][index]]);
+const enquiryAuthority = authority.parseLeadArrivalOutcomeAuthority(projection(...enquiryFacts));
+const enquiryBridge = [pending.PENDING_BRIDGE_HEADERS, ...enquiryRows.map((row, index) =>
+  [`source_enquiry_${index}`, `Alyssa Main|p:${row[5]}`, index + 2, true, "", true, true, true])];
+const enquiryPending = pending.parseLeadPendingAppointmentAuthority(enquiryBridge, [pending.PENDING_REGISTRY_HEADERS]);
+const enquiryInput = { headers, rows: enquiryRows, brands: accountBrands, sourceBrandId: null,
+  brandAliases: accountAliases, arrivalOutcomeAuthority: enquiryAuthority, pendingAppointmentAuthority: enquiryPending,
+  dailyThroughDate: "2026-10-20", activityThroughDate: "2026-10-20", pendingThroughDate: "2026-12-31" };
+const enquiries = parser.aggregateLeadSheetPerformance(enquiryInput);
+assert.equal(enquiries.groups.length, 3);
+assert.equal(enquiries.diagnostics.acceptedRows, 4);
+assert.equal(enquiries.diagnostics.unknownBrandRows, 0);
+assert.equal(enquiries.dailyMetrics.reduce((sum, metric) => sum + metric.leads, 0), 3);
+assert.ok(enquiries.groups.every((group) => group.accountId === "alyssa-main" && group.brandId === "main-brand"));
+assert.ok(enquiries.groups.every((group) => group.bookDate === null && group.showDate === null && group.noShowDate === null));
+assert.ok(enquiryRows.every((row) => row[3] === ""), "Deriving a configured Brand must never modify source cells");
+const resolvedRows = enquiryRows.map((row) => row.map((value, index) => index === 3 ? "Synthetic Main Brand" : value));
+assert.deepEqual(parser.aggregateLeadSheetPerformance({ ...enquiryInput, rows: resolvedRows }).groups, enquiries.groups,
+  "The native worker filling the same Brand later must not change report identities or metrics");
+assert.equal(parser.buildLeadSheetGroups({ ...enquiryInput, arrivalOutcomeAuthority: undefined, pendingAppointmentAuthority: undefined }).groups.length, 0,
+  "Legacy parsing must not acquire a new Account-based fallback");
+for (const invalidBrand of ["Unconfigured Brand", 0, false]) {
+  const invalidRows = enquiryRows.map((row) => row.map((value, index) => index === 3 ? invalidBrand : value));
+  assert.throws(() => parser.aggregateLeadSheetPerformance({ ...enquiryInput, rows: invalidRows }), /暫時未能確認/,
+    "An explicit unknown Brand must not be replaced by the Account mapping");
+}
+assert.throws(() => parser.aggregateLeadSheetPerformance({ ...enquiryInput, brandAliases: {} }), /暫時未能確認/,
+  "A missing configured Account mapping must remain fail-closed");
+assert.throws(() => parser.aggregateLeadSheetPerformance({ ...enquiryInput, rows: enquiryRows.map((row) => row.map((value, index) => index === 4 ? "Unknown Account" : value)) }), /暫時未能確認/);
+assert.throws(() => parser.aggregateLeadSheetPerformance({ ...enquiryInput,
+  arrivalOutcomeAuthority: authority.parseLeadArrivalOutcomeAuthority(projection(...enquiryFacts.slice(0, 2))) }), /暫時未能確認/,
+  "A genuinely missing projection identity must still stop publication");
+
 const originalFetch = globalThis.fetch, originalTimeout = globalThis.setTimeout;
 globalThis.fetch = async (url, init) => {
   calls.push({ url: new URL(url), init });
