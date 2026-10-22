@@ -1,7 +1,7 @@
 /**
  * Explicit read-only profiling; select a managed Account before running.
  * No installer, trigger, property access, lock, business-cell read or write.
- * The initial manual active-spreadsheet/range calls may warm SpreadsheetApp.
+ * The initial manual active-sheet/header-range calls may warm SpreadsheetApp.
  * Neither order proves cold performance on an actual edit event's e.range.
  * Existing operational declarations/handlers are never replaced.
  */
@@ -13,9 +13,16 @@ function profileOmniEditReadApiFirst20261022() {
 }
 function oaEditReadProfile20261022_(order) {
   const started=Date.now(),receipt={handler:'edit_read_profile_20261022',readOnly:true,ok:false,order,
-    manualActiveRange:true,actualEditEventColdProof:false,initialCallsMayWarmMetadata:true,
+    manualActiveSheet:true,manualHeaderRange:true,actualEditEventColdProof:false,initialCallsMayWarmMetadata:true,
     phases:[],checks:{}};
-  let phase='initialization';
+  let phase='initialization',failureCategory;
+  const category=error=>{
+    const name=String(error&&error.name||''),message=String(error&&error.message||'');
+    if(name==='TypeError')return 'type_error';
+    if(/permission|authoriz|access denied|not allowed|insufficient.*scope/i.test(message))return 'permission';
+    if(/timed?\s*out|timeout|service|backend|internal error|unavailable|quota|rate.?limit/i.test(message))return 'provider';
+    return 'other';
+  };
   const measure=(name,action)=>{
     phase=name;const begin=Date.now();
     console.log(JSON.stringify({handler:receipt.handler,order,phase:name,state:'started'}));
@@ -24,7 +31,8 @@ function oaEditReadProfile20261022_(order) {
       receipt.phases.push({phase:name,elapsedMs,ok:true});
       console.log(JSON.stringify({handler:receipt.handler,order,phase:name,state:'complete',elapsedMs}));
       return result;
-    } catch(ignored) {
+    } catch(error) {
+      failureCategory=category(error);
       const elapsedMs=Date.now()-begin;receipt.phases.push({phase:name,elapsedMs,ok:false});
       console.log(JSON.stringify({handler:receipt.handler,order,phase:name,state:'failed',elapsedMs}));
       throw new Error('profile_phase_failed');
@@ -48,8 +56,11 @@ function oaEditReadProfile20261022_(order) {
     const ss=measure('active_spreadsheet',()=>SpreadsheetApp.getActiveSpreadsheet());
     requireValue(!!ss);
     const spreadsheetId=measure('spreadsheet_id',()=>ss.getId());
-    const range=measure('active_range',()=>ss.getActiveRange());
-    if(!range){receipt.skipped=true;receipt.reason='no_active_range';return finish();}
+    const activeSheet=measure('active_sheet',()=>ss.getActiveSheet());
+    if(!activeSheet){receipt.skipped=true;receipt.reason='no_active_sheet';return finish();}
+    // A1 is a constructed header Range, not the owner's selected business cell.
+    // Constructing it does not read the cell's value.
+    const range=measure('header_range',()=>activeSheet.getRange(1,1));
     const gridId=measure('range_grid_id',()=>range.getGridId());
     requireValue(typeof spreadsheetId==='string'&&!!spreadsheetId&&Number.isInteger(gridId)&&gridId>=0);
     const readNative=()=>{
@@ -101,6 +112,6 @@ function oaEditReadProfile20261022_(order) {
     receipt.ok=Object.keys(receipt.checks).every(key=>receipt.checks[key]);
     return finish();
   } catch(ignored) {
-    receipt.errorCode='profile_read_or_contract_failed';receipt.failedPhase=phase;return finish();
+    receipt.errorCode='profile_read_or_contract_failed';receipt.failedPhase=phase;receipt.errorCategory=failureCategory||'validation';return finish();
   }
 }
