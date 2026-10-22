@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 
-const source = fs.readFileSync(new URL('./apps-script/releases/20261021/native-main.gs', import.meta.url), 'utf8');
+const source = fs.readFileSync(process.argv[2] || new URL('./apps-script/releases/20261021/native-main.gs', import.meta.url), 'utf8');
 const box = {};
 vm.createContext(box);
 vm.runInContext(source, box);
