@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
 import { LeadDashboardPanel } from "./LeadDashboardPanel";
 import { leadDashboardAvailabilityFixture } from "../../../e2e/fixtures/lead-dashboard-availability";
+import { buildLeadSheetGroups } from "@/lib/marketing/googleSheetsMetricParser";
+import { buildLeadDashboardModel } from "@/lib/marketing/leadDashboardMath";
 
 const meta = {
   title: "Dashboard/Lead authority availability",
@@ -28,3 +30,19 @@ export const PreviousSuccessfulUpdate: Story = {
     },
   },
 };
+
+const medicalBrands = [
+  { id: "medical-brand", name: "Alyssa Medical", slug: "alyssa-medical" },
+  { id: "aesthetics-brand", name: "Aesthetics Medical", slug: "aesthetics" },
+];
+const medicalFilters = { ...leadDashboardAvailabilityFixture(true).filters, accountId: "alyssa-medical" };
+const medicalGroups = buildLeadSheetGroups({
+  headers: ["最後更新日期", "Created At", "跟進狀態", "品牌", "Account", "電話", "療程項目"],
+  rows: medicalBrands.map((brand, i) => ["2026-10-03", "2026-10-02", "已預約", brand.name, "Alyssa Medical", String(10000001+i), "Synthetic treatment"]),
+  brands: medicalBrands, sourceBrandId: null,
+});
+export const MixedMedicalBrands: Story = { args: { snapshot: {
+  ...leadDashboardAvailabilityFixture(true),
+  ...buildLeadDashboardModel({ groups: medicalGroups.groups, brands: medicalBrands, filters: medicalFilters }),
+  filters: medicalFilters, diagnostics: medicalGroups.diagnostics,
+} } };

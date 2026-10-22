@@ -3,6 +3,7 @@ import { loadTypeScript } from "./test-lead-metric-date-contract.mjs";
 
 const parser = loadTypeScript("src/lib/marketing/googleSheetsMetricParser.ts");
 const math = loadTypeScript("src/lib/marketing/leadDashboardMath.ts");
+const accountScope = loadTypeScript("src/lib/marketing/leadAccountScope.ts");
 const brands = [
   { id: "a", name: "Alyssa", slug: "alyssa" },
   { id: "m", name: "Aesthetics Medical", slug: "aesthetics" },
@@ -73,3 +74,26 @@ const legacy = structuredClone(ties);
 delete legacy.bookDimensions;
 assert.deepEqual(parser.projectLeadBookMetricGroups([legacy]), [legacy], "Legacy saved payload stays usable until a successful refresh");
 console.log("PASS: 16 unique Books, 14/2 booking Brand attribution, old Lead/new Book, historical rebooking exclusion, same-day physical-row ties, permission and Account/Treatment filters, facts and trends, legacy scheduling/snapshot compatibility");
+
+const medicalBrands = [...brands, { id: "om", name: "Alyssa Medical", slug: "alyssa-medical" }];
+const medicalInput = { ...input, brands: medicalBrands, rows: [
+  ...Array.from({ length: 2 }, (_, i) => ["2026-10-03", "2026-10-02", "已預約", "Aesthetics Medical", "Alyssa Medical", String(30000001+i), "Medical treatment", "2026-10-12", ""]),
+  ...Array.from({ length: 3 }, (_, i) => ["2026-10-03", "2026-10-02", "已預約", "Alyssa Medical", "Alyssa Medical", String(40000001+i), "Medical treatment", "2026-10-12", ""]),
+  ["2026-10-03", "2026-10-02", "已預約", "Aesthetics Medical", "Alyssa Aesthetics", "30000001", "Medical treatment", "2026-10-12", ""],
+] };
+const medicalGroups = parser.buildLeadSheetGroups(medicalInput).groups;
+const medicalModel = (brandId = "", allowedBrandIds = null) => math.buildLeadDashboardModel({
+  groups: medicalGroups, brands: medicalBrands, allowedBrandIds,
+  filters: { ...filters, accountId: "alyssa-medical", brandId },
+});
+assert.deepEqual([medicalModel().totals.leads, medicalModel().totals.bookings], [5,5]);
+assert.deepEqual([medicalModel("m").totals.leads, medicalModel("m").totals.bookings], [2,2], "Mixed medical Brand survives explicit Account/Brand filters");
+assert.deepEqual([medicalModel("om").totals.leads, medicalModel("om").totals.bookings], [3,3]);
+assert.equal(medicalModel("m", ["m"]).totals.leads, 2);
+assert.equal(medicalModel("m", ["om"]).totals.leads, 0, "Brand permission still denies unassigned data");
+assert.ok(!medicalModel("", ["om"]).brandOptions.some(option => option.value === "m"));
+assert.ok(accountScope.accountsForAllowedBrands(medicalBrands,["m"]).some(account => account.id === "alyssa-medical"));
+assert.ok(!accountScope.accountsForAllowedBrands(medicalBrands,["a"]).some(account => account.id === "alyssa-medical"));
+assert.deepEqual(accountScope.brandIdsForLeadAccount(medicalBrands,"alyssa-medical","spend"),["om"], "Source Brand visibility must not move or double-count advertising Spend");
+assert.equal(accountScope.leadAccountForSpendBrandId(medicalBrands,"m").id,"alyssa-aesthetics");
+console.log("PASS: mixed medical Account/Brand parity, independent repeat-customer Account identity, restricted visibility and unchanged Spend ownership");

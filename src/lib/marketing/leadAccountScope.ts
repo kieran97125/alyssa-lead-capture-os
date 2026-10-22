@@ -30,7 +30,9 @@ export const LEAD_ACCOUNTS: LeadAccountDefinition[] = [
     sheetTab: "Alyssa Medical",
     color: "#7f6070",
     aliases: ["alyssa medical", "alyssa-medical"],
-    permissionBrandSlugs: ["alyssa-medical"],
+    // Source-owned medical Brands can coexist in this Account. Visibility still
+    // intersects the operator's allowed Brand IDs; Spend keeps its own mapping.
+    permissionBrandSlugs: ["alyssa-medical", "aesthetics"],
     spendBrandSlugs: ["alyssa-medical"],
   },
   {

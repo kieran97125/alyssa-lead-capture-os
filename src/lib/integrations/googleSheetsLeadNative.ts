@@ -368,7 +368,6 @@ async function updateDestinationHealth(
   destinationId: string,
   update: {
     status: "connected" | "error";
-    lastSuccessAt?: string;
     lastErrorSummary?: string | null;
   }
 ) {
@@ -378,13 +377,11 @@ async function updateDestinationHealth(
       updated_at: timestamp,
     };
     // Lead delivery is not a metric refresh. Preserve the metric sync cursor,
-    // failure and lease when an unrelated website Lead arrives concurrently.
+    // failure, successful refresh timestamp and lease when an unrelated website
+    // Lead arrives concurrently. Delivery success does not publish report data.
     if (update.status === "error") {
       payload.status = "error";
       payload.last_error_summary = update.lastErrorSummary ?? null;
-    }
-    if (update.lastSuccessAt) {
-      payload.last_success_at = update.lastSuccessAt;
     }
     await createSupabaseAdminClient()
       .from("marketing_data_sources")
@@ -461,10 +458,8 @@ export async function appendLeadViaNativeGoogleSheets(input: {
       headerRow: destinationHeaderRow,
       values,
     });
-    const timestamp = new Date().toISOString();
     await updateDestinationHealth(destination.id, {
       status: "connected",
-      lastSuccessAt: timestamp,
       lastErrorSummary: null,
     });
     return {
