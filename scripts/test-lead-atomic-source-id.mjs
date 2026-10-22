@@ -21,13 +21,16 @@ const code=ts.transpileModule(src.slice(start,end),{compilerOptions:{target:ts.S
 const health=new Function('createSupabaseAdminClient',code+'\nreturn updateDestinationHealth;')(()=>db);
 await health('synthetic-destination',{status:'connected',lastSuccessAt:'2026-10-07T00:00:00Z'});
 assert.equal(updates[0].payload.status,undefined);assert.equal(updates[0].payload.last_sync_at,undefined);assert.equal(updates[0].payload.last_error_summary,undefined);
+assert.equal(updates[0].payload.last_success_at,undefined,'A delivery cannot advertise a newer successful metric refresh, even with a legacy timestamp argument');
 assert.ok(updates[0].filters.some(f=>f[0]==='neq'&&f[1]==='status'&&f[2]==='syncing'));
 await health('synthetic-destination',{status:'error',lastErrorSummary:'Synthetic delivery error'});
 assert.equal(updates[1].payload.status,'error');assert.equal(updates[1].payload.last_sync_at,undefined);assert.ok(updates[1].filters.some(f=>f[0]==='neq'&&f[2]==='syncing'));
+assert.equal(updates[1].payload.last_success_at,undefined,'A failed delivery cannot alter the accepted report timestamp');
 console.log('PASS: atomic source ID in aligned append, legacy layout, missing/duplicate ID guards, metric cursor and active sync lease protected.');
 const http=[];
 const destination={id:'synthetic-source',brand_id:null,display_name:'Synthetic destination',configuration:{dataset:'lead_funnel',spreadsheetId:'synthetic_spreadsheet_identity_123456789',tabName:'lead',sourceProfile:'omni-account-v1'}};
-const writerDb={from(){const q={select(){return q;},eq(){return q;},neq(){return q;},limit(){return Promise.resolve({data:[destination],error:null});},update(){return q;},then(resolve){return Promise.resolve({error:null}).then(resolve);}};return q;}};
+const writerHealth=[];
+const writerDb={from(){const q={select(){return q;},eq(){return q;},neq(){return q;},limit(){return Promise.resolve({data:[destination],error:null});},update(value){writerHealth.push(value);return q;},then(resolve){return Promise.resolve({error:null}).then(resolve);}};return q;}};
 const writerModule={exports:{}};
 new Function('require','module','exports','fetch',ts.transpileModule(src,{compilerOptions:{module:ts.ModuleKind.CommonJS,target:ts.ScriptTarget.ES2022}}).outputText)(name=>{
  if(name==='server-only')return{};
@@ -41,4 +44,7 @@ assert.equal(writeResult.attempted,true);assert.equal(http.length,2);
 const posted=JSON.parse(http[1].options.body).values[0];
 assert.equal(posted[25],'lead_synthetic-source');assert.equal(posted[20],'Alyssa Aesthetics');assert.ok(posted.slice(26).every(v=>v===''));
 assert.ok(decodeURIComponent(http[1].url).includes("'Alyssa Aesthetics'!A1:AE:append"));
+assert.equal(writerHealth.length,1);
+assert.equal(writerHealth[0].last_success_at,undefined,'The actual append path must leave report freshness untouched');
+assert.equal(writerHealth[0].last_sync_at,undefined);
 console.log('PASS: actual native append sends routed business fields and source ID in one HTTP write; no background edit event required.');
