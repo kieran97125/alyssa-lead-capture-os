@@ -41,6 +41,8 @@ import {
 } from "@/lib/security/workspacePermissions";
 
 export const dynamic = "force-dynamic";
+// Two complete 60 s source reads plus validation and atomic publication.
+export const maxDuration = 180;
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value || "";

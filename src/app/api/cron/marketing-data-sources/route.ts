@@ -3,6 +3,7 @@ import { syncAllMarketingGoogleSheets } from "@/lib/integrations/googleSheetsMar
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
+export const maxDuration = 180;
 
 function hasValidCronSecret(request: NextRequest) {
   const configuredSecret = process.env.CRON_SECRET?.trim() || "";

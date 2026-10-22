@@ -19,6 +19,7 @@ import {
 
 const MANAGED_PROFILE = "alyssa_workspace_lead_funnel";
 const MANAGED_READ_TIMEOUT_MS = 15_000;
+const SYNC_MANAGED_READ_TIMEOUT_MS = 60_000;
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
 const MAX_LEAD_ROWS = 50_000;
@@ -157,6 +158,10 @@ async function batchGetValues(input: {
     majorDimension: "ROWS",
     valueRenderOption: "UNFORMATTED_VALUE",
     dateTimeRenderOption: "SERIAL_NUMBER",
+    // Keep every requested cell while avoiding Google's default indented JSON
+    // and unused envelope fields. This is still one complete snapshot read.
+    prettyPrint: "false",
+    fields: "valueRanges(values)",
   });
   input.ranges.forEach((range) => query.append("ranges", range));
   const response = await fetch(
@@ -167,6 +172,10 @@ async function batchGetValues(input: {
       headers: {
         Authorization: `Bearer ${input.accessToken}`,
         Accept: "application/json",
+        // Google's gzip contract requires both headers. Node fetch transparently
+        // decompresses the response before json(), within the same deadline.
+        "Accept-Encoding": "gzip",
+        "User-Agent": "alyssa-lead-capture-os (gzip)",
       },
       cache: "no-store",
       signal: input.signal,
@@ -327,16 +336,16 @@ export async function normalizeMetaLeadRowsInLiveTable(input: {
   };
 }
 
-async function boundedManagedRead<T>(read: (signal: AbortSignal) => Promise<T>, parent?: AbortSignal): Promise<T> {
+async function boundedManagedRead<T>(read: (signal: AbortSignal) => Promise<T>, parent?: AbortSignal, timeoutMs = MANAGED_READ_TIMEOUT_MS): Promise<T> {
   const controller = new AbortController();
   const signal = parent ? AbortSignal.any([parent, controller.signal]) : controller.signal;
   let timer: ReturnType<typeof setTimeout> | undefined;
   let aborted: (() => void) | undefined;
   try {
     const deadline = new Promise<never>((_, reject) => {
-      aborted = () => reject(arrivalOutcomeAuthorityError("managed_read_timeout", { timeoutMs: MANAGED_READ_TIMEOUT_MS }));
+      aborted = () => reject(arrivalOutcomeAuthorityError("managed_read_timeout", { timeoutMs }));
       signal.addEventListener("abort", aborted, { once: true });
-      timer = setTimeout(() => controller.abort(), MANAGED_READ_TIMEOUT_MS);
+      timer = setTimeout(() => controller.abort(), timeoutMs);
       if (signal.aborted) aborted();
     });
     signal.throwIfAborted();
@@ -394,7 +403,11 @@ export async function readLiveLeadTable(
     // Covers both fetch and JSON body, even if a provider ignores abort.
     let response: Awaited<ReturnType<typeof batchGetValues>>;
     try {
-      response = managed ? await boundedManagedRead(read, signal) : await read(signal);
+      // Manual and scheduled syncs must finish a full, growing Sheet instead of racing
+      // a report-widget budget. Read-only dashboard calls retain their outer
+      // 12 s deadline; report helpers retain boundedManagedRead's 15 s default.
+      response = managed ? await boundedManagedRead(read, signal,
+        options.readOnly ? MANAGED_READ_TIMEOUT_MS : SYNC_MANAGED_READ_TIMEOUT_MS) : await read(signal);
     } catch (error) {
       if (managed && !signal?.aborted && (error instanceof TypeError || error instanceof SyntaxError)) {
         throw arrivalOutcomeAuthorityError("provider_transient");

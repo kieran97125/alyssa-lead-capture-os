@@ -1,6 +1,6 @@
 import "server-only";
 import { arrivalOutcomeAuthorityError } from "@/lib/marketing/leadArrivalOutcomeAuthority";
-import { leadSheetFailureDiagnostic, readValidatedLeadSnapshot, type LeadSheetReadAttempt } from "@/lib/marketing/leadSheetSyncDiagnostics";
+import { leadSheetFailureDiagnostic, readValidatedLeadSnapshot, type LeadSheetReadAttempt, type LeadSheetSyncReason } from "@/lib/marketing/leadSheetSyncDiagnostics";
 
 import { createHash, randomUUID } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
@@ -102,6 +102,7 @@ export type MarketingSyncResult = {
   auditStatus?: string | null;
   auditOpenAlerts?: number;
   message: string;
+  failureReason?: LeadSheetSyncReason | "unclassified" | "sync_busy" | "sync_claim_failed" | "paused";
 };
 
 class LeadAuditQuarantineError extends Error {
@@ -595,6 +596,7 @@ export async function syncMarketingDataSource(
       metricRows: 0,
       analysisRows: 0,
       message: "未能鎖定同步工作，請稍後再試。",
+      failureReason: "sync_claim_failed",
     };
   }
   if (!claimedSource) {
@@ -609,6 +611,7 @@ export async function syncMarketingDataSource(
         source.status === "paused"
           ? "資料來源已暫停。"
           : "另一輪同步正在進行中，請稍後再試。",
+      failureReason: source.status === "paused" ? "paused" : "sync_busy",
     };
   }
 
@@ -779,6 +782,7 @@ export async function syncMarketingDataSource(
       auditStatus: audit?.status ?? null,
       auditOpenAlerts: audit?.openAlerts ?? 0,
       message,
+      failureReason: diagnostic.reason,
     };
   }
 }

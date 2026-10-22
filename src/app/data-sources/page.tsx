@@ -33,6 +33,7 @@ import { canonicalGoogleSpreadsheetUrl } from "@/lib/marketing/monthlyReportingW
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
 const providerLabels: Record<string, string> = {
   launchhub: "建立 Wix Form",

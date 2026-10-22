@@ -41,6 +41,7 @@ import { getHkMonthContext } from "@/lib/marketing/pacing";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
 type SearchParams = {
   startDate?: string | string[];

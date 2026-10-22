@@ -21,6 +21,7 @@ import {
 import {
   syncAllMarketingGoogleSheets,
   syncMarketingDataSource,
+  type MarketingSyncResult,
 } from "@/lib/integrations/googleSheetsMarketingSync";
 import { MASTER_ACCOUNT_EMAIL } from "@/lib/marketing/commandCenter";
 import { refreshInstalledMarketingSpendProjections } from "@/lib/integrations/googleSheetsSpendProjection";
@@ -650,6 +651,20 @@ export async function deleteDataSourceAction(formData: FormData) {
   });
 }
 
+function refreshFailureDescription(result: Pick<MarketingSyncResult, "sourceName" | "failureReason">) {
+  // Only fixed, classified descriptions reach the shared banner. Provider
+  // exceptions and customer-containing cell values are never rendered here.
+  const descriptions: Partial<Record<NonNullable<MarketingSyncResult["failureReason"]>, string>> = {
+    managed_read_timeout: "Google Sheet 回應逾時，未發布新數據。",
+    provider_transient: "Google Sheet 暫時未能回應，未發布新數據。",
+    bridge_registration_pending: "預約身份登記未完成，未發布新數據。",
+    sync_busy: "另一輪更新進行中，今次未另開同步。",
+    sync_claim_failed: "暫時未能啟動更新，未發布新數據。",
+    paused: "資料來源已暫停。",
+  };
+  return `${result.sourceName}：${descriptions[result.failureReason ?? "unclassified"] ?? "今次更新未能確認完成，請檢查資料來源記錄。"}`;
+}
+
 export async function refreshDashboardDataAction(formData: FormData) {
   const returnPath = safeReturnPath(
     readString(formData, "returnPath"),
@@ -720,8 +735,8 @@ export async function refreshDashboardDataAction(formData: FormData) {
       failed.length === 0
         ? `CS Lead 已同步：${results.length}/${results.length} 個來源成功，共更新 ${metricRows} 個每日指標及 ${analysisRows} 個療程成效組合。${revenueSpendReady ? "" : "mkt_dashboard 廣告費暫未更新，請稍後重試。"}`
         : `已更新 ${results.length - failed.length}/${results.length} 個來源；${failed
-            .map((result) => result.sourceName)
-            .join("、")} 需要再檢查。`,
+            .map(refreshFailureDescription)
+            .join(" ")}`,
   });
 }
 

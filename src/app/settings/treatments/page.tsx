@@ -15,6 +15,7 @@ import {
 } from "@/lib/data/configuration";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
 function firstParam(value: string | string[] | undefined) {
   return Array.isArray(value) ? value[0] : value || "";

@@ -131,10 +131,10 @@ try {
   // Legacy callers retain their original two-range contract.
   await table.readLiveLeadTable({ ...config, sourceProfile: "legacy" });
   assert.equal(calls.at(-1).url.searchParams.getAll("ranges").length, 2);
-  globalThis.setTimeout = (callback, ms, ...args) => originalTimeout(callback, ms === 15000 ? 1 : ms, ...args);
+  globalThis.setTimeout = (callback, ms, ...args) => originalTimeout(callback, ms === 60000 ? 1 : ms, ...args);
   for (const mode of ["stalled-fetch", "stalled-body"]) {
     providerMode = mode;
-    await assert.rejects(table.readLiveLeadTable(config), (error) => error.reason === "managed_read_timeout" && error.counts.timeoutMs === 15000);
+    await assert.rejects(table.readLiveLeadTable(config), (error) => error.reason === "managed_read_timeout" && error.counts.timeoutMs === 60000);
     assert.equal(calls.at(-1).init.signal.aborted, true);
   }
 } finally { globalThis.fetch = originalFetch; globalThis.setTimeout = originalTimeout; }
