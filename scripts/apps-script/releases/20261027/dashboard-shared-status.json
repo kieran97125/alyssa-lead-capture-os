@@ -43,5 +43,13 @@
   "rollback": [
     "Restore both recorded before formulas in one native batch before removing the new shared projection tab.",
     "Do not modify operational source rows, appointment registry records, staff ownership, permissions or triggers."
-  ]
+  ],
+  "followUpVerification": {
+    "checkedOn": "2026-10-27",
+    "browser": "Connected-browser tool remains unavailable because the originating browser context is not available; user reports signed in. No application refresh was triggered by this agent.",
+    "applicationPublication": "Read-only production source and audit records show the last success at 2026-10-27 13:41 HKT and last failed attempt completed at 16:24 HKT; no newer refresh recorded at inspection.",
+    "nativeReadback": "A first native read returned J16 #N/A and cancellation rows pending verification; a subsequent read returned canceled 1, reschedule 0, undated status 1. This is intermittent and does not prove sustained stability.",
+    "bridgeReadback": "All 8519 returned bridge rows were eligible; zero exact-master mismatches, zero missing eligible source IDs, zero nonunique eligible IDs.",
+    "remaining": "Trigger the ordinary application refresh in the signed-in UI, then verify the new audit completion, source success timestamp and persisted metrics. Do not mark the timeout resolved based on native workbook recovery alone."
+  }
 }
