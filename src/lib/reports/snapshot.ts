@@ -740,6 +740,16 @@ export async function buildReportSnapshot(
   // Validated facts may retain source warnings without becoming unavailable.
   const sourceAvailable = Boolean(source && (source.status === "connected" ||
     source.status === "warning" && source.lastSuccessAt));
+  // Never publish a deck with stale totals while all brand groups are hidden.
+  // A failed source cannot prove the most recent facts are complete. Require a
+  // successful sync rather than silently producing an unusable report.
+  if (hasSupabaseAdminEnv() && !sourceAvailable) {
+    throw new ReportExportError(
+      "Lead Sheet 正在同步或未有可核實嘅同步資料；請先完成同步後再生成報告。",
+      503,
+      "report_lead_source_unavailable"
+    );
+  }
   let treatmentGrouping: ReportSnapshot["treatmentGrouping"];
   let classifyTreatment: ReportTreatmentClassifier | undefined;
   let arrivalRevenue: ReportSnapshot["arrivalRevenue"];

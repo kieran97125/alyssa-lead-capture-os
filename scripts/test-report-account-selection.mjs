@@ -37,7 +37,7 @@ const mocks = {
         select() { return query; }, eq() { return query; }, order() { return query; }, limit() { return query; },
         in(_column, values) { ids = values; if (table === "marketing_treatment_performance_daily") metricQueries.push(values); return query; },
         gte(_column, value) { start = value; return query; }, lte(_column, value) { end = value; return query; },
-        maybeSingle: async () => ({ data: { id: "synthetic-source", status: production.status ?? "connected", last_success_at: production.lastSuccessAt ?? null, display_name: "Synthetic Sheet", configuration: { sourceProfile: "alyssa_workspace_lead_funnel", spreadsheetId: "synthetic_workbook_12345678" } }, error: null }),
+        maybeSingle: async () => ({ data: production.missing ? null : { id: "synthetic-source", status: production.status ?? "connected", last_success_at: production.lastSuccessAt ?? null, display_name: "Synthetic Sheet", configuration: { sourceProfile: "alyssa_workspace_lead_funnel", spreadsheetId: "synthetic_workbook_12345678" } }, error: null }),
         insert: async () => { snapshotWrites += 1; return { error: null }; },
         range: async () => ({ data: (table === "marketing_treatment_performance_daily" ? production.metrics : production.spends)
           .filter(row => ids.includes(row.brand_id) && (row.metric_date ?? row.spend_date) >= start && (row.metric_date ?? row.spend_date) <= end), error: null }),
@@ -137,11 +137,39 @@ assert.equal(validatedWarning.series.groupRows[0].available, true, "Validated so
 assert.equal(validatedWarning.current.totals.leads, 9);
 assert.ok(!validatedWarning.dataQuality.warnings.some(message => message.includes("尚未完成成功同步")));
 production.lastSuccessAt = null;
-const unverifiedWarning = await build(normalize({ accountIds: ["alyssa-main"], comparison: false }));
-assert.equal(unverifiedWarning.series.groupRows[0].available, false, "Warning state without a successful refresh is unverified");
+const beforeUnavailable = snapshotWrites;
+await assert.rejects(build(normalize({ accountIds: ["alyssa-main"], comparison: false })), error => error.code === "report_lead_source_unavailable" && error.status === 503, "Warning without a validated sync must not generate a partial report");
 production.status = "error"; production.lastSuccessAt = "2026-10-01T04:00:00Z";
-const failedSource = await build(normalize({ accountIds: ["alyssa-main"], comparison: false }));
-assert.equal(failedSource.series.groupRows[0].available, false, "An old success never marks a failed current refresh as healthy");
+for (const format of ["pptx", "google_slides", "pdf", "txt"]) {
+  await assert.rejects(build(normalize({ accountIds: ["alyssa-main"], comparison: false, format })), error => error.code === "report_lead_source_unavailable" && error.status === 503 && error.message.includes("先完成同步"), `Old success does not mask a failed refresh for ${format}`);
+}
+for (const status of ["draft", "disabled"]) {
+  production.status = status;
+  await assert.rejects(build(normalize({ accountIds: ["alyssa-main"], comparison: false })), error => error.code === "report_lead_source_unavailable" && error.status === 503, `${status} source cannot generate an incomplete report`);
+}
+production.missing = true;
+await assert.rejects(build(normalize({ accountIds: ["alyssa-main"], comparison: false })), error => error.code === "report_lead_source_unavailable" && error.status === 503, "Missing source cannot generate an incomplete report");
+assert.equal(snapshotWrites, beforeUnavailable, "No invalid snapshot is saved");
+// Exercise the real export endpoint with the same synthetic source. All formats
+// share the snapshot builder, and none may report success or start rendering
+// when the source is unavailable.
+production.missing = false;
+production.status = "error";
+mocks["@/lib/reports/snapshot"] = load("src/lib/reports/snapshot.ts");
+mocks["@/lib/security/internalAccessServer"].requireModuleAccess = async () => ({ allowed: true });
+mocks["next/server"] = { NextResponse: { json: (body, init) => Response.json(body, init) } };
+const { POST } = load("src/app/api/internal/reports/export/route.ts");
+for (const format of ["pptx", "google_slides", "pdf", "txt"]) {
+  const response = await POST(new Request("https://example.invalid/api/internal/reports/export", {
+    method: "POST", headers: { "content-type": "application/json" },
+    body: JSON.stringify({ format, accountIds: ["alyssa-main"], comparison: false }),
+  }));
+  assert.equal(response.status, 503, `${format} endpoint rejects an unavailable source`);
+  const body = await response.json();
+  assert.equal(body.code, "report_lead_source_unavailable");
+  assert.match(body.message, /先完成同步/);
+}
+assert.equal(snapshotWrites, beforeUnavailable, "Failed exports never persist snapshots in any format");
 production = null;
 console.log("PASS: Account-only report selection includes every authorized Account Brand, ignores stale Brand filters, reconciles totals, rejects invalid/unauthorized Accounts and isolates KOL Spend");
 
