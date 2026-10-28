@@ -8,14 +8,15 @@ import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-export const maxDuration = 60;
+// Keep the complete source read and presentation delivery inside one bounded request.
+export const maxDuration = 180;
 
 function reportFilename(startDate: string, endDate: string, extension: string) {
   return `growth-report-${startDate}-${endDate}.${extension}`;
 }
 
 export async function POST(request: Request) {
-  const exportSignal = AbortSignal.any([request.signal, AbortSignal.timeout(55_000)]);
+  const exportSignal = AbortSignal.any([request.signal, AbortSignal.timeout(170_000)]);
   try {
     const access = await requireModuleAccess("performance");
     if (!access.allowed) {
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     }
     const input = await request.json().catch(() => null);
     const normalized = normalizeReportExportRequest(input);
-    const snapshot = await buildReportSnapshot(normalized);
+    const snapshot = await buildReportSnapshot(normalized, { signal: exportSignal });
 
     if (normalized.format === "google_slides") {
       const { exportReportToGoogleSlides } = await import("@/lib/reports/googleSlides");
@@ -87,3 +88,4 @@ export async function POST(request: Request) {
     );
   }
 }
+

@@ -12,12 +12,20 @@ const brands = [
 let production = null;
 let revenueRows = [], revenueFailure = false;
 let categoryFailure = false;
+let reportReadOptions, snapshotWrites = 0;
 const categoryRows = [["Alyssa Main", "Sheet treatment", "Synthetic category"], ["Alyssa Main", "Synthetic treatment", "Synthetic category"]];
 const metricQueries = [];
 const mocks = {
   "@/lib/integrations/googleSheetsLeadTable": {
-    readLiveReportTreatmentTable: async configuration => { assert.equal(configuration.spreadsheetId,'synthetic_workbook_12345678');if(categoryFailure)throw Error('Synthetic category failure');return { headers:["Account","Original Treatment","Dashboard 技術分類"], rows:categoryRows, readAt:"2026-10-07T04:00:00Z" }; },
-    readLiveArrivalRevenueTable: async configuration => { assert.equal(configuration.spreadsheetId,'synthetic_workbook_12345678');if(revenueFailure)throw Error('Synthetic read failure');return { headers: ["品牌", "結果", "到店日期", "Account", "療程", "Appointment ID", "試做價", "開單金額", "總金額"], rows: revenueRows, readAt: "2026-10-07T04:00:00Z" }; }
+    readLiveReportTables: async (configuration, options) => {
+      reportReadOptions = options;
+      assert.equal(configuration.spreadsheetId,'synthetic_workbook_12345678');
+      if(revenueFailure)throw Error('Synthetic read failure');
+      return {
+        treatmentCategories: { headers:["Account","Original Treatment","Dashboard 技術分類"], rows:categoryFailure?[]:categoryRows, readAt:"2026-10-07T04:00:00Z" },
+        arrivalRevenue: { headers: ["品牌", "結果", "到店日期", "Account", "療程", "Appointment ID", "試做價", "開單金額", "總金額"], rows: revenueRows, readAt: "2026-10-07T04:00:00Z" }
+      };
+    }
   },
   "server-only": {},
   "@/lib/data/configuration": { getConfiguredBrands: async () => brands },
@@ -30,7 +38,7 @@ const mocks = {
         in(_column, values) { ids = values; if (table === "marketing_treatment_performance_daily") metricQueries.push(values); return query; },
         gte(_column, value) { start = value; return query; }, lte(_column, value) { end = value; return query; },
         maybeSingle: async () => ({ data: { id: "synthetic-source", status: production.status ?? "connected", last_success_at: production.lastSuccessAt ?? null, display_name: "Synthetic Sheet", configuration: { sourceProfile: "alyssa_workspace_lead_funnel", spreadsheetId: "synthetic_workbook_12345678" } }, error: null }),
-        insert: async () => ({ error: null }),
+        insert: async () => { snapshotWrites += 1; return { error: null }; },
         range: async () => ({ data: (table === "marketing_treatment_performance_daily" ? production.metrics : production.spends)
           .filter(row => ids.includes(row.brand_id) && (row.metric_date ?? row.spend_date) >= start && (row.metric_date ?? row.spend_date) <= end), error: null }),
       };
@@ -112,8 +120,17 @@ revenueRows=[['Alyssa','已到店','2026-10-02','Alyssa Main','Synthetic treatme
 const mainRevenue=await build(normalize({accountIds:['alyssa-main'],comparison:false}));
 assert.equal(mainRevenue.arrivalRevenue.treatmentRows[0].label,'Synthetic category','Revenue and funnel breakdowns share the native category');
 assert.deepEqual(mainRevenue.arrivalRevenue.accountRows.map(r=>r.accountId),['alyssa-main']);assert.equal(mainRevenue.arrivalRevenue.totals.totalRevenue,1000);assert.equal(mainRevenue.arrivalRevenue.totals.closeRate,1);assert.notEqual(mainRevenue.snapshotSha256,mixedMain.snapshotSha256);assert.equal(mainRevenue.current.totals.leads,mixedMain.current.totals.leads,'Financial data never changes Lead/Book/Show metrics');
-revenueFailure=true;await assert.rejects(build(normalize({accountIds:['alyssa-main']})),error=>error.code==='arrival_revenue_unavailable'&&error.status===503);revenueFailure=false;revenueRows=[];
+const beforeFailures = snapshotWrites;
+revenueFailure=true;await assert.rejects(build(normalize({accountIds:['alyssa-main']})),error=>error.code==='report_sources_unavailable'&&error.status===503);revenueFailure=false;revenueRows=[];
 categoryFailure=true;await assert.rejects(build(normalize({accountIds:['alyssa-main']})),error=>error.code==='treatment_categories_unavailable'&&error.status===503);categoryFailure=false;
+assert.equal(snapshotWrites, beforeFailures, 'Unverified report sources never publish a partial snapshot');
+const controller = new AbortController();
+await build(normalize({accountIds:['alyssa-main'],comparison:false}), {signal:controller.signal});
+assert.equal(reportReadOptions.signal,controller.signal,'The export deadline reaches the shared provider read');
+const beforeAbort = snapshotWrites;
+controller.abort();
+await assert.rejects(build(normalize({accountIds:['alyssa-main']}), {signal:controller.signal}), error=>error.name==='AbortError');
+assert.equal(snapshotWrites,beforeAbort,'A cancelled export never persists a new snapshot');
 production.status = "warning"; production.lastSuccessAt = "2026-10-07T04:00:00Z";
 const validatedWarning = await build(normalize({ accountIds: ["alyssa-main"], comparison: false }));
 assert.equal(validatedWarning.series.groupRows[0].available, true, "Validated source facts remain visible despite row-quality warnings");
@@ -127,3 +144,4 @@ const failedSource = await build(normalize({ accountIds: ["alyssa-main"], compar
 assert.equal(failedSource.series.groupRows[0].available, false, "An old success never marks a failed current refresh as healthy");
 production = null;
 console.log("PASS: Account-only report selection includes every authorized Account Brand, ignores stale Brand filters, reconciles totals, rejects invalid/unauthorized Accounts and isolates KOL Spend");
+

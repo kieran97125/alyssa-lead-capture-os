@@ -20,6 +20,7 @@ import {
 const MANAGED_PROFILE = "alyssa_workspace_lead_funnel";
 const MANAGED_READ_TIMEOUT_MS = 15_000;
 const SYNC_MANAGED_READ_TIMEOUT_MS = 60_000;
+const REPORT_READ_TIMEOUT_MS = 60_000;
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
 const MAX_LEAD_ROWS = 50_000;
@@ -107,45 +108,75 @@ function quoteSheetName(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
+type ReportReadOptions = { signal?: AbortSignal };
+type ReportColumnSource = { title: string; headerRow: number; headers: readonly string[] };
+type LiveReportColumnTable = { headers: unknown[]; rows: unknown[][]; readAt: string };
+const ARRIVAL_REPORT_COLUMNS: ReportColumnSource = { title: "到店紀錄", headerRow: 7, headers: ARRIVAL_REVENUE_HEADERS };
+const TREATMENT_REPORT_COLUMNS: ReportColumnSource = { title: "_dashboard_treatment_map", headerRow: 1, headers: REPORT_TREATMENT_HEADERS };
+
 /** Read financial fields only. Customer names, phones and CS cells are excluded. */
-export async function readLiveArrivalRevenueTable(configuration: LeadTableSourceConfiguration): Promise<ArrivalRevenueTable> {
-  return readManagedReportColumns(configuration, { title: "到店紀錄", headerRow: 7, headers: ARRIVAL_REVENUE_HEADERS });
+export async function readLiveArrivalRevenueTable(configuration: LeadTableSourceConfiguration, options: ReportReadOptions = {}): Promise<ArrivalRevenueTable> {
+  return (await readManagedReportColumns(configuration, [ARRIVAL_REPORT_COLUMNS], options))[0];
 }
 
 /** Read the same evaluated classification projection used by Treatment Performance. */
-export async function readLiveReportTreatmentTable(configuration: LeadTableSourceConfiguration): Promise<ReportTreatmentTable> {
-  return readManagedReportColumns(configuration, { title: "_dashboard_treatment_map", headerRow: 1, headers: REPORT_TREATMENT_HEADERS });
+export async function readLiveReportTreatmentTable(configuration: LeadTableSourceConfiguration, options: ReportReadOptions = {}): Promise<ReportTreatmentTable> {
+  return (await readManagedReportColumns(configuration, [TREATMENT_REPORT_COLUMNS], options))[0];
 }
 
-type LiveReportColumnTable = { headers: unknown[]; rows: unknown[][]; readAt: string };
-async function readManagedReportColumns(configuration: LeadTableSourceConfiguration, source: { title: string; headerRow: number; headers: readonly string[] }): Promise<LiveReportColumnTable> {
+/** One evaluated values snapshot for both report sources, with one shared deadline. */
+export async function readLiveReportTables(configuration: LeadTableSourceConfiguration, options: ReportReadOptions = {}): Promise<{ arrivalRevenue: ArrivalRevenueTable; treatmentCategories: ReportTreatmentTable }> {
+  const [arrivalRevenue, treatmentCategories] = await readManagedReportColumns(configuration, [ARRIVAL_REPORT_COLUMNS, TREATMENT_REPORT_COLUMNS], options);
+  return { arrivalRevenue, treatmentCategories };
+}
+
+async function readManagedReportColumns(configuration: LeadTableSourceConfiguration, sources: readonly ReportColumnSource[], options: ReportReadOptions): Promise<LiveReportColumnTable[]> {
   if (configuration.sourceProfile !== MANAGED_PROFILE) throw new Error("報告資料只支援已核實嘅 Lead Sheet 來源。");
-  const id = spreadsheetId(configuration), accessToken = await getGoogleSheetsOAuthAccessToken();
+  const id = spreadsheetId(configuration);
   const column = (value: number) => { let result = ""; for (let n = value; n > 0; n = Math.floor((n - 1) / 26)) result = String.fromCharCode(65 + (n - 1) % 26) + result; return result; };
   return boundedManagedRead(async signal => {
+    const accessToken = await getGoogleSheetsOAuthAccessToken({ signal, recordHealth: false });
+    signal.throwIfAborted();
     const fields = "sheets(properties(title,gridProperties(rowCount,columnCount)))";
     const response = await fetch(`${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(id)}?${new URLSearchParams({ fields })}`, {
       headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" }, cache: "no-store", signal,
     });
     if (!response.ok) throw new Error("未能讀取報告來源工作表。");
     const metadata = await response.json() as { sheets?: Array<{ properties?: { title?: string; gridProperties?: { rowCount?: number; columnCount?: number } } }> };
-    const matches = metadata.sheets?.filter(s => s.properties?.title === source.title) ?? [];
-    const grid = matches[0]?.properties?.gridProperties;
-    if (matches.length !== 1 || !grid?.rowCount || !grid.columnCount || grid.rowCount <= source.headerRow || grid.rowCount > MAX_LEAD_ROWS || grid.columnCount > 200) throw new Error("報告來源工作表範圍無效。");
-    const headerRange = `${quoteSheetName(source.title)}!A${source.headerRow}:${column(grid.columnCount)}${source.headerRow}`;
-    const headerRead = await batchGetValues({ accessToken, spreadsheetId: id, ranges: [headerRange], signal });
-    const headers = headerRead.valueRanges?.[0]?.values?.[0] ?? [];
-    const indices = source.headers.map(header => {
-      if (headers.filter(v => v === header).length !== 1) throw new Error("報告來源欄位缺少或重複。");
-      return headers.indexOf(header);
+    const plans = sources.map(source => {
+      const matches = metadata.sheets?.filter(s => s.properties?.title === source.title) ?? [];
+      const grid = matches[0]?.properties?.gridProperties;
+      if (matches.length !== 1 || !grid?.rowCount || !grid.columnCount || grid.rowCount <= source.headerRow || grid.rowCount > MAX_LEAD_ROWS || grid.columnCount > 200) throw new Error("報告來源工作表範圍無效。");
+      return { source, rowCount: grid.rowCount, headerRange: `${quoteSheetName(source.title)}!A${source.headerRow}:${column(grid.columnCount)}${source.headerRow}` };
     });
-    const ranges = indices.map(index => `${quoteSheetName(source.title)}!${column(index + 1)}${source.headerRow + 1}:${column(index + 1)}${grid.rowCount}`);
-    const data = await batchGetValues({ accessToken, spreadsheetId: id, ranges: [...ranges, headerRange], signal });
-    if (data.valueRanges?.length !== ranges.length + 1 || JSON.stringify(data.valueRanges.at(-1)?.values?.[0] ?? []) !== JSON.stringify(headers)) throw new Error("報告來源欄位讀取期間有變，請重新生成。");
-    const height = Math.max(0, ...data.valueRanges.slice(0, -1).map(range => range.values?.length ?? 0));
-    const rows = Array.from({ length: height }, (_, i) => indices.map((_, j) => data.valueRanges![j].values?.[i]?.[0] ?? ""));
-    return { headers: [...source.headers], rows, readAt: new Date().toISOString() };
-  });
+    const headerRanges = plans.map(plan => plan.headerRange);
+    const headerRead = await batchGetValues({ accessToken, spreadsheetId: id, ranges: headerRanges, signal });
+    if (headerRead.valueRanges?.length !== plans.length) throw new Error("報告來源欄位讀取不完整。");
+    let offset = 0;
+    const resolved = plans.map((plan, i) => {
+      const headers = headerRead.valueRanges![i].values?.[0];
+      if (!Array.isArray(headers)) throw new Error("報告來源欄位讀取不完整。");
+      const indices = plan.source.headers.map(header => {
+        if (headers.filter(v => v === header).length !== 1) throw new Error("報告來源欄位缺少或重複。");
+        return headers.indexOf(header);
+      });
+      const ranges = indices.map(index => `${quoteSheetName(plan.source.title)}!${column(index + 1)}${plan.source.headerRow + 1}:${column(index + 1)}${plan.rowCount}`);
+      const start = offset;
+      offset += ranges.length;
+      return { ...plan, headers, ranges, start };
+    });
+    const ranges = resolved.flatMap(plan => plan.ranges);
+    const data = await batchGetValues({ accessToken, spreadsheetId: id, ranges: [...ranges, ...headerRanges], signal });
+    if (data.valueRanges?.length !== ranges.length + plans.length || data.valueRanges.some(range => range.values !== undefined && (!Array.isArray(range.values) || !range.values.every(Array.isArray)))) throw new Error("報告來源資料讀取不完整。");
+    const readAt = new Date().toISOString();
+    return resolved.map((plan, i) => {
+      if (JSON.stringify(data.valueRanges![ranges.length + i].values?.[0] ?? []) !== JSON.stringify(plan.headers)) throw new Error("報告來源欄位讀取期間有變，請重新生成。");
+      const columns = data.valueRanges!.slice(plan.start, plan.start + plan.ranges.length);
+      const height = Math.max(0, ...columns.map(range => range.values?.length ?? 0));
+      const rows = Array.from({ length: height }, (_, row) => columns.map(range => range.values?.[row]?.[0] ?? ""));
+      return { headers: [...plan.source.headers], rows, readAt };
+    });
+  }, options.signal, REPORT_READ_TIMEOUT_MS);
 }
 
 async function batchGetValues(input: {
@@ -405,7 +436,7 @@ export async function readLiveLeadTable(
     try {
       // Manual and scheduled syncs must finish a full, growing Sheet instead of racing
       // a report-widget budget. Read-only dashboard calls retain their outer
-      // 12 s deadline; report helpers retain boundedManagedRead's 15 s default.
+      // 12 s deadline; explicit report sources use their own shared 60 s budget.
       response = managed ? await boundedManagedRead(read, signal,
         options.readOnly ? MANAGED_READ_TIMEOUT_MS : SYNC_MANAGED_READ_TIMEOUT_MS) : await read(signal);
     } catch (error) {
@@ -490,3 +521,4 @@ export async function readLeadFunnelEventLedger(
     rows: values.slice(1),
   };
 }
+

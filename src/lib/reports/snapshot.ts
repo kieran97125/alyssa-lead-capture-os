@@ -49,7 +49,8 @@ import {
 } from "@/lib/reports/metrics";
 import { buildReportSeries, type SeriesMetricFact } from "@/lib/reports/seriesData";
 import { accountsForAllowedBrands, brandIdsForLeadAccount, leadAccountById } from "@/lib/marketing/leadAccountScope";
-import { readLiveArrivalRevenueTable, readLiveReportTreatmentTable, type LeadTableSourceConfiguration } from "@/lib/integrations/googleSheetsLeadTable";
+import { readLiveReportTables, type LeadTableSourceConfiguration } from "@/lib/integrations/googleSheetsLeadTable";
+import { leadSheetFailureDiagnostic } from "@/lib/marketing/leadSheetSyncDiagnostics";
 import { buildArrivalRevenue } from "@/lib/reports/arrivalRevenue";
 import { buildReportTreatmentClassifier, type ReportTreatmentClassifier } from "@/lib/reports/treatmentCategories";
 
@@ -689,8 +690,10 @@ async function persistSnapshot(snapshot: ReportSnapshot, format: ReportOutputFor
 }
 
 export async function buildReportSnapshot(
-  request: ReportExportRequest
+  request: ReportExportRequest,
+  options: { signal?: AbortSignal } = {}
 ): Promise<ReportSnapshot> {
+  options.signal?.throwIfAborted();
   const [availableBrands, access] = await Promise.all([
     getConfiguredBrands(),
     getCurrentInternalAccess(),
@@ -742,29 +745,22 @@ export async function buildReportSnapshot(
   let arrivalRevenue: ReportSnapshot["arrivalRevenue"];
   if (hasSupabaseAdminEnv() && sourceAvailable) {
     const configuration = source!.configuration;
-    const [categories, arrivalTable] = await Promise.all([
-      (async () => {
-        try {
-          if (!configuration) throw new Error("Missing classification source configuration");
-          const table = await readLiveReportTreatmentTable(configuration);
-          return { table, classify: buildReportTreatmentClassifier(table) };
-        } catch {
-          throw new ReportExportError("未能核實療程分類，請稍後重新生成。", 503, "treatment_categories_unavailable");
-        }
-      })(),
-      (async () => {
-        try {
-          if (!configuration) throw new Error("Missing arrival source configuration");
-          return await readLiveArrivalRevenueTable(configuration);
-        } catch {
-          throw new ReportExportError("未能核實到店收益資料，請稍後重新生成。", 503, "arrival_revenue_unavailable");
-        }
-      })(),
-    ]);
-    classifyTreatment = categories.classify;
-    treatmentGrouping = { version: "lead-sheet-treatment-categories-v1", readAt: categories.table.readAt };
+    let tables: Awaited<ReturnType<typeof readLiveReportTables>>;
     try {
-      arrivalRevenue = buildArrivalRevenue({ table: arrivalTable, brands: brandScoped, brandAliases: configuration!.brandAliases,
+      if (!configuration) throw new Error("Missing report source configuration");
+      tables = await readLiveReportTables(configuration, { signal: options.signal });
+    } catch (error) {
+      console.warn("report_source_read_failed", leadSheetFailureDiagnostic(error));
+      throw new ReportExportError("未能核實療程分類及到店收益資料，請稍後重新生成。", 503, "report_sources_unavailable");
+    }
+    try {
+      classifyTreatment = buildReportTreatmentClassifier(tables.treatmentCategories);
+      treatmentGrouping = { version: "lead-sheet-treatment-categories-v1", readAt: tables.treatmentCategories.readAt };
+    } catch {
+      throw new ReportExportError("未能核實療程分類，請稍後重新生成。", 503, "treatment_categories_unavailable");
+    }
+    try {
+      arrivalRevenue = buildArrivalRevenue({ table: tables.arrivalRevenue, brands: brandScoped, brandAliases: configuration!.brandAliases,
         accountIds, startDate: request.startDate, endDate: request.endDate, spendFacts: currentSpends, classifyTreatment });
     } catch {
       throw new ReportExportError("未能核實到店收益資料，請稍後重新生成。", 503, "arrival_revenue_unavailable");
@@ -892,6 +888,8 @@ export async function buildReportSnapshot(
   snapshotBase.snapshotSha256 = createHash("sha256")
     .update(JSON.stringify({ ...snapshotBase, snapshotSha256: "" }))
     .digest("hex");
+  options.signal?.throwIfAborted();
   await persistSnapshot(snapshotBase, request.format);
   return snapshotBase;
 }
+
