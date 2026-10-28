@@ -120,11 +120,11 @@ try {
 
   reset("fetch-stall");
   const report = observed(table.readLiveReportTreatmentTable(config)); await flush();
-  await advance(14_999); assert.equal(report.state, "pending");
+  await advance(59_999); assert.equal(report.state, "pending");
   await advance(1); await report.done;
   assert.equal(report.state, "rejected");
   assert.equal(report.error.reason, "managed_read_timeout");
-  assert.deepEqual(report.error.counts, { timeoutMs: 15_000 }, "Unrelated report helpers retain their existing budget");
+  assert.deepEqual(report.error.counts, { timeoutMs: 60_000 }, "Explicit report reads share the complete-source budget");
 
   // Synthetic size evidence only: compressed compact JSON has identical data.
   const repeated = { valueRanges: [{ values: Array.from({ length: 1000 }, () => rows[0]) }] };
@@ -137,4 +137,5 @@ try {
   globalThis.fetch = original.fetch; globalThis.setTimeout = original.setTimeout;
   globalThis.clearTimeout = original.clearTimeout; AbortSignal.timeout = original.abortTimeout;
 }
-console.log("PASS: compact gzip complete single-batch transport, unchanged cells/ranges, >15 s explicit success, 60 s fetch/body abort, 12 s dashboard and 15 s reports; virtual clock only");
+console.log("PASS: compact gzip complete single-batch transport, unchanged cells/ranges, >15 s explicit success, 60 s fetch/body abort, 12 s dashboard and 60 s reports; virtual clock only");
+
