@@ -1,74 +1,60 @@
 "use client";
 
-import { memo, useEffect, useMemo, useRef } from "react";
-import { ReactFlow, Background, Controls, MiniMap, Handle, Position, applyNodeChanges, useNodesState,
-  type Node, type NodeProps, type ReactFlowInstance, type Connection as FlowConnection, type NodeChange } from "@xyflow/react";
-import { Orbit, Gem, Layers3, FolderKanban, Users, Link2, Maximize2 } from "lucide-react";
+import dynamic from "next/dynamic";
+import { Component, useId, useState, type ReactNode } from "react";
+import { Expand, Minimize2, Maximize2, Orbit, Network, RotateCcw, Focus } from "lucide-react";
+import type { Connection as FlowConnection } from "@xyflow/react";
+import type { WorkbenchDocument } from "@/lib/workbench/model";
+import type { SpacePoint } from "@/lib/workbench/spatial";
 import { SystemButton } from "@/components/system/SystemButton";
-import type { Planet, WorkbenchDocument } from "@/lib/workbench/model";
-import "@xyflow/react/dist/style.css";
 import styles from "./Workbench.module.css";
 
-type PlanetData = Record<string, unknown> & { planet: Planet; open: number; selected: boolean; dimmed: boolean };
-type FlowNode = Node<PlanetData, "planet">;
-const icons = { core: Orbit, brand: Gem, workstream: Layers3, project: FolderKanban, person: Users, resource: Link2 };
-const PlanetView = memo(function PlanetView({ data }: NodeProps<FlowNode>) {
-  const { planet, open, selected, dimmed } = data; const Icon = icons[planet.kind];
-  return <div className={`${styles.planet} ${styles[planet.color]} ${planet.kind === "core" ? styles.sun : ""} ${selected ? styles.chosen : ""} ${dimmed ? styles.dimmed : ""}`}>
-    <Handle type="target" position={Position.Left} id="in" className={styles.handle} />
-    <div className={styles.orbitRing} aria-hidden="true" />
-    <div className={styles.planetSphere}><Icon size={planet.kind === "core" ? 34 : 26} strokeWidth={1.5} aria-hidden="true" /></div>
-    {open > 0 ? <span className={styles.satellite}>{open}</span> : null}
-    <div className={styles.planetCaption}><strong>{planet.label}</strong><span>{planet.subtitle}</span></div>
-    <Handle type="source" position={Position.Right} id="out" className={styles.handle} />
-  </div>;
-});
-const nodeTypes = { planet: PlanetView };
-
-export default function GalaxyCanvas({ document, selectedId, relatedOnly, onSelect, onMove, onConnect, onEdge, onAdd }: {
+const FlatCanvas = dynamic(() => import("./FlatGalaxyCanvas"), { ssr: false });
+const SpatialCanvas = dynamic(() => import("./SpatialGalaxyCanvas"), { ssr: false });
+export type GalaxyCanvasProps = {
   document: WorkbenchDocument; selectedId: string; relatedOnly: boolean;
   onSelect: (id: string) => void; onMove: (id: string, x: number, y: number) => void;
+  onMoveSpatial: (id: string, point: SpacePoint) => void; onArrange: () => void;
   onConnect: (connection: FlowConnection) => void; onEdge: (id: string) => void;
   onAdd: (position?: { x: number; y: number }) => void;
-}) {
-  const instance = useRef<ReactFlowInstance<FlowNode> | null>(null);
-  const neighbors = useMemo(() => {
-    const ids = new Set([selectedId]);
-    document.edges.filter(e => !e.archived).forEach(e => { if (e.source === selectedId) ids.add(e.target); if (e.target === selectedId) ids.add(e.source); });
-    return ids;
-  }, [document.edges, selectedId]);
-  const sourceNodes = useMemo<FlowNode[]>(() => document.nodes.filter(n => !n.archived && (!relatedOnly || neighbors.has(n.id))).map(n => ({
-    id: n.id, type: "planet", position: { x: n.x, y: n.y }, selected: n.id === selectedId, ariaLabel: `星球：${n.label}`, dragHandle: `.${styles.planet}`,
-    data: { planet: n, open: document.jobs.filter(j => (n.id === "core" || j.nodeId === n.id || j.relatedNodeIds.includes(n.id)) && !j.archived && j.status !== "done").length, selected: n.id === selectedId, dimmed: selectedId !== "core" && !neighbors.has(n.id) },
-  })), [document.nodes, document.jobs, selectedId, relatedOnly, neighbors]);
-  const [nodes, setNodes] = useNodesState<FlowNode>(sourceNodes);
-  useEffect(() => { setNodes(sourceNodes); }, [sourceNodes, setNodes]);
-  const shown = new Set(sourceNodes.map(n => n.id));
-  const edges = document.edges.filter(e => !e.archived && shown.has(e.source) && shown.has(e.target)).map(e => {
-    const highlighted = e.source === selectedId || e.target === selectedId;
-    return { ...e, sourceHandle: "out", targetHandle: "in", type: "default", label: highlighted && selectedId !== "core" ? e.label : undefined,
-      className: highlighted ? styles.litEdge : styles.edge, style: { opacity: selectedId !== "core" && !highlighted ? .18 : .7 },
-      labelStyle: { fill: "var(--wb-ink)", fontSize: 11 }, labelBgStyle: { fill: "var(--wb-space)" }, labelBgPadding: [8, 5] as [number, number], labelBgBorderRadius: 5,
-      ariaLabel: `${e.source} → ${e.target}：${e.label}` };
-  });
-  const handleChanges = (changes: NodeChange<FlowNode>[]) => {
-    setNodes(current => applyNodeChanges(changes, current));
-    // Keyboard nudges are durable too. Pointer moves save only on drag stop.
-    for (const c of changes) if (c.type === "position" && c.position && !c.dragging) onMove(c.id, c.position.x, c.position.y);
-  };
-  return <div className={styles.canvas} data-testid="work-galaxy">
-    <ReactFlow<FlowNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={handleChanges}
-      onInit={i => { instance.current = i; }} onNodeClick={(_, n) => onSelect(n.id)}
-      onNodeDragStop={(_, n) => onMove(n.id, n.position.x, n.position.y)} onConnect={onConnect}
-      onEdgeClick={(_, e) => onEdge(e.id)} onPaneContextMenu={event => { event.preventDefault(); onAdd(instance.current?.screenToFlowPosition({ x: event.clientX, y: event.clientY })); }}
-      fitView fitViewOptions={{ padding: .18 }} minZoom={.25} maxZoom={1.7} nodesConnectable deleteKeyCode={null}
-      proOptions={{ hideAttribution: false }} aria-label="可編輯 Alyssa 工作星球網絡" colorMode="dark">
-      <Background color="var(--wb-grid)" gap={28} size={.8} />
-      <Controls position="bottom-left" showInteractive={false} />
-      <MiniMap position="bottom-right" nodeColor="var(--wb-edge)" maskColor="var(--wb-map-mask)" pannable zoomable ariaLabel="星圖縮圖" />
-    </ReactFlow>
-    <div className={styles.canvasHeading}><span className={styles.liveDot} /> ALYSSA WORK GALAXY<span>{sourceNodes.length} 個星球</span></div>
-    <div className={styles.fitControl}><SystemButton density="compact" variant="outline" title="顯示整個網絡" aria-label="顯示整個網絡" onClick={() => { void instance.current?.fitView({ padding: .18, duration: 250 }); }}><Maximize2 size={14} /></SystemButton></div>
-    <div className={styles.canvasHint}>拖動星球調整位置 · 拉右邊圓點建立關係 · 右鍵空白位新增</div>
+  focused: boolean; onToggleFocus: () => void;
+};
+
+class SceneBoundary extends Component<{ children: ReactNode; onUnavailable: () => void }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch() { this.props.onUnavailable(); }
+  render() { return this.state.failed ? null : this.props.children; }
+}
+
+export default function GalaxyCanvas(props: GalaxyCanvasProps) {
+  const jumpId = useId();
+  const [mode, setMode] = useState<"spatial" | "flat">("spatial");
+  const [allLines, setAllLines] = useState(false); const [ready, setReady] = useState(false);
+  const [unavailable, setUnavailable] = useState(false); const [cameraRequest, setCameraRequest] = useState({ action: "fit", serial: 0 });
+  const command = (action: string) => setCameraRequest(current => ({ action, serial: current.serial + 1 }));
+  const switchMode = (next: "spatial" | "flat") => { setReady(false); setMode(next); };
+  const active = props.document.nodes.filter(n => !n.archived);
+  return <div className={`${styles.canvas} ${mode === "spatial" ? styles.spatialCanvas : styles.flatCanvas}`} data-testid="work-galaxy" data-mode={mode} data-ready={mode === "flat" || ready ? "true" : "false"}>
+    <div className={styles.spaceBackdrop} aria-hidden="true" />
+    {mode === "spatial" ? <SceneBoundary onUnavailable={() => { setUnavailable(true); switchMode("flat"); }}>
+      <SpatialCanvas document={props.document} selectedId={props.selectedId} relatedOnly={props.relatedOnly} allLines={allLines}
+        onSelect={props.onSelect} onMove={props.onMoveSpatial} onEdge={props.onEdge} onReady={() => setReady(true)} cameraRequest={cameraRequest} />
+    </SceneBoundary> : <FlatCanvas {...props} fitRequest={cameraRequest.serial} />}
+    <div className={styles.sceneIdentity}><span className={styles.sceneEyebrow}><i /> ALYSSA WORK GALAXY <span>／ PRIVATE ORBIT</span></span>
+      <strong>每一件工作，都有佢嘅軌道。</strong><span>{active.length} 個星球 · {props.document.edges.filter(e => !e.archived).length} 條工作關係</span></div>
+    <div className={styles.sceneActions}>
+      <SystemButton density="compact" variant="outline" aria-label="顯示整個網絡" title="顯示整個網絡" onClick={() => command("fit")}><Maximize2 size={15} /></SystemButton>
+      {mode === "spatial" ? <SystemButton density="compact" variant="outline" aria-label="聚焦選中星球" title="聚焦選中星球" onClick={() => command("selected")}><Focus size={15} /></SystemButton> : null}
+      <SystemButton density="compact" variant="outline" aria-label={props.focused ? "離開專注模式" : "專注模式"} title={props.focused ? "離開專注模式（Esc）" : "全畫面專注模式"} onClick={props.onToggleFocus}>{props.focused ? <Minimize2 size={15} /> : <Expand size={15} />}<span>{props.focused ? "收起" : "專注模式"}</span></SystemButton>
+    </div>
+    <div className={styles.sceneJump}><label htmlFor={jumpId}>快速前往</label><select id={jumpId} aria-label="選擇工作星球" value={props.selectedId} onChange={e => props.onSelect(e.target.value)}>{active.map(n => <option key={n.id} value={n.id}>{n.label}</option>)}</select></div>
+    {unavailable ? <p className={styles.sceneFallback} role="status">此裝置未能開啟 3D，已保留完整 2D 編排。</p> : null}
+    <div className={styles.sceneBottom}>
+      <div className={styles.sceneMode}><SystemButton density="compact" variant={mode === "spatial" ? "default" : "ghost"} aria-pressed={mode === "spatial"} onClick={() => switchMode("spatial")}><Orbit size={14} />3D 星際</SystemButton><SystemButton density="compact" variant={mode === "flat" ? "default" : "ghost"} aria-pressed={mode === "flat"} onClick={() => switchMode("flat")}><Network size={14} />2D 編排</SystemButton></div>
+      {mode === "spatial" ? <label className={styles.sceneLineToggle}><input type="checkbox" checked={allLines} onChange={e => setAllLines(e.target.checked)} />全部連線</label> : null}
+      <SystemButton density="compact" variant="ghost" onClick={() => { props.onArrange(); command("fit"); }} title="重新整理星球位置，可復原"><RotateCcw size={13} /><span>整理星系</span></SystemButton>
+    </div>
+    <p className={styles.sceneInstructions}>{mode === "spatial" ? "拖動空白轉動視角 · 滾輪縮放 · 拖動星球調位 · 點選查看工作" : "拖動星球調位 · 拉圓點建立關係 · 右鍵空白位新增"}</p>
   </div>;
 }
