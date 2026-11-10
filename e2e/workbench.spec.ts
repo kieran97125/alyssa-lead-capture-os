@@ -155,10 +155,24 @@ test("queued and failed saves survive client navigation and recover without over
   expect(saved.document.jobs[0]?.notes).toBe("失敗後仍保留嘅備註");
 });
 
-test("anonymous and standard admin cannot reach private document APIs", async ({ request }) => {
-  for (const path of ["/api/internal/workbench", "/api/internal/workbench/context", "/workbench"]) {
-    const response = await request.get(path, { maxRedirects: 0 });
-    expect([303, 307, 403, 404]).toContain(response.status());
-    expect(await response.text()).not.toContain('"schemaVersion":1');
-  }
+test("anonymous and standard admin cannot reach private document APIs", async ({ browser }) => {
+  const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
+  try {
+    const denied = async () => {
+      for (const path of ["/api/internal/workbench", "/api/internal/workbench/context", "/workbench"]) {
+        const response = await context.request.get(path, { maxRedirects: 0 });
+        expect([303, 307, 403, 404]).toContain(response.status());
+        expect(await response.text()).not.toContain('"schemaVersion":1');
+      }
+    };
+    await denied();
+    const page = await context.newPage();
+    await page.goto("/login?next=/dashboard");
+    if (!await page.getByLabel("Password").isVisible()) await page.getByText(/切換期間管理員登入|緊急管理員登入/).click();
+    await page.getByLabel("Password").fill(process.env.E2E_ADMIN_PASSWORD || "playwright-ci-password");
+    await page.getByRole("button", { name: "管理員登入", exact: true }).click();
+    await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);
+    await expect(page.getByRole("link", { name: "我的工作星圖", exact: true })).toHaveCount(0);
+    await denied();
+  } finally { await context.close(); }
 });
