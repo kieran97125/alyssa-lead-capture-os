@@ -7,7 +7,11 @@ for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 84
     await page.setViewportSize({ width, height });
     await page.goto("/e2e/workbench", { waitUntil: "networkidle" });
     const desk = page.getByTestId("private-workbench");
+    await expect(page.getByTestId("work-galaxy")).toHaveAttribute("data-mode", "spatial");
+    await expect(page.getByTestId("work-galaxy")).toHaveAttribute("data-ready", "true", { timeout: 20000 });
     await expect(page.getByLabel("星球：我的 Alyssa", { exact: true })).toBeVisible();
+    const galaxyA11y = await new AxeBuilder({ page }).include('[data-testid="work-galaxy"]').withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
+    expect(galaxyA11y.violations).toEqual([]);
     await expect.soft(desk).toHaveScreenshot(`private-work-galaxy-${name}.png`, { animations: "disabled" });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await desk.getByRole("button", { name: "Job list", exact: true }).click();
@@ -47,6 +51,7 @@ test("jobs, nested checklist, cancellation, persistence and archive recovery", a
 
 test("create planet, edit relation, complete a job, undo and export desktop shortcut", async ({ page }) => {
   await page.goto("/e2e/workbench", { waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "2D 編排", exact: true }).click();
   await page.getByRole("button", { name: "新增星球", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByLabel("星球名稱", { exact: true }).fill("十一月拍攝計劃");
@@ -65,6 +70,7 @@ test("create planet, edit relation, complete a job, undo and export desktop shor
   await expect(page.getByRole("status").filter({ hasText: "已儲存" })).toBeVisible();
   const movedPosition = await planet.evaluate(element => (element as HTMLElement).style.transform);
   await page.reload({ waitUntil: "networkidle" });
+  await page.getByRole("button", { name: "2D 編排", exact: true }).click();
   await expect.poll(() => planet.evaluate(element => (element as HTMLElement).style.transform)).toBe(movedPosition);
   await planet.click();
   await page.getByRole("button", { name: "新增工作關係", exact: true }).click();
@@ -83,6 +89,67 @@ test("create planet, edit relation, complete a job, undo and export desktop shor
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "桌面捷徑", exact: true }).click();
   expect((await download).suggestedFilename()).toBe("Alyssa_Work_Galaxy.url");
+});
+
+test("3D positions, optional inspector and full-width focus remain usable", async ({ page }) => {
+  await page.goto("/e2e/workbench?dense=1", { waitUntil: "networkidle" });
+  const galaxy = page.getByTestId("work-galaxy");
+  await expect(galaxy).toHaveAttribute("data-mode", "spatial");
+  await expect(galaxy).toHaveAttribute("data-ready", "true", { timeout: 20000 });
+  await expect(page.getByRole("complementary", { name: "星球詳情" })).toHaveCount(0);
+  const wide = await galaxy.boundingBox(), desk = await page.getByTestId("private-workbench").boundingBox();
+  expect(wide!.width).toBeGreaterThan(desk!.width * .97);
+  const planet = page.getByRole("button", { name: "星球：Ineffable Beauty", exact: true });
+  const before = await planet.getAttribute("data-world-position");
+  await planet.press("ArrowRight");
+  await expect(planet).not.toHaveAttribute("data-world-position", before!);
+  await expect(page.getByRole("status").filter({ hasText: "已儲存" })).toBeVisible();
+  let moved = await planet.getAttribute("data-world-position");
+  const canvasBox = await page.getByTestId("spatial-scene").locator("canvas").boundingBox();
+  const center = await planet.evaluate(element => ({ x: Number((element as HTMLElement).dataset.sphereX), y: Number((element as HTMLElement).dataset.sphereY) }));
+  await page.mouse.move(canvasBox!.x + center.x, canvasBox!.y + center.y);
+  await page.mouse.down();
+  await page.mouse.move(canvasBox!.x + center.x + 60, canvasBox!.y + center.y + 25, { steps: 8 });
+  await page.mouse.up();
+  await expect(planet).not.toHaveAttribute("data-world-position", moved!);
+  await expect(page.getByRole("status").filter({ hasText: "已儲存" })).toBeVisible();
+  moved = await planet.getAttribute("data-world-position");
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(galaxy).toHaveAttribute("data-ready", "true", { timeout: 20000 });
+  await expect(planet).toHaveAttribute("data-world-position", moved!);
+  await page.getByLabel("選擇工作星球", { exact: true }).selectOption("creative");
+  await expect(page.getByRole("complementary", { name: "星球詳情" })).toBeVisible();
+  await page.getByRole("button", { name: "關閉星球詳情", exact: true }).click();
+  await page.getByRole("button", { name: "專注模式", exact: true }).click();
+  const full = await galaxy.boundingBox(); const viewport = page.viewportSize()!;
+  expect(full!.width).toBeGreaterThan(viewport.width - 25);
+  expect(full!.height).toBeGreaterThan(viewport.height - 25);
+  await expect.soft(galaxy).toHaveScreenshot("private-work-galaxy-focused.png", { animations: "disabled" });
+  await page.keyboard.press("Shift+Tab");
+  expect(await page.evaluate(() => !!document.activeElement?.closest('[data-testid="galaxy-workspace"]'))).toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("button", { name: "專注模式", exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.body.style.overflow)).not.toBe("hidden");
+  await page.getByRole("button", { name: "整理星系", exact: true }).click();
+  await expect(planet).toHaveAttribute("data-world-position", before!);
+  await page.getByRole("button", { name: "復原上一步", exact: true }).click();
+  await expect(planet).toHaveAttribute("data-world-position", moved!);
+});
+
+test("a device without WebGL keeps editable work and a clear fallback", async ({ page }) => {
+  await page.addInitScript(() => {
+    const original = HTMLCanvasElement.prototype.getContext;
+    HTMLCanvasElement.prototype.getContext = function (this: HTMLCanvasElement, type: string, ...args: unknown[]) {
+      if (type === "webgl" || type === "webgl2" || type === "experimental-webgl") return null;
+      return (original as (...a: unknown[]) => RenderingContext | null).call(this, type, ...args);
+    } as typeof original;
+  });
+  await page.goto("/e2e/workbench", { waitUntil: "networkidle" });
+  await expect(page.getByTestId("work-galaxy")).toHaveAttribute("data-mode", "flat", { timeout: 20000 });
+  await expect(page.getByRole("status").filter({ hasText: "此裝置未能開啟 3D" })).toBeVisible();
+  await expect(page.getByLabel("星球：我的 Alyssa", { exact: true })).toBeVisible();
+  await page.getByLabel("選擇工作星球", { exact: true }).selectOption("creative");
+  await expect(page.getByRole("button", { name: "新增工作關係", exact: true })).toBeVisible();
 });
 
 test("queued and failed saves survive client navigation and recover without overwriting a newer revision", async ({ page }) => {

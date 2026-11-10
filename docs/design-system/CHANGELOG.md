@@ -209,3 +209,8 @@ Preserve current appointment authority through reporting adapters, recover compl
 - Reused System controls and Base UI modal behavior; graph styling is feature-scoped and the graph engine is lazy loaded.
 - Added populated/empty stories and desktop/mobile, access, persistence and interaction qualification. See `decisions/2026-11-10-private-work-galaxy.md` for the access boundary, package review, evidence and rollback.
 
+
+
+## 2026-11-10 — Spatial private work galaxy
+
+Expanded the graph to the available width, moved inspection into an optional overlay, added a full-viewport focus mode, and introduced an actual 3D scene with lit planets and contextual orbital curves. Retained 2D editing and unsupported-WebGL recovery. See `decisions/2026-11-10-spatial-work-galaxy.md` for dependency review, qualification and rollback.

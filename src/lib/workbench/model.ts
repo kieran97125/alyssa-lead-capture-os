@@ -7,6 +7,7 @@ export type JobStatus = typeof jobStatuses[number];
 export type Planet = {
   id: string; label: string; subtitle: string; description: string;
   kind: PlanetKind; color: PlanetColor; x: number; y: number;
+  space?: { x: number; y: number; z: number };
   url: string; accountId: string; archived: boolean;
 };
 export type Connection = { id: string; source: string; target: string; label: string; archived: boolean };
@@ -58,6 +59,7 @@ export function validateWorkbenchDocument(value: unknown): value is WorkbenchDoc
   for (const n of d.nodes) {
     if (!n || !id(n.id) || nodes.has(n.id) || !text(n.label, 80) || !n.label.trim() || !text(n.subtitle, 160) || !text(n.description, 8000) || !planetKinds.includes(n.kind) || !planetColors.includes(n.color) || !Number.isFinite(n.x) || !Number.isFinite(n.y) || Math.abs(n.x) > 50000 || Math.abs(n.y) > 50000 || !text(n.url, 2000) || !safeWorkbenchUrl(n.url) || !text(n.accountId, 100) || typeof n.archived !== "boolean") return false;
     nodes.add(n.id);
+    if (n.space !== undefined && (!n.space || typeof n.space !== "object" || ![n.space.x, n.space.y, n.space.z].every(v => Number.isFinite(v) && Math.abs(v) <= 500))) return false;
   }
   for (const e of d.edges) {
     if (!e || !id(e.id) || edgeIds.has(e.id) || !nodes.has(e.source) || !nodes.has(e.target) || e.source === e.target || !text(e.label, 100) || typeof e.archived !== "boolean") return false;

@@ -12,6 +12,7 @@ import { creativeJobStatusLabels } from "@/lib/creative/types";
 import { hongKongDate, isTodayJob, kindLabels, planetKinds, planetColors, statusLabels, priorityLabels,
   validateWorkbenchDocument, safeWorkbenchUrl, type Planet, type Job, type WorkbenchContext, type WorkbenchDocument, type WorkbenchRecord, type Connection } from "@/lib/workbench/model";
 import { useWorkbench } from "./useWorkbench";
+import { spatialPositions, type SpacePoint } from "@/lib/workbench/spatial";
 import styles from "./Workbench.module.css";
 
 const GalaxyCanvas = dynamic(() => import("./GalaxyCanvas"), { ssr: false, loading: () => <div className={styles.canvasLoading}><Orbit size={30} /><span>正在展開工作星圖…</span></div> });
@@ -28,7 +29,9 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
   const wb = useWorkbench(initialRecord, fixtureMode, ownerScope); const d = wb.document;
   const [view, setView] = useState<"galaxy" | "jobs" | "sources">("galaxy");
   const [selectedId, setSelectedId] = useState("core"); const [relatedOnly, setRelatedOnly] = useState(false);
+  const [detailOpen, setDetailOpen] = useState(false); const [focused, setFocused] = useState(false);
   const [editor, setEditor] = useState<Editor>(null); const [search, setSearch] = useState("");
+  const editorRef = useRef(editor); editorRef.current = editor;
   const [todayOnly, setTodayOnly] = useState(false); const [status, setStatus] = useState("open");
   const [context, setContext] = useState<WorkbenchContext | null>(null); const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState(""); const [notice, setNotice] = useState(""); const [showArchived, setShowArchived] = useState(false);
@@ -43,6 +46,37 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
   }, [fixtureMode]);
   useEffect(() => { void refreshContext(); }, [refreshContext]);
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 4500); return () => clearTimeout(t); }, [notice]);
+  useEffect(() => {
+    if (!focused) return;
+    if (view !== "galaxy") { setFocused(false); return; }
+    const workspace = root.current?.querySelector<HTMLElement>('[data-testid="galaxy-workspace"]');
+    if (!workspace) return;
+    const previousFocus = window.document.activeElement as HTMLElement | null;
+    const coveredNavigation = [...window.document.querySelectorAll<HTMLElement>(".command-sidebar, .command-mobile-bar")].map(element => ({ element, inert: element.inert }));
+    coveredNavigation.forEach(({ element }) => { element.inert = true; });
+    const previous = window.document.body.style.overflow; window.document.body.style.overflow = "hidden";
+    const keys = (event: KeyboardEvent) => {
+      if (editorRef.current) return; // The existing Base UI editor owns modal focus.
+      if (event.key === "Escape") { setFocused(false); return; }
+      if (event.key !== "Tab" || event.ctrlKey || event.metaKey || event.altKey) return;
+      const bounds = workspace.getBoundingClientRect();
+      const targets = [...workspace.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(element => {
+        const box = element.getBoundingClientRect();
+        return !element.closest('[inert]') && element.offsetParent !== null && box.width > 0 && box.height > 0 && box.right > bounds.left && box.left < bounds.right && box.bottom > bounds.top && box.top < bounds.bottom;
+      });
+      if (!targets.length) return;
+      event.preventDefault(); const index = targets.indexOf(window.document.activeElement as HTMLElement);
+      targets[(index + (event.shiftKey ? -1 : 1) + targets.length) % targets.length].focus({ preventScroll: true });
+    };
+    if (!workspace.contains(window.document.activeElement)) workspace.querySelector<HTMLElement>('button[aria-label="離開專注模式"]')?.focus({ preventScroll: true });
+    window.addEventListener("keydown", keys);
+    return () => {
+      window.document.body.style.overflow = previous; window.removeEventListener("keydown", keys);
+      coveredNavigation.forEach(({ element, inert }) => { element.inert = inert; });
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, [focused, view]);
+  const selectPlanet = useCallback((id: string) => { setSelectedId(id); setDetailOpen(true); }, []);
 
   const activeNodes = useMemo(() => d?.nodes.filter(n => !n.archived) ?? [], [d?.nodes]);
   const nodeMap = useMemo(() => new Map(d?.nodes.map(n => [n.id, n]) ?? []), [d?.nodes]);
@@ -67,13 +101,21 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
     const old = wb.document?.nodes.find(n => n.id === id); if (!old || (old.x === x && old.y === y)) return;
     wb.mutate(doc => { const node = doc.nodes.find(n => n.id === id); if (node) { node.x = x; node.y = y; } }, `調整星球位置：${old.label}`);
   }, [wb.document, wb.mutate]);
+  const moveSpatialPlanet = useCallback((id: string, point: SpacePoint) => {
+    wb.mutate(doc => { const node = doc.nodes.find(n => n.id === id); if (node) node.space = point; }, "調整 3D 星球位置");
+  }, [wb.mutate]);
+  const arrangePlanets = () => wb.mutate(doc => {
+    for (const node of doc.nodes) delete node.space;
+    const layout = spatialPositions(doc);
+    for (const node of doc.nodes) { const p = layout.get(node.id); if (p) { node.x = p.x * 65; node.y = -p.y * 65; } }
+  }, "重新整理星系佈局");
   const saveEditor = (next: Planet | Job | Connection, type: "planet" | "job" | "edge") => {
     const saved = wb.mutate(doc => {
       if (type === "planet") { const value = next as Planet; const i = doc.nodes.findIndex(n => n.id === value.id); if (i < 0) { doc.nodes.push(value); if (selectedId !== value.id) doc.edges.push({ id: uid(), source: selectedId, target: value.id, label: "相關工作", archived: false }); } else doc.nodes[i] = value; }
       else if (type === "job") { const value = next as Job; const i = doc.jobs.findIndex(j => j.id === value.id); if (i < 0) doc.jobs.push(value); else doc.jobs[i] = value; }
       else { const value = next as Connection; const i = doc.edges.findIndex(e => e.id === value.id); if (i < 0) doc.edges.push(value); else doc.edges[i] = value; }
     }, type === "planet" ? `儲存星球：${(next as Planet).label}` : type === "job" ? `儲存 Job：${(next as Job).title}` : `更新關係：${(next as Connection).label}`);
-    if (saved) { if (type === "planet") setSelectedId(next.id); setEditor(null); }
+    if (saved) { if (type === "planet") { setSelectedId(next.id); setDetailOpen(true); } setEditor(null); }
   };
   const exportDocument = () => { if (d) download(`Alyssa_Work_Galaxy_${today}.json`, JSON.stringify({ format: "alyssa-private-workbench", revision: wb.revision, exportedAt: new Date().toISOString(), document: d }, null, 2)); };
   const importDocument = async (file: File) => {
@@ -88,19 +130,19 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
   const saveLabel = { loading: "正在讀取", saved: "已儲存", pending: "準備儲存", saving: "儲存中", error: "未能儲存", conflict: "版本需要核對" }[wb.state];
 
   return <div ref={root} className={styles.workbench} data-testid="private-workbench">
-    <header className={styles.pageHeader}>
+    <header className={styles.pageHeader} inert={focused}>
       <div><p className={styles.eyebrow}><Orbit size={14} /> MY PRIVATE WORKSPACE <span>ALYSSA GROWTH OS</span></p><h1>我的工作星圖<span>把工作連成一個整體。</span></h1><p className={styles.intro}>品牌、團隊、Creative、CS 同系統，都喺你嘅工作軌道。</p></div>
       <div className={styles.headerActions}><span className={styles.privatePill}><LockKeyhole size={12} /> Master 私人工作枱</span>
         <SystemButton density="compact" variant="outline" onClick={() => { download("Alyssa_Work_Galaxy.url", `[InternetShortcut]\r\nURL=${window.location.origin}/workbench\r\n`, "application/internet-shortcut"); setNotice("捷徑已下載。將檔案放到桌面，雙擊就可以打開。" ); }}><Download size={14} />桌面捷徑</SystemButton>
       </div>
     </header>
-    <section className={styles.summary} aria-label="工作總覽">
+    <section className={styles.summary} aria-label="工作總覽" inert={focused}>
       <button onClick={() => { setView("jobs"); setTodayOnly(true); setStatus("open"); }}><span className={styles.summaryIcon}><CalendarDays size={18} /></span><div><span>今日重點</span><strong>{todayJobs.length}<small>件</small></strong></div><ChevronRight size={14} /></button>
       <button onClick={() => { setView("jobs"); setTodayOnly(false); setStatus("open"); }}><span className={styles.summaryIcon}><ListTodo size={18} /></span><div><span>進行中／待辦</span><strong>{openJobs.length}<small>件</small></strong></div><ChevronRight size={14} /></button>
       <button onClick={() => { setView("jobs"); setTodayOnly(false); setStatus("waiting"); }}><span className={styles.summaryIcon}><Clock3 size={18} /></span><div><span>等候跟進</span><strong>{waitingJobs.length}<small>件</small></strong></div><ChevronRight size={14} /></button>
       <button onClick={() => { setView("jobs"); setTodayOnly(false); setStatus("done"); }}><span className={styles.summaryIcon}><CheckCircle2 size={18} /></span><div><span>已完成</span><strong>{completed}<small>件</small></strong></div><ChevronRight size={14} /></button>
     </section>
-    <div className={styles.toolbar}>
+    <div className={styles.toolbar} inert={focused}>
       <nav aria-label="工作枱檢視" className={styles.viewNav}>
         <SystemButton density="compact" variant={view === "galaxy" ? "default" : "ghost"} aria-pressed={view === "galaxy"} onClick={() => setView("galaxy")}><Network size={14} />星球網絡</SystemButton>
         <SystemButton density="compact" variant={view === "jobs" ? "default" : "ghost"} aria-pressed={view === "jobs"} onClick={() => setView("jobs")}><ListTodo size={14} />Job list</SystemButton>
@@ -116,28 +158,29 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
     {wb.error ? <div role="alert" className={styles.error}><AlertCircle size={17} /><span>{wb.error}</span>{d ? <SystemButton density="compact" variant="outline" onClick={exportDocument}>匯出目前內容</SystemButton> : null}<SystemButton density="compact" variant="outline" onClick={() => { void (wb.state === "conflict" || !d ? wb.load() : wb.flush()); }}>{wb.state === "conflict" || !d ? "重新載入" : "重試儲存"}</SystemButton></div> : null}
     {fixtureMode ? <div className={styles.fixtureNote}>驗收環境 · 示例工作，唔會寫入正式系統。</div> : null}
     {!d ? <div className={styles.canvasLoading}><Orbit size={36} /><span>正在讀取你嘅工作枱…</span></div> : <>
-      {view === "galaxy" ? <div className={styles.workspace}>
+      {view === "galaxy" ? <div className={`${styles.workspace} ${focused ? styles.focusedWorkspace : ""}`} data-testid="galaxy-workspace">
         <div className={styles.galaxyColumn}>
-          <GalaxyCanvas document={d} selectedId={selectedId} relatedOnly={relatedOnly} onSelect={setSelectedId} onMove={movePlanet}
+          <GalaxyCanvas document={d} selectedId={selectedId} relatedOnly={relatedOnly} onSelect={selectPlanet} onMove={movePlanet}
+            onMoveSpatial={moveSpatialPlanet} onArrange={arrangePlanets} focused={focused} onToggleFocus={() => setFocused(value => !value)}
             onAdd={newPlanet} onConnect={c => { if (c.source && c.target && c.source !== c.target) newEdge(c.source, c.target); }} onEdge={id => { const edge = d.edges.find(e => e.id === id); if (edge) setEditor({ type: "edge", value: edge }); }} />
           <div className={styles.graphFooter}><span><i className={`${styles.legendDot} ${styles.blue}`} />品牌 <i className={`${styles.legendDot} ${styles.violet}`} />工作範疇 <i className={`${styles.legendDot} ${styles.mint}`} />協作／資料</span><label><input type="checkbox" checked={relatedOnly} onChange={e => setRelatedOnly(e.target.checked)} />只睇相關星球</label></div>
           <JobList jobs={jobs} nodeMap={nodeMap} today={today} onEdit={j => setEditor({ type: "job", value: j })} onChange={changeJob} search={search} setSearch={setSearch} status={status} setStatus={setStatus} todayOnly={todayOnly} setTodayOnly={setTodayOnly} title={selectedId === "core" ? "工作軌道" : `${selected?.label} · Jobs`} onAdd={newJob} />
         </div>
-        <aside className={styles.detailPanel} aria-label="星球詳情">
+        {detailOpen ? <aside className={styles.detailPanel} aria-label="星球詳情">
           {selected ? <>
-            <div className={styles.detailHeading}><span className={`${styles.typeBadge} ${styles[selected.color]}`}>{kindLabels[selected.kind]}</span><SystemButton density="compact" variant="ghost" onClick={() => setEditor({ type: "planet", value: selected })} aria-label={`編輯星球：${selected.label}`}><Pencil size={14} /></SystemButton></div>
+            <div className={styles.detailHeading}><span className={`${styles.typeBadge} ${styles[selected.color]}`}>{kindLabels[selected.kind]}</span><div><SystemButton density="compact" variant="ghost" onClick={() => setEditor({ type: "planet", value: selected })} aria-label={`編輯星球：${selected.label}`}><Pencil size={14} /></SystemButton><SystemButton density="compact" variant="ghost" onClick={() => setDetailOpen(false)} aria-label="關閉星球詳情"><X size={15} /></SystemButton></div></div>
             <div className={`${styles.detailOrb} ${styles[selected.color]}`} aria-hidden="true"><Orbit size={30} /></div>
             <h2>{selected.label}</h2><p className={styles.detailSubtitle}>{selected.subtitle || "自訂工作節點"}</p><p className={styles.description}>{selected.description || "加入工作說明、相關文件或資料來源。"}</p>
             {selected.url ? <a className={styles.resourceLink} href={selected.url} target="_blank" rel="noopener noreferrer"><Link2 size={14} />打開相關系統／文件<ArrowUpRight size={14} /></a> : null}
             {selected.accountId ? <div className={styles.metrics}><p><span className={styles.liveDot} />本月至今 · Lead／Book／Show</p><div>{[metric?.leads, metric?.bookings, metric?.shows].map((n, i) => <span key={i}><strong>{n ?? "—"}</strong><small>{["Lead", "Book", "Show"][i]}</small></span>)}</div><small>{metric ? `資料時間：${prettyTime(context?.performance.updatedAt ?? "") || "未提供"}` : contextLoading ? "正在讀取原有 Dashboard 資料…" : "資料暫時未能讀取，請按更新核對。"}</small></div> : null}
             <div className={styles.detailSection}><div className={styles.sectionTitle}><h3>工作關係</h3><SystemButton density="compact" variant="ghost" onClick={() => newEdge()} aria-label="新增工作關係"><Plus size={15} /></SystemButton></div>
-              {neighbors.length ? neighbors.map(({ edge, node }) => <div key={edge.id} className={styles.relationship}><button onClick={() => setSelectedId(node!.id)}><span className={`${styles.legendDot} ${styles[node!.color]}`} /><span>{node!.label}<small>{edge.label}</small></span></button><SystemButton density="compact" variant="ghost" onClick={() => setEditor({ type: "edge", value: edge })} aria-label={`編輯關係：${node!.label}`}><Pencil size={12} /></SystemButton></div>) : <p className={styles.emptySmall}>拉線或者按 ＋，連接相關工作。</p>}
+              {neighbors.length ? neighbors.map(({ edge, node }) => <div key={edge.id} className={styles.relationship}><button onClick={() => selectPlanet(node!.id)}><span className={`${styles.legendDot} ${styles[node!.color]}`} /><span>{node!.label}<small>{edge.label}</small></span></button><SystemButton density="compact" variant="ghost" onClick={() => setEditor({ type: "edge", value: edge })} aria-label={`編輯關係：${node!.label}`}><Pencil size={12} /></SystemButton></div>) : <p className={styles.emptySmall}>按 ＋ 連接相關工作，或者切換 2D 編排拉線。</p>}
             </div>
             {selected.id === "creative" || selected.id === "designer" ? <SystemJobs title="現有 Creative Jobs" available={context?.creative.available ?? false} jobs={context?.creative.jobs ?? []} /> : null}
             {selected.id === "team" ? <SystemJobs title="現有系統工作" available={context?.tasks.available ?? false} jobs={context?.tasks.jobs ?? []} /> : null}
             {selected.kind !== "core" ? <div className={styles.archiveControl}><SystemConfirmationDialog triggerLabel="移除星球" triggerIcon={<Archive size={13} />} triggerVariant="ghost" triggerSize="sm" title={`移除「${selected.label}」？`} description="星球會移去封存，Jobs 及關係仍會保留。你可以復原，或者喺「系統與資源」恢復。" confirmControl={<SystemButton onClick={() => { wb.mutate(doc => { const n = doc.nodes.find(n => n.id === selected.id); if (n) n.archived = true; }, `封存星球：${selected.label}`); setSelectedId("core"); }}>移至封存</SystemButton>} /></div> : null}
           </> : null}
-        </aside>
+        </aside> : null}
       </div> : null}
       {view === "jobs" ? <JobList jobs={jobs} nodeMap={nodeMap} today={today} onEdit={j => setEditor({ type: "job", value: j })} onChange={changeJob} search={search} setSearch={setSearch} status={status} setStatus={setStatus} todayOnly={todayOnly} setTodayOnly={setTodayOnly} title="所有工作 · Job list" onAdd={newJob} /> : null}
       {view === "sources" ? <section className={styles.sources}>
@@ -155,7 +198,7 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
         <details className={styles.activity}><summary>最近更新紀錄</summary>{d.activity.slice(0, 15).map(a => <p key={a.id}><span>{a.label}</span><small>{prettyTime(a.at)}</small></p>)}</details>
       </section> : null}
     </>}
-    <footer className={styles.pageFooter}><span><LockKeyhole size={11} />私人工作資料 · 香港時間</span><span>{today} · {activeNodes.length} 個星球 · {d?.edges.filter(e => !e.archived).length ?? 0} 條關係</span></footer>
+    <footer className={styles.pageFooter} inert={focused}><span><LockKeyhole size={11} />私人工作資料 · 香港時間</span><span>{today} · {activeNodes.length} 個星球 · {d?.edges.filter(e => !e.archived).length ?? 0} 條關係</span></footer>
     {notice ? <div role="status" className={styles.toast}>{notice}</div> : null}
     {editor && d ? <WorkbenchEditor key={`${editor.type}-${editor.value.id}`} editor={editor} nodes={d.nodes} today={today} onClose={() => setEditor(null)} onSave={saveEditor} onArchive={() => {
       if (editor.type === "job") { changeJob(editor.value, { archived: true }, `封存 Job：${editor.value.title}`); }

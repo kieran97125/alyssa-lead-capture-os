@@ -31,9 +31,11 @@ export default defineConfig({
     viewport: { width: 1920, height: 1080 },
     screenshot: "only-on-failure",
     video: process.env.PLAYWRIGHT_NO_VIDEO === "1" ? "off" : "retain-on-failure",
-    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
-      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
-      : undefined,
+    launchOptions: {
+      ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
+      // Deterministic WebGL in isolated, credential-free CI runners only.
+      ...(process.env.CI ? { args: ["--use-gl=angle", "--use-angle=swiftshader-webgl", "--enable-unsafe-swiftshader"] } : {}),
+    },
     trace: "on-first-retry",
   },
   webServer: externalBaseUrl
