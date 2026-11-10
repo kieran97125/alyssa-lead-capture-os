@@ -67,9 +67,10 @@ function OrbitField() {
   return <group rotation={[.12, -.08, -.1]}>{paths.map((path, i) => <Line key={i} points={path} color="#6883b9" lineWidth={.65} transparent opacity={.12} depthWrite={false} />)}</group>;
 }
 
-function PlanetBody({ planet, point, selected, dimmed, controls, objects, onSelect, onMove }: {
+function PlanetBody({ planet, point, selected, dimmed, controls, objects, verticalScale, onSelect, onMove }: {
   planet: Planet; point: SpacePoint; selected: boolean; dimmed: boolean;
   objects: RefObject<Map<string, Group>>;
+  verticalScale: number;
   controls: RefObject<Controls | null>; onSelect: Props["onSelect"]; onMove: Props["onMove"];
 }) {
   const group = useRef<Group>(null); const invalidate = useThree(s => s.invalidate);
@@ -100,14 +101,15 @@ function PlanetBody({ planet, point, selected, dimmed, controls, objects, onSele
     else onSelect(planet.id);
     invalidate();
   };
-  return <group ref={node => { group.current = node; if (node) objects.current.set(planet.id, node); else objects.current.delete(planet.id); }} position={xyz(point)}>
-    <mesh geometry={geometry}
+  return <group ref={node => { group.current = node; if (node) objects.current.set(planet.id, node); else objects.current.delete(planet.id); }} position={xyz(point)} scale={[1, 1 / verticalScale, 1]}>
+    <mesh geometry={geometry} onClick={event => event.stopPropagation()}
       onPointerDown={event => {
         if (event.button !== 0 || !group.current) return;
         event.stopPropagation();
-        const plane = new Plane().setFromNormalAndCoplanarPoint(event.camera.getWorldDirection(new Vector3()), group.current.position);
+        const anchor = group.current.getWorldPosition(new Vector3());
+        const plane = new Plane().setFromNormalAndCoplanarPoint(event.camera.getWorldDirection(new Vector3()), anchor);
         const hit = event.ray.intersectPlane(plane, new Vector3()); if (!hit) return;
-        drag.current = { plane, offset: group.current.position.clone().sub(hit), x: event.clientX, y: event.clientY, moved: false };
+        drag.current = { plane, offset: anchor.sub(hit), x: event.clientX, y: event.clientY, moved: false };
         if (controls.current) controls.current.enabled = false;
         (event.target as Element).setPointerCapture(event.pointerId);
       }}
@@ -116,7 +118,8 @@ function PlanetBody({ planet, point, selected, dimmed, controls, objects, onSele
         event.stopPropagation();
         if (Math.hypot(event.clientX - drag.current.x, event.clientY - drag.current.y) < 4 && !drag.current.moved) return;
         const hit = event.ray.intersectPlane(drag.current.plane, new Vector3()); if (!hit) return;
-        drag.current.moved = true; group.current.position.copy(hit.add(drag.current.offset).clampScalar(-499, 499)); invalidate();
+        drag.current.moved = true; hit.add(drag.current.offset); group.current.parent?.worldToLocal(hit);
+        group.current.position.copy(hit.clampScalar(-499, 499)); invalidate();
       }} onPointerUp={event => endDrag(event)} onPointerCancel={event => endDrag(event, true)} onLostPointerCapture={event => { if (drag.current) endDrag(event, true); }}>
       <meshStandardMaterial vertexColors roughness={.58} metalness={.18} emissive={color} emissiveIntensity={selected ? .18 : .035} transparent={dimmed} opacity={dimmed ? .42 : 1} />
     </mesh>
@@ -175,12 +178,14 @@ function OrbitConnection({ edge, start, end, color, lit, objects, onEdge }: {
     line.current.computeLineDistances();
   });
   return <Line ref={line} points={points} color={color} transparent opacity={lit ? .48 : .13} lineWidth={lit ? 1.15 : .7} depthWrite={false}
-    onClick={event => { event.stopPropagation(); onEdge(edge.id); }} />;
+    onClick={event => { event.stopPropagation(); if (event.delta <= 4) onEdge(edge.id); }} />;
 }
 
 function SpaceScene(props: Props & { objects: RefObject<Map<string, Group>>; labels: RefObject<Map<string, HTMLButtonElement>> }) {
   const controls = useRef<Controls>(null);
+  const narrow = useThree(state => state.size.width < 600); const verticalScale = narrow ? 1.9 : 1;
   const positions = useMemo(() => spatialPositions(props.document), [props.document]);
+  const framePositions = useMemo(() => new Map([...positions].map(([id, p]) => [id, { ...p, y: p.y * verticalScale }])), [positions, verticalScale]);
   const neighbors = new Set([props.selectedId]);
   props.document.edges.filter(e => !e.archived).forEach(e => { if (e.source === props.selectedId) neighbors.add(e.target); if (e.target === props.selectedId) neighbors.add(e.source); });
   const nodes = props.document.nodes.filter(n => !n.archived && (!props.relatedOnly || neighbors.has(n.id)));
@@ -191,6 +196,7 @@ function SpaceScene(props: Props & { objects: RefObject<Map<string, Group>>; lab
     <directionalLight position={[-14, 20, 26]} intensity={3.5} color="#fff0e7" /><directionalLight position={[18, -5, -15]} intensity={4} color="#7766e6" />
     <pointLight position={[-1.5, 0, 5]} intensity={20} distance={30} decay={2} color="#e5a1cc" />
     <Starfield /><OrbitField />
+    <group scale={[1, verticalScale, 1]}>
     {lines.map(edge => {
       const start = positions.get(edge.source)!, end = positions.get(edge.target)!;
       const lit = edge.source === props.selectedId || edge.target === props.selectedId;
@@ -198,9 +204,10 @@ function SpaceScene(props: Props & { objects: RefObject<Map<string, Group>>; lab
       return <OrbitConnection key={edge.id} edge={edge} start={start} end={end} color={lit ? spaceColors[node.color] : "#5f719f"} lit={lit} objects={props.objects} onEdge={props.onEdge} />;
     })}
     {nodes.map(planet => <PlanetBody key={planet.id} planet={planet} point={positions.get(planet.id)!} selected={props.selectedId === planet.id}
-      dimmed={props.selectedId !== "core" && !neighbors.has(planet.id)} controls={controls} objects={props.objects} onSelect={props.onSelect} onMove={props.onMove} />)}
+      dimmed={props.selectedId !== "core" && !neighbors.has(planet.id)} controls={controls} objects={props.objects} verticalScale={verticalScale} onSelect={props.onSelect} onMove={props.onMove} />)}
+    </group>
     <OrbitControls ref={controls} makeDefault enableDamping dampingFactor={.12} minDistance={5} maxDistance={1500} maxPolarAngle={Math.PI * .86} minPolarAngle={.15} />
-    <CameraRig controls={controls} positions={positions} selectedId={props.selectedId} request={props.cameraRequest} />
+    <CameraRig controls={controls} positions={framePositions} selectedId={props.selectedId} request={props.cameraRequest} />
     <ProjectLabels nodes={nodes} objects={props.objects} labels={props.labels} /><SceneReady onReady={props.onReady} />
   </>;
 }

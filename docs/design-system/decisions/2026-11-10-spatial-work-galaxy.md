@@ -31,7 +31,7 @@ TypeScript, the owner/model checks, production build, Storybook and design contr
 
 The cloud preview browser has WebGL disabled; its full-width 2D fallback and focus interaction were visually inspected. Actual 3D evidence comes from the isolated GitHub CI runner using Chromium's documented software WebGL mode. Its SwiftShader flags apply only to CI test browsers with fixture data and blank database credentials, not the user's browser or production security settings.
 
-Initial hosted qualification exposed a missing central label managed in an independent projected DOM root. The label layer now stays in the application React root. Portrait fitting uses the real canvas aspect ratio, and relation curves follow planet drags in the render loop. Final screenshot review, CI and release evidence belong in the PR. Product-learning export must record the user's original dissatisfaction and distinguish visual qualification from sustained usage evidence.
+Initial hosted qualification exposed a missing central label managed in an independent projected DOM root. The label layer now stays in the application React root. Portrait fitting uses the real canvas aspect ratio. Narrow screens expand vertical layout spacing while preserving spherical geometry and canonical coordinates; secondary captions collapse until selected or keyboard-focused. Relation curves follow planet drags in the render loop, and sphere clicks/drag completion cannot activate underlying relation editors. Final screenshot review, CI and release evidence belong in the PR. Product-learning export must record the user's original dissatisfaction and distinguish visual qualification from sustained usage evidence.
 
 ## Rollback
 

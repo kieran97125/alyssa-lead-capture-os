@@ -39,3 +39,9 @@
 .spaceLabel{transform:translateY(50%)}.spaceLabel span{display:none}.spaceLabelSelected span,.spaceLabel:hover span,.spaceLabel:focus-visible span{display:block}
 .spatialLabels{position:absolute;inset:0;z-index:3;pointer-events:none}.spatialLabels .spaceLabel{position:absolute;transform:translate(-50%,0);pointer-events:auto}
 @media(max-width:600px){.spatialLabels .spaceLabel{width:95px;max-width:95px;padding:.2rem}.spatialLabels .spaceLabel strong{white-space:nowrap;text-overflow:ellipsis;overflow:hidden}.spatialLabels .spaceLabel span{display:none}}
+@media(max-width:600px){
+ .spatialLabels .spaceLabelSelected{width:145px;max-width:145px}
+ .spatialLabels .spaceLabel:is([data-kind=resource],[data-kind=person],[data-kind=project]):not([aria-pressed=true]):not(:focus-visible){width:20px;max-width:20px;height:12px;padding:0;border-color:transparent;background:transparent;box-shadow:none;backdrop-filter:none}
+ .spatialLabels .spaceLabel:is([data-kind=resource],[data-kind=person],[data-kind=project]):not([aria-pressed=true]):not(:focus-visible) strong{display:none}
+ .spatialLabels .spaceLabel:is([data-kind=resource],[data-kind=person],[data-kind=project]):not([aria-pressed=true]):not(:focus-visible):before{content:"";display:block;width:4px;height:4px;background:#a8c3e5a6;border-radius:50%;margin:auto}
+}
