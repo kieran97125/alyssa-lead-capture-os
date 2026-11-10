@@ -45,3 +45,6 @@
  .spatialLabels .spaceLabel:is([data-kind=resource],[data-kind=person],[data-kind=project]):not([aria-pressed=true]):not(:focus-visible) strong{display:none}
  .spatialLabels .spaceLabel:is([data-kind=resource],[data-kind=person],[data-kind=project]):not([aria-pressed=true]):not(:focus-visible):before{content:"";display:block;width:4px;height:4px;background:#a8c3e5a6;border-radius:50%;margin:auto}
 }
+
+/* State text and its background switch together, preserving contrast. */
+.viewNav>button{transition:none}
