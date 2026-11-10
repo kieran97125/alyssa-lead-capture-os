@@ -71,16 +71,16 @@ export function validateWorkbenchDocument(value: unknown): value is WorkbenchDoc
     jobIds.add(j.id);
   }
   for (const a of d.activity) { if (!a || !id(a.id) || !text(a.label, 600) || !text(a.at, 40) || Number.isNaN(Date.parse(a.at))) return false; }
-  return d.nodes.filter(n => n.kind === "core" && n.id === "core" && !n.archived).length === 1;
+  return d.nodes.filter(n => n.kind === "core").length === 1 && d.nodes.some(n => n.kind === "core" && n.id === "core" && !n.archived);
 }
 
 export function createWorkbenchTemplate(): WorkbenchDocument {
   const planet = (id: string, label: string, kind: PlanetKind, color: PlanetColor, x: number, y: number, subtitle = "", description = "", url = "", accountId = ""): Planet => ({ id, label, kind, color, x, y, subtitle, description, url, accountId, archived: false });
   const nodes: Planet[] = [
     planet("core", "我的 Alyssa", "core", "rose", 0, 0, "工作中樞", "品牌、營銷、團隊同系統之間嘅關係，由呢度開始。"),
-    planet("ib", "Ineffable Beauty", "brand", "blue", -430, -260, "IB · 直管品牌", "品牌策略、獲客、Creative、CS 協同及成效。", "/dashboard?account=ineffable", "ineffable"),
-    planet("gos", "GOS Beauty", "brand", "amber", -510, -25, "GOS · 直管品牌", "荔枝角品牌營運、廣告、Google、Creative、預約及到店。", "/dashboard?account=gos-beauty", "gos-beauty"),
-    planet("sk", "SkinLight", "brand", "mint", -420, 230, "SK · 直管品牌", "沙田品牌營運、內容、廣告及舊客跟進。", "/dashboard?account=skin-light", "skin-light"),
+    planet("ib", "Ineffable Beauty", "brand", "blue", -430, -260, "IB · 直管品牌", "品牌策略、獲客、Creative、CS 協同及成效。", "/dashboard?accountId=ineffable", "ineffable"),
+    planet("gos", "GOS Beauty", "brand", "amber", -510, -25, "GOS · 直管品牌", "荔枝角品牌營運、廣告、Google、Creative、預約及到店。", "/dashboard?accountId=gos-beauty", "gos-beauty"),
+    planet("sk", "SkinLight", "brand", "mint", -420, 230, "SK · 直管品牌", "沙田品牌營運、內容、廣告及舊客跟進。", "/dashboard?accountId=skin-light", "skin-light"),
     planet("alyssa", "Alyssa", "brand", "rose", -150, -390, "跨品牌支援", "Aesthetics／Medical／Main：CRM、CS 流程、資料口徑與報表支援。", "/dashboard"),
     planet("strategy", "策略與預算", "workstream", "slate", 110, -355, "方向 · Offer · Budget", "品牌定位、月度目標、療程方向、預算分配與商業增長。", "/kpis"),
     planet("ads", "廣告獲客", "workstream", "amber", 350, -250, "Meta · Google Ads", "投放、受眾、素材成效、CPL／CPBook／CPShow。", "/performance"),

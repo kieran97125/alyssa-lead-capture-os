@@ -54,7 +54,7 @@ export default function GalaxyCanvas({ document, selectedId, relatedOnly, onSele
   const handleChanges = (changes: NodeChange<FlowNode>[]) => {
     setNodes(current => applyNodeChanges(changes, current));
     // Keyboard nudges are durable too. Pointer moves save only on drag stop.
-    for (const c of changes) if (c.type === "position" && c.position && c.dragging === undefined) onMove(c.id, c.position.x, c.position.y);
+    for (const c of changes) if (c.type === "position" && c.position && !c.dragging) onMove(c.id, c.position.x, c.position.y);
   };
   return <div className={styles.canvas} data-testid="work-galaxy">
     <ReactFlow<FlowNode> nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={handleChanges}

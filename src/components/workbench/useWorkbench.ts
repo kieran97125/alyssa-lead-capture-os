@@ -68,6 +68,7 @@ export function useWorkbench(initial?: WorkbenchRecord, fixture = false) {
     const previous = docRef.current; const draft = structuredClone(previous);
     edit(draft);
     if (!validateWorkbenchDocument(draft)) { setError("改動格式未通過檢查。"); return false; }
+    if (JSON.stringify(draft) === JSON.stringify(previous)) return true;
     draft.activity = [{ id: crypto.randomUUID(), label, at: new Date().toISOString() }, ...draft.activity].slice(0, 100);
     history.current = [...history.current.slice(-19), previous]; setUndoCount(history.current.length);
     docRef.current = draft; setDocument(draft); queue.current = draft;

@@ -1,13 +1,14 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { cloneElement, isValidElement, useId, useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode, type ReactElement } from "react";
 import { Dialog } from "@base-ui/react/dialog";
 import { Orbit, Plus, ListTodo, Network, ArrowUpRight, Search, Undo2, Download, RefreshCw, LockKeyhole, X,
   Check, Link2, Circle, CheckCircle2, Clock3, Pencil, Archive, Pin, GitBranch, LoaderCircle, CalendarDays, AlertCircle, FileJson, ChevronRight } from "lucide-react";
 import { SystemButton } from "@/components/system/SystemButton";
 import { SystemConfirmationDialog } from "@/components/system/SystemConfirmationDialog";
 import { LEAD_ACCOUNTS } from "@/lib/marketing/leadAccountScope";
+import { creativeJobStatusLabels } from "@/lib/creative/types";
 import { hongKongDate, isTodayJob, kindLabels, planetKinds, planetColors, statusLabels, priorityLabels,
   validateWorkbenchDocument, safeWorkbenchUrl, type Planet, type Job, type WorkbenchContext, type WorkbenchDocument, type WorkbenchRecord, type Connection } from "@/lib/workbench/model";
 import { useWorkbench } from "./useWorkbench";
@@ -184,10 +185,14 @@ function SourceCard({ title, description, available, url }: { title: string; des
   return <a href={url} className={styles.sourceCard}><div><Link2 size={19} /><ArrowUpRight size={16} /></div><h3>{title}</h3><p>{description}</p><span className={available ? styles.available : styles.unavailable}>{available ? "已讀取原有系統" : "暫未讀取"}</span></a>;
 }
 function SystemJobs({ title, available, jobs }: { title: string; available: boolean; jobs: { id: string; title: string; status: string; dueDate: string; url: string }[] }) {
-  return <div className={styles.detailSection}><h3>{title}</h3><p className={styles.emptySmall}>正式工作狀態以原有系統為準。</p>{!available ? <p className={styles.emptySmall}>資料暫時未能讀取。</p> : !jobs.length ? <p className={styles.emptySmall}>未有工作記錄。</p> : jobs.slice(0, 6).map(j => <a key={j.id} href={j.url} className={styles.systemJob}><span>{j.title}<small>{j.status} · {j.dueDate || "未定 Due"}</small></span><ArrowUpRight size={13} /></a>)}</div>;
+  const labels: Record<string, string> = { ...creativeJobStatusLabels, ...statusLabels };
+  return <div className={styles.detailSection}><h3>{title}</h3><p className={styles.emptySmall}>正式工作狀態以原有系統為準。</p>{!available ? <p className={styles.emptySmall}>資料暫時未能讀取。</p> : !jobs.length ? <p className={styles.emptySmall}>未有工作記錄。</p> : jobs.slice(0, 6).map(j => <a key={j.id} href={j.url} className={styles.systemJob}><span>{j.title}<small>{labels[j.status] ?? "待核對"} · {j.dueDate || "未定 Due"}</small></span><ArrowUpRight size={13} /></a>)}</div>;
 }
 
-function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) { return <label className={`${styles.field} ${wide ? styles.wide : ""}`}><span>{label}</span>{children}</label>; }
+function Field({ label, children, wide = false }: { label: string; children: ReactNode; wide?: boolean }) {
+  const id = useId();
+  return <div className={`${styles.field} ${wide ? styles.wide : ""}`}><label htmlFor={id}>{label}</label>{isValidElement(children) ? cloneElement(children as ReactElement<{ id?: string }>, { id }) : children}</div>;
+}
 function WorkbenchEditor({ editor, nodes, today, onClose, onSave, onArchive }: { editor: NonNullable<Editor>; nodes: Planet[]; today: string; onClose: () => void; onSave: (next: Planet | Job | Connection, type: "planet" | "job" | "edge") => void; onArchive: () => void }) {
   const [error, setError] = useState(""); const type = editor.type;
   const [checks, setChecks] = useState<Record<string, boolean>>(() => editor.type === "job" ? Object.fromEntries(editor.value.checklist.map(c => [c.id, c.done])) : {});

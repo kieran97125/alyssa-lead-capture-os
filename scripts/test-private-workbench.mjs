@@ -14,6 +14,7 @@ assert.equal(allowed({ source: "shared_password", accessLevel: "master" }, undef
 const original = createWorkbenchTemplate(); assert.equal(valid(original), true);
 const reject = edit => { const copy = structuredClone(original); edit(copy); assert.equal(valid(copy), false); };
 reject(d => d.nodes.push({ ...d.nodes[0] })); reject(d => d.nodes[0].archived = true);
+reject(d => d.nodes.push({ ...d.nodes[0], id: "another-core" }));
 reject(d => d.nodes[0].x = Infinity); reject(d => d.nodes[0].url = "javascript:alert(1)");
 reject(d => d.nodes[0].url = "//external.example"); reject(d => d.edges[0].target = "missing");
 reject(d => d.edges[0].target = d.edges[0].source); reject(d => d.schemaVersion = 2);
