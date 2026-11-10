@@ -31,6 +31,7 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
   const [selectedId, setSelectedId] = useState("core"); const [relatedOnly, setRelatedOnly] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false); const [focused, setFocused] = useState(false);
   const [editor, setEditor] = useState<Editor>(null); const [search, setSearch] = useState("");
+  const editorRef = useRef(editor); editorRef.current = editor;
   const [todayOnly, setTodayOnly] = useState(false); const [status, setStatus] = useState("open");
   const [context, setContext] = useState<WorkbenchContext | null>(null); const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState(""); const [notice, setNotice] = useState(""); const [showArchived, setShowArchived] = useState(false);
@@ -47,11 +48,34 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
   useEffect(() => { if (!notice) return; const t = setTimeout(() => setNotice(""), 4500); return () => clearTimeout(t); }, [notice]);
   useEffect(() => {
     if (!focused) return;
+    if (view !== "galaxy") { setFocused(false); return; }
+    const workspace = root.current?.querySelector<HTMLElement>('[data-testid="galaxy-workspace"]');
+    if (!workspace) return;
+    const previousFocus = window.document.activeElement as HTMLElement | null;
+    const coveredNavigation = [...window.document.querySelectorAll<HTMLElement>(".command-sidebar, .command-mobile-bar")].map(element => ({ element, inert: element.inert }));
+    coveredNavigation.forEach(({ element }) => { element.inert = true; });
     const previous = window.document.body.style.overflow; window.document.body.style.overflow = "hidden";
-    const escape = (event: KeyboardEvent) => { if (event.key === "Escape" && !editor) setFocused(false); };
-    window.addEventListener("keydown", escape);
-    return () => { window.document.body.style.overflow = previous; window.removeEventListener("keydown", escape); };
-  }, [focused, editor]);
+    const keys = (event: KeyboardEvent) => {
+      if (editorRef.current) return; // The existing Base UI editor owns modal focus.
+      if (event.key === "Escape") { setFocused(false); return; }
+      if (event.key !== "Tab" || event.ctrlKey || event.metaKey || event.altKey) return;
+      const bounds = workspace.getBoundingClientRect();
+      const targets = [...workspace.querySelectorAll<HTMLElement>('button:not([disabled]),a[href],input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])')].filter(element => {
+        const box = element.getBoundingClientRect();
+        return !element.closest('[inert]') && element.offsetParent !== null && box.width > 0 && box.height > 0 && box.right > bounds.left && box.left < bounds.right && box.bottom > bounds.top && box.top < bounds.bottom;
+      });
+      if (!targets.length) return;
+      event.preventDefault(); const index = targets.indexOf(window.document.activeElement as HTMLElement);
+      targets[(index + (event.shiftKey ? -1 : 1) + targets.length) % targets.length].focus({ preventScroll: true });
+    };
+    if (!workspace.contains(window.document.activeElement)) workspace.querySelector<HTMLElement>('button[aria-label="離開專注模式"]')?.focus({ preventScroll: true });
+    window.addEventListener("keydown", keys);
+    return () => {
+      window.document.body.style.overflow = previous; window.removeEventListener("keydown", keys);
+      coveredNavigation.forEach(({ element, inert }) => { element.inert = inert; });
+      if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
+    };
+  }, [focused, view]);
   const selectPlanet = useCallback((id: string) => { setSelectedId(id); setDetailOpen(true); }, []);
 
   const activeNodes = useMemo(() => d?.nodes.filter(n => !n.archived) ?? [], [d?.nodes]);
@@ -106,19 +130,19 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
   const saveLabel = { loading: "正在讀取", saved: "已儲存", pending: "準備儲存", saving: "儲存中", error: "未能儲存", conflict: "版本需要核對" }[wb.state];
 
   return <div ref={root} className={styles.workbench} data-testid="private-workbench">
-    <header className={styles.pageHeader}>
+    <header className={styles.pageHeader} inert={focused}>
       <div><p className={styles.eyebrow}><Orbit size={14} /> MY PRIVATE WORKSPACE <span>ALYSSA GROWTH OS</span></p><h1>我的工作星圖<span>把工作連成一個整體。</span></h1><p className={styles.intro}>品牌、團隊、Creative、CS 同系統，都喺你嘅工作軌道。</p></div>
       <div className={styles.headerActions}><span className={styles.privatePill}><LockKeyhole size={12} /> Master 私人工作枱</span>
         <SystemButton density="compact" variant="outline" onClick={() => { download("Alyssa_Work_Galaxy.url", `[InternetShortcut]\r\nURL=${window.location.origin}/workbench\r\n`, "application/internet-shortcut"); setNotice("捷徑已下載。將檔案放到桌面，雙擊就可以打開。" ); }}><Download size={14} />桌面捷徑</SystemButton>
       </div>
     </header>
-    <section className={styles.summary} aria-label="工作總覽">
+    <section className={styles.summary} aria-label="工作總覽" inert={focused}>
       <button onClick={() => { setView("jobs"); setTodayOnly(true); setStatus("open"); }}><span className={styles.summaryIcon}><CalendarDays size={18} /></span><div><span>今日重點</span><strong>{todayJobs.length}<small>件</small></strong></div><ChevronRight size={14} /></button>
       <button onClick={() => { setView("jobs"); setTodayOnly(false); setStatus("open"); }}><span className={styles.summaryIcon}><ListTodo size={18} /></span><div><span>進行中／待辦</span><strong>{openJobs.length}<small>件</small></strong></div><ChevronRight size={14} /></button>
       <button onClick={() => { setView("jobs"); setTodayOnly(false); setStatus("waiting"); }}><span className={styles.summaryIcon}><Clock3 size={18} /></span><div><span>等候跟進</span><strong>{waitingJobs.length}<small>件</small></strong></div><ChevronRight size={14} /></button>
       <button onClick={() => { setView("jobs"); setTodayOnly(false); setStatus("done"); }}><span className={styles.summaryIcon}><CheckCircle2 size={18} /></span><div><span>已完成</span><strong>{completed}<small>件</small></strong></div><ChevronRight size={14} /></button>
     </section>
-    <div className={styles.toolbar}>
+    <div className={styles.toolbar} inert={focused}>
       <nav aria-label="工作枱檢視" className={styles.viewNav}>
         <SystemButton density="compact" variant={view === "galaxy" ? "default" : "ghost"} aria-pressed={view === "galaxy"} onClick={() => setView("galaxy")}><Network size={14} />星球網絡</SystemButton>
         <SystemButton density="compact" variant={view === "jobs" ? "default" : "ghost"} aria-pressed={view === "jobs"} onClick={() => setView("jobs")}><ListTodo size={14} />Job list</SystemButton>
@@ -174,7 +198,7 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
         <details className={styles.activity}><summary>最近更新紀錄</summary>{d.activity.slice(0, 15).map(a => <p key={a.id}><span>{a.label}</span><small>{prettyTime(a.at)}</small></p>)}</details>
       </section> : null}
     </>}
-    <footer className={styles.pageFooter}><span><LockKeyhole size={11} />私人工作資料 · 香港時間</span><span>{today} · {activeNodes.length} 個星球 · {d?.edges.filter(e => !e.archived).length ?? 0} 條關係</span></footer>
+    <footer className={styles.pageFooter} inert={focused}><span><LockKeyhole size={11} />私人工作資料 · 香港時間</span><span>{today} · {activeNodes.length} 個星球 · {d?.edges.filter(e => !e.archived).length ?? 0} 條關係</span></footer>
     {notice ? <div role="status" className={styles.toast}>{notice}</div> : null}
     {editor && d ? <WorkbenchEditor key={`${editor.type}-${editor.value.id}`} editor={editor} nodes={d.nodes} today={today} onClose={() => setEditor(null)} onSave={saveEditor} onArchive={() => {
       if (editor.type === "job") { changeJob(editor.value, { archived: true }, `封存 Job：${editor.value.title}`); }

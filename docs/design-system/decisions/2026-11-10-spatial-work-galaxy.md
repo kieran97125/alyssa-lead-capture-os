@@ -6,7 +6,7 @@ The operator reported that the first graph felt flat, its crossing lines were di
 
 The main view now presents an interactive three-dimensional galaxy. A deterministic horizontal constellation layout groups brands, workstreams and connected collaborators/resources. Lit, textured spheres, thin orbital curves, a layered starfield and perspective establish depth. Labels remain DOM controls with stable readable type; geometry carries the spatial effect. The graph does not add perpetual decorative animation.
 
-The canvas uses the full available page width. The inspector is initially closed and floats over the scene on selection. A dedicated focus mode uses the full viewport and exits with Escape. Existing Jobs and source views remain available below/outside the scene.
+The canvas uses the full available page width. The inspector is initially closed and floats over the scene on selection. A dedicated focus mode uses the full viewport and exits with Escape; covered navigation is inert, keyboard focus stays in the visible workspace and is restored on exit. Existing Jobs and source views remain available below/outside the scene.
 
 ## Interaction and persistence
 
@@ -19,7 +19,7 @@ The canvas uses the full available page width. The inspector is initially closed
 
 ## Dependency and component review
 
-Pinned runtime additions: `three@0.187.0`, `@react-three/fiber@9.8.2`, and `@react-three/drei@10.7.9`, all MIT. `@types/three@0.187.0` is development-only. Three supplies geometry/materials/WebGL; Fiber owns React scene lifecycle and demand rendering; Drei supplies maintained camera controls, projected DOM labels and screen-space-width curves. This adds 48 resolved packages. No remote component registry, postprocessing pack, external textures, CDN fonts or analytics are introduced.
+Pinned runtime additions: `three@0.187.0`, `@react-three/fiber@9.8.2`, and `@react-three/drei@10.7.9`, all MIT. `@types/three@0.187.0` is development-only. Three supplies geometry/materials/WebGL; Fiber owns React scene lifecycle and demand rendering; Drei supplies maintained camera controls and screen-space-width curves. Labels remain in the application React root and are projected from the camera without per-frame React state updates. This adds 48 resolved packages. No remote component registry, postprocessing pack, external textures, CDN fonts or analytics are introduced.
 
 Both 3D and 2D renderers are lazy-loaded. The 3D scene renders on demand, caps pixel ratio at 1.5, uses deterministic geometry/stars, and disposes resources on unmount. No client credentials, data-source permissions or access policy change.
 
@@ -31,7 +31,7 @@ TypeScript, the owner/model checks, production build, Storybook and design contr
 
 The cloud preview browser has WebGL disabled; its full-width 2D fallback and focus interaction were visually inspected. Actual 3D evidence comes from the isolated GitHub CI runner using Chromium's documented software WebGL mode. Its SwiftShader flags apply only to CI test browsers with fixture data and blank database credentials, not the user's browser or production security settings.
 
-Final screenshot review, CI and release evidence belong in the PR. Product-learning export must record the user's original dissatisfaction and distinguish visual qualification from sustained usage evidence.
+Initial hosted qualification exposed a missing central label managed in an independent projected DOM root. The label layer now stays in the application React root. Portrait fitting uses the real canvas aspect ratio, and relation curves follow planet drags in the render loop. Final screenshot review, CI and release evidence belong in the PR. Product-learning export must record the user's original dissatisfaction and distinguish visual qualification from sustained usage evidence.
 
 ## Rollback
 
