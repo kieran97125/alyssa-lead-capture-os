@@ -38,7 +38,7 @@ jobs:
       - run: node scripts/test-private-workbench.mjs
       - run: npx playwright install --with-deps chromium
       - name: Verify graph, jobs, roles, accessibility and appearance
-        run: npx playwright test e2e/workbench.spec.ts --update-snapshots
+        run: npx playwright test e2e/workbench.spec.ts
       - name: Upload workbench results
         if: always()
         uses: actions/upload-artifact@v4

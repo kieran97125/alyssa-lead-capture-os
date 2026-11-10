@@ -38,7 +38,7 @@ export default function GalaxyCanvas({ document, selectedId, relatedOnly, onSele
     return ids;
   }, [document.edges, selectedId]);
   const sourceNodes = useMemo<FlowNode[]>(() => document.nodes.filter(n => !n.archived && (!relatedOnly || neighbors.has(n.id))).map(n => ({
-    id: n.id, type: "planet", position: { x: n.x, y: n.y }, ariaLabel: `星球：${n.label}`, dragHandle: `.${styles.planet}`,
+    id: n.id, type: "planet", position: { x: n.x, y: n.y }, selected: n.id === selectedId, ariaLabel: `星球：${n.label}`, dragHandle: `.${styles.planet}`,
     data: { planet: n, open: document.jobs.filter(j => (n.id === "core" || j.nodeId === n.id || j.relatedNodeIds.includes(n.id)) && !j.archived && j.status !== "done").length, selected: n.id === selectedId, dimmed: selectedId !== "core" && !neighbors.has(n.id) },
   })), [document.nodes, document.jobs, selectedId, relatedOnly, neighbors]);
   const [nodes, setNodes] = useNodesState<FlowNode>(sourceNodes);
