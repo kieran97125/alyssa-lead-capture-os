@@ -13,6 +13,7 @@ The main canvas uses draggable planet nodes, explicit labelled relations and con
 - The current signed Master password principal maps to the configured sole owner. Email-authenticated access additionally requires that exact member ID. Another email-authenticated Master/owner is denied. Anonymous, standard Admin and unconfigured development access are denied.
 - The database table has RLS enabled and no `anon`/`authenticated` grants. Only owner-checked server code uses the existing service client. No new browser database privilege is granted.
 - Updates compare the persisted revision. A conflict preserves the current tab, reports the conflict and offers export/reload; it never silently overwrites a newer saved document.
+- Every edit also retains a tab-local, owner-scoped pending draft before the autosave debounce. Returning after client navigation or a failed save recovers it. A changed server revision stops recovery writes for explicit export/reload; successful saves remove the draft. Late responses cannot clear a newer editor's draft.
 - Node/edge/job removal is archival. Undo, archival restore and JSON export are available. Nested checklist edits are local to the editor until Save.
 - Account metrics reuse the saved Lead Dashboard service and preserve its source timestamp and availability. Context includes only aggregate L/B/S and bounded titles/statuses for existing Jobs. It does not expose customer-level records or perform Sheet writes, sends, task assignment notifications or background scheduling.
 
@@ -26,7 +27,7 @@ The main canvas uses draggable planet nodes, explicit labelled relations and con
 
 ## Verification and limits
 
-Production build, TypeScript, the existing design contract, the new owner/data-model checks and Storybook build pass locally. Database privileges were inspected after migration: RLS enabled, no anonymous/member select/insert/update, server access present.
+Production build, TypeScript, the existing design contract, the new owner/data-model checks and Storybook build pass locally. Database privileges were inspected after migration: RLS enabled, no anonymous/member select/insert/update, server access present. The migration filename matches the applied database history version.
 
 The execution sandbox cannot launch Chromium because it denies its local socket. Browser qualification therefore runs on the standard hosted CI runner, with fixture data and without production database credentials. Browser evidence and final release status are recorded in the release note after qualification.
 

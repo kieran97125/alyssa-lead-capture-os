@@ -24,8 +24,8 @@ function download(name: string, content: string, type = "application/json") {
 function prettyTime(value: string) { if (!value) return ""; return new Intl.DateTimeFormat("zh-HK", { timeZone: "Asia/Hong_Kong", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value)); }
 function fields(form: HTMLFormElement) { const data = new FormData(form); return { data, get: (name: string) => String(data.get(name) ?? "").trim() }; }
 
-export function Workbench({ initialRecord, fixtureMode = false, fixtureToday }: { initialRecord?: WorkbenchRecord; fixtureMode?: boolean; fixtureToday?: string }) {
-  const wb = useWorkbench(initialRecord, fixtureMode); const d = wb.document;
+export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ownerScope }: { initialRecord?: WorkbenchRecord; fixtureMode?: boolean; fixtureToday?: string; ownerScope?: string }) {
+  const wb = useWorkbench(initialRecord, fixtureMode, ownerScope); const d = wb.document;
   const [view, setView] = useState<"galaxy" | "jobs" | "sources">("galaxy");
   const [selectedId, setSelectedId] = useState("core"); const [relatedOnly, setRelatedOnly] = useState(false);
   const [editor, setEditor] = useState<Editor>(null); const [search, setSearch] = useState("");

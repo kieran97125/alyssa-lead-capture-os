@@ -1,5 +1,6 @@
 import { expect, test } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { createWorkbenchTemplate } from "../src/lib/workbench/model";
 
 for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]] as const) {
   test(`private work galaxy ${name} visual and accessibility`, async ({ page }) => {
@@ -74,13 +75,84 @@ test("create planet, edit relation, complete a job, undo and export desktop shor
   await page.getByTestId("workbench-jobs").getByRole("button", { name: "新增 Job", exact: true }).click();
   await dialog.getByLabel("工作名稱", { exact: true }).fill("確認拍攝日期");
   await dialog.getByRole("button", { name: "儲存 Job", exact: true }).click();
-  await page.getByRole("checkbox", { name: "標記完成：確認拍攝日期", exact: true }).check();
+  // Completing an open-only row removes its checkbox immediately.
+  await page.getByRole("checkbox", { name: "標記完成：確認拍攝日期", exact: true }).click();
   await expect(page.getByRole("checkbox", { name: "標記完成：確認拍攝日期", exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "復原上一步", exact: true }).click();
   await expect(page.getByRole("checkbox", { name: "標記完成：確認拍攝日期", exact: true })).not.toBeChecked();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "桌面捷徑", exact: true }).click();
   expect((await download).suggestedFilename()).toBe("Alyssa_Work_Galaxy.url");
+});
+
+test("queued and failed saves survive client navigation and recover without overwriting a newer revision", async ({ page }) => {
+  let saved = { document: createWorkbenchTemplate(), revision: 1, updatedAt: "2026-11-10T01:00:00.000Z" };
+  let failWrites = false; let writes = 0;
+  await page.route("**/api/internal/workbench/context", route => route.fulfill({ status: 503, json: { message: "驗收資料來源未提供" } }));
+  await page.route("**/api/internal/workbench", async route => {
+    if (route.request().method() === "GET") { await route.fulfill({ json: saved }); return; }
+    writes++;
+    const input = route.request().postDataJSON();
+    if (input.revision !== saved.revision) { await route.fulfill({ status: 409, json: { message: "另一個視窗已更新工作枱" } }); return; }
+    if (failWrites) { await route.fulfill({ status: 503, json: { message: "模擬儲存失敗" } }); return; }
+    saved = { document: input.document, revision: saved.revision + 1, updatedAt: new Date().toISOString() };
+    await route.fulfill({ json: { revision: saved.revision, updatedAt: saved.updatedAt } });
+  });
+  await page.goto("/e2e/workbench?remote=1", { waitUntil: "networkidle" });
+  await expect(page.getByLabel("星球：我的 Alyssa", { exact: true })).toBeVisible();
+  // Hold the debounce so this proves recovery of a queued, never-sent change.
+  await page.clock.install({ time: new Date("2026-11-10T02:00:00Z") });
+  await page.clock.pauseAt(new Date("2026-11-10T02:00:01Z"));
+  await page.getByTestId("workbench-jobs").getByRole("button", { name: "新增 Job", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("工作名稱", { exact: true }).fill("跨頁暫存驗收");
+  await dialog.getByRole("button", { name: "儲存 Job", exact: true }).click();
+  await page.getByRole("link", { name: "測試離開工作枱", exact: true }).click();
+  await expect(page.getByRole("link", { name: "返回測試工作枱", exact: true })).toBeVisible();
+  expect(writes).toBe(0);
+  await page.getByRole("link", { name: "返回測試工作枱", exact: true }).click();
+  await expect(page.getByRole("button", { name: "編輯 Job：跨頁暫存驗收", exact: true })).toBeVisible();
+  await page.clock.resume();
+  await expect.poll(() => saved.document.jobs[0]?.title).toBe("跨頁暫存驗收");
+  await expect(page.getByRole("status").filter({ hasText: "已儲存" })).toBeVisible();
+
+  failWrites = true;
+  await page.getByRole("button", { name: "編輯 Job：跨頁暫存驗收", exact: true }).click();
+  await dialog.getByLabel("備註／跟進記錄", { exact: true }).fill("失敗後仍保留嘅備註");
+  await dialog.getByRole("button", { name: "儲存 Job", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "模擬儲存失敗" })).toBeVisible();
+  await page.getByRole("link", { name: "測試離開工作枱", exact: true }).click();
+  await page.getByRole("link", { name: "返回測試工作枱", exact: true }).click();
+  await page.getByRole("button", { name: "編輯 Job：跨頁暫存驗收", exact: true }).click();
+  await expect(dialog.getByLabel("備註／跟進記錄", { exact: true })).toHaveValue("失敗後仍保留嘅備註");
+  await dialog.getByRole("button", { name: "取消", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "模擬儲存失敗" })).toBeVisible();
+  failWrites = false;
+  await page.getByRole("button", { name: "重試儲存", exact: true }).click();
+  await expect.poll(() => saved.document.jobs[0]?.notes).toBe("失敗後仍保留嘅備註");
+  await expect(page.getByRole("status").filter({ hasText: "已儲存" })).toBeVisible();
+
+  failWrites = true;
+  await page.getByRole("button", { name: "編輯 Job：跨頁暫存驗收", exact: true }).click();
+  await dialog.getByLabel("備註／跟進記錄", { exact: true }).fill("需要核對嘅私人改動");
+  await dialog.getByRole("button", { name: "儲存 Job", exact: true }).click();
+  await expect(page.getByRole("alert").filter({ hasText: "模擬儲存失敗" })).toBeVisible();
+  await page.getByRole("link", { name: "測試離開工作枱", exact: true }).click();
+  saved = { ...saved, revision: saved.revision + 1 };
+  const writesBeforeRecovery = writes;
+  await page.getByRole("link", { name: "返回測試工作枱", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "版本需要核對" })).toBeVisible();
+  await page.getByRole("button", { name: "編輯 Job：跨頁暫存驗收", exact: true }).click();
+  await expect(dialog.getByLabel("備註／跟進記錄", { exact: true })).toHaveValue("需要核對嘅私人改動");
+  await dialog.getByLabel("備註／跟進記錄", { exact: true }).fill("核對期間嘅修訂仍然需要比較版本");
+  await dialog.getByRole("button", { name: "儲存 Job", exact: true }).click();
+  await page.getByRole("link", { name: "測試離開工作枱", exact: true }).click();
+  await page.getByRole("link", { name: "返回測試工作枱", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "版本需要核對" })).toBeVisible();
+  await page.getByRole("button", { name: "編輯 Job：跨頁暫存驗收", exact: true }).click();
+  await expect(dialog.getByLabel("備註／跟進記錄", { exact: true })).toHaveValue("核對期間嘅修訂仍然需要比較版本");
+  expect(writes).toBe(writesBeforeRecovery);
+  expect(saved.document.jobs[0]?.notes).toBe("失敗後仍保留嘅備註");
 });
 
 test("anonymous and standard admin cannot reach private document APIs", async ({ request }) => {
