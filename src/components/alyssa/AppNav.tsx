@@ -10,6 +10,7 @@ import {
   normalizeWorkspaceRole,
 } from "@/lib/security/workspacePermissions";
 import type { InternalAccessContext } from "@/lib/security/internalAccess";
+import { canUsePrivateWorkbench } from "@/lib/workbench/access";
 
 export async function AppNav({
   access: providedAccess,
@@ -60,7 +61,7 @@ export async function AppNav({
     creativeNotificationCount,
   }));
   return (
-    <AppNavNotifications access={access} initialCounts={initialCounts}>
+    <AppNavNotifications access={access} initialCounts={initialCounts} workbenchEnabled={canUsePrivateWorkbench(access, process.env.ALYSSA_WORKBENCH_OWNER_MEMBER_ID)}>
       <Suspense fallback={null}>
         <NavigationBadges counts={counts} />
       </Suspense>

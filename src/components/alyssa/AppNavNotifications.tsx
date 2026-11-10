@@ -14,15 +14,16 @@ const NotificationContext = createContext<((counts: NavigationCounts) => void) |
 
 // Keep the interactive sidebar mounted while optional badges stream in. A
 // Suspense fallback around the entire sidebar would reset its open/focus state.
-export function AppNavNotifications({ access, initialCounts, children }: {
+export function AppNavNotifications({ access, initialCounts, children, workbenchEnabled = false }: {
   access: InternalAccessContext;
   initialCounts: NavigationCounts;
   children: ReactNode;
+  workbenchEnabled?: boolean;
 }) {
   const [loadedCounts, setLoadedCounts] = useState<NavigationCounts>({});
   return (
     <NotificationContext.Provider value={setLoadedCounts}>
-      <AppNavClient access={access} {...initialCounts} {...loadedCounts} />
+      <AppNavClient access={access} workbenchEnabled={workbenchEnabled} {...initialCounts} {...loadedCounts} />
       {children}
     </NotificationContext.Provider>
   );

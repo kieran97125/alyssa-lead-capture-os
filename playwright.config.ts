@@ -30,7 +30,10 @@ export default defineConfig({
     baseURL,
     viewport: { width: 1920, height: 1080 },
     screenshot: "only-on-failure",
-    video: "retain-on-failure",
+    video: process.env.PLAYWRIGHT_NO_VIDEO === "1" ? "off" : "retain-on-failure",
+    launchOptions: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH
+      ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH }
+      : undefined,
     trace: "on-first-retry",
   },
   webServer: externalBaseUrl

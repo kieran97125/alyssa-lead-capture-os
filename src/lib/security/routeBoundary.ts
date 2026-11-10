@@ -13,6 +13,7 @@ export const publicRoutePrefixes = [
 ] as const;
 
 export const internalRoutePrefixes = [
+  "/workbench",
   "/dashboard",
   "/kpis",
   "/calendar",
@@ -49,6 +50,8 @@ export function isInternalRoute(pathname: string) {
 }
 
 const masterOnlyRoutePrefixes = [
+  "/workbench",
+  "/api/internal/workbench",
   "/data-sources",
   "/settings/team",
   "/system-audit",
