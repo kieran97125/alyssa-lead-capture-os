@@ -1,0 +1,27 @@
+import assert from "node:assert/strict";
+import fs from "node:fs";
+import ts from "typescript";
+const load = async file => { const code = ts.transpileModule(fs.readFileSync(file, "utf8"), { compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 } }).outputText; return import(`data:text/javascript;base64,${Buffer.from(code).toString("base64")}`); };
+const { canUsePrivateWorkbench: allowed } = await load("src/lib/workbench/access.ts");
+const { createWorkbenchTemplate, validateWorkbenchDocument: valid, hongKongDate, safeWorkbenchUrl, isTodayJob } = await load("src/lib/workbench/model.ts");
+const owner = "owner-member";
+for (const source of ["unauthenticated", "development_not_configured", "shared_password", "supabase_auth"]) assert.equal(allowed({ source, accessLevel: "admin", memberId: owner }, owner), false);
+for (const source of ["unauthenticated", "development_not_configured"]) assert.equal(allowed({ source, accessLevel: "master", memberId: owner }, owner), false);
+assert.equal(allowed({ source: "shared_password", accessLevel: "master" }, owner), true);
+assert.equal(allowed({ source: "supabase_auth", accessLevel: "master", memberId: "other-owner" }, owner), false);
+assert.equal(allowed({ source: "supabase_auth", accessLevel: "master", memberId: owner }, owner), true);
+assert.equal(allowed({ source: "shared_password", accessLevel: "master" }, undefined), false);
+const original = createWorkbenchTemplate(); assert.equal(valid(original), true);
+const reject = edit => { const copy = structuredClone(original); edit(copy); assert.equal(valid(copy), false); };
+reject(d => d.nodes.push({ ...d.nodes[0] })); reject(d => d.nodes[0].archived = true);
+reject(d => d.nodes[0].x = Infinity); reject(d => d.nodes[0].url = "javascript:alert(1)");
+reject(d => d.nodes[0].url = "//external.example"); reject(d => d.edges[0].target = "missing");
+reject(d => d.edges[0].target = d.edges[0].source); reject(d => d.schemaVersion = 2);
+const job = { id: "test-job", nodeId: "creative", relatedNodeIds: ["gos"], title: "素材交付", description: "", status: "todo", priority: "high", focusDate: "2026-11-10", dueDate: "", assignee: "", briefUrl: "", notes: "", checklist: [{ id: "one", label: "確認", done: false }], source: "", archived: false };
+const doc = structuredClone(original); doc.jobs.push(job); assert.equal(valid(doc), true);
+for (const edit of [j => j.relatedNodeIds.push("missing"), j => j.dueDate = "2026-02-30", j => j.checklist.push({ ...j.checklist[0] }), j => j.briefUrl = "data:text/html,hi", j => j.status = "unsupported"]) { const copy = structuredClone(doc); edit(copy.jobs[0]); assert.equal(valid(copy), false); }
+assert.equal(hongKongDate(new Date("2026-11-09T16:05:00Z")), "2026-11-10");
+assert.equal(isTodayJob(job, "2026-11-10"), true); assert.equal(isTodayJob({ ...job, status: "done" }, "2026-11-10"), false);
+assert.equal(isTodayJob({ ...job, focusDate: "", dueDate: "2026-11-09" }, "2026-11-10"), true);
+assert.equal(safeWorkbenchUrl("https://example.com/file"), true); assert.equal(safeWorkbenchUrl("/creative-jobs"), true);
+console.log("Private workbench: owner/Master access, deny-by-default roles, graph integrity, safe links, dates and job filters passed.");

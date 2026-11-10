@@ -203,3 +203,9 @@ The release PR, merge commit, Vercel deployment and test run are appended after 
 
 Preserve current appointment authority through reporting adapters, recover complete validated saved status data without another sync, and remove the requested generic source-status paragraph. Add desktop/mobile successful-audit-warning coverage using the existing verified-empty goldens. No new visual component or dependency. See `decisions/2026-10-07-appointment-status-projection-recovery.md` for evidence and rollback.
 
+# 2026-11-10 — Private work galaxy
+
+- Added an owner-only operational relationship canvas with recoverable planets, labelled connections, contextual Jobs, checklists, backup and revision-safe persistence.
+- Reused System controls and Base UI modal behavior; graph styling is feature-scoped and the graph engine is lazy loaded.
+- Added populated/empty stories and desktop/mobile, access, persistence and interaction qualification. See `decisions/2026-11-10-private-work-galaxy.md` for the access boundary, package review, evidence and rollback.
+

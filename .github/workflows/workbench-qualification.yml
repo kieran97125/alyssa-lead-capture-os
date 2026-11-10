@@ -1,0 +1,52 @@
+name: Private Workbench Qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/components/workbench/**"
+      - "src/lib/workbench/**"
+      - "src/app/workbench/**"
+      - "src/app/api/internal/workbench/**"
+      - "src/app/e2e/workbench/**"
+      - "e2e/workbench.spec.ts"
+      - "e2e/workbench.spec.ts-snapshots/**"
+      - ".github/workflows/workbench-qualification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workbench:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/test-private-workbench.mjs
+      - run: npx playwright install --with-deps chromium
+      - name: Verify graph, jobs, roles, accessibility and appearance
+        run: npx playwright test e2e/workbench.spec.ts
+      - name: Upload workbench results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: private-workbench-evidence
+          path: |
+            playwright-report/
+            test-results/
+            e2e/workbench.spec.ts-snapshots/
+          if-no-files-found: ignore
+          retention-days: 7

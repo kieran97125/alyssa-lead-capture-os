@@ -26,6 +26,7 @@ import {
   ShieldAlert,
   Table2,
   X,
+  Orbit,
 } from "lucide-react";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import type { InternalAccessContext } from "@/lib/security/internalAccess";
@@ -47,6 +48,7 @@ type NavigationItem = {
   module: WorkspaceModuleKey;
   masterOnly?: boolean;
   exact?: boolean;
+  personalOnly?: boolean;
 };
 
 type NavigationGroup = {
@@ -61,6 +63,7 @@ const navigationGroups: NavigationGroup[] = [
     label: "總覽",
     items: [
       { href: "/dashboard", label: "Dashboard", icon: Home, module: "dashboard" },
+      { href: "/workbench", label: "我的工作星圖", icon: Orbit, module: "dashboard", personalOnly: true },
       { href: "/kpis", label: "品牌 KPI", icon: CircleGauge, module: "kpis" },
     ],
   },
@@ -198,6 +201,7 @@ function SidebarContent({
   workNotificationCount,
   creativeNotificationCount,
   collapsed,
+  workbenchEnabled,
 }: {
   pathname: string;
   onNavigate: () => void;
@@ -206,6 +210,7 @@ function SidebarContent({
   workNotificationCount: number;
   creativeNotificationCount: number;
   collapsed: boolean;
+  workbenchEnabled: boolean;
 }) {
   const isMaster = access.accessLevel === "master";
   const isEmailMember = access.source === "supabase_auth";
@@ -227,6 +232,7 @@ function SidebarContent({
       ...group,
       items: group.items
         .filter((item) => {
+          if (item.personalOnly && !workbenchEnabled) return false;
           if (item.masterOnly && !isMaster) return false;
           if (item.module === "lead_audit" && !isMaster && !isEmailMember) {
             return false;
@@ -346,11 +352,13 @@ export function AppNavClient({
   leadAuditAlertCount = 0,
   workNotificationCount = 0,
   creativeNotificationCount = 0,
+  workbenchEnabled = false,
 }: {
   access: InternalAccessContext;
   leadAuditAlertCount?: number;
   workNotificationCount?: number;
   creativeNotificationCount?: number;
+  workbenchEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
@@ -423,6 +431,7 @@ export function AppNavClient({
           workNotificationCount={workNotificationCount}
           creativeNotificationCount={creativeNotificationCount}
           collapsed={collapsed}
+          workbenchEnabled={workbenchEnabled}
         />
       </aside>
     </>
