@@ -49,11 +49,12 @@ import {
 } from "@/lib/reports/metrics";
 import { buildReportSeries, type SeriesMetricFact } from "@/lib/reports/seriesData";
 import { accountsForAllowedBrands, brandIdsForLeadAccount, leadAccountById } from "@/lib/marketing/leadAccountScope";
-import { readLiveReportTables, type LeadTableSourceConfiguration } from "@/lib/integrations/googleSheetsLeadTable";
+import { type LeadTableSourceConfiguration } from "@/lib/integrations/googleSheetsLeadTable";
 import { leadSheetFailureDiagnostic } from "@/lib/marketing/leadSheetSyncDiagnostics";
 import { buildArrivalRevenue } from "@/lib/reports/arrivalRevenue";
 import { buildMainReportPerformance, includesMainKolReport } from "@/lib/reports/kolPerformance";
-import { buildReportTreatmentClassifier, type ReportTreatmentClassifier } from "@/lib/reports/treatmentCategories";
+import { ReportTreatmentCategoryError, type ReportTreatmentClassifier } from "@/lib/reports/treatmentCategories";
+import { readClassifiedReportSources } from "@/lib/reports/sourceRead";
 
 type MetricKind = "lead" | "book" | "show" | "no_show" | "pending_show";
 
@@ -764,19 +765,17 @@ export async function buildReportSnapshot(
   }
   if (hasSupabaseAdminEnv() && sourceAvailable) {
     const configuration = source!.configuration;
-    let tables: Awaited<ReturnType<typeof readLiveReportTables>>;
+    let tables: Awaited<ReturnType<typeof readClassifiedReportSources>>["tables"];
     try {
       if (!configuration) throw new Error("Missing report source configuration");
-      tables = await readLiveReportTables(configuration, { signal: options.signal, includeKolPerformance });
+      ({ tables, classifyTreatment } = await readClassifiedReportSources(configuration, { signal: options.signal, includeKolPerformance }));
+      treatmentGrouping = { version: "lead-sheet-treatment-categories-v1", readAt: tables.treatmentCategories.readAt };
     } catch (error) {
+      if (error instanceof ReportTreatmentCategoryError) {
+        throw new ReportExportError("未能核實療程分類，請稍後重新生成。", 503, "treatment_categories_unavailable");
+      }
       console.warn("report_source_read_failed", leadSheetFailureDiagnostic(error));
       throw new ReportExportError(includeKolPerformance ? "未能核實療程分類、到店收益或 KOL 成效資料，請稍後重新生成。" : "未能核實療程分類及到店收益資料，請稍後重新生成。", 503, "report_sources_unavailable");
-    }
-    try {
-      classifyTreatment = buildReportTreatmentClassifier(tables.treatmentCategories);
-      treatmentGrouping = { version: "lead-sheet-treatment-categories-v1", readAt: tables.treatmentCategories.readAt };
-    } catch {
-      throw new ReportExportError("未能核實療程分類，請稍後重新生成。", 503, "treatment_categories_unavailable");
     }
     try {
       arrivalRevenue = buildArrivalRevenue({ table: tables.arrivalRevenue, brands: brandScoped, brandAliases: configuration!.brandAliases,
