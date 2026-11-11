@@ -11,7 +11,7 @@ The operator supplied a design root and confirmed management workbooks as the wo
 
 ## Data and scheduling
 
-Three service-only RLS tables separate source configuration, canonical owner/file identity, and many-source/path memberships. A file can belong to several sources and planets but appears once per search result. Folder-specific bindings inherit down the ancestor chain; ambiguous files retain their parent source mapping rather than inventing a brand.
+Three service-only RLS tables separate source configuration, canonical owner/file identity, and many-source/path memberships. A file can belong to several sources and planets but appears once per search result. Folder-specific bindings inherit down the ancestor chain. Explicit configured name terms support mixed-brand folders; Latin word boundaries prevent accidental substring matches. Ambiguous files retain their parent source mapping rather than inventing a brand.
 
 Initial and periodic reconciliation traverse all provider pages and nested folders. Every bounded invocation checkpoints a durable queue. A 90-second database lease and token-checked atomic commit prevent overlapping workers from changing newer progress. Stale memberships are marked inactive only when traversal is complete; they can be rediscovered. Orphaned cached text is cleared without deleting source records. Missing child-folder permission becomes explicit partial coverage; loss of a root hides its memberships. Network failures preserve cursor and prior data.
 

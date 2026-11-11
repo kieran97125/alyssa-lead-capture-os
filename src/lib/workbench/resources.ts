@@ -40,7 +40,18 @@ export function safeDriveUrl(id: string, mime: string) {
   const part = mime === "application/vnd.google-apps.document" ? "document" : mime === "application/vnd.google-apps.spreadsheet" ? "spreadsheets" : mime === "application/vnd.google-apps.presentation" ? "presentation" : "";
   return part ? `https://docs.google.com/${part}/d/${encodeURIComponent(id)}/edit` : mime === "application/vnd.google-apps.folder" ? `https://drive.google.com/drive/folders/${encodeURIComponent(id)}` : `https://drive.google.com/file/d/${encodeURIComponent(id)}/view`;
 }
-export type FolderBinding = { fileId: string; nodeIds: string[] };
-export function resourceNodes(base: string[], bindings: FolderBinding[], ancestors: string[]) {
-  return [...new Set([...base, ...bindings.filter(b => ancestors.includes(b.fileId)).flatMap(b => b.nodeIds)])];
+export type FolderBinding = { fileId: string; nodeIds: string[]; nameTerms?: string[] };
+export function resourceNodes(base: string[], bindings: FolderBinding[], ancestors: string[], path = "") {
+  const normalized = path.normalize("NFKC").toLowerCase();
+  const matchesTerm = (term: string) => {
+    const value = term.normalize("NFKC").toLowerCase(); if (!value || value.length > 80) return false;
+    let at = normalized.indexOf(value);
+    while (at >= 0) {
+      const before = normalized[at - 1] || "", after = normalized[at + value.length] || "";
+      if (!/[a-z0-9]/.test(before) && !/[a-z0-9]/.test(after)) return true;
+      at = normalized.indexOf(value, at + value.length);
+    }
+    return false;
+  };
+  return [...new Set([...base, ...bindings.filter(b => ancestors.includes(b.fileId) || b.nameTerms?.some(matchesTerm)).flatMap(b => b.nodeIds)])];
 }

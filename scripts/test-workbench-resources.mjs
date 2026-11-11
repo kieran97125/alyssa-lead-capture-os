@@ -13,6 +13,9 @@ assert.equal(model.contentIndexable("application/vnd.google-apps.spreadsheet"), 
 assert.equal(model.contentIndexable("video/mp4"), false);
 assert.equal(model.contentIndexable("application/pdf"), true);
 assert.deepEqual(model.resourceNodes(["creative"], [{ fileId: "folder-ib", nodeIds: ["ib", "creative"] }], ["root", "folder-ib"]), ["creative", "ib"]);
+const names = [{ fileId: "", nameTerms: ["ib"], nodeIds: ["brand-a"] }, { fileId: "", nameTerms: ["gos"], nodeIds: ["brand-b"] }];
+assert.deepEqual(model.resourceNodes(["creative"], names, [], "meta_FEED/gos + IB（2）.png"), ["creative", "brand-a", "brand-b"]);
+assert.deepEqual(model.resourceNodes(["creative"], names, [], "library/possibly-final.png"), ["creative"], "brand terms must not match substrings inside other words");
 class DriveReadError extends Error { constructor(status) { super("Google 暫時未能讀取"); this.status = status; } }
 let committed, calls = [], fail = true;
 const pendingRows = [];

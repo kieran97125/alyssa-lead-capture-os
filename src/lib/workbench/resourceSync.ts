@@ -11,7 +11,7 @@ export function resourceFileRows(file: DriveFile, source: Source, path: string, 
   const version = `${file.modifiedTime ?? ""}:${file.size ?? ""}`;
   return {
     file: { file_id: file.id, name: file.name.slice(0, 600), mime_type: file.mimeType, web_url: safeDriveUrl(file.id, file.mimeType), modified_time: file.modifiedTime ?? null, size: file.size && /^\d+$/.test(file.size) ? Number(file.size) : null, description: (file.description ?? "").slice(0, 2000), has_thumbnail: !!file.hasThumbnail, content_version: version, indexable: source.content_mode === "documents" && contentIndexable(file.mimeType) },
-    mount: { file_id: file.id, parent_id: parent, path: path.slice(0, 8000), node_ids: resourceNodes(source.node_ids, source.folder_bindings, [...ancestors, file.id]) },
+    mount: { file_id: file.id, parent_id: parent, path: path.slice(0, 8000), node_ids: resourceNodes(source.node_ids, source.folder_bindings, [...ancestors, file.id], path) },
   };
 }
 function message(error: unknown) { return error instanceof DriveReadError ? error.message : error instanceof Error && /索引|頁|檔案|Google|資料夾/.test(error.message) ? error.message.slice(0, 240) : "同步暫時中斷，已保留進度，稍後會繼續。"; }
