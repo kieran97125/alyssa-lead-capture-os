@@ -39,8 +39,8 @@ test("resource source add and pause preserve the original work graph", async ({ 
   await dialog.getByRole("button", { name: "加入並收錄", exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await library.getByText("來源與同步狀態", { exact: false }).click();
-  await expect(library.getByText("新素材來源", { exact: true })).toBeVisible();
-  const row = library.getByText("新素材來源", { exact: true }).locator("xpath=../..");
+  const row = library.locator("article").filter({ has: page.locator("strong").getByText("新素材來源", { exact: true }) });
+  await expect(row).toBeVisible();
   await row.getByRole("button", { name: "停止收錄", exact: true }).click();
   await expect(row.getByText(/已停止收錄/)).toBeVisible();
   await page.getByRole("button", { name: "星球網絡", exact: true }).click();

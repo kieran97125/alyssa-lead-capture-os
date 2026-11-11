@@ -79,9 +79,9 @@ begin
   update public.workbench_resource_files f set text_content=x.text_content,text_state=x.text_state,text_error=coalesce(x.text_error,''),available=coalesce(x.available,f.available),updated_at=now()
   from jsonb_to_recordset(p_texts) as x(file_id text,content_version text,text_content text,text_state text,text_error text,available boolean)
   where f.owner_member_id=p_owner and f.file_id=x.file_id and f.content_version=x.content_version;
-  if p_prune then delete from public.workbench_resource_mounts where owner_member_id=p_owner and source_id=p_source and generation<>(p_cursor->>'generation')::uuid; end if;
+  if p_prune then update public.workbench_resource_mounts set available=false where owner_member_id=p_owner and source_id=p_source and generation<>(p_cursor->>'generation')::uuid; end if;
   if p_hide then update public.workbench_resource_mounts set available=false where owner_member_id=p_owner and source_id=p_source; end if;
-  delete from public.workbench_resource_files f where f.owner_member_id=p_owner and not exists(select 1 from public.workbench_resource_mounts m where m.owner_member_id=p_owner and m.file_id=f.file_id);
+  update public.workbench_resource_files f set available=false,text_content='',text_state='metadata' where f.owner_member_id=p_owner and not exists(select 1 from public.workbench_resource_mounts m join public.workbench_resource_sources s on s.owner_member_id=m.owner_member_id and s.id=m.source_id where m.owner_member_id=p_owner and m.file_id=f.file_id and m.available and s.enabled);
   update public.workbench_resource_sources set cursor=case when p_complete then '{}'::jsonb else p_cursor end,status=p_status,last_error=left(p_error,800),lease_token=null,lease_until=null,
     last_synced_at=case when p_complete then now() else last_synced_at end,
     next_sync_at=now()+case when p_complete then interval '15 minutes' when p_status='queued' then interval '2 seconds' else interval '2 minutes' end,

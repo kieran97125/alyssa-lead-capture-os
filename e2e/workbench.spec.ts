@@ -231,7 +231,7 @@ test("anonymous and standard admin cannot reach private document APIs", async ({
         expect([303, 307, 403, 404]).toContain(response.status());
         expect(await response.text()).not.toContain('"schemaVersion":1');
       }
-      const write = await context.request.post("/api/internal/workbench/resources", { data: { action: "sync" } });
+      const write = await context.request.post("/api/internal/workbench/resources", { data: { action: "sync" }, maxRedirects: 0 });
       expect([303, 307, 403, 404]).toContain(write.status());
       expect((await context.request.post("/api/cron/workbench-resources")).status()).toBe(401);
     };
