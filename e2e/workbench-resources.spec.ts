@@ -51,11 +51,11 @@ test("resource source add and pause preserve the original work graph", async ({ 
 test("partial provider coverage stays visible and a failed read can retry into a folder", async ({ page }) => {
   await page.route("**/api/internal/workbench", route => route.fulfill({ json: { document: createWorkbenchTemplate(), revision: 1, updatedAt: "2026-11-11T03:00:00Z" } }));
   await page.route("**/api/internal/workbench/context", route => route.fulfill({ json: { performance: { available: false, accounts: [] }, creative: { available: false, jobs: [] }, tasks: { available: false, jobs: [] } } }));
-  let failed = false;
+  let failReads = true;
   await page.route("**/api/internal/workbench/resources**", route => {
     const params = new URL(route.request().url()).searchParams;
     if (params.has("overview")) return route.fulfill({ json: { total: 2, indexed: 1, pending: 0, automatic: true, sources: [{ id: "11111111-1111-4111-8111-111111111111", label: "素材來源", kind: "folder", nodeIds: ["creative"], enabled: true, contentMode: "documents", status: "partial", lastError: "一個子資料夾未能存取", lastSyncedAt: "2026-11-11T03:00:00Z", fileCount: 2 }] } });
-    if (!failed) { failed = true; return route.fulfill({ status: 503, json: { message: "索引暫時未能讀取" } }); }
+    if (failReads) return route.fulfill({ status: 503, json: { message: "索引暫時未能讀取" } });
     const child = params.has("folder");
     return route.fulfill({ json: { total: 1, page: 0, pageSize: 40, files: [{ id: child ? "synthetic-brief-file" : "synthetic-material-folder", name: child ? "資料夾內拍攝 Brief" : "已收錄素材資料夾", mimeType: child ? "application/vnd.google-apps.document" : "application/vnd.google-apps.folder", paths: ["素材/拍攝"], nodeIds: ["creative"], sourceIds: [], url: "/creative-jobs", modifiedAt: "2026-11-11T03:00:00Z", hasThumbnail: false, textState: "metadata", snippet: "" }] } });
   });
@@ -64,6 +64,7 @@ test("partial provider coverage stays visible and a failed read can retry into a
   const library = page.getByTestId("resource-library");
   await expect(library.getByText("1 個來源需要檢查", { exact: false })).toBeVisible();
   await expect(library.getByText("索引暫時未能讀取", { exact: true })).toBeVisible();
+  failReads = false;
   await library.getByRole("button", { name: "重新讀取", exact: true }).click();
   await library.getByRole("button", { name: "已收錄素材資料夾", exact: true }).click();
   await expect(library.getByRole("navigation", { name: "檔案資料夾路徑" })).toBeVisible();
