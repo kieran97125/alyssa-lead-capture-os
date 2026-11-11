@@ -25,6 +25,10 @@ try {
     globalThis.fetch = async () => new Response(JSON.stringify({ error: { errors: [{ reason }] } }), { status });
     await assert.rejects(drive.getDriveFile('test-token', 'synthetic-file'), e => e instanceof DriveReadError && drive.isRetryableDriveRead(e) === retryable);
   }
+  for (const reason of ["accessNotConfigured", "SERVICE_DISABLED", "insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"]) {
+    globalThis.fetch = async () => new Response(JSON.stringify({ error: { details: [{ reason }] } }), { status: 403 });
+    await assert.rejects(drive.getDriveFile('test-token', 'synthetic-file'), e => e instanceof DriveReadError && e.connectionRequired && drive.isRetryableDriveRead(e) && !e.message.includes("資料已移除"));
+  }
 } finally { globalThis.fetch = originalFetch; }
 assert.equal(drive.isRetryableDriveRead(new DOMException('timeout', 'TimeoutError')), true);
 let committed, calls = [], fail = true, textFailure = true;
@@ -70,5 +74,12 @@ source.cursor = committed.p_cursor;
 await sync.step(source, "test-token", Date.now() + 100000);
 assert.equal(committed.p_complete, true);
 assert.equal(committed.p_status, "ready");
+globalThis.workbenchResourceTest.getDriveFile = async () => { throw new DriveReadError(403, false, "SERVICE_DISABLED"); };
+// The test module captures dependencies, so load once more for the failed connection.
+const connectionSync = await moduleFrom(code + '\n// connection configuration failure');
+await connectionSync.step({ ...source, cursor: {} }, "test-token", Date.now() + 100000);
+assert.equal(committed.p_status, "auth_required");
+assert.equal(committed.p_hide, false, "global API/scope configuration must not hide previously indexed files");
+assert.match(committed.p_error, /Drive API/);
 delete globalThis.workbenchResourceTest;
 console.log("Resource qualification passed: approved URL parsing, CJK-ready scope model, metadata-only Sheets, checkpointed pagination, retry, nested mapping, content and completion.");
