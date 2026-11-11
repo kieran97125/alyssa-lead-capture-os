@@ -4,8 +4,9 @@ import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheets
 export type DriveFile = { id: string; name: string; mimeType: string; parents?: string[]; modifiedTime?: string; size?: string; description?: string; hasThumbnail?: boolean; thumbnailLink?: string; trashed?: boolean };
 const fields = "id,name,mimeType,parents,modifiedTime,size,description,hasThumbnail,trashed";
 export class DriveReadError extends Error {
-  constructor(public status: number) { super(status === 401 ? "Google 連接需要重新授權。" : status === 403 || status === 404 ? "資料已移除或 Google 帳戶未能存取。" : status === 429 ? "Google 暫時限制讀取，稍後會自動繼續。" : "Google 暫時未能讀取，稍後會自動繼續。"); }
+  constructor(public status: number, public retryable = status === 408 || status === 429 || status >= 500) { super(retryable ? "Google 暫時未能讀取，稍後會自動繼續。" : status === 401 ? "Google 連接需要重新授權。" : status === 403 || status === 404 ? "資料已移除或 Google 帳戶未能存取。" : "Google 暫時未能讀取，稍後會自動繼續。"); }
 }
+export function isRetryableDriveRead(error: unknown) { return error instanceof DriveReadError ? error.retryable || error.status === 401 : error instanceof Error && ["TypeError", "AbortError", "TimeoutError"].includes(error.name); }
 export async function driveToken(signal?: AbortSignal) {
   return getGoogleSheetsOAuthAccessToken({ requireReports: true, recordHealth: false, signal });
 }
@@ -13,7 +14,11 @@ async function read(token: string, path: string, params: Record<string, string> 
   const url = new URL(`https://www.googleapis.com/drive/v3/${path}`);
   Object.entries(params).forEach(([k, v]) => url.searchParams.set(k, v));
   const response = await fetch(url, { headers: { authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(12000), redirect: "error" });
-  if (!response.ok) throw new DriveReadError(response.status);
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    const quota = (data?.error?.errors ?? []).some((e: { reason?: string }) => ["rateLimitExceeded", "userRateLimitExceeded", "downloadQuotaExceeded", "backendError", "internalError"].includes(e.reason ?? ""));
+    throw new DriveReadError(response.status, quota || response.status === 408 || response.status === 429 || response.status >= 500);
+  }
   return response;
 }
 export async function getDriveFile(token: string, id: string, thumbnail = false): Promise<DriveFile> {

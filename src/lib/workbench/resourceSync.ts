@@ -1,6 +1,6 @@
 import "server-only";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
-import { driveToken, DriveReadError, getDriveFile, listDriveFolder, readDriveText, type DriveFile } from "./drive";
+import { driveToken, DriveReadError, getDriveFile, isRetryableDriveRead, listDriveFolder, readDriveText, type DriveFile } from "./drive";
 import { contentIndexable, resourceNodes, safeDriveUrl, type FolderBinding } from "./resources";
 
 type Folder = { id: string; path: string; ancestors: string[]; pageToken?: string };
@@ -46,7 +46,7 @@ async function step(source: Source, token: string, deadline: number) {
           }
           if (result.nextPageToken) folder.pageToken = result.nextPageToken; else cursor.queue.shift();
         } catch (e) {
-          if (folder.id !== source.drive_file_id && e instanceof DriveReadError && [403, 404].includes(e.status)) { cursor.errors.push(`${folder.path}：未能存取`); cursor.queue.shift(); }
+          if (folder.id !== source.drive_file_id && e instanceof DriveReadError && !isRetryableDriveRead(e) && [403, 404].includes(e.status)) { cursor.errors.push(`${folder.path}：未能存取`); cursor.queue.shift(); }
           else throw e;
         }
       }
@@ -63,15 +63,20 @@ async function step(source: Source, token: string, deadline: number) {
           const content = await readDriveText(token, { id: f.file_id, mimeType: f.mime_type, size: f.size?.toString() });
           texts.push({ file_id: f.file_id, content_version: f.content_version, text_content: content.text, text_state: content.state, text_error: "" });
         } catch (e) {
-          if (e instanceof DriveReadError && [401, 429].includes(e.status)) throw e;
-          texts.push({ file_id: f.file_id, content_version: f.content_version, text_content: "", text_state: "unavailable", text_error: message(e), ...(e instanceof DriveReadError && [403, 404].includes(e.status) ? { available: false } : {}) });
+          if (isRetryableDriveRead(e)) throw e;
+          let available = true;
+          if (e instanceof DriveReadError && [403, 404].includes(e.status)) {
+            try { available = !(await getDriveFile(token, f.file_id)).trashed; }
+            catch (metadataError) { if (isRetryableDriveRead(metadataError)) throw metadataError; if (metadataError instanceof DriveReadError && [403, 404].includes(metadataError.status)) available = false; else throw metadataError; }
+          }
+          texts.push({ file_id: f.file_id, content_version: f.content_version, text_content: "", text_state: "unavailable", text_error: message(e), available });
         }
       }
       if (!pending.data?.length) { complete = true; status = cursor.errors.length ? "partial" : "ready"; error = cursor.errors.slice(0, 5).join("；"); }
     }
   } catch (e) {
     status = e instanceof DriveReadError && e.status === 401 ? "auth_required" : "error"; error = message(e);
-    hide = e instanceof DriveReadError && [403, 404].includes(e.status) && (!cursor.rootRead || cursor.queue[0]?.id === source.drive_file_id);
+    hide = e instanceof DriveReadError && !isRetryableDriveRead(e) && [403, 404].includes(e.status) && (!cursor.rootRead || cursor.queue[0]?.id === source.drive_file_id);
     // A completed page is safe to checkpoint; a failed page is retried from its token.
   }
   // Upserts are idempotent even when a provider page has to be retried.

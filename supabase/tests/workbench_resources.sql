@@ -33,6 +33,11 @@ begin
   if not result or (public.workbench_resource_search(owner_id,source_one::text)->>'total')::integer<>1 then raise exception 'Canonical file deduplication failed'; end if;
   if (public.workbench_resource_search(owner_id,needle,'node-b')->>'total')::integer<>0 then raise exception 'Metadata-only membership exposed content search'; end if;
   claim:=public.workbench_resource_claim(owner_id,source_one,true);
+  result:=public.workbench_resource_commit(owner_id,source_one,(claim->>'lease_token')::uuid,'[]','[]',jsonb_build_array(jsonb_build_object('file_id',file_key,'content_version','version-one','text_content','','text_state','unavailable','available',false)),jsonb_build_object('generation',generation),'queued','',false,false,false);
+  claim:=public.workbench_resource_claim(owner_id,source_one,true);
+  result:=public.workbench_resource_commit(owner_id,source_one,(claim->>'lease_token')::uuid,file_rows,'[]','[]',jsonb_build_object('generation',generation),'queued','',false,false,false);
+  if not result or (select text_state from public.workbench_resource_files where owner_member_id=owner_id and file_id=file_key)<>'pending' then raise exception 'Restored access did not requeue unchanged content'; end if;
+  claim:=public.workbench_resource_claim(owner_id,source_one,true);
   result:=public.workbench_resource_commit(owner_id,source_one,(claim->>'lease_token')::uuid,'[]','[]','[]',jsonb_build_object('generation',gen_random_uuid()),'ready','',true,true,false);
   if not result or (public.workbench_resource_search(owner_id,needle)->>'total')::integer<>0 then raise exception 'Completed-generation membership cleanup failed'; end if;
   if has_table_privilege('authenticated','public.workbench_resource_files','select') or has_function_privilege('anon','public.workbench_resource_search(uuid,text,text,uuid,text,text,integer)','execute') then raise exception 'Index exposed to browser roles'; end if;

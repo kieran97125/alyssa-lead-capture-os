@@ -50,6 +50,7 @@ jobs:
       - run: psql -v ON_ERROR_STOP=1 -f scripts/fixtures/workbench-resource-db.sql
       - run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111034829_private_workbench_resource_index.sql
       - run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111043140_workbench_resource_checkpoint_guard.sql
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111043740_workbench_resource_access_recovery.sql
       - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/workbench_resources.sql
   workbench:
     runs-on: ubuntu-24.04
