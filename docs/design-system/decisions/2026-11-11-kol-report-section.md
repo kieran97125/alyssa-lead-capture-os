@@ -30,6 +30,8 @@ leading KOL introduction because the adjacent column already identifies them.
 Whole percentages omit redundant decimal zeroes. Long labels continue on native
 editable rows with counts shown once. Google Slides receives the same artifact.
 PDF and text also consume the same optional snapshot section.
+PDF explicitly paginates conservative, bounded text fragments and repeats the
+section/table headings; numeric metrics appear only on the first fragment.
 
 ## Verification
 
@@ -42,6 +44,11 @@ PDF and text also consume the same optional snapshot section.
   integrity and compatibility with the unchanged report template.
 - Report contracts, TypeScript, design contract, Storybook and browser gates are
   required before release. Local renders remain private test evidence.
+- Deterministic synthetic fixtures render the actual PDF and editable PowerPoint
+  through Poppler/LibreOffice. Playwright image baselines cover both new tables
+  in both formats and the first/last pages of an oversized PDF offer. The design
+  workflow installs these renderers and verifies the snapshots on every report
+  change. No operational records or customer identifiers enter those fixtures.
 
 ## Rollback
 

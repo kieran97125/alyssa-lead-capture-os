@@ -1,5 +1,6 @@
 import "server-only";
-import { kolOfferLabels, selectedKolPerformance, selectedMainPerformance } from "@/lib/reports/kolPerformance";
+import { selectedKolPerformance, selectedMainPerformance } from "@/lib/reports/kolPerformance";
+import { KOL_PDF_WIDTHS, KOL_PDF_LINE_HEIGHT, paginateKolPdfRows } from "@/lib/reports/kolPdfPagination";
 
 import path from "node:path";
 import React, { type ReactNode } from "react";
@@ -293,6 +294,7 @@ function ReportPdfDocument({ snapshot }: { snapshot: ReportSnapshot }) {
   const treatmentPages = snapshot.selection.breakdowns.includes("treatment") ? chunks(snapshot.treatmentRows, 10) : [];
   const dailyPages = chunks(snapshot.daily, 14);
   const kol = selectedKolPerformance(snapshot);
+  const kolPages = kol ? paginateKolPdfRows(kol.rows) : [];
   const main = selectedMainPerformance(snapshot);
 
   return (
@@ -438,17 +440,17 @@ function ReportPdfDocument({ snapshot }: { snapshot: ReportSnapshot }) {
         </View>
       </ReportPage>}
 
-      {kol && <ReportPage snapshot={snapshot} theme={theme} kicker="KOL performance" title="KOL成效" subtitle={`${kol.startDate} 至 ${kol.endDate}`}>
+      {kol && kolPages.map((fragments, pageIndex) => <ReportPage key={`kol-${pageIndex}`} snapshot={snapshot} theme={theme} kicker="KOL performance" title={`KOL成效${kolPages.length > 1 ? ` (${pageIndex + 1}/${kolPages.length})` : ""}`} subtitle={`${kol.startDate} 至 ${kol.endDate}`}>
         <View style={{ borderWidth: 1, borderColor: theme.line }}>
           <View style={[styles.tableHeader, { backgroundColor: theme.dark, color: "#FFFFFF" }]}>
-            {["Account", "KOL", "療程", "優惠名稱", "新增 Lead", "Book", "Show", "No Show", "Book Rate", "Show-up Rate", "收入 HK$"].map((label, index) => <Text key={label} style={[styles.th, { width: `${[13, 6, 14, 25, 6, 6, 6, 6, 6, 6, 6][index]}%`, fontSize: 7, textAlign: index < 4 ? "left" : "right" }]}>{label}</Text>)}
+            {["Account", "KOL", "療程", "優惠名稱", "新增 Lead", "Book", "Show", "No Show", "Book Rate", "Show-up Rate", "收入 HK$"].map((label, index) => <Text key={label} style={[styles.th, { width: `${KOL_PDF_WIDTHS[index]}%`, paddingHorizontal: 2, fontSize: 7, textAlign: index < 4 ? "left" : "right" }]}>{label}</Text>)}
           </View>
           {!kol.rows.length && <Text style={styles.td}>本期沒有 KOL 成效記錄。</Text>}
-          {kol.rows.map((row, index) => <View key={`${row.accountLabel}:${row.kol}`} wrap={false} style={[styles.tableRow, { borderBottomColor: theme.line, backgroundColor: index % 2 ? "#FAF8F9" : "#FFFFFF" }]}>
-            {[row.accountLabel, row.kol, row.treatments.join("\n"), kolOfferLabels(row).join("\n"), count(row.leads), count(row.bookings), count(row.shows), count(row.noShows), percentage(row.bookRate), percentage(row.showUpRate), money(row.revenue, 2)].map((value, column) => <Text key={column} style={[styles.td, { width: `${[13, 6, 14, 25, 6, 6, 6, 6, 6, 6, 6][column]}%`, fontSize: 7.5, textAlign: column < 4 ? "left" : "right" }]}>{value}</Text>)}
+          {fragments.map(({ row, rowIndex, textCells, showMetrics }, index) => <View key={index} wrap={false} style={[styles.tableRow, { borderBottomColor: theme.line, backgroundColor: rowIndex % 2 ? "#FAF8F9" : "#FFFFFF" }]}>
+            {[...textCells, ...(showMetrics ? [count(row.leads), count(row.bookings), count(row.shows), count(row.noShows), percentage(row.bookRate), percentage(row.showUpRate), money(row.revenue, 2)] : Array(7).fill(""))].map((value, column) => <Text key={column} style={[styles.td, { width: `${KOL_PDF_WIDTHS[column]}%`, paddingHorizontal: 2, fontSize: 7.5, lineHeight: KOL_PDF_LINE_HEIGHT / 7.5, textAlign: column < 4 ? "left" : "right" }]}>{value}</Text>)}
           </View>)}
         </View>
-      </ReportPage>}
+      </ReportPage>)}
 
       <ReportPage snapshot={snapshot} theme={theme} kicker="Decision support" title="洞察與下一步" subtitle="規則式判讀由快照數字直接產生，不加入無來源推測。">
         <View style={{ display: "flex", flexDirection: "row", gap: 24 }}>

@@ -12,6 +12,11 @@ on:
       - ".storybook/**"
       - "e2e/design-quality.spec.ts"
       - "e2e/design-quality.spec.ts-snapshots/**"
+      - "e2e/report-layout.spec.ts"
+      - "e2e/report-layout.spec.ts-snapshots/**"
+      - "playwright.report-layout.config.ts"
+      - "scripts/report-kol-visual-fixture.mjs"
+      - "src/lib/reports/**"
       - "design/**"
       - "docs/design-system/**"
       - "scripts/verify-design-system-contract.mjs"
@@ -64,6 +69,26 @@ jobs:
 
       - name: Run visual and accessibility gate
         run: npm run test:design
+
+      - name: Install exported-page renderers
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libreoffice-impress poppler-utils fontconfig
+          mkdir -p ~/.local/share/fonts
+          cp public/report-assets/fonts/*.ttf ~/.local/share/fonts/
+          fc-cache -f
+
+      - name: Verify rendered report page baselines
+        run: npx playwright test --config playwright.report-layout.config.ts
+
+      - name: Upload exported-page report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: report-page-layouts
+          path: report-layout-results/
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Upload design report
         if: always()

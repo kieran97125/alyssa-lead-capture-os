@@ -11,6 +11,7 @@ const ciSessionSecret =
 
 export default defineConfig({
   testDir: "./e2e",
+  testIgnore: "report-layout.spec.ts",
   fullyParallel: false,
   timeout: 30_000,
   expect: {

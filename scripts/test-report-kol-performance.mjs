@@ -114,6 +114,15 @@ assert.ok(!renderReportText(fixture(kol, ["ineffable", "skin-light"])).includes(
 assert.ok(renderReportText(fixture()).includes("## Alyssa Main 分組成效"));
 assert.ok(!renderReportText(fixture(kol, ["ineffable", "skin-light"])).includes("## Alyssa Main 分組成效"));
 const stress = { ...kol, rows: Array.from({ length: 35 }, (_, i) => ({ ...kiu, kol: `QA ${i + 1}`, offers: ["雙十一指定療程優惠及原文內容".repeat(i ? 5 : 150)] })) };
+const { paginateKolPdfRows, KOL_PDF_BODY_HEIGHT } = load("src/lib/reports/kolPdfPagination.ts");
+const pdfPages = paginateKolPdfRows(stress.rows);
+assert.ok(pdfPages.length > 1);
+for (const page of pdfPages) assert.ok(page.reduce((sum, fragment) => sum + fragment.height, 0) <= KOL_PDF_BODY_HEIGHT);
+for (const [index, row] of stress.rows.entries()) {
+  const fragments = pdfPages.flat().filter(fragment => fragment.rowIndex === index);
+  assert.equal(fragments.filter(fragment => fragment.showMetrics).length, 1, "PDF continuation counts each KOL once");
+  assert.equal(fragments.map(fragment => fragment.textCells[3].replaceAll("\n", "")).join(""), kolOfferLabels(row).join(""), "All offer characters survive PDF continuation");
+}
 const stressBytes = await renderReportPptx(fixture(stress));
 const stressInspection = await inspect(stressBytes);
 assert.ok(stressInspection.kolPages.length > 1, "Large tables paginate without shrinking below the readable floor");

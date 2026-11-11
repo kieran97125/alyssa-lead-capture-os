@@ -106,11 +106,14 @@ test.describe("Growth report exports", () => {
 
     // Account selection governs the extra section in the real export endpoint.
     for (const [accountIds, expected] of [[["alyssa-main"], true], [["gos-beauty", "ineffable"], false]] as const) {
-      const response = await page.request.post("/api/internal/reports/export", { data: { ...baseRequest, format: "txt", accountIds } });
-      expect(response.ok()).toBe(true);
-      const result = await response.text();
-      expect(result.includes("## KOL成效")).toBe(expected);
-      expect(result.includes("## Alyssa Main 分組成效")).toBe(expected);
+      const result = await page.evaluate(async request => {
+        const response = await fetch("/api/internal/reports/export", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
+        return { status: response.status, contentType: response.headers.get("content-type"), body: await response.text() };
+      }, { ...baseRequest, format: "txt", accountIds });
+      expect(result.status).toBe(200);
+      expect(result.contentType).toContain("text/plain");
+      expect(result.body.includes("## KOL成效"), result.body).toBe(expected);
+      expect(result.body.includes("## Alyssa Main 分組成效"), result.body).toBe(expected);
     }
   });
 });

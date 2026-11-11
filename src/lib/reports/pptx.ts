@@ -274,7 +274,12 @@ function configureDimensionTable(slide: Document, fontSize: number, weights: num
   header.setAttribute("h", String(measuredRowHeight(rowText(header), header, updated.columns)));
 }
 function configureKolTable(slide: Document, fontSize: number) {
-  configureDimensionTable(slide, fontSize, [15, 6, 14, 30, 5, 5, 5, 5, 5, 5, 5], ["Account", "KOL", "療程", "優惠名稱", "新增\nLead", "Book", "Show", "No\nShow", "預約率", "到店率", "收入\nHK$"]);
+  configureDimensionTable(slide, fontSize, [15, 6, 14, 30, 4, 4, 4, 4, 5, 5, 9], ["Account", "KOL", "療程", "優惠名稱", "新增\nLead", "Book", "Show", "No\nShow", "預約率", "到店率", "收入\nHK$"], 9.5);
+  // Keep numeric tokens on one line even when a sparse table uses larger labels.
+  const layout = tableLayout(slide, 0);
+  layout.rows.slice(1).forEach(row => direct(row, A, "tc").slice(4).forEach(cell => {
+    [...elements(cell, A, "rPr"), ...elements(cell, A, "endParaRPr"), ...elements(cell, A, "defRPr")].forEach(style => style.setAttribute("sz", String(Math.round(Math.min(fontSize, 11.5) * 100))));
+  }));
 }
 function configureMainTable(slide: Document, fontSize: number) {
   configureDimensionTable(slide, fontSize, [25, 8.5, 8.5, 8.5, 8.5, 9, 9, 9, 14], ["Account 分組", "Lead", "Book", "Show", "No Show", "預約率", "Lead\n到店率", "Book\n到店率", "收入 HK$"], 14);
