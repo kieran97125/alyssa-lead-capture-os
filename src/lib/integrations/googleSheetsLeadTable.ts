@@ -3,6 +3,7 @@ import "server-only";
 import { LeadSheetSyncError } from "@/lib/marketing/leadSheetSyncDiagnostics";
 import { ARRIVAL_REVENUE_HEADERS, type ArrivalRevenueTable } from "@/lib/reports/arrivalRevenue";
 import { REPORT_TREATMENT_HEADERS, type ReportTreatmentTable } from "@/lib/reports/treatmentCategories";
+import { KOL_EVENT_HEADERS, type ReportKolEventTable } from "@/lib/reports/kolPerformance";
 
 import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheetsOAuth";
 import {
@@ -108,11 +109,12 @@ function quoteSheetName(value: string) {
   return `'${value.replace(/'/g, "''")}'`;
 }
 
-type ReportReadOptions = { signal?: AbortSignal };
+type ReportReadOptions = { signal?: AbortSignal; includeKolPerformance?: boolean };
 type ReportColumnSource = { title: string; headerRow: number; headers: readonly string[] };
 type LiveReportColumnTable = { headers: unknown[]; rows: unknown[][]; readAt: string };
 const ARRIVAL_REPORT_COLUMNS: ReportColumnSource = { title: "到店紀錄", headerRow: 7, headers: ARRIVAL_REVENUE_HEADERS };
 const TREATMENT_REPORT_COLUMNS: ReportColumnSource = { title: "_dashboard_treatment_map", headerRow: 1, headers: REPORT_TREATMENT_HEADERS };
+const KOL_REPORT_COLUMNS: ReportColumnSource = { title: "_report_kol_events", headerRow: 1, headers: KOL_EVENT_HEADERS };
 
 /** Read financial fields only. Customer names, phones and CS cells are excluded. */
 export async function readLiveArrivalRevenueTable(configuration: LeadTableSourceConfiguration, options: ReportReadOptions = {}): Promise<ArrivalRevenueTable> {
@@ -125,9 +127,10 @@ export async function readLiveReportTreatmentTable(configuration: LeadTableSourc
 }
 
 /** One evaluated values snapshot for both report sources, with one shared deadline. */
-export async function readLiveReportTables(configuration: LeadTableSourceConfiguration, options: ReportReadOptions = {}): Promise<{ arrivalRevenue: ArrivalRevenueTable; treatmentCategories: ReportTreatmentTable }> {
-  const [arrivalRevenue, treatmentCategories] = await readManagedReportColumns(configuration, [ARRIVAL_REPORT_COLUMNS, TREATMENT_REPORT_COLUMNS], options);
-  return { arrivalRevenue, treatmentCategories };
+export async function readLiveReportTables(configuration: LeadTableSourceConfiguration, options: ReportReadOptions = {}): Promise<{ arrivalRevenue: ArrivalRevenueTable; treatmentCategories: ReportTreatmentTable; kolPerformance?: ReportKolEventTable }> {
+  const sources = [ARRIVAL_REPORT_COLUMNS, TREATMENT_REPORT_COLUMNS, ...(options.includeKolPerformance ? [KOL_REPORT_COLUMNS] : [])];
+  const [arrivalRevenue, treatmentCategories, kolPerformance] = await readManagedReportColumns(configuration, sources, options);
+  return { arrivalRevenue, treatmentCategories, ...(kolPerformance ? { kolPerformance } : {}) };
 }
 
 async function readManagedReportColumns(configuration: LeadTableSourceConfiguration, sources: readonly ReportColumnSource[], options: ReportReadOptions): Promise<LiveReportColumnTable[]> {

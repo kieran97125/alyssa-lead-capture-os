@@ -10,7 +10,7 @@
     "verify:public-lead-contract": "node scripts/verify-public-lead-contract.mjs",
     "verify:auth-email-contract": "node scripts/verify-auth-email-contract.mjs",
     "verify:reporting-trend-contract": "node scripts/verify-reporting-trend-contract.mjs",
-    "verify:report-export-contract": "node scripts/verify-report-export-contract.mjs && node scripts/test-report-series-data.mjs && node scripts/test-report-treatment-categories.mjs && node scripts/test-report-account-selection.mjs && node scripts/test-report-arrival-revenue.mjs && node scripts/test-report-arrival-revenue-read.mjs && node scripts/test-marketing-spend-projection.mjs && node scripts/test-report-template.mjs && node scripts/test-google-slides-delivery.mjs && node scripts/test-google-report-oauth.mjs",
+    "verify:report-export-contract": "node scripts/verify-report-export-contract.mjs && node scripts/test-report-series-data.mjs && node scripts/test-report-treatment-categories.mjs && node scripts/test-report-account-selection.mjs && node scripts/test-report-arrival-revenue.mjs && node scripts/test-report-arrival-revenue-read.mjs && node scripts/test-marketing-spend-projection.mjs && node scripts/test-report-template.mjs && node scripts/test-google-slides-delivery.mjs && node scripts/test-google-report-oauth.mjs && node scripts/test-report-kol-performance.mjs",
     "verify:treatment-mapping-contract": "node scripts/verify-treatment-mapping-contract.mjs",
     "verify:brand-scope-contract": "node scripts/verify-brand-scope-contract.mjs",
     "verify:lead-audit-contract": "node scripts/verify-lead-audit-contract.mjs",
@@ -33,7 +33,8 @@
     "verify:lead-sync-recovery-contract": "node scripts/test-lead-atomic-source-id.mjs && node scripts/test-managed-sheet-transport.mjs && node scripts/test-lead-arrival-outcome-authority.mjs && node scripts/test-lead-pending-authority.mjs && node scripts/test-manual-lead-sync.mjs && node scripts/test-dashboard-google-read.mjs && node scripts/test-lead-sync-failure-diagnostics.mjs && node scripts/test-all-staff-sheet-refresh.mjs && node scripts/test-arrival-account-transfer.mjs && npm run verify:native-identity-contract",
     "verify:native-identity-contract": "node scripts/test-native-arrival-schedule.cjs scripts/apps-script/releases/20261022/native-main.gs && node scripts/test-native-manual-missing.cjs scripts/apps-script/releases/20261022/native-main.gs scripts/apps-script/releases/20261022/arrival-workflow.gs && node scripts/test-arrival-status-feedback.mjs scripts/apps-script/releases/20261022/native-main.gs && node scripts/test-native-identity-priority.cjs && node scripts/test-native-google-isolation-guard.cjs",
     "verify:lead-book-dimensions-contract": "node scripts/test-lead-book-dimensions.mjs && node scripts/test-manual-lead-dashboard.mjs",
-    "verify:private-workbench": "node scripts/test-private-workbench.mjs"
+    "verify:private-workbench": "node scripts/test-private-workbench.mjs",
+    "verify:report-kol-contract": "node scripts/test-report-kol-performance.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

@@ -52,6 +52,7 @@ import { accountsForAllowedBrands, brandIdsForLeadAccount, leadAccountById } fro
 import { readLiveReportTables, type LeadTableSourceConfiguration } from "@/lib/integrations/googleSheetsLeadTable";
 import { leadSheetFailureDiagnostic } from "@/lib/marketing/leadSheetSyncDiagnostics";
 import { buildArrivalRevenue } from "@/lib/reports/arrivalRevenue";
+import { buildMainReportPerformance, includesMainKolReport } from "@/lib/reports/kolPerformance";
 import { buildReportTreatmentClassifier, type ReportTreatmentClassifier } from "@/lib/reports/treatmentCategories";
 
 type MetricKind = "lead" | "book" | "show" | "no_show" | "pending_show";
@@ -753,15 +754,23 @@ export async function buildReportSnapshot(
   let treatmentGrouping: ReportSnapshot["treatmentGrouping"];
   let classifyTreatment: ReportTreatmentClassifier | undefined;
   let arrivalRevenue: ReportSnapshot["arrivalRevenue"];
+  let kolPerformance: ReportSnapshot["kolPerformance"];
+  let mainPerformance: ReportSnapshot["mainPerformance"];
+  const includeKolPerformance = includesMainKolReport(accountIds,
+    accountsForAllowedBrands(brandScoped, brandIds).some(account => account.id === "alyssa-main"));
+  if (!hasSupabaseAdminEnv() && process.env.ALYSSA_E2E_FIXTURES === "1" && includeKolPerformance) {
+    kolPerformance = { version: "lead-sheet-kol-v1", readAt: new Date().toISOString(), startDate: request.startDate, endDate: request.endDate, rows: [] };
+    mainPerformance = buildMainReportPerformance({ table: { headers: ["Account", "KOL", "療程", "優惠名稱", "Metric Date", "Metric Kind", "Metric Count", "Revenue", "Inquiry Key", "Source Order"], rows: [], readAt: kolPerformance.readAt }, startDate: request.startDate, endDate: request.endDate }).mainPerformance;
+  }
   if (hasSupabaseAdminEnv() && sourceAvailable) {
     const configuration = source!.configuration;
     let tables: Awaited<ReturnType<typeof readLiveReportTables>>;
     try {
       if (!configuration) throw new Error("Missing report source configuration");
-      tables = await readLiveReportTables(configuration, { signal: options.signal });
+      tables = await readLiveReportTables(configuration, { signal: options.signal, includeKolPerformance });
     } catch (error) {
       console.warn("report_source_read_failed", leadSheetFailureDiagnostic(error));
-      throw new ReportExportError("未能核實療程分類及到店收益資料，請稍後重新生成。", 503, "report_sources_unavailable");
+      throw new ReportExportError(includeKolPerformance ? "未能核實療程分類、到店收益或 KOL 成效資料，請稍後重新生成。" : "未能核實療程分類及到店收益資料，請稍後重新生成。", 503, "report_sources_unavailable");
     }
     try {
       classifyTreatment = buildReportTreatmentClassifier(tables.treatmentCategories);
@@ -774,6 +783,14 @@ export async function buildReportSnapshot(
         accountIds, startDate: request.startDate, endDate: request.endDate, spendFacts: currentSpends, classifyTreatment });
     } catch {
       throw new ReportExportError("未能核實到店收益資料，請稍後重新生成。", 503, "arrival_revenue_unavailable");
+    }
+    if (includeKolPerformance) {
+      try {
+        if (!tables.kolPerformance) throw new Error("KOL projection missing");
+        ({ kolPerformance, mainPerformance } = buildMainReportPerformance({ table: tables.kolPerformance, startDate: request.startDate, endDate: request.endDate }));
+      } catch {
+        throw new ReportExportError("未能核實 KOL 成效資料，請稍後重新生成。", 503, "kol_performance_unavailable");
+      }
     }
   }
   // Classify copies of the stage-specific facts; stored facts and their ownership
@@ -858,6 +875,8 @@ export async function buildReportSnapshot(
     treatmentRows,
     spendMix: buildSpendMix(currentSpends),
     ...(arrivalRevenue ? { arrivalRevenue } : {}),
+    ...(kolPerformance ? { kolPerformance } : {}),
+    ...(mainPerformance ? { mainPerformance } : {}),
     ...(treatmentGrouping ? { treatmentGrouping } : {}),
     series: buildReportSeries({
       brands: selectedBrands,
@@ -881,6 +900,7 @@ export async function buildReportSnapshot(
       warnings,
     },
     sources: [
+      ...(kolPerformance ? [{ name: "KOL成效", status: "connected", lastSuccessAt: kolPerformance.readAt }] : []),
       ...(treatmentGrouping ? [{ name: "Treatment Performance 療程分類", status: "connected", lastSuccessAt: treatmentGrouping.readAt }] : []),
       ...(arrivalRevenue ? [{ name: "到店紀錄金額", status: "connected", lastSuccessAt: arrivalRevenue.readAt }] : []),
       {

@@ -103,5 +103,14 @@ test.describe("Growth report exports", () => {
     expect(text.body).toContain("## 按品牌拆分");
     expect(text.body).toContain("## 按療程拆分");
     expect(text.body).toContain("Metric Contract：growth-os-report-v1");
+
+    // Account selection governs the extra section in the real export endpoint.
+    for (const [accountIds, expected] of [[["alyssa-main"], true], [["gos-beauty", "ineffable"], false]] as const) {
+      const response = await page.request.post("/api/internal/reports/export", { data: { ...baseRequest, format: "txt", accountIds } });
+      expect(response.ok()).toBe(true);
+      const result = await response.text();
+      expect(result.includes("## KOL成效")).toBe(expected);
+      expect(result.includes("## Alyssa Main 分組成效")).toBe(expected);
+    }
   });
 });
