@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { execFileSync } from "node:child_process";
-import { mkdtempSync, readFileSync, mkdirSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { extractText } from "unpdf";
@@ -13,7 +13,12 @@ test("Main and KOL exported-page visual baselines and PDF continuation", async (
   try {
     execFileSync(process.execPath, ["scripts/report-kol-visual-fixture.mjs", directory], { timeout: 60_000 });
     const converted = path.join(directory, "converted"); mkdirSync(converted);
-    execFileSync("soffice", [`-env:UserInstallation=file://${directory}/office-profile`, "--headless", "--convert-to", "pdf", "--outdir", converted, path.join(directory, "normal.pptx")], { timeout: 60_000 });
+    // Pin font substitution to the repository's shipped font files. Host OS
+    // fallbacks must not silently change wrapping between local and CI renders.
+    const fontConfig = path.join(directory, "fonts.conf");
+    const fontDirectory = path.resolve("public/report-assets/fonts").replaceAll("&", "&amp;");
+    writeFileSync(fontConfig, `<?xml version="1.0"?><!DOCTYPE fontconfig SYSTEM "fonts.dtd"><fontconfig><dir>${fontDirectory}</dir><cachedir>${directory}/font-cache</cachedir><alias><family>Arial</family><prefer><family>Noto Sans TC</family></prefer></alias></fontconfig>`);
+    execFileSync("soffice", [`-env:UserInstallation=file://${directory}/office-profile`, "--headless", "--convert-to", "pdf", "--outdir", converted, path.join(directory, "normal.pptx")], { timeout: 60_000, env: { ...process.env, FONTCONFIG_FILE: fontConfig } });
     const png = (pdf: string, page: number, name: string) => {
       const prefix = path.join(directory, name);
       execFileSync("pdftoppm", ["-f", String(page), "-l", String(page), "-scale-to-x", "1440", "-scale-to-y", "810", "-singlefile", "-png", pdf, prefix], { timeout: 30_000 });

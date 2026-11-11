@@ -74,9 +74,6 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y --no-install-recommends libreoffice-impress poppler-utils fontconfig
-          mkdir -p ~/.local/share/fonts
-          cp public/report-assets/fonts/*.ttf ~/.local/share/fonts/
-          fc-cache -f
 
       - name: Verify rendered report page baselines
         run: npx playwright test --config playwright.report-layout.config.ts
