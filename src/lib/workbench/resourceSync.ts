@@ -75,7 +75,7 @@ async function step(source: Source, token: string, deadline: number) {
       if (!pending.data?.length) { complete = true; status = cursor.errors.length ? "partial" : "ready"; error = cursor.errors.slice(0, 5).join("；"); }
     }
   } catch (e) {
-    status = e instanceof DriveReadError && e.status === 401 ? "auth_required" : "error"; error = message(e);
+    status = e instanceof DriveReadError && e.connectionRequired ? "auth_required" : "error"; error = message(e);
     hide = e instanceof DriveReadError && !isRetryableDriveRead(e) && [403, 404].includes(e.status) && (!cursor.rootRead || cursor.queue[0]?.id === source.drive_file_id);
     // A completed page is safe to checkpoint; a failed page is retried from its token.
   }

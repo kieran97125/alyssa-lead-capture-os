@@ -31,6 +31,8 @@ Local TypeScript, model/worker qualification, design contract and workshop build
 
 Runtime acceptance must verify the configured root and management files through the application's Google grant, terminal coverage/status counts, background receipts and original-record preservation. Production source IDs, client folder mappings and scheduler credentials stay outside this public repository.
 
+Provider configuration failures distinguish a disabled Drive API or missing OAuth scope from per-file permission loss. Only curated error categories and HTTP status are displayed, never raw Google responses. Global configuration failures preserve cached files and pending text rather than treating them as deleted resources.
+
 ## Rollback
 
 Revert the feature commit and disable only its scheduled worker. Existing graph/Jobs, Drive files, reporting sources and OAuth grants remain independent. Retain the private index tables for recovery or remove them after a separately reviewed backup/retention decision.

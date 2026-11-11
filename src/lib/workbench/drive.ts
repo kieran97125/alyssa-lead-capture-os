@@ -4,9 +4,15 @@ import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheets
 export type DriveFile = { id: string; name: string; mimeType: string; parents?: string[]; modifiedTime?: string; size?: string; description?: string; hasThumbnail?: boolean; thumbnailLink?: string; trashed?: boolean };
 const fields = "id,name,mimeType,parents,modifiedTime,size,description,hasThumbnail,trashed";
 export class DriveReadError extends Error {
-  constructor(public status: number, public retryable = status === 408 || status === 429 || status >= 500) { super(retryable ? "Google 暫時未能讀取，稍後會自動繼續。" : status === 401 ? "Google 連接需要重新授權。" : status === 403 || status === 404 ? "資料已移除或 Google 帳戶未能存取。" : "Google 暫時未能讀取，稍後會自動繼續。"); }
+  public connectionRequired: boolean;
+  constructor(public status: number, public retryable = status === 408 || status === 429 || status >= 500, reason = "") {
+    const disabled = ["accessNotConfigured", "SERVICE_DISABLED"].includes(reason);
+    const scope = ["insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"].includes(reason);
+    super(disabled ? "Google Cloud 專案未啟用 Google Drive API，請啟用後重新同步。" : scope ? "Google 連線缺少 Drive 讀取權限，請由報告頁重新連接 Google Drive。" : retryable ? "Google 暫時未能讀取，稍後會自動繼續。" : status === 401 ? "Google 連接需要重新授權。" : status === 403 || status === 404 ? `資料已移除或 Google 帳戶未能存取（HTTP ${status}）。` : "Google 暫時未能讀取，稍後會自動繼續。");
+    this.connectionRequired = status === 401 || disabled || scope;
+  }
 }
-export function isRetryableDriveRead(error: unknown) { return error instanceof DriveReadError ? error.retryable || error.status === 401 : error instanceof Error && ["TypeError", "AbortError", "TimeoutError"].includes(error.name); }
+export function isRetryableDriveRead(error: unknown) { return error instanceof DriveReadError ? error.retryable || error.connectionRequired : error instanceof Error && ["TypeError", "AbortError", "TimeoutError"].includes(error.name); }
 export async function driveToken(signal?: AbortSignal) {
   return getGoogleSheetsOAuthAccessToken({ requireReports: true, recordHealth: false, signal });
 }
@@ -16,8 +22,11 @@ async function read(token: string, path: string, params: Record<string, string> 
   const response = await fetch(url, { headers: { authorization: `Bearer ${token}` }, cache: "no-store", signal: AbortSignal.timeout(12000), redirect: "error" });
   if (!response.ok) {
     const data = await response.json().catch(() => null);
-    const quota = (data?.error?.errors ?? []).some((e: { reason?: string }) => ["rateLimitExceeded", "userRateLimitExceeded", "downloadQuotaExceeded", "backendError", "internalError"].includes(e.reason ?? ""));
-    throw new DriveReadError(response.status, quota || response.status === 408 || response.status === 429 || response.status >= 500);
+    const reasons: string[] = [...(data?.error?.errors ?? []), ...(data?.error?.details ?? [])].map((e: { reason?: string }) => e.reason ?? "");
+    const quota = reasons.some(reason => ["rateLimitExceeded", "userRateLimitExceeded", "downloadQuotaExceeded", "backendError", "internalError"].includes(reason));
+    const configurationReason = reasons.find(reason => ["accessNotConfigured", "SERVICE_DISABLED", "insufficientPermissions", "ACCESS_TOKEN_SCOPE_INSUFFICIENT"].includes(reason));
+    console.warn("workbench_drive_read_failed", { status: response.status, reasons: reasons.filter(reason => /^[A-Za-z_]{1,64}$/.test(reason)).slice(0, 4) });
+    throw new DriveReadError(response.status, quota || response.status === 408 || response.status === 429 || response.status >= 500, configurationReason);
   }
   return response;
 }
