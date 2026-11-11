@@ -48,7 +48,10 @@ section/table headings; numeric metrics appear only on the first fragment.
   through Poppler/LibreOffice. Playwright image baselines cover both new tables
   in both formats and the first/last pages of an oversized PDF offer. The design
   workflow installs these renderers and verifies the snapshots on every report
-  change. No operational records or customer identifiers enter those fixtures.
+  change. Approved presentation screenshots use the Ubuntu 24.04 renderer in CI;
+  LibreOffice 26 renders native table leading differently. Review and approve CI
+  images without widening the pixel-difference threshold. No operational records
+  or customer identifiers enter those fixtures.
 
 ## Rollback
 

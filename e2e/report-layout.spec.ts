@@ -31,7 +31,7 @@ test("Main and KOL exported-page visual baselines and PDF continuation", async (
         expect(page).toBeGreaterThan(0);
         const image = png(file, page, `${format}-${section}`);
         await testInfo.attach(`${format}-${section}`, { body: image, contentType: "image/png" });
-        expect(image).toMatchSnapshot(`${format}-${section}.png`);
+        expect.soft(image).toMatchSnapshot(`${format}-${section}.png`);
       }
     }
     const stressFile = path.join(directory, "stress.pdf");
@@ -46,7 +46,7 @@ test("Main and KOL exported-page visual baselines and PDF continuation", async (
       const name = page === kolPages[0] ? "pdf-continuation-first" : "pdf-continuation-last";
       const image = png(stressFile, page.index + 1, name);
       await testInfo.attach(name, { body: image, contentType: "image/png" });
-      expect(image).toMatchSnapshot(`${name}.png`);
+      expect.soft(image).toMatchSnapshot(`${name}.png`);
     }
   } finally {
     rmSync(directory, { recursive: true, force: true });
