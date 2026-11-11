@@ -27,7 +27,7 @@ Thumbnails are owner-checked, authenticated server reads from allowlisted Google
 
 ## Verification and release
 
-Local TypeScript, model/worker qualification, design contract and workshop build are required. Database rollback qualification covers lease exclusion, stale commits, owner/node isolation, literal wildcards, Chinese content search, completed-generation pruning and denied public/browser roles. Hosted Chromium exercises desktop/mobile visuals, axe, filtering, add/pause, file-to-Job and existing graph/recovery/role flows. Authoring-only baseline recording is removed before normal comparison qualification and release.
+Local TypeScript, model/worker qualification, design contract and workshop build are required. `supabase/tests/workbench_resources.sql` runs against isolated PostgreSQL in CI and in a rollback-only installed-schema qualification. It covers lease exclusion, missing/expired/stale commits, owner/node isolation, canonical deduplication, literal wildcards, Chinese content search, metadata-only membership isolation, completed-generation pruning and denied public/browser roles. Hosted Chromium exercises desktop/mobile visuals, axe, filtering, add/pause, file-to-Job and existing graph/recovery/role flows. Authoring-only baseline recording is removed before normal comparison qualification and release.
 
 Runtime acceptance must verify the configured root and management files through the application's Google grant, terminal coverage/status counts, background receipts and original-record preservation. Production source IDs, client folder mappings and scheduler credentials stay outside this public repository.
 
