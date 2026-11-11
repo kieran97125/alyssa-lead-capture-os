@@ -103,5 +103,17 @@ test.describe("Growth report exports", () => {
     expect(text.body).toContain("## 按品牌拆分");
     expect(text.body).toContain("## 按療程拆分");
     expect(text.body).toContain("Metric Contract：growth-os-report-v1");
+
+    // Account selection governs the extra section in the real export endpoint.
+    for (const [accountIds, expected] of [[["alyssa-main"], true], [["gos-beauty", "ineffable"], false]] as const) {
+      const result = await page.evaluate(async request => {
+        const response = await fetch("/api/internal/reports/export", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
+        return { status: response.status, contentType: response.headers.get("content-type"), body: await response.text() };
+      }, { ...baseRequest, format: "txt", accountIds });
+      expect(result.status).toBe(200);
+      expect(result.contentType).toContain("text/plain");
+      expect(result.body.includes("## KOL成效"), result.body).toBe(expected);
+      expect(result.body.includes("## Alyssa Main 分組成效"), result.body).toBe(expected);
+    }
   });
 });

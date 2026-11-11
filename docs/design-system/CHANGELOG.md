@@ -1,5 +1,11 @@
 # Design System Change Log
 
+## 2026-11-11 — Account-scoped Main segments and KOL reports
+
+- Include Main, Main Medical and Main Organic performance plus KOL-person detail only when the selected report covers Alyssa Main.
+- Reuse the native report template and evaluated source attribution, with report-owned dates and no shared Dashboard filter mutation.
+- Evidence, native table fitting, compatibility and rollback: `decisions/2026-11-11-kol-report-section.md`.
+
 ## 2026-10-15 — Brand-owned revenue and native financial reporting
 
 - Separate medical Brand revenue inside mixed Accounts, preserving Account totals and the approved editable presentation.

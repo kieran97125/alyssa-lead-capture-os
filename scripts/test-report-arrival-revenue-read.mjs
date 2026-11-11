@@ -28,6 +28,10 @@ function load(path) {
 const reader = load("src/lib/integrations/googleSheetsLeadTable.ts");
 const { ARRIVAL_REVENUE_HEADERS } = load("src/lib/reports/arrivalRevenue.ts");
 const { REPORT_TREATMENT_HEADERS, buildReportTreatmentClassifier } = load("src/lib/reports/treatmentCategories.ts");
+const { KOL_EVENT_HEADERS } = load("src/lib/reports/kolPerformance.ts");
+const kolRows = [["Alyssa Main Medical", "Synthetic KOL", "Synthetic service", "Synthetic offer", 46327, "lead", 2, 0, 0, 0]];
+const kolHeaderRange = "'_report_kol_events'!A1:J1";
+const kolRanges = Array.from({ length: 10 }, (_, i) => `'_report_kol_events'!${String.fromCharCode(65 + i)}2:${String.fromCharCode(65 + i)}30000`);
 const config = { sourceProfile: "alyssa_workspace_lead_funnel", spreadsheetId: "synthetic_workbook_123456789" };
 const positions = [0, 6, 7, 10, 13, 22, 31, 32, 33];
 const arrivalHeaders = Array(38).fill("");
@@ -68,11 +72,15 @@ function reply(url) {
     sheets: [
       { properties: { title: "到店紀錄", gridProperties: { rowCount: 766, columnCount: 38 } } },
       { properties: { title: "_dashboard_treatment_map", gridProperties: { rowCount: 5000, columnCount: 5 } } },
+      { properties: { title: "_report_kol_events", gridProperties: { rowCount: 30000, columnCount: 10 } } },
     ],
   };
   const ranges = url.searchParams.getAll("ranges"), dataRead = ranges.some(range => arrivalRanges.includes(range) || categoryRanges.includes(range));
   const valueRanges = ranges.map(range => {
     if (range === arrivalHeaderRange) return { values: [arrivalHeaders] };
+    if (range === kolHeaderRange) return { values: [[...KOL_EVENT_HEADERS]] };
+    const kolIndex = kolRanges.indexOf(range);
+    if (kolIndex >= 0) return { values: kolRows.map(row => [row[kolIndex]]) };
     if (range === categoryHeaderRange) return { values: [mode === "changed" && dataRead ? [...categoryHeaders, "changed"] : categoryHeaders] };
     const arrivalIndex = arrivalRanges.indexOf(range);
     if (arrivalIndex >= 0) return { values: arrivalRows.map(row => [row[arrivalIndex]]) };
@@ -128,6 +136,13 @@ try {
   assert.ok(calls.every(call => (call.init.method ?? "GET") === "GET"));
   assert.equal(calls[2].url.searchParams.get("valueRenderOption"), "UNFORMATTED_VALUE");
   assert.equal(calls[2].init.headers["Accept-Encoding"], "gzip");
+
+  reset();
+  const withKol = await reader.readLiveReportTables(config, { includeKolPerformance: true });
+  assert.equal(calls.length, 3, "Main KOL source uses the same deadline and three-GET snapshot");
+  assert.deepEqual(withKol.kolPerformance.rows, kolRows);
+  assert.equal(withKol.kolPerformance.readAt, withKol.arrivalRevenue.readAt);
+  assert.ok(calls[2].url.searchParams.getAll("ranges").includes(kolRanges[0]));
 
   const before = calls.length;
   await assert.rejects(reader.readLiveReportTables({ ...config, sourceProfile: "other" }));

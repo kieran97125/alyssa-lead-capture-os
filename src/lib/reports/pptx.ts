@@ -6,6 +6,7 @@ import { DOMParser, XMLSerializer, type Document, type Element } from "@xmldom/x
 import { reportMetrics } from "@/lib/reports/metrics";
 import { REPORT_SERIES_GROUPS } from "@/lib/reports/seriesData";
 import { arrivalRevenueDisplayRows } from "@/lib/reports/arrivalRevenue";
+import { kolOfferLabels, selectedKolPerformance, selectedMainPerformance } from "@/lib/reports/kolPerformance";
 import type { ReportMetrics, ReportRevenueMetrics, ReportSeriesGroupKey, ReportSnapshot } from "@/lib/reports/types";
 
 export const REPORT_PRESENTATION_TEMPLATE = "cs-ad-series-v1";
@@ -169,7 +170,7 @@ function fitNativeRows(slide: Document, rows: DataRow[], totalCells: (metrics: R
   // Only genuinely oversized sets paginate, at the same bounded readable size.
   return { parts: paginateNativeRows(layout, rows, totalCells, Infinity), fit };
 }
-function splitDataRow(row: DataRow, prototype: Element, columns: number[], maxHeight: number): DataRow[] {
+function splitDataRow(row: DataRow, prototype: Element, columns: number[], maxHeight: number, textColumns = row.values.length === 7 ? 1 : 2): DataRow[] {
   if (measuredRowHeight(row.values, prototype, columns) <= maxHeight) return [row];
   const remaining = row.values.map(value => Array.from(value));
   const output: DataRow[] = [];
@@ -178,7 +179,7 @@ function splitDataRow(row: DataRow, prototype: Element, columns: number[], maxHe
     const values = remaining.map((characters, column) => {
       // Counts only appear on the first fragment. Subsequent fragments remain
       // editable text and contribute no second copy to a page subtotal.
-      if (column >= 2 || (row.values.length === 7 && column >= 1)) {
+      if (column >= textColumns) {
         const value = first ? characters.join("") : ""; characters.length = 0; return value;
       }
       const prefix = !first && column === 0 ? "（續）" : "";
@@ -247,7 +248,73 @@ function sum(rows: ReportMetrics[]): ReportMetrics {
   const spends = rows.flatMap(row => row.spend === null ? [] : [row.spend]);
   return reportMetrics(counts, spends.length ? spends.reduce((a, b) => a + b, 0) : null);
 }
-type Page = { exemplar: number; tables?: string[][][]; shapes?: Record<number, string>; tableFit?: TableFit; revenueFont?: number; revenueSummaries?: number[] };
+type Page = { exemplar: number; tables?: string[][][]; shapes?: Record<number, string>; tableFit?: TableFit; revenueFont?: number; revenueSummaries?: number[]; kolFont?: number; mainFont?: number };
+
+/** Keep the approved slide, frame, fills and native editable table. */
+function configureDimensionTable(slide: Document, fontSize: number, weights: number[], headers: string[], headerFontSize = 11) {
+  const layout = tableLayout(slide, 0), grid = direct(layout.table, A, "tblGrid")[0];
+  const width = layout.columns.reduce((a, b) => a + b, 0);
+  const prototype = direct(grid, A, "gridCol").at(-1)!;
+  while (direct(grid, A, "gridCol").length < weights.length) grid.appendChild(prototype.cloneNode(true));
+  direct(grid, A, "gridCol").forEach((col, i) => col.setAttribute("w", String(Math.round(width * weights[i] / 100))));
+  layout.rows.forEach((row, index) => {
+    const last = direct(row, A, "tc").at(-1)!;
+    while (direct(row, A, "tc").length < weights.length) row.appendChild(last.cloneNode(true));
+    row.setAttribute("h", "1");
+    direct(row, A, "tc").forEach((cell, column) => {
+      if (!index) setText(cell, headers[column]);
+      [...elements(cell, A, "rPr"), ...elements(cell, A, "endParaRPr"), ...elements(cell, A, "defRPr")].forEach(style => style.setAttribute("sz", String(Math.round((index ? fontSize : headerFontSize) * 100))));
+      const props = direct(cell, A, "tcPr")[0];
+      if (props) for (const [name, value] of [["marL", 4], ["marR", 4], ["marT", 1], ["marB", 1]] as const) props.setAttribute(name, String(value * EMU_PER_PIXEL));
+    });
+  });
+  const transform = direct(layout.frame, P, "xfrm")[0];
+  direct(transform, A, "off")[0].setAttribute("y", String(166 * EMU_PER_PIXEL));
+  const header = layout.rows[0], updated = tableLayout(slide, 0);
+  header.setAttribute("h", String(measuredRowHeight(rowText(header), header, updated.columns)));
+}
+function configureKolTable(slide: Document, fontSize: number) {
+  configureDimensionTable(slide, fontSize, [15, 6, 14, 30, 4, 4, 4, 4, 5, 5, 9], ["Account", "KOL", "療程", "優惠名稱", "新增\nLead", "Book", "Show", "No\nShow", "預約率", "到店率", "收入\nHK$"], 9.5);
+  // Keep numeric tokens on one line even when a sparse table uses larger labels.
+  const layout = tableLayout(slide, 0);
+  layout.rows.slice(1).forEach(row => direct(row, A, "tc").slice(4).forEach(cell => {
+    [...elements(cell, A, "rPr"), ...elements(cell, A, "endParaRPr"), ...elements(cell, A, "defRPr")].forEach(style => style.setAttribute("sz", String(Math.round(Math.min(fontSize, 11.5) * 100))));
+  }));
+}
+function configureMainTable(slide: Document, fontSize: number) {
+  configureDimensionTable(slide, fontSize, [25, 8.5, 8.5, 8.5, 8.5, 9, 9, 9, 14], ["Account 分組", "Lead", "Book", "Show", "No Show", "預約率", "Lead\n到店率", "Book\n到店率", "收入 HK$"], 14);
+}
+function mainPages(snapshot: ReportSnapshot): Page[] {
+  const main = selectedMainPerformance(snapshot);
+  if (!main) return [];
+  const percentage = (value: number | null) => value === null ? "—" : rate(value).replace(/\.0%$/, "%");
+  return [{ exemplar: 3, mainFont: 18, shapes: { 194: "ALYSSA MAIN", 195: "Alyssa Main 分組成效" }, tables: [main.rows.map(row => [row.accountLabel, ...[row.leads, row.bookings, row.shows, row.noShows].map(String), percentage(row.bookRate), percentage(row.leadToShowRate), percentage(row.showUpRate), money(row.revenue)])] }];
+}
+
+function kolPages(snapshot: ReportSnapshot, source: Document): Page[] {
+  const kol = selectedKolPerformance(snapshot);
+  if (!kol) return [];
+  const kolRate = (value: number | null) => value === null ? "—" : rate(value).replace(/\.0%$/, "%");
+  const rows = kol.rows.map(row => ({ values: [row.accountLabel, row.kol, row.treatments.join("\n"), kolOfferLabels(row).join("\n"), ...[row.leads, row.bookings, row.shows, row.noShows].map(String), kolRate(row.bookRate), kolRate(row.showUpRate), money(row.revenue)], metrics: empty() }));
+  if (!rows.length) rows.push({ values: ["本期沒有 KOL 成效記錄", ...Array.from({ length: 10 }, () => "")], metrics: empty() });
+  const original = new XMLSerializer().serializeToString(source);
+  let fontSize = 15, layout: TableLayout;
+  for (;; fontSize -= 0.5) {
+    const trial = parse(original); configureKolTable(trial, fontSize); layout = tableLayout(trial, 0);
+    const height = Number(layout.rows[0].getAttribute("h")) + rows.reduce((h, row) => h + measuredRowHeight(row.values, layout.rows[1], layout.columns), 0);
+    if (layout.top + height <= CONTENT_BOTTOM || fontSize <= 11) break;
+  }
+  const available = CONTENT_BOTTOM - layout!.top - Number(layout!.rows[0].getAttribute("h"));
+  const fragments = rows.flatMap(row => splitDataRow(row, layout!.rows[1], layout!.columns, available, 4));
+  const parts: DataRow[][] = []; let current: DataRow[] = [], used = 0;
+  for (const row of fragments) {
+    const height = measuredRowHeight(row.values, layout!.rows[1], layout!.columns);
+    if (current.length && used + height > available) { parts.push(current); current = []; used = 0; }
+    current.push(row); used += height;
+  }
+  if (current.length) parts.push(current);
+  return parts.map((part, i) => ({ exemplar: 3, kolFont: fontSize, shapes: { 194: "KOL PERFORMANCE", 195: `KOL成效${i ? "（續）" : ""}` }, tables: [part.map(row => row.values)] }));
+}
 
 /** Financial rows reuse the approved cost table's native cells and typography. */
 function configureRevenueTable(slide: Document, fontSize: number) {
@@ -345,6 +412,7 @@ function pagesFor(snapshot: ReportSnapshot, sourceSlides: Document[]): Page[] {
       const available = byGroup(key).available;
       pages.push({ exemplar: source, tableFit: fit, shapes: { [titleId]: `${byGroup(key).label} 療程成效${i > 0 ? "（續）" : ""}` }, tables: [[...rows.map(row => row.values), ...(rows.length ? [] : [[available ? "本期沒有療程記錄" : "未有可用資料", ...dash(6)]]), [splits.length === 1 ? "合計" : "本頁小計", ...(available ? metricCells(sum(rows.map(row => row.metrics))) : dash(4)), "", ""]]] });
     });
+    if (key === "kol-traffic") pages.push(...mainPages(snapshot), ...kolPages(snapshot, sourceSlides[2]));
   }
   const sourceKeys = ["AD", "KOL", "OG", "unclassified"] as const;
   const sourceValues = groups.map(group => sourceKeys.map(key => series?.arrivalSourceRows.find(row => row.groupKey === group.key && row.key === key)));
@@ -374,6 +442,8 @@ export async function renderReportPptx(snapshot: ReportSnapshot): Promise<Uint8A
     const page = pages[i];
     const slide = parse(sourceSlides[page.exemplar - 1]);
     if (page.revenueFont !== undefined) configureRevenueTable(slide, page.revenueFont);
+    if (page.kolFont !== undefined) configureKolTable(slide, page.kolFont);
+    if (page.mainFont !== undefined) configureMainTable(slide, page.mainFont);
     applyTableFit(slide, 0, page.tableFit);
     Object.entries(page.shapes ?? {}).forEach(([id, text]) => setShape(slide, Number(id), text));
     if (page.exemplar > 1) { setShape(slide, footerIds[page.exemplar - 1], footer); setShape(slide, pageIds[page.exemplar - 1], String(i + 1).padStart(2, "0")); }

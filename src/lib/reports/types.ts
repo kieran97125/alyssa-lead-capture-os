@@ -172,7 +172,43 @@ export type ReportSnapshot = {
   }>;
   series?: ReportSeries;
   arrivalRevenue?: ReportArrivalRevenue;
+  kolPerformance?: ReportKolPerformance;
+  mainPerformance?: ReportMainPerformance;
   treatmentGrouping?: { version: "lead-sheet-treatment-categories-v1"; readAt: string };
+};
+
+export type ReportKolRow = {
+  accountLabel: "Alyssa Main" | "Alyssa Main Medical";
+  kol: string;
+  treatments: string[];
+  offers: string[];
+  leads: number;
+  bookings: number;
+  shows: number;
+  noShows: number;
+  bookRate: number | null;
+  showUpRate: number | null;
+  revenue: number;
+};
+
+export type ReportKolPerformance = {
+  version: "lead-sheet-kol-v1";
+  readAt: string;
+  startDate: string;
+  endDate: string;
+  rows: ReportKolRow[];
+};
+
+export type ReportMainRow = Omit<ReportKolRow, "accountLabel" | "kol" | "treatments" | "offers"> & {
+  accountLabel: "Alyssa Main" | "Alyssa Main Medical" | "Alyssa Main Organic";
+  leadToShowRate: number | null;
+};
+export type ReportMainPerformance = {
+  version: "lead-sheet-main-segments-v1";
+  readAt: string;
+  startDate: string;
+  endDate: string;
+  rows: ReportMainRow[];
 };
 
 export type ReportRevenueMetrics = {

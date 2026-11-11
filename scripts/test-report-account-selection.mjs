@@ -11,7 +11,7 @@ const brands = [
 ];
 let production = null;
 let revenueRows = [], revenueFailure = false;
-let categoryFailure = false;
+let categoryFailure = false, kolFailure = false;
 let reportReadOptions, snapshotWrites = 0;
 const categoryRows = [["Alyssa Main", "Sheet treatment", "Synthetic category"], ["Alyssa Main", "Synthetic treatment", "Synthetic category"]];
 const metricQueries = [];
@@ -22,6 +22,7 @@ const mocks = {
       assert.equal(configuration.spreadsheetId,'synthetic_workbook_12345678');
       if(revenueFailure)throw Error('Synthetic read failure');
       return {
+        ...(options.includeKolPerformance ? { kolPerformance: { headers: ["Account", "KOL", "療程", "優惠名稱", "Metric Date", "Metric Kind", "Metric Count", "Revenue", "Inquiry Key", "Source Order"], rows: kolFailure ? [["#REF!"]] : [], readAt: "2026-10-07T04:00:00Z" } } : {}),
         treatmentCategories: { headers:["Account","Original Treatment","Dashboard 技術分類"], rows:categoryFailure?[]:categoryRows, readAt:"2026-10-07T04:00:00Z" },
         arrivalRevenue: { headers: ["品牌", "結果", "到店日期", "Account", "療程", "Appointment ID", "試做價", "開單金額", "總金額"], rows: revenueRows, readAt: "2026-10-07T04:00:00Z" }
       };
@@ -107,6 +108,14 @@ production = {
   spends: ["a", "m", "g"].map(brand_id => ({ brand_id, spend_date: "2026-10-02", spend_type: "legacy_unclassified", amount: 100 })),
 };
 const mixedMain = await build(normalize({ accountIds: ["alyssa-main"], brandScope: "a", comparison: false }));
+assert.equal(reportReadOptions.includeKolPerformance, true);
+assert.ok(mixedMain.kolPerformance);
+const noMainKol = await build(normalize({ accountIds: ["gos-beauty"], comparison: false }));
+assert.equal(reportReadOptions.includeKolPerformance, false);
+assert.equal(noMainKol.kolPerformance, undefined);
+kolFailure = true;
+await assert.rejects(build(normalize({ accountIds: ["alyssa-main"] })), error => error.code === "kol_performance_unavailable");
+kolFailure = false;
 assert.deepEqual(metricQueries[0], ["a", "m", "g", "i"], "Query every authorized Brand before selecting Account");
 assert.equal(mixedMain.current.totals.leads, 9, "Selected Account includes all its Brands, excludes other Accounts and denies unauthorized Brands");
 assert.equal(mixedMain.series.groupRows[0].metrics.leads, 9);

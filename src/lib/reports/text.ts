@@ -4,6 +4,7 @@ import type {
   ReportSnapshot,
 } from "@/lib/reports/types";
 import { arrivalRevenueDisplayRows } from "@/lib/reports/arrivalRevenue";
+import { selectedKolPerformance, selectedMainPerformance } from "@/lib/reports/kolPerformance";
 
 function integer(value: number) {
   return Math.round(value).toLocaleString("zh-HK");
@@ -105,6 +106,18 @@ export function renderReportText(snapshot: ReportSnapshot) {
         lines.push("", row.label, `試做收入：${money(m.trialRevenue)}`, `開單收入：${money(m.orderRevenue)}`, `總收益：${money(m.totalRevenue)}`, `開單／到店：${m.orderVisits}/${m.attendedVisits}`, `開單率：${percent(m.closeRate)}`);
         if (m.roas !== null) lines.push(`ROAS：${m.roas.toFixed(2)}×`);
     }
+  }
+
+  const kol = selectedKolPerformance(snapshot);
+  const main = selectedMainPerformance(snapshot);
+  if (main) {
+    lines.push("", "## Alyssa Main 分組成效");
+    for (const row of main.rows) lines.push("", row.accountLabel, `Lead：${integer(row.leads)}`, `Book：${integer(row.bookings)}`, `Show：${integer(row.shows)}`, `No Show：${integer(row.noShows)}`, `Book Rate：${percent(row.bookRate)}`, `Lead 到店率：${percent(row.leadToShowRate)}`, `Book 到店率：${percent(row.showUpRate)}`, `收入：${money(row.revenue)}`);
+  }
+  if (kol) {
+    lines.push("", "## KOL成效");
+    if (!kol.rows.length) lines.push("本期沒有 KOL 成效記錄。");
+    for (const row of kol.rows) lines.push("", `${row.accountLabel} · ${row.kol}`, `療程：${row.treatments.join("、")}`, `優惠名稱：${row.offers.join("、")}`, `新增 Lead：${integer(row.leads)}`, `Book：${integer(row.bookings)}`, `Show：${integer(row.shows)}`, `No Show：${integer(row.noShows)}`, `Book Rate：${percent(row.bookRate)}`, `Show-up Rate：${percent(row.showUpRate)}`, `收入：${money(row.revenue)}`);
   }
 
   if (snapshot.selection.breakdowns.includes("brand")) {
