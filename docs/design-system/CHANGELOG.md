@@ -214,3 +214,7 @@ Preserve current appointment authority through reporting adapters, recover compl
 ## 2026-11-10 — Spatial private work galaxy
 
 Expanded the graph to the available width, moved inspection into an optional overlay, added a full-viewport focus mode, and introduced an actual 3D scene with lit planets and contextual orbital curves. Retained 2D editing and unsupported-WebGL recovery. See `decisions/2026-11-10-spatial-work-galaxy.md` for dependency review, qualification and rollback.
+# 2026-11-11 — Connected work resources
+
+Private source-scoped file library, nested Drive reconciliation, literal Chinese search, folder browsing and file-to-Job actions. Uses existing System controls and owner access; adds bounded PDF extraction. Decision and rollback: `decisions/2026-11-11-connected-work-resources.md`.
+

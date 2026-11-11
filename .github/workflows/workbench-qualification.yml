@@ -10,6 +10,9 @@ on:
       - "src/app/api/internal/workbench/**"
       - "src/app/e2e/workbench/**"
       - "e2e/workbench.spec.ts"
+      - "e2e/workbench-resources.spec.ts"
+      - "e2e/workbench-resources.spec.ts-snapshots/**"
+      - "scripts/test-workbench-resources.mjs"
       - "e2e/workbench.spec.ts-snapshots/**"
       - ".github/workflows/workbench-qualification.yml"
   workflow_dispatch:
@@ -36,9 +39,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/test-private-workbench.mjs
+      - run: node scripts/test-workbench-resources.mjs
       - run: npx playwright install --with-deps chromium
       - name: Verify graph, jobs, roles, accessibility and appearance
-        run: npx playwright test e2e/workbench.spec.ts
+        run: npx playwright test e2e/workbench.spec.ts e2e/workbench-resources.spec.ts
       - name: Upload workbench results
         if: always()
         uses: actions/upload-artifact@v4
@@ -48,5 +52,6 @@ jobs:
             playwright-report/
             test-results/
             e2e/workbench.spec.ts-snapshots/
+            e2e/workbench-resources.spec.ts-snapshots/
           if-no-files-found: ignore
           retention-days: 7
