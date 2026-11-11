@@ -10,6 +10,12 @@ on:
       - "src/app/api/internal/workbench/**"
       - "src/app/e2e/workbench/**"
       - "e2e/workbench.spec.ts"
+      - "e2e/workbench-resources.spec.ts"
+      - "e2e/workbench-resources.spec.ts-snapshots/**"
+      - "scripts/test-workbench-resources.mjs"
+      - "scripts/fixtures/workbench-resource-db.sql"
+      - "supabase/migrations/*workbench_resource*.sql"
+      - "supabase/tests/workbench_resources.sql"
       - "e2e/workbench.spec.ts-snapshots/**"
       - ".github/workflows/workbench-qualification.yml"
   workflow_dispatch:
@@ -18,6 +24,34 @@ permissions:
   contents: read
 
 jobs:
+  resource-database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fixture-only-password
+          POSTGRES_DB: resource_qualification
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: fixture-only-password
+      PGDATABASE: resource_qualification
+    steps:
+      - uses: actions/checkout@v4
+      - run: psql -v ON_ERROR_STOP=1 -f scripts/fixtures/workbench-resource-db.sql
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111034829_private_workbench_resource_index.sql
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111043140_workbench_resource_checkpoint_guard.sql
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261111043740_workbench_resource_access_recovery.sql
+      - run: psql -v ON_ERROR_STOP=1 -f supabase/tests/workbench_resources.sql
   workbench:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
@@ -36,9 +70,10 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/test-private-workbench.mjs
+      - run: node scripts/test-workbench-resources.mjs
       - run: npx playwright install --with-deps chromium
       - name: Verify graph, jobs, roles, accessibility and appearance
-        run: npx playwright test e2e/workbench.spec.ts
+        run: npx playwright test e2e/workbench.spec.ts e2e/workbench-resources.spec.ts
       - name: Upload workbench results
         if: always()
         uses: actions/upload-artifact@v4
@@ -48,5 +83,6 @@ jobs:
             playwright-report/
             test-results/
             e2e/workbench.spec.ts-snapshots/
+            e2e/workbench-resources.spec.ts-snapshots/
           if-no-files-found: ignore
           retention-days: 7

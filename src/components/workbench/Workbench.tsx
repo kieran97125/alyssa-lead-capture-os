@@ -14,6 +14,8 @@ import { hongKongDate, isTodayJob, kindLabels, planetKinds, planetColors, status
 import { useWorkbench } from "./useWorkbench";
 import { spatialPositions, type SpacePoint } from "@/lib/workbench/spatial";
 import styles from "./Workbench.module.css";
+import { ResourceLibrary } from "./ResourceLibrary";
+import type { WorkResource } from "@/lib/workbench/resources";
 
 const GalaxyCanvas = dynamic(() => import("./GalaxyCanvas"), { ssr: false, loading: () => <div className={styles.canvasLoading}><Orbit size={30} /><span>正在展開工作星圖…</span></div> });
 const uid = () => crypto.randomUUID();
@@ -25,9 +27,10 @@ function download(name: string, content: string, type = "application/json") {
 function prettyTime(value: string) { if (!value) return ""; return new Intl.DateTimeFormat("zh-HK", { timeZone: "Asia/Hong_Kong", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(value)); }
 function fields(form: HTMLFormElement) { const data = new FormData(form); return { data, get: (name: string) => String(data.get(name) ?? "").trim() }; }
 
-export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ownerScope }: { initialRecord?: WorkbenchRecord; fixtureMode?: boolean; fixtureToday?: string; ownerScope?: string }) {
+export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ownerScope, initialView = "galaxy" }: { initialRecord?: WorkbenchRecord; fixtureMode?: boolean; fixtureToday?: string; ownerScope?: string; initialView?: "galaxy" | "jobs" | "sources" }) {
   const wb = useWorkbench(initialRecord, fixtureMode, ownerScope); const d = wb.document;
-  const [view, setView] = useState<"galaxy" | "jobs" | "sources">("galaxy");
+  const [view, setView] = useState<"galaxy" | "jobs" | "sources">(initialView);
+  const [libraryNode, setLibraryNode] = useState("");
   const [selectedId, setSelectedId] = useState("core"); const [relatedOnly, setRelatedOnly] = useState(false);
   const [detailOpen, setDetailOpen] = useState(false); const [focused, setFocused] = useState(false);
   const [editor, setEditor] = useState<Editor>(null); const [search, setSearch] = useState("");
@@ -96,6 +99,10 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
 
   const newPlanet = (position?: { x: number; y: number }) => setEditor({ type: "planet", value: { id: uid(), label: "", subtitle: "", description: "", kind: "project", color: "violet", x: position?.x ?? (selected?.x ?? 0) + 180, y: position?.y ?? (selected?.y ?? 0) + 130, url: "", accountId: "", archived: false } });
   const newJob = () => setEditor({ type: "job", value: { id: uid(), nodeId: selectedId, relatedNodeIds: [], title: "", description: "", status: "todo", priority: "normal", focusDate: today, dueDate: "", assignee: "", briefUrl: "", notes: "", checklist: [], source: "手動新增", archived: false } });
+  const jobFromFile = (file: WorkResource) => {
+    const ids = file.nodeIds.filter(id => nodeMap.has(id)); const primary = ids.includes(selectedId) && selectedId !== "core" ? selectedId : ids[0] || "core";
+    setEditor({ type: "job", value: { id: uid(), nodeId: primary, relatedNodeIds: ids.filter(id => id !== primary), title: `跟進：${file.name}`.slice(0, 180), description: file.paths[0] || "", status: "todo", priority: "normal", focusDate: today, dueDate: "", assignee: "", briefUrl: file.url, notes: "", checklist: [], source: "由工作檔案建立", archived: false } });
+  };
   const newEdge = (source = selectedId, target = activeNodes.find(n => n.id !== source)?.id ?? "") => setEditor({ type: "edge", value: { id: uid(), source, target, label: "相關工作", archived: false } });
   const movePlanet = useCallback((id: string, x: number, y: number) => {
     const old = wb.document?.nodes.find(n => n.id === id); if (!old || (old.x === x && old.y === y)) return;
@@ -146,7 +153,7 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
       <nav aria-label="工作枱檢視" className={styles.viewNav}>
         <SystemButton density="compact" variant={view === "galaxy" ? "default" : "ghost"} aria-pressed={view === "galaxy"} onClick={() => setView("galaxy")}><Network size={14} />星球網絡</SystemButton>
         <SystemButton density="compact" variant={view === "jobs" ? "default" : "ghost"} aria-pressed={view === "jobs"} onClick={() => setView("jobs")}><ListTodo size={14} />Job list</SystemButton>
-        <SystemButton density="compact" variant={view === "sources" ? "default" : "ghost"} aria-pressed={view === "sources"} onClick={() => setView("sources")}><Link2 size={14} />系統與資源</SystemButton>
+        <SystemButton density="compact" variant={view === "sources" ? "default" : "ghost"} aria-pressed={view === "sources"} onClick={() => { setLibraryNode(""); setView("sources"); }}><Link2 size={14} />系統與資源</SystemButton>
       </nav>
       <div className={styles.tools}><span role="status" className={`${styles.saveState} ${wb.state === "error" || wb.state === "conflict" ? styles.saveError : ""}`} title={updatedAtLabel(wb.updatedAt)}>{wb.state === "saving" ? <LoaderCircle className={styles.spin} size={12} /> : <span className={styles.savedDot} />}{saveLabel}</span>
         <SystemButton density="compact" variant="ghost" onClick={wb.undo} disabled={!wb.undoCount} aria-label="復原上一步" title="復原上一步"><Undo2 size={15} /></SystemButton>
@@ -178,12 +185,14 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
             </div>
             {selected.id === "creative" || selected.id === "designer" ? <SystemJobs title="現有 Creative Jobs" available={context?.creative.available ?? false} jobs={context?.creative.jobs ?? []} /> : null}
             {selected.id === "team" ? <SystemJobs title="現有系統工作" available={context?.tasks.available ?? false} jobs={context?.tasks.jobs ?? []} /> : null}
+            <ResourceLibrary key={selected.id} nodes={activeNodes} nodeId={selected.id} compact fixtureMode={fixtureMode} onBrowse={() => { setLibraryNode(selected.id); setView("sources"); }} onCreateJob={jobFromFile} />
             {selected.kind !== "core" ? <div className={styles.archiveControl}><SystemConfirmationDialog triggerLabel="移除星球" triggerIcon={<Archive size={13} />} triggerVariant="ghost" triggerSize="sm" title={`移除「${selected.label}」？`} description="星球會移去封存，Jobs 及關係仍會保留。你可以復原，或者喺「系統與資源」恢復。" confirmControl={<SystemButton onClick={() => { wb.mutate(doc => { const n = doc.nodes.find(n => n.id === selected.id); if (n) n.archived = true; }, `封存星球：${selected.label}`); setSelectedId("core"); }}>移至封存</SystemButton>} /></div> : null}
           </> : null}
         </aside> : null}
       </div> : null}
       {view === "jobs" ? <JobList jobs={jobs} nodeMap={nodeMap} today={today} onEdit={j => setEditor({ type: "job", value: j })} onChange={changeJob} search={search} setSearch={setSearch} status={status} setStatus={setStatus} todayOnly={todayOnly} setTodayOnly={setTodayOnly} title="所有工作 · Job list" onAdd={newJob} /> : null}
       {view === "sources" ? <section className={styles.sources}>
+        <ResourceLibrary nodes={activeNodes} nodeId={libraryNode} fixtureMode={fixtureMode} onCreateJob={jobFromFile} />
         <div className={styles.sectionTitle}><div><h2>連起現有系統，同你嘅工作。</h2><p>私人 Jobs 獨立保存；下列資料直接讀取原有系統，按連結可處理正式工作。</p></div><SystemButton density="compact" variant="outline" onClick={() => { void refreshContext(); }} disabled={contextLoading}><RefreshCw size={14} className={contextLoading ? styles.spin : ""} />更新系統資料</SystemButton></div>
         <div className={styles.sourceCards}><SourceCard title="Lead／Book／Show" description={context?.performance.available ? `本月 1 號至 ${context.endDate} · ${context.performance.source}` : "讀取原有 Dashboard 嘅已儲存資料"} available={context?.performance.available ?? false} url="/dashboard" />
           <SourceCard title="Creative Jobs" description="已連接設計工作，於星球詳情查看最近記錄。" available={context?.creative.available ?? false} url="/creative-jobs" />

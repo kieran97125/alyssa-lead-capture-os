@@ -226,11 +226,14 @@ test("anonymous and standard admin cannot reach private document APIs", async ({
   const context = await browser.newContext({ storageState: { cookies: [], origins: [] } });
   try {
     const denied = async () => {
-      for (const path of ["/api/internal/workbench", "/api/internal/workbench/context", "/workbench"]) {
+      for (const path of ["/api/internal/workbench", "/api/internal/workbench/context", "/api/internal/workbench/resources", "/api/internal/workbench/resources?overview=1", "/api/internal/workbench/resources/thumbnail?file=synthetic-private-file", "/workbench"]) {
         const response = await context.request.get(path, { maxRedirects: 0 });
         expect([303, 307, 403, 404]).toContain(response.status());
         expect(await response.text()).not.toContain('"schemaVersion":1');
       }
+      const write = await context.request.post("/api/internal/workbench/resources", { data: { action: "sync" }, maxRedirects: 0 });
+      expect([303, 307, 403, 404]).toContain(write.status());
+      expect((await context.request.post("/api/cron/workbench-resources")).status()).toBe(401);
     };
     await denied();
     const page = await context.newPage();
