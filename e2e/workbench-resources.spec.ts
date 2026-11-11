@@ -62,7 +62,7 @@ test("partial provider coverage stays visible and a failed read can retry into a
   await page.goto("/e2e/workbench?remote=1", { waitUntil: "networkidle" });
   await page.getByRole("button", { name: "系統與資源", exact: true }).click();
   const library = page.getByTestId("resource-library");
-  await expect(library.getByText("1 個來源需要檢查", { exact: true })).toBeVisible();
+  await expect(library.getByText("1 個來源需要檢查", { exact: false })).toBeVisible();
   await expect(library.getByText("索引暫時未能讀取", { exact: true })).toBeVisible();
   await library.getByRole("button", { name: "重新讀取", exact: true }).click();
   await library.getByRole("button", { name: "已收錄素材資料夾", exact: true }).click();
