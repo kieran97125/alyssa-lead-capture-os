@@ -198,6 +198,58 @@ test('a repeated identity-priority pass skips a complete booking without new UUI
   assert.equal(f.cell('Omni Lead ID'), lead); assert.equal(f.cell('Appointment ID'), pointer);
   assert.deepEqual(clone(f.registry.state.matrix), registryBefore); assert.equal(f.box.oa2ReadQueue_(f.ss, false).length, 1);
 });
+test('source 再約 registers through the governed commit without changing business cells or inventing a time', () => {
+  const f = nativeFixture({ fields: { '預約日期': '2026-12-25', '預約時間': '再約', '電話': '61400000001' } });
+  const before = clone(f.source.state.matrix[1].slice(0, 25)), receipt = f.run();
+  assert.equal(receipt.registered, 1); assert.equal(receipt.bookedAdded, 1); assert.equal(receipt.review, 0);
+  assert.deepEqual(clone(f.source.state.matrix[1].slice(0, 25)), before);
+  assert.equal(f.cell('預約時間'), '再約'); assert.equal(f.cell('電話'), '61400000001');
+  assert.equal(f.box.oa2Time_('再約'), '', 'The marker never parses as a clock time');
+  const lead = f.cell('Omni Lead ID'), pointer = f.cell('Appointment ID');
+  assert.ok(lead); assert.ok(pointer); assert.equal(f.cell('Pending Appointment Snapshot'), '');
+  const a = f.box.oa2ReadRegistry_(f.ss).appointments[pointer], q = f.box.oa2ReadQueue_(f.ss, false);
+  assert.equal(a.leadId, lead); assert.equal(a.date, '2026-12-25'); assert.equal(a.time, '');
+  assert.equal(a.state, 'active', 'A time marker alone never changes the booked lifecycle');
+  assert.equal(a.bookedAt, ''); assert.equal(a.provenance, 'legacy_registration_unknown');
+  assert.equal(a.outcome, ''); assert.equal(a.arrivalDate, '');
+  assert.equal(q.length, 1); assert.equal(q[0].appointmentId, pointer); assert.equal(q[0].entryId, a.queueId);
+  assert.equal(f.box.oa2Date_(q[0].date), '2026-12-25'); assert.equal(q[0].time, '');
+  assert.equal(q[0].outcome, '待到店'); assert.equal(q[0].raw[23], lead);
+  const uuidCount = f.uuidCount(), writeCount = f.writes().length, registryBefore = clone(f.registry.state.matrix), queueBefore = clone(f.queue.state.matrix);
+  const again = f.run();
+  assert.equal(again.registered, 0); assert.equal(again.bookedAdded, 0); assert.equal(f.uuidCount(), uuidCount);
+  assert.equal(f.writes().length, writeCount); assert.deepEqual(clone(f.registry.state.matrix), registryBefore);
+  assert.deepEqual(clone(f.queue.state.matrix), queueBefore);
+});
+test('replacing source 再約 with a clock time updates the same appointment and retains its original provenance', () => {
+  const f = nativeFixture({ fields: { '預約日期': '2026-12-25', '預約時間': '再約' } });
+  f.run();
+  const pointer = f.cell('Appointment ID'), lead = f.cell('Omni Lead ID'), uuidCount = f.uuidCount();
+  const original = f.box.oa2ReadRegistry_(f.ss).appointments[pointer];
+  f.source.state.matrix[1][f.headers.indexOf('預約時間')] = '15:30';
+  const business = clone(f.source.state.matrix[1].slice(0, 25));
+  f.box.oa2AbsorbWorkerQueueInputs_ = f.originals.absorb;
+  f.box.oa3AfterSync_ = () => {};
+  const receipt = f.box.oa2ProcessAccount_(f.ss, f.source, 'scan', null, false);
+  assert.equal(receipt.errors.length, 0); assert.equal(receipt.newQueue, 0);
+  const updated = f.box.oa2ReadRegistry_(f.ss).appointments[pointer], q = f.box.oa2ReadQueue_(f.ss, false);
+  assert.equal(f.cell('Appointment ID'), pointer); assert.equal(f.cell('Omni Lead ID'), lead);
+  assert.equal(updated.time, '15:30'); assert.equal(updated.date, '2026-12-25');
+  assert.equal(updated.bookedAt, original.bookedAt); assert.equal(updated.provenance, original.provenance);
+  assert.equal(updated.revision, original.revision + 1); assert.equal(updated.outcome, '');
+  assert.equal(f.uuidCount(), uuidCount); assert.equal(q.length, 1); assert.equal(q[0].appointmentId, pointer);
+  assert.equal(f.box.oa2Time_(q[0].time), '15:30');
+  assert.deepEqual(clone(f.source.state.matrix[1].slice(0, 25)), business);
+});
+for (const time of ['25:99', '24:00', '再約14:00', '再約（待定）', '待定', 'not a time']) {
+  test(`arbitrary invalid source time still blocks identity publication: ${time}`, () => {
+    const f = nativeFixture({ fields: { '預約時間': time } }), before = clone(f.source.state.matrix), receipt = f.run();
+    assert.ok(receipt.review > 0); assert.equal(receipt.bookedAdded, 0); assert.equal(receipt.registered, 0);
+    assert.deepEqual(clone(f.source.state.matrix), before); assert.equal(f.writes().length, 0);
+    assert.equal(f.cell('Omni Lead ID'), ''); assert.equal(f.cell('Appointment ID'), '');
+    assert.equal(f.registry.getLastRow(), 1); assert.equal(f.queue.getLastRow(), 7);
+  });
+}
 test('new identity booking preserves every existing completed arrival field including CS, notes and zero amounts', () => {
   const f = nativeFixture(), a = appointment({ id: 'appt_history', leadId: 'lead_history', queueId: 'queue_history',
     account: 'Skin Light', customerKey: 'Skin Light|p:10000009', phone: '10000009', state: 'completed', outcome: 'Show' });

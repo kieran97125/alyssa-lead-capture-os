@@ -771,6 +771,11 @@ function oa2Time_(v) {
   if (typeof v==='number' && v>=0 && v<1) { const n=Math.round(v*1440)%1440; return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0'); }
   const m=oa2Text_(v).match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/); return m && +m[1]<24 && +m[2]<60?m[1].padStart(2,'0')+':'+m[2]:'';
 }
+/** A source-only pending marker keeps its original cell text. It does not
+ * supply a clock time or authorize a cancellation/reschedule transition.
+ */
+function oa2PendingSourceTime_(v) { return typeof v==='string' && oa2Text_(v)==='再約'; }
+function oa2InvalidSourceTime_(v) { return !!oa2Text_(v) && !oa2Time_(v) && !oa2PendingSourceTime_(v); }
 function oa2Status_(v) { const s=oa2Text_(v).toLowerCase(); return ['已預約','booked','confirmed'].includes(s)?'booked':['已到店','show','show up','已完成','完成療程'].includes(s)?'show':['no show','noshow','no-show','未到店'].includes(s)?'no_show':s; }
 function oa2Outcome_(v) { const s=oa2Status_(v); return s==='show'?'Show':s==='no_show'?'No Show':['','待到店'].includes(oa2Text_(v))?'':null; }
 function oa2Clone_(v) { return JSON.parse(JSON.stringify(v)); }
@@ -1364,7 +1369,7 @@ function oa2CatchUpSourceSchedules_(ctx,snap,queue,appointmentIds,edit) {
     if(Object.keys(ctx.appointments).some(id=>{const x=ctx.appointments[id];return x.id!==a.id&&x.leadId===a.leadId&&x.provenance!=='legacy_show'&&x.previousId===a.id;}))return;
     const q=rows[0],date=oa2Date_(r.date),time=oa2Time_(r.time),status=oa2Status_(r.status);
     if(!['booked','show','no_show'].includes(status))return;
-    const invalid=(!!oa2Text_(r.date)&&!date)||(!!oa2Text_(r.time)&&!time),differs=date!==a.date||time!==a.time||a.state==='unscheduled'&&!!date;
+    const invalid=(!!oa2Text_(r.date)&&!date)||oa2InvalidSourceTime_(r.time),differs=date!==a.date||time!==a.time||a.state==='unscheduled'&&!!date;
     let before;
     if(a.pendingQueueBefore){try{before=JSON.parse(a.pendingQueueBefore);}catch(ignored){}}
     const replay=Array.isArray(before)&&before.length===4&&before.every(v=>typeof v==='string')&&
@@ -1734,7 +1739,7 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
         const decision=oa2ResolveMissingLeadIdentity_(r,evidence,()=>'lead_'+Utilities.getUuid());
         const flag=reason=>{result.review++;result.reviewReasons.push(reason);const line='【系統檢查・身份】未接納：'+oa2IdentityReviewMessage_(reason)+'。',old=warningNotes.get(r.row)||'';if(warningBudget>0&&old!==line&&!old.endsWith('\n'+line)&&(options.staffEdit||!omniStaffPriorityActive_())){warningBudget--;oa2IdentityNotes_(snap.sheet,snap.c,[r],snap.values,2,snap.meta,reason,false);}};
         if(decision.action==='review'){flag(decision.reason);return;}
-        if(oa2Status_(r.status)==='booked'&&((oa2Text_(r.date)&&!oa2Date_(r.date))||(oa2Text_(r.time)&&!oa2Time_(r.time))||!r.customerKey)){flag('booking_schedule_invalid');return;}
+        if(oa2Status_(r.status)==='booked'&&((oa2Text_(r.date)&&!oa2Date_(r.date))||oa2InvalidSourceTime_(r.time)||!r.customerKey)){flag('booking_schedule_invalid');return;}
         if(r.pendingSnapshot&&oa2Status_(r.status)!=='booked'){flag('pending_nonbooking_state');return;}
         r.leadId=decision.leadId;r.bookingMutation=!!options.bookingMutation;items.push({snap,record:r,decision,kind:'missing'});
       });

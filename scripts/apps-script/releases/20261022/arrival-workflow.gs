@@ -311,7 +311,7 @@ function oa3ManualExistingAppointment_(ctx,r) {
 function oa3ManualScheduleGap_(ctx,r,q,a) {
   if(!oa3ManualOpenAppointment_(a)||r.appointmentId!==a.id||r.leadId!==a.leadId||q.origin!=='managed'||q.entryId!==a.queueId||oa2Text_(q.raw[23])!==a.leadId||q.account!==a.account||q.customerKey!==a.customerKey||!r.phone)return null;
   const sourceDate=oa2Date_(r.date),sourceTime=oa2Time_(r.time),queueDate=oa2Date_(q.date),queueTime=oa2Time_(q.time);
-  if((oa2Text_(r.date)&&!sourceDate)||(oa2Text_(r.time)&&!sourceTime)||(oa2Text_(q.date)&&!queueDate)||(oa2Text_(q.time)&&!queueTime))return null;
+  if((oa2Text_(r.date)&&!sourceDate)||oa2InvalidSourceTime_(r.time)||(oa2Text_(q.date)&&!queueDate)||(oa2Text_(q.time)&&!queueTime))return null;
   if(queueDate&&queueDate!==sourceDate||queueTime&&queueTime!==sourceTime)return null;
   const date=queueDate||sourceDate,time=queueTime||sourceTime;
   if(date===queueDate&&time===queueTime)return null;
@@ -382,7 +382,7 @@ function oa3CommitIdentityBookings_(ss,items,allSnaps,queue,ctx,options) {
       if(gap){const repair=oa3ManualScheduleGap_(ctx,r,q,a);if(!repair){flag(item,'schedule_conflict');return;}ops.push(repair);}
       processed.push(item);return;
     }
-    if((oa2Text_(r.date)&&!oa2Date_(r.date))||(oa2Text_(r.time)&&!oa2Time_(r.time))||!r.customerKey){flag(item,'booking_schedule_invalid');return;}
+    if((oa2Text_(r.date)&&!oa2Date_(r.date))||oa2InvalidSourceTime_(r.time)||!r.customerKey){flag(item,'booking_schedule_invalid');return;}
     if(a)r.appointmentId=a.id;
     a=oa2ReconcileRecord_(ctx,r,options&&options.bookingMutation?'edit':'scan');
     if(!oa3ManualOpenAppointment_(a)){flag(item,'identity_unverified');return;}
@@ -443,7 +443,7 @@ function syncMissingBookedArrivals() {
           const gap=oa3ManualScheduleGap_(ctx,r,q,a);if(gap){ops.push(gap);processed.push(Object.assign({},item,{kind:'schedule_gap'}));}else if(item.kind==='schedule_gap')review++;
           return;
         }
-        if((oa2Text_(r.date)&&!oa2Date_(r.date))||(oa2Text_(r.time)&&!oa2Time_(r.time))||!r.customerKey){review++;return;}
+        if((oa2Text_(r.date)&&!oa2Date_(r.date))||oa2InvalidSourceTime_(r.time)||!r.customerKey){review++;return;}
         if(a)r.appointmentId=a.id;
         a=oa2ReconcileRecord_(ctx,r,'scan');
         if(!oa3ManualOpenAppointment_(a)){review++;return;}
