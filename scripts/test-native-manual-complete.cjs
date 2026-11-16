@@ -153,7 +153,8 @@ for(const point of ['failSave','failFlush'])test('failure after worker return ke
   let error;try{f.step();}catch(value){error=value;}
   assert.ok(error);assertPendingProgress(f,before);assert.equal(f.calls.release,releases+1);assert.equal(f.b.OA3_MANUAL_RUN_ACTIVE,false);
   assert.ok(!String(error.message).includes('PRIVATE_')&&!String(error.message).includes('10000001'));
-  f.step();assert.equal(f.job().accountIndex,1);assert.deepEqual(f.job().processedAccounts,[0]);assert.equal(f.calls.account.length,2,'A worker may have committed before a checkpoint failed, so the same canonical phase must safely retry');
+  f.step();assert.equal(f.job().accountIndex,0);assert.equal(f.job().phase,'account');assert.equal(f.calls.account.length,1,'Unknown Account acceptance first rechecks allocation recovery without counting Account coverage');
+  f.step();assert.equal(f.job().accountIndex,1);assert.deepEqual(f.job().processedAccounts,[0]);assert.equal(f.calls.account.length,2,'The canonical Account worker retries after recovery admission');
   assert.equal(f.job().countsVerified,false,'Unknown prior acceptance cannot become an exact added-count claim');assert.ok(f.job().unknownCountSteps>=1);assert.equal(f.job().attempt,null);
   const receipt=f.finish();assert.equal(receipt.countsVerified,false,'Count uncertainty must survive every remaining phase');
 });

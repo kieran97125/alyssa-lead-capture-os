@@ -72,9 +72,19 @@ Closing a sidebar retains the server checkpoint for reopening. This candidate do
 
 ### System card: SCRIPT-DEPLOYMENT-AUTHORITY
 
-- Status: blocked; the native candidate has not been installed by this takeover.
-- The active mobile session has connected Sheet-reading tools but no Apps Script project-write tool or connected desktop editor. The separate cloud browser is not signed into the required Google account.
-- Automatic approval review rejected opening the cloud Google sign-in flow because explicit authority for that browser sign-in was not established. Do not retry that authentication action or use a different surface as a workaround without the required explicit authorization.
-- Acceptance: a legitimately authorized editor or script-project deployment channel, fresh exact-source comparison, candidate save/readback, real button execution, durable source/registry/queue verification and idempotent repeat. No real business-row append is a substitute for the native writer.
+- Status: resolved for editor access and source installation; business reconciliation acceptance remains open.
+- The user subsequently explicitly authorized cloud Google sign-in and completed secure authentication. The original bound editor opened with edit access. Both live sources matched the retained pre-change backups before replacement; all extra live files and the appended read-only probe were preserved.
+- Reloaded cloud source readback exactly matched the installed follow-up: main SHA-256 `bdb9d765ea9cb5e57bfd410bae8d60603f249a38ddec525bcdc2ec10d5dfe965`; workflow with retained probe SHA-256 `90103e160f87a57c42456c980d5cb94c72e77f0580e7d3bb79469961a70b4921`.
+- At 21:27 HKT, a read-only native queue/six-Account probe completed in 9,538 ms. A later native missing-only repair reached its commit phase but hit the six-minute execution limit. This is an uncertain business-write boundary, not a completed repair receipt.
+- The actual CS menu opened the new sidebar. Background and manual worker failures were traced to three exactly owned, partially populated `allocating` rows. There were no shared queue-entry groups or pending source anchors in the preceding audit. An independently accepted Account relocation was correctly distinguished from actual preflight violations.
+- Remaining acceptance: complete the same durable job, independently re-read source/registry/queue, verify retained staff inputs and an idempotent repeat. No direct business-row append or broad identity rebinding is authorized as a substitute.
+
+### Accepted allocation recovery
+
+Manual identity admission now finds unfinished allocations before any global outcome preflight, one Account and at most fifty source identities per call. It retains the existing source identity, appointment and queue entry. A source withdrawal, changed schedule, completed outcome, foreign binding, unknown before-image or colleague outcome outside the accepted before/after prefix stays blocked for review. Both discovery and a fresh pre-commit queue read must pass. Existing global ownership claims, source CAS and native write/readback remain authoritative. Recovery of an already allocated row does not inflate the added-booking count.
+
+An uncertain Account attempt returns through identity/allocation recovery before retrying that Account. Existing coverage, durable job identity and count uncertainty are retained. Explicit manual commits now log only stage names and timing around CAS, allocation, source anchors, checkpoint, history, registry, source metadata and queue payload. Provider calls cannot be interrupted by these logs; their start record identifies an unfinished stage.
+
+Validation: the full native contract command passed, including 99 identity tests, 51 manual workflow/sidebar tests and the expanded sanitized ownership audit. New cases cover real native allocation completion, partial payload, cross-Account recovery, repeat no-op, preserved note/zero amount and concurrent colleague outcome rejection. These local tests do not establish live completion or provider latency.
 
 Rollback: revert the catch-up wrapper and unobserved source policy independently if required. Neither introduces a spreadsheet migration, triggers or properties. Preserve accepted successor IDs, registry/journal and source recovery anchors; rollback must not delete accepted history. Reverting unobserved source protections reintroduces the risk of timer-created successors from stale closed-source schedules. The read-only audit card requires no rollback.

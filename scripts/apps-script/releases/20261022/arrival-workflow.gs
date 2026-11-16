@@ -428,7 +428,7 @@ function syncMissingBookedArrivals() {
     const pending=props.getProperty(pendingKey)==='1',current=oa3ManualPhase_(timings,'lockedReadMs',()=>oa3MissingWriteRead_(ss,timings)),queue=current.queue,snaps=current.snaps;
     let selection=current.selection,ops=[],processed=[],review=current.selection.reviewCount||0,ctx=null;
     if(selection.items.length){
-      ctx=oa3ManualPhase_(timings,'contextMs',()=>oa2Context_(ss,false));
+      ctx=oa3ManualPhase_(timings,'contextMs',()=>oa2Context_(ss,false));ctx.manualTrace=true;
       snaps.forEach(s=>oa2ReplaySourceAnchors_(ctx,s));
       oa3ManualPhase_(timings,'resolvedRawQueueMs',()=>oa3ManualHydrateResolvedQueue_(ctx,snaps,queue));
       const globalSelection=current.globalSnaps?oa3ManualPresenceSelection_(current.globalSnaps,queue):null;
@@ -559,19 +559,25 @@ function continueBookedArrivalsFullSync(jobId) {
     // A persisted attempt means the prior native call may have committed before
     // its response/checkpoint was lost. Converge safely, but never advertise an
     // exact accumulated added/changed count after such an uncertain boundary.
-    if(state.attempt){state.countsVerified=false;state.unknownCountSteps++;}
+    if(state.attempt){
+      state.countsVerified=false;state.unknownCountSteps++;
+      // An uncertain Account commit may have retained an allocating row after
+      // its payload write. Recover that accepted prefix before outcome reads.
+      if(phase==='account'){state.phase='identity';phase='identity';}
+    }
     state.blockedReason=null;state.attempt={phase,accountIndex:index,startedAt:new Date().toISOString()};
     oa3ManualFullSyncSave_(props,state);attemptPersisted=true;
     if(phase==='identity') {
-      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,manualRequested:true});
+      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,manualRequested:true,recoverPendingAllocations:true});
       if(!result)throw new Error('Identity completion was not verified.');
       if(['registered','recovered','bookedAdded','review'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0)||!Array.isArray(result.accountFailures))throw new Error('Identity completion was not verified.');
       if(result.skipped){if(result.registered||result.recovered||result.bookedAdded)throw new Error('Identity result remains pending.');state.attempt=null;return Object.assign(oa3ManualFullSyncSave_(props,state),{busy:true,reason:'staff_priority'});}
-      if(result.blocked){state.reviewByAccount[index]=Math.max(state.reviewByAccount[index],result.review,1);state.blockedReason='identity_review';state.attempt=null;flushAttempted=true;SpreadsheetApp.flush();return oa3ManualFullSyncSave_(props,state);}
+      const resultIndex=Number.isInteger(result.attemptedAccountIndex)&&result.attemptedAccountIndex>=0&&result.attemptedAccountIndex<OMNI_ACCOUNT_TABS.length?result.attemptedAccountIndex:index;
+      if(result.blocked){state.reviewByAccount[resultIndex]=Math.max(state.reviewByAccount[resultIndex],result.review,1);state.blockedReason='identity_review';state.attempt=null;flushAttempted=true;SpreadsheetApp.flush();return oa3ManualFullSyncSave_(props,state);}
       const registered=oa3ManualSyncCount_(result.registered),recovered=oa3ManualSyncCount_(result.recovered),added=oa3ManualSyncCount_(result.bookedAdded);
       state.registered+=registered;state.recovered+=recovered;state.added+=added;
       const failures=Array.isArray(result.accountFailures)?result.accountFailures.filter(item=>item.accountIndex===index||item.accountIndex===-1).length:0;
-      state.reviewByAccount[index]=Math.max(state.reviewByAccount[index],oa3ManualSyncCount_(result.review),failures);
+      state.reviewByAccount[resultIndex]=Math.max(state.reviewByAccount[resultIndex],oa3ManualSyncCount_(result.review),failures);
       // More than fifty accepted identities resume this same Account. A
       // no-progress pass leaves review visible and advances to normal handling.
       if(!registered&&!recovered&&!added)state.phase='account';

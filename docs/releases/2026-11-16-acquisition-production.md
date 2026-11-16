@@ -22,12 +22,12 @@ The prepared native source and expanded regression command are separate from thi
 
 | Card | State | Next acceptance |
 |---|---|---|
-| SYNC-001: current missing bookings | Pending fresh native repair | Re-read current sources/registry/queue, use the governed writer, independently read back and verify an idempotent repeat. The earlier nine-record observation is not a current repair receipt. |
-| SYNC-002: native manual-sync release | Prepared; not installed by this takeover | Compare copied live sources, retain localized time and extra live files, qualify real native reads, then save/read back the reviewed source and run the normal control. |
+| SYNC-001: current missing bookings | Native repair attempted; uncertain commit retained | The fresh probe found 14 missing/recovering entries and four schedule gaps. The normal missing-only writer hit the execution limit during commit; finish through bounded canonical recovery, independently read back and verify an idempotent repeat. |
+| SYNC-002: native manual-sync release | Installed and exact source readback verified; live job acceptance pending | Authorized sign-in, pre-change comparison and cloud save/readback succeeded. The actual menu opened the sidebar. Resolve the observed partial allocations, then verify completion and repeat without duplicate identities or lost colleague input. |
 | SYNC-004: formula-driven master coverage | Current formula inspected; bridge/source-tail parity pending | Independently verify current bridge bounds and source/history coverage; a successful native receipt alone does not establish master freshness. |
 | OPERATOR-001: authenticated acquisition readback | Login boundary observed | Reuse an authorized staff session and inspect the released catalogue/editor without creating customer enquiries. |
 
-The actual read-only native probe began at 19:34:56 HKT and emitted its native-queue phase start; the browser connection then stopped returning observations. No terminal probe receipt, performance improvement, native repair or native production deployment is claimed.
+The first 19:34 HKT probe had no terminal observation after a browser interruption. Following explicitly authorized secure sign-in, the 21:27 native probe completed in 9,538 ms. The installed follow-up and preserved live files are recorded in `docs/operations/2026-11-16-native-sync-readiness.md`. Full native tests passed locally. Candidate `f54dd81342496e6dd78960fbee083c955e06889f` also passed all five hosted workflows; follow-up hosted qualification and actual business reconciliation remain separate gates.
 
 ## Recovery
 

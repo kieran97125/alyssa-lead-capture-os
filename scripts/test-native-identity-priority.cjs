@@ -739,6 +739,49 @@ test('manualRequested does not bypass duplicate global identity review under act
   const before=f.writes().length,result=f.run({manualRequested:true});assert.equal(result.blocked,true);assert.ok(result.review>0);assert.equal(result.bookedAdded,0);assert.equal(f.writes().length,before);
 });
 
+function interruptedAllocationFixture() {
+  const f=nativeFixture();f.run();
+  f.queue.state.matrix[7][arrivalHeaders.indexOf('Record Origin')]='allocating';
+  f.registry.state.matrix[1][f.registryHeaders().indexOf('Pending Queue Before')]='["","","",""]';
+  f.queue.state.matrix[7][arrivalHeaders.indexOf('備註')]='Retain colleague recovery note';
+  f.queue.state.matrix[7][arrivalHeaders.indexOf('試做價')]=0;
+  return f;
+}
+test('manual recovery completes an accepted allocation on another Account without new identities or added-count inflation',()=>{
+  const f=interruptedAllocationFixture(),lead=f.cell('Omni Lead ID'),pointer=f.cell('Appointment ID'),uuids=f.uuidCount(),source=clone(f.source.state.matrix[1].slice(0,25));
+  const receipt=f.run({manualRequested:true,recoverPendingAllocations:true,accountNames:['Alyssa Main'],startAccountIndex:0});
+  assert.equal(receipt.recovered,1);assert.equal(receipt.bookedAdded,0);assert.equal(receipt.accountFailures.length,0);
+  assert.equal(f.cell('Omni Lead ID'),lead);assert.equal(f.cell('Appointment ID'),pointer);assert.equal(f.uuidCount(),uuids);
+  assert.deepEqual(clone(f.source.state.matrix[1].slice(0,25)),source);
+  const queue=f.box.oa2ReadQueue_(f.ss,false);assert.equal(queue.length,1);assert.equal(queue[0].origin,'managed');assert.equal(queue[0].appointmentId,pointer);
+  assert.equal(f.queue.state.matrix[7][arrivalHeaders.indexOf('備註')],'Retain colleague recovery note');assert.equal(f.queue.state.matrix[7][arrivalHeaders.indexOf('試做價')],0);
+  assert.equal(f.box.oa2ReadRegistry_(f.ss).appointments[pointer].pendingQueueBefore,'');
+  const writes=f.writes().length;f.run({manualRequested:true,recoverPendingAllocations:true});assert.equal(f.writes().length,writes);
+});
+test('manual recovery resumes a partially written accepted payload rather than absorbing it as an outcome',()=>{
+  const f=interruptedAllocationFixture();f.queue.state.matrix[7][arrivalHeaders.indexOf('預約日期')]='';f.queue.state.matrix[7][arrivalHeaders.indexOf('到店日期')]='';
+  const receipt=f.run({manualRequested:true,recoverPendingAllocations:true});assert.equal(receipt.recovered,1);assert.equal(receipt.accountFailures.length,0);
+  const q=f.box.oa2ReadQueue_(f.ss,false)[0];assert.equal(q.origin,'managed');assert.equal(f.box.oa2Date_(q.date),'2026-10-24');assert.equal(q.outcome,'待到店');
+});
+test('a colleague outcome appearing after recovery discovery is preserved by the fresh queue guard',()=>{
+  const f=interruptedAllocationFixture(),context=f.box.oa2Context_;
+  f.box.oa2Context_=(...args)=>{const result=context(...args);f.queue.state.matrix[7][arrivalHeaders.indexOf('結果')]='已到店';return result;};
+  const writes=f.queue.state.writes.length,receipt=f.run({manualRequested:true,recoverPendingAllocations:true});
+  assert.equal(receipt.blocked,true);assert.equal(receipt.recovered,0);assert.equal(f.queue.state.writes.length,writes);
+  assert.equal(f.queue.state.matrix[7][arrivalHeaders.indexOf('結果')],'已到店');
+});
+for(const [name,change] of [
+  ['colleague outcome',f=>f.queue.state.matrix[7][arrivalHeaders.indexOf('結果')]='已到店'],
+  ['changed source schedule',f=>f.source.state.matrix[1][f.headers.indexOf('預約日期')]='2026-10-25'],
+  ['foreign queue lead',f=>f.queue.state.matrix[7][arrivalHeaders.indexOf('Omni Lead ID')]='lead_foreign'],
+  ['unknown recovery before-image',f=>f.registry.state.matrix[1][f.registryHeaders().indexOf('Pending Queue Before')]='{invalid'],
+  ['prior completed outcome',f=>f.registry.state.matrix[1][f.registryHeaders().indexOf('Pending Queue Before')]='["2026-10-01","14:00","已到店","2026-10-01"]'],
+])test('unsafe allocating row stays unchanged for review: '+name,()=>{
+  const f=interruptedAllocationFixture();change(f);const queue=clone(f.queue.state.matrix),registry=clone(f.registry.state.matrix),source=clone(f.source.state.matrix);
+  const receipt=f.run({manualRequested:true,recoverPendingAllocations:true});assert.equal(receipt.blocked,true);assert.ok(receipt.review>0);assert.equal(receipt.bookedAdded,0);
+  assert.deepEqual(clone(f.queue.state.matrix),queue);assert.deepEqual(clone(f.registry.state.matrix),registry);assert.deepEqual(clone(f.source.state.matrix),source);
+});
+
 // Synthetic cases above never contact Google or mutate production files.
 
 if (failures.length) {

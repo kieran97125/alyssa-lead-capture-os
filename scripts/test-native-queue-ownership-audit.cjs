@@ -26,7 +26,10 @@ function fixture(){
     oa2Outcome_:value=>value==='No Show'?'No Show':value==='Show'?'Show':null};
   const forbidden=new Proxy({},{get(){throw new Error('Diagnostic attempted a write-capable service');}});
   for(const service of ['PropertiesService','LockService','SpreadsheetApp','ScriptApp','Sheets'])box[service]=forbidden;
-  vm.createContext(box);vm.runInContext(fs.readFileSync(__dirname+'/apps-script/arrival-queue-ownership-audit.gs','utf8'),box);
+  vm.createContext(box);
+  const native=fs.readFileSync(__dirname+'/apps-script/releases/20261022/native-main.gs','utf8');
+  vm.runInContext(native.slice(native.indexOf('function oa2PreflightQueueOwnership_'),native.indexOf('function oa2AbsorbQueueInputs_')),box);
+  vm.runInContext(fs.readFileSync(__dirname+'/apps-script/arrival-queue-ownership-audit.gs','utf8'),box);
   return{box,registry,context,physical,metadata,control,logs,a,b,c,names};
 }
 const f=fixture(),before=JSON.stringify({registry:f.registry,context:f.context,physical:f.physical,metadata:[...f.metadata]});
@@ -44,6 +47,29 @@ assert.equal(result.replayedChangesOutsideTargetGroups,1);assert.equal(result.re
 assert.equal(result.replayedChangePositions.find(row=>row.registryRow===430).state,'canceled');
 assert.equal(JSON.stringify({registry:f.registry,context:f.context,physical:f.physical,metadata:[...f.metadata]}),before);
 assert.ok(!JSON.stringify(result).includes('PRIVATE_'));assert.ok(f.logs.every(line=>!line.includes('PRIVATE_')));
+
+const unique=fixture();
+unique.registry.appointments[unique.b.id].queueId='PRIVATE_UNIQUE_QUEUE';
+unique.context.appointments[unique.b.id].queueId='PRIVATE_UNIQUE_QUEUE';
+unique.physical.entryId='PRIVATE_UNIQUE_QUEUE';unique.physical.origin='managed';
+unique.physical.raw[23]='PRIVATE_WRONG_LEAD';
+const mismatch=unique.box.auditArrivalQueueOwnershipReadOnly20261116();
+assert.equal(mismatch.sharedQueueGroups,0);
+assert.equal(mismatch.bindingMismatchRows,1);
+assert.equal(mismatch.bindingMismatches[0].registryRow,427);
+assert.equal(mismatch.bindingMismatches[0].queueRow,43);
+assert.equal(mismatch.bindingMismatches[0].queueIdMatches,true);
+assert.equal(mismatch.bindingMismatches[0].leadMatches,false);
+assert.equal(mismatch.bindingMismatches[0].sourceClaimPositions[0].appointmentMatches,true);
+assert.ok(!JSON.stringify(mismatch).includes('PRIVATE_'));
+const partial=fixture();partial.physical.raw[0]='PRIVATE_GENERATED_LABEL';
+partial.physical.raw[17]=partial.b.queueId;partial.physical.raw[19]=partial.b.id;partial.physical.raw[25]='allocating';
+const interrupted=partial.box.auditArrivalQueueOwnershipReadOnly20261116();
+assert.equal(interrupted.preflightViolationRows,1);
+assert.equal(interrupted.preflightViolations[0].origin,'allocating');
+assert.equal(interrupted.preflightViolations[0].visiblePayloadFields,1);
+assert.equal(interrupted.preflightViolations[0].rawAppointmentMatches,true);
+assert.ok(!JSON.stringify(interrupted).includes('PRIVATE_'));
 
 for(const scenario of ['contextError','extentChange']){
   const item=fixture();item.control[scenario]=true;const output=item.box.auditArrivalQueueOwnershipReadOnly20261116();

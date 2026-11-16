@@ -37,6 +37,34 @@ function oa3AuditArrivalQueueOwnershipReadOnly20261116_(targetRegistryRow) {
   };
   const registryPosition=(registry,id)=>registry&&Number.isInteger(registry.rows[id])?registry.rows[id]:0;
   const owned=(a,q)=>!!a&&a.id===q.appointmentId&&a.queueId===q.entryId&&a.leadId===oa2Text_(q.raw&&q.raw[23])&&a.account===q.account&&a.customerKey===q.customerKey;
+  // A unique queue ID can still carry a different lead/account/key. Shared-ID
+  // groups alone do not explain the native commit's ownership guard.
+  const bindingMismatches=queue.filter(q=>q.origin==='managed'&&(!owned(raw.appointments[q.appointmentId],q)||replayed&&!owned(replayed.appointments[q.appointmentId],q))).map(q=>{
+    const original=raw.appointments[q.appointmentId],effective=replayed&&replayed.appointments[q.appointmentId],a=effective||original;
+    return {queueRow:q.row,queueAccountIndex:OMNI_ACCOUNT_TABS.indexOf(q.account),registryRow:registryPosition(raw,q.appointmentId),
+      registryAccountIndex:a?OMNI_ACCOUNT_TABS.indexOf(a.account):-1,rawOwnershipMatches:owned(original,q),replayedOwnershipMatches:owned(effective,q),
+      queueIdMatches:!!a&&a.queueId===q.entryId,leadMatches:!!a&&a.leadId===oa2Text_(q.raw&&q.raw[23]),
+      accountMatches:!!a&&a.account===q.account,customerKeyMatches:!!a&&a.customerKey===q.customerKey,
+      sourceClaimPositions:a?sources.filter(s=>s.appointmentId===a.id||s.leadId===a.leadId).map(s=>({accountIndex:s.accountIndex,row:s.row,
+        appointmentMatches:s.appointmentId===a.id,leadMatches:s.leadId===a.leadId,accountMatches:s.account===a.account,pendingAnchorPresent:s.pending})):[]};
+  });
+  const preflightViolations=[];
+  queue.forEach(q=>{
+    const view={appointments:replayed?replayed.appointments:raw.appointments,errors:[]};oa2PreflightQueueOwnership_(view,[q]);
+    if(!view.errors.length)return;
+    const a=view.appointments[q.appointmentId],values=q.raw||[];
+    preflightViolations.push({queueRow:q.row,registryRow:registryPosition(raw,q.appointmentId),
+      origin:['managed','allocating','legacy_show'].includes(q.origin)?q.origin:'unrecognized',
+      registryState:a?state(a.state):'missing',revision:a&&Number.isSafeInteger(a.revision)?a.revision:0,
+      visiblePayloadFields:values.slice(0,6).filter(v=>oa2Text_(v)).length,
+      queueIdMatches:!!a&&q.entryId===a.queueId,rawEntryMatches:!!a&&oa2Text_(values[17])===a.queueId,
+      rawAppointmentMatches:!!a&&oa2Text_(values[19])===a.id,rawLeadMatches:!!a&&oa2Text_(values[23])===a.leadId,
+      rawOriginMatches:oa2Text_(values[25])===q.origin,accountMatches:!!a&&q.account===a.account,
+      customerKeyMatches:!!a&&q.customerKey===a.customerKey,
+      pendingBeforeNew:!!a&&a.pendingQueueBefore==='new',pendingBeforePresent:!!(a&&a.pendingQueueBefore),
+      sourceClaimPositions:a?sources.filter(s=>s.appointmentId===a.id||s.leadId===a.leadId).map(s=>({accountIndex:s.accountIndex,row:s.row,
+        appointmentMatches:s.appointmentId===a.id,leadMatches:s.leadId===a.leadId,accountMatches:s.account===a.account,pendingAnchorPresent:s.pending})):[]});
+  });
   const ownerView=(a,registry,other,group)=>({
     registryRow:registryPosition(registry,a.id),accountIndex:OMNI_ACCOUNT_TABS.indexOf(a.account),state:state(a.state),outcome:outcome(a.outcome),
     revision:Number.isSafeInteger(a.revision)?a.revision:0,
@@ -91,7 +119,7 @@ function oa3AuditArrivalQueueOwnershipReadOnly20261116_(targetRegistryRow) {
       state:state(replayed.appointments[id].state),outcome:outcome(replayed.appointments[id].outcome),hasReplayedEvents:replayEvents.some(event=>event[2]===id)})),
     physicalQueueRows:queue.length,sourceMetadataClaims:sources.length,pendingAnchorRows:sources.filter(s=>s.pending).length,
     invalidPendingAnchors:invalidAnchors,sharedQueueGroups:shared.length,targetGroups:shared.filter(g=>g.targetGroup).length,
-    groups:shared,elapsedMs:Date.now()-started};
+    bindingMismatchRows:bindingMismatches.length,bindingMismatches,preflightViolationRows:preflightViolations.length,preflightViolations,groups:shared,elapsedMs:Date.now()-started};
   console.log(JSON.stringify(Object.assign({handler:'arrival_queue_ownership_audit'},result)));
   return result;
 }
