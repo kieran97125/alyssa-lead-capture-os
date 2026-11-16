@@ -38,8 +38,8 @@ The master-only system audit panel exposes aggregate delivery states. Its explic
 1. After specific rollout authorization, apply the exact qualified additive migration to the intended database. Verify the target function signatures, RLS and grants before deploying any caller; never bulk-apply unrelated historical migrations.
 2. Configure the dedicated production `LEAD_DELIVERY_SIGNING_SECRET` and matching encrypted Vault URL/key references. Keep the new recovery job inactive. Preserve the existing daily job and its independent credential.
 3. Deploy and verify the matching API, worker and browser source. Check unauthorized/global-token/wrong-path/stale/future requests fail closed and a fresh dedicated proof reaches the bounded worker.
-4. Only after the matching deployment is confirmed, enable the reviewed five-minute database schedule. Observe schedule/HTTP status using safe metadata; job enqueue success alone is not delivery success.
-5. Verify acceptance, replay and actual delivery in an explicitly authorized controlled campaign, separately from report publication. Monitor blocked/uncertain states before increasing traffic.
+4. Verify one-shot signed dispatch, acceptance, replay and actual delivery in an authorized controlled campaign before initial schedule activation; keep this separate from report publication.
+5. After matching deployment and controlled verification, enable the reviewed five-minute database schedule. Observe its natural tick and HTTP result using safe metadata; enqueue success alone is not delivery success. Monitor blocked/uncertain states before increasing traffic.
 
 The supported application downgrade is a separately qualified **UI-only** artifact retaining the complete new browser/capture/receipt/outbox/worker/event protocol and additive database schema. It is not a switch to the pre-release full application SHA: the old capture writer ignores the new replay receipt contract. See the release ledger for the exact compatible artifact and verification evidence. Retain all accepted records and delivery evidence; never replay an uncertain write through the legacy append path.
 
@@ -59,4 +59,12 @@ The installed `pg_net` request queue is readable by broad database roles. Theref
 
 Vault configuration is read and validated freshly at each dispatch. The direct production HTTPS URL must not redirect. HTTP timeout is 65 seconds, allowing the worker's 60-second maximum to complete; a PostgreSQL enqueue success is not proof that the remote request succeeded. Missing/late queued proofs fail closed and the next scheduled attempt can recover. Unscheduling prevents future dispatches but cannot cancel a request already queued or in flight. Retain delivery evidence during rollback; revoke/rotate the dedicated key separately if immediate authentication revocation is required.
 
-`node scripts/test-lead-delivery-auth.mjs` verifies the signing and actual HTTP route boundaries using synthetic keys only. Source preparation is not authorization to create environment secrets, Vault values or schedules.
+`node scripts/test-lead-delivery-auth.mjs` verifies the signing and actual HTTP route boundaries using synthetic keys only. Standing authorization for ordinary Alyssa maintenance is recorded in AGENTS.md. Source preparation alone is not evidence of activation; actual target, access and runtime verification remain required.
+
+## Production activation receipt — 2026-11-16
+
+PR #158 was merged as `489955f7611b9461857d27387fdf043cd318a006` and the intended production deployment reached READY. The unchanged qualified migration source `20261116033221_public_capture_receipts_and_delivery_outbox.sql` was applied under database history version `20261116044421`; this mapping does not rename the source. RLS, invoker/role execution and append-only receipt/audit checks passed.
+
+Authorized controlled production acceptance verified 201 persistence, same-key 201 replay with identical IDs, changed-body 409 and recent new-key 429. Native OAuth appended one expected synthetic row on attempt 1, independently read back by stable identity/phone/brand/account. An earlier inaccessible private fixture caused only safe pre-append retries and no append. Qualification switched to a newly owned isolated source/tab, never silently rebinding a pinned job or writing an existing staff tab.
+
+All fixture records and temporary Google artifacts were removed with ownership guards and absent-state readbacks; original staff tabs/source/sharing were preserved. Fresh signed worker dispatch and the first natural five-minute tick returned HTTP 200; unsigned/stale/wrong-path calls returned 401. Actual schedule pause/resume passed, while per-capture execution remains independent. Final runtime error/fatal scan was clear for the observed window; sustained customer/outage performance remains unmeasured. See the release ledger for exact evidence and limits.

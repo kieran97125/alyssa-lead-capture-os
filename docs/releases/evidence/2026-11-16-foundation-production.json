@@ -1,0 +1,102 @@
+{
+  "date_hkt": "2026-11-16",
+  "status": "production_released_controlled_acceptance_passed",
+  "production_source": "489955f7611b9461857d27387fdf043cd318a006",
+  "production_tree": "bd0d60fe6b6442f0028b90f82338767786fe9bda",
+  "deployment": {
+    "id": "dpl_9uJgyynKWSSA6J4pDvXA46ghTWR9",
+    "state": "READY",
+    "intended_aliases_verified": true
+  },
+  "migration": {
+    "source_path": "supabase/migrations/20261116033221_public_capture_receipts_and_delivery_outbox.sql",
+    "sha256": "ec218919042a9d06a89cf3b7cca6e64e724c54320121d48c17f9f3413f1e359c",
+    "applied_history_version": "20261116044421",
+    "name": "public_capture_receipts_and_delivery_outbox",
+    "source_renamed": false,
+    "rls_new_tables": 3,
+    "invoker_rpcs": 4,
+    "browser_roles_denied": true,
+    "service_role_allowed": true,
+    "receipt_audit_append_only_verified": true
+  },
+  "configuration": {
+    "changed_env_names": [
+      "LEAD_DELIVERY_SIGNING_SECRET"
+    ],
+    "environment": "production_only",
+    "matching_encrypted_references_verified": true,
+    "other_env_keys_changed": false,
+    "temporary_key_copy_cleared": true,
+    "long_lived_credentials_logged_or_queued": false
+  },
+  "worker_http": {
+    "fresh": 200,
+    "unsigned": 401,
+    "stale": 401,
+    "wrong_path": 401
+  },
+  "scheduler": {
+    "active_job": 7,
+    "schedule": "*/5 * * * *",
+    "pause_absence_and_resume_verified": true,
+    "natural_run": 275774,
+    "enqueue_started_at_utc": "2026-11-16T05:05:00.070Z",
+    "enqueue_finished_at_utc": "2026-11-16T05:05:00.137Z",
+    "matching_http_request": 129267,
+    "http_response_at_utc": "2026-11-16T05:05:03Z",
+    "http_status": 200,
+    "http_timeout_or_error": false,
+    "result_ok": true,
+    "work_remaining_after_fixture_cleanup": false,
+    "global_mutation_pause_claimed": false
+  },
+  "controlled_capture": {
+    "accepted_http": 201,
+    "replay_http": 201,
+    "replay_same_ids": true,
+    "changed_body_http": 409,
+    "recent_new_key_duplicate_http": 429,
+    "coherent_single_capture_verified": true,
+    "requested_not_confirmed_booking": true,
+    "server_events": 3
+  },
+  "controlled_delivery": {
+    "native_oauth": true,
+    "append_rows": 1,
+    "attempt": 1,
+    "expected_pinned_target": true,
+    "independent_identity_phone_brand_account_readback": true,
+    "first_private_fixture_safe_preappend_retries": 2,
+    "first_private_fixture_appended": false,
+    "pinned_destination_rebound": false
+  },
+  "cleanup": {
+    "both_fixture_sets_absent": true,
+    "no_live_fixture_lease_or_metric_audit_reference": true,
+    "official_temporary_tab_absent": true,
+    "private_fixture_file_metadata_404": true,
+    "original_tab_identity_title_order_preserved": true,
+    "existing_business_rows_source_config_sharing_unchanged": true,
+    "final_readback_utc": "2026-11-16T05:09:33Z",
+    "only_original_global_source_preserved": true
+  },
+  "public_routes": {
+    "representative_published_pages_http_200_with_forms": true,
+    "anonymous_operational_event_http": 400,
+    "anonymous_operational_event_written": false
+  },
+  "runtime": {
+    "observed_error_fatal_window_minutes": 15,
+    "grouped_request_path_errors_present": false,
+    "health_advisor_findings_present": false,
+    "security_baseline_info_and_auth_warning_retained": true,
+    "all_security_warnings_absent_claimed": false
+  },
+  "limits": [
+    "controlled synthetic production acceptance is not sustained real-customer or every-outage evidence",
+    "complete reads remain bounded to 25000 rows and 20 seconds, not a transactional database snapshot",
+    "uncertain zero-match appends and reviewed target rebinding remain separate roadmap work",
+    "later documentation-only commits are not automatically deployed"
+  ]
+}

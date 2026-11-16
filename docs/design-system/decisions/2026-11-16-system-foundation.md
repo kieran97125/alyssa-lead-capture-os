@@ -1,6 +1,6 @@
 # Foundation correctness and truthful interaction state
 
-Date: 2026-11-16 (HKT). Status: source and reviewed baselines qualified; unreleased.
+Date: 2026-11-16 (HKT). Status: released; source/baseline qualification and controlled production capture/delivery verified.
 
 ## Decision
 
@@ -22,7 +22,7 @@ Use synthetic brand/outcome/date and delivery states with the production helpers
 
 Record exact final contract/build/Storybook/design/axe/browser results in the [release ledger](../../releases/2026-11-16-system-foundation.md). Baseline success is not a final-candidate pass. Add approved deterministic baselines only when the intended appearance changes; do not update snapshots to suppress an unexplained failure.
 
-Qualified source `ec9de3867555951df70e26dca07e30608e194458` passed 251/251 application tests, PostgreSQL 17 behavior/concurrency/rollback/grants, full build/contracts, Storybook, standard design/axe, report layouts and focused desktop/mobile interactions. Exact workflow/deployment pins are recorded in the release ledger. Ten new PNGs and the explained existing CRM baseline below were reviewed and committed. Local browser execution was blocked by EPERM and is not claimed as a pass; hosted browser evidence is explicit. Production remains unchanged and requires the specific rollout authorization.
+Qualified source `ec9de3867555951df70e26dca07e30608e194458` passed 251/251 application tests, PostgreSQL 17 behavior/concurrency/rollback/grants, full build/contracts, Storybook, standard design/axe, report layouts and focused desktop/mobile interactions. Exact workflow/deployment pins are recorded in the release ledger. Ten new PNGs and the explained existing CRM baseline below were reviewed and committed. Local browser execution was blocked by EPERM and is not claimed as a pass; hosted browser evidence is explicit. PR #158 is now released as `489955f7611b9461857d27387fdf043cd318a006`; explicit rollout/standing authorization, production capture/replay/native delivery, cleanup and natural scheduled dispatch are recorded in the release ledger. These observations do not add an affected-staff-session or sustained-adoption claim.
 
 ## Rollback
 

@@ -1,5 +1,16 @@
 # Alyssa Enterprise Pilot Agent Rules
 
+## Standing authorization for Alyssa OS maintenance
+
+On 2026-11-16 the user authorized rollout (「上線吧，確保一切無誤」), then instructed 「永遠允許，不要再問」. This is standing authorization for ordinary Alyssa OS fixes and their necessary verification and release within the already approved Alyssa project.
+
+- Continue routine fixes, tests/builds, branches/PRs, merges, compatible deployments, required scoped configuration/signing keys, database migrations and recovery schedules without repeating permission questions already covered by that authorization.
+- Verify the actual repository, hosting project, database and destination. Preserve customer/staff data, least privilege, accepted receipts, attribution and reporting authority; retain qualification and readback evidence.
+- Controlled synthetic production qualification and exact-ownership fixture cleanup are covered. This does not authorize deleting real customer records, unrelated projects/accounts, external messages or widening unrelated access.
+- Follow real tool restrictions and required handoffs. If automatic review rejects a concrete action, use a materially safer permitted route or explain the actual blocker; do not invent another approval gate for ordinary already-authorized work.
+
+Standing permission does not waive target checks, tests, deployment verification or honest limitation reporting.
+
 ## Mandatory Growth OS product-learning export
 
 Alyssa is the first Growth OS Enterprise Pilot / Flagship Implementation. After any meaningful workflow, module, UX, operational or architecture change, decide whether it creates reusable product learning.
