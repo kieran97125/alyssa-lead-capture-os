@@ -43,7 +43,7 @@ function fixture(){
     b.oa3AfterSync_(ss);
     return{account:sheet.getName(),newQueue:1,changes:2,deferredQueueConflicts:0,deferredSourceRecords:0,errors:[]};
   };
-  b.oa2TryRefreshQueueCs_=(spreadsheet,options)=>{assert.equal(spreadsheet,ss);assert.ok(checkpoint().attempt,'Projection writer must have a persisted pre-step attempt marker');calls.cs.push(options);if(control.projectionFailure)return{ok:false,reason:'synthetic_projection_failure'};return{ok:true,refreshed:6,changed:0};};
+  b.oa2TryRefreshQueueCs_=(spreadsheet,options)=>{assert.equal(spreadsheet,ss);assert.ok(checkpoint().attempt,'Projection writer must have a persisted pre-step attempt marker');assert.equal(options.accountNames.length,1);assert.ok(names.includes(options.accountNames[0]));assert.notEqual(options.initialRefresh,true);calls.cs.push(options);if(control.projectionFailure)return{ok:false,reason:'synthetic_projection_failure'};return{ok:true,refreshed:6,changed:0};};
   b.oa3RefreshDisplay_=(spreadsheet,repairOwners)=>{assert.equal(spreadsheet,ss);assert.equal(repairOwners,false);calls.display.push(true);if(control.displayFailure)throw new Error('PRIVATE_CUSTOMER_10000001 Display provider exception');return{displayRows:6,namesRestored:0,identitiesRepaired:0};};
   b.oa3SortArrival_=()=>{calls.sort.push(true);return{sorted:6};};
   assert.equal(typeof b.startBookedArrivalsFullSync,'function','Full-sync start API must exist');
@@ -80,9 +80,21 @@ test('all six Account receipts are distinct from preparatory identity calls and 
   assert.equal(f.job().phase,'projection');assert.equal(f.job().projectionComplete,false);
   assert.deepEqual(f.calls.account,f.names);assert.equal(f.calls.identity.length,6);
   f.step();assert.equal(f.job().phase,'complete');assert.equal(f.job().projectionComplete,true);
-  assert.equal(f.calls.cs.length,1);assert.equal(f.calls.display.length,1);assert.equal(f.calls.sort.length,1);
+  assert.equal(f.calls.cs.length,6);assert.equal(f.calls.display.length,1);assert.equal(f.calls.sort.length,1);
+  assert.deepEqual(f.calls.cs.map(options=>options.accountNames[0]),f.names);assert.deepEqual(f.calls.cs.map(options=>options.includeHistory),[true,false,false,false,false,false]);
   assert.equal(f.job().added,6);assert.equal(f.job().changed,12);
-  f.step();assert.equal(f.calls.cs.length,1);assert.equal(f.calls.account.length,6,'A retry after completion cannot repeat accepted worker calls');
+  f.step();assert.equal(f.calls.cs.length,6);assert.equal(f.calls.account.length,6,'A retry after completion cannot repeat accepted worker calls');
+});
+
+test('enabled API finalizer receives explicit full scope and never enters native projection or flush',()=>{
+ const f=fixture();f.start();for(let i=0;i<30&&f.job().phase!=='projection';i++)f.step();const before=f.calls.flush;
+ f.b.OA3_FINALIZE_API_ENABLED=true;let called=0;f.b.oa3TryApiFinalize_=(ss,opts)=>{called++;assert.deepEqual(Array.from(opts.accountNames),f.names);assert.equal(opts.includeHistory,true);assert.equal(opts.documentLock.hasLock(),true);return {completed:true,csReviewByAccount:[0,0,0,0,0,0]};};
+ const receipt=f.step();assert.equal(receipt.completed,true);assert.equal(called,1);assert.equal(f.calls.flush,before);assert.equal(f.calls.cs.length,0);assert.equal(f.calls.display.length,0);assert.equal(f.calls.sort.length,0);
+});
+for(const mode of ['review','unknown','malformed'])test('API finalizer '+mode+' never falls back, flushes or acknowledges projection',()=>{
+ const f=fixture();f.start();for(let i=0;i<30&&f.job().phase!=='projection';i++)f.step();const before=f.calls.flush;f.b.OA3_FINALIZE_API_ENABLED=true;
+ f.b.oa3TryApiFinalize_=()=>{if(mode==='unknown')throw Error('Synthetic API unknown');if(mode==='malformed')return {completed:true};return {completed:false,review:true};};
+ assert.throws(()=>f.step());assert.equal(f.job().phase,'projection');assert.equal(f.job().projectionComplete,false);assert.ok(f.job().attempt);assert.equal(f.calls.flush,before);assert.equal(f.calls.cs.length,0);assert.equal(f.calls.display.length,0);assert.equal(f.calls.sort.length,0);
 });
 
 test('start resumes a pending job without resetting coverage and creates a new identity only after completion',()=>{

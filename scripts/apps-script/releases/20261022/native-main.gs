@@ -1215,7 +1215,14 @@ function oa2AssertQueueBinding_(raw,a,origin) {
   if(oa2Text_(raw[17])!==a.queueId || oa2Text_(raw[19])!==a.id || oa2Text_(raw[25])!==origin)throw new Error('Arrival rows changed or sorted during processing; preserving stable-ID bindings for retry.');
 }
 function oa2WriteQueue_(ss,ctx,queue,operations,records) {
-  if(ctx.dryRun)throw new Error('Dry run cannot write queue.');if(!operations.length)return;const sh=ss.getSheetByName(OA2.ARRIVAL),layout=oa2QueueLayout_(sh,false),recordById={};(records||[]).forEach(r=>recordById[r.leadId]=r);
+  if(ctx.dryRun)throw new Error('Dry run cannot write queue.');if(!operations.length)return;
+  // Opt-in API dispatch precedes native header/value reads. Unknown API results
+  // never fall through into a second writer; refresh/outcome operations stay native.
+  if(typeof OA2_QUEUE_APPEND_API_ENABLED!=='undefined'&&OA2_QUEUE_APPEND_API_ENABLED===true&&operations.every(op=>['append','schedule_only'].includes(op.kind))){
+    if(typeof oa2WriteQueueAppendApi_!=='function')throw new Error('Explicit API queue writer is not installed.');
+    return oa2WriteQueueAppendApi_(ss,ctx,queue,operations,records);
+  }
+  const sh=ss.getSheetByName(OA2.ARRIVAL),layout=oa2QueueLayout_(sh,false),recordById={};(records||[]).forEach(r=>recordById[r.leadId]=r);
   const adds=operations.filter(o=>o.kind==='append'),metadata=[],refresh=[],schedules=[],payload=[],descriptions=[],identities=[],associations=[],checks=[],relocations=[];
   if(adds.length)oa2EnsureRows_(sh,Math.max(...adds.map(o=>o.row)));
   // Fresh full-row snapshots cover only affected contiguous rows; all input/binding guards remain.
