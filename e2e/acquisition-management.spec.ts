@@ -339,9 +339,9 @@ test("inactive legacy offer choices remain removable while unselected inactive t
   await expect(archivedTreatmentOffer).toBeEnabled();
   await expect(archivedOffer).toBeChecked();
   await expect(archivedOffer).toBeEnabled();
-  await archivedTreatmentOffer.uncheck();
+  await archivedTreatmentOffer.click();
   await expect(archivedTreatmentOffer).toHaveCount(0);
-  await archivedOffer.uncheck();
+  await archivedOffer.click();
   await expect(archivedOffer).toHaveCount(0);
   await form.getByRole("button", { name: "儲存設定", exact: true }).click();
   const submitted = JSON.parse(await page.getByTestId("acquisition-submitted").innerText());
