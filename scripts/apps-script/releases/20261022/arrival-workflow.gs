@@ -49,13 +49,13 @@ function oa3OwnerRepairDecision_(old,source,a) {
   if(!placeholder&&source.appointmentId!==a.id)return null;
   return old===source.cs?null:source.cs;
 }
-function oa3RefreshDisplay_(ss,repairOwners,scope) {
+function oa3RefreshDisplay_(ss,repairOwners,scope,options) {
   const sh=ss.getSheetByName(OA2.ARRIVAL),headers=oa2Header_(sh,OA2.HEADER_ROW),n=Math.max(0,sh.getLastRow()-OA2.FIRST_ROW+1);
-  if(!n)return {namesRestored:0,identitiesRepaired:0};
+  if(!n)return {namesRestored:0,identitiesRepaired:0,remainingDisplayChanges:0};
   const raw=sh.getRange(OA2.FIRST_ROW,1,n,sh.getLastColumn()).getValues(),reg=scope?scope.appointments:oa2ReadRegistry_(ss).appointments,sources=scope?scope.sources:oa3Sources_(ss),aliases=scope?new Map():oa3Aliases_(ss);
   const column=h=>headers.indexOf(h),ic=column('Appointment ID'),lc=column('Omni Lead ID'),qc=column('到店紀錄ID（內部）'),cc=column('CS同事名'),label=column('客人／預約'),brand=column('品牌'),phone=column('電話');
   const counts={};raw.forEach(row=>{const id=oa2Text_(row[ic]);if(id)counts[id]=(counts[id]||0)+1;});
-  const plans=[],result={namesRestored:0,identitiesRepaired:0,displayRows:0};
+  let plans=[];const result={namesRestored:0,identitiesRepaired:0,displayRows:0,remainingDisplayChanges:0};
   raw.forEach((row,i)=>{
     const id=oa2Text_(row[ic]),a=reg[id];if(scope&&!scope.ids.has(id))return;if(!a||counts[id]!==1||a.queueId!==oa2Text_(row[qc])||a.leadId!==oa2Text_(row[lc]))return;
     const source=oa3ResolveSource_(a,sources,aliases),changes=[];
@@ -73,6 +73,14 @@ function oa3RefreshDisplay_(ss,repairOwners,scope) {
     }
     if(changes.length)plans.push({row:OA2.FIRST_ROW+i,before:row,changes});
   });
+  if(options&&options.singleWriteGroup===true&&plans.length){
+    const total=plans.reduce((n,p)=>n+p.changes.length,0),col=Math.min(...plans.flatMap(p=>p.changes.map(c=>c.col)));
+    const selected=oa2RowGroups_(plans.filter(p=>p.changes.some(c=>c.col===col)))[0].slice(0,25);
+    plans=selected.map(p=>({row:p.row,before:p.before,changes:p.changes.filter(c=>c.col===col)}));
+    result.namesRestored=col===cc?plans.length:0;result.identitiesRepaired=col===label?plans.length:0;
+    result.remainingDisplayChanges=total-plans.length;
+    console.log(JSON.stringify({handler:'arrival_display_budget',plannedChanges:total,selectedChanges:plans.length,remainingChanges:result.remainingDisplayChanges}));
+  }
   if(!plans.length){console.log(JSON.stringify(Object.assign({handler:'arrival_display_repair'},result)));return result;}
   const freshSources=scope?scope.freshSources():oa3Sources_(ss);plans.forEach(p=>{const a=reg[oa2Text_(p.before[ic])],old=oa3ResolveSource_(a,sources,aliases),fresh=oa3ResolveSource_(a,freshSources,aliases);if(JSON.stringify(old)!==JSON.stringify(fresh))throw new Error('Source ownership changed during maintenance; safe retry required.');});
   const ownerChanges=plans.flatMap(p=>p.changes.filter(c=>c.col===cc).map(c=>({appointmentId:oa2Text_(p.before[ic]),before:p.before[cc],after:c.value})));
@@ -91,10 +99,10 @@ function oa3RefreshDisplay_(ss,repairOwners,scope) {
 }
 function oa3SnapshotValues_(headers,rows) {
   const idx=headers.indexOf('Appointment ID'),entry=headers.indexOf('到店紀錄ID（內部）');
-  const retained=headers.flatMap((h,i)=>['CS同事名','結果','到店日期','備註','補充Book登記日期','來源','試做價','開單金額'].includes(h)?[i]:[]),map={};
+  const retained=headers.flatMap((h,i)=>['CS同事名','結果','到店日期','備註','補充Book登記日期','來源','試做價','開單金額','總金額'].includes(h)?[i]:[]),ownershipFields=retained.filter(i=>headers[i]!=='總金額'),map={};
   rows.forEach(row=>{
     const id=oa2Text_(row[idx])||oa2Text_(row[entry]);
-    if(!id){if(retained.some(i=>oa2Text_(row[i])))throw new Error('Unowned colleague input must be resolved before sorting.');return;}
+    if(!id){if(ownershipFields.some(i=>oa2Text_(row[i])))throw new Error('Unowned colleague input must be resolved before sorting.');return;}
     if(map[id])throw new Error('Duplicate arrival ownership before sort.');map[id]=retained.map(i=>row[i]);
   });return map;
 }
@@ -105,14 +113,27 @@ function oa3RowSnapshot_(sh) {
 function oa3SortKey_(date,time,id,index,outcome) {
   const d=oa2Date_(date),t=oa2Time_(time),done=['已到店','Show','No Show','取消'].includes(oa2Text_(outcome));return (id?done?'1':'0':'2')+'|'+(d||'9999-99-99')+'|'+(t||'99:99')+'|'+String(index).padStart(8,'0');
 }
-function oa3SortArrival_(sh) {
+function oa3SortArrival_(sh,options) {
   const n=Math.max(0,sh.getLastRow()-OA2.FIRST_ROW+1);if(n<2)return {sorted:0};
   const headers=oa2Header_(sh,OA2.HEADER_ROW),date=headers.indexOf('預約日期'),time=headers.indexOf('時間'),id=headers.indexOf('Appointment ID'),width=sh.getMaxColumns();
   const outcome=headers.indexOf('結果'),rows=sh.getRange(OA2.FIRST_ROW,1,n,headers.length).getValues(),before=oa3SnapshotValues_(headers,rows),keys=rows.map((r,i)=>[oa3SortKey_(r[date],r[time],r[id],i,r[outcome])]);
+  if(options&&options.useOwnedSortKey===true){
+    const signature=oa2Hash_(JSON.stringify(Object.keys(before).sort().map(id=>[id,before[id]])));
+    if(options.expectedSnapshotHash&&options.expectedSnapshotHash!==signature)throw new Error('Arrival ownership or colleague inputs changed after an uncertain sort; review rather than overwrite.');
+    if(typeof options.checkpoint==='function')options.checkpoint(signature);
+  }
   if(keys.every((r,i)=>!i||r[0]>=keys[i-1][0]))return {sorted:0};
-  sh.insertColumnAfter(width);
-  try{const keyRange=sh.getRange(OA2.FIRST_ROW,width+1,n,1);keyRange.clearDataValidations();keyRange.setValues(keys);sh.getRange(OA2.FIRST_ROW,1,n,width+1).sort({column:width+1,ascending:true});}
-  finally{sh.deleteColumn(width+1);}
+  if(options&&options.useOwnedSortKey===true){
+    const columns=headers.flatMap((name,i)=>name==='到店優先排序（內部）'?[i+1]:[]);if(columns.length!==1)throw new Error('A unique governed arrival sort column is required.');
+    // This generated helper is already owned by the arrival register. Keeping
+    // it avoids a structural insert/delete boundary during a lost response.
+    sh.getRange(OA2.FIRST_ROW,columns[0],n,1).setValues(keys);
+    sh.getRange(OA2.FIRST_ROW,1,n,width).sort({column:columns[0],ascending:true});
+  }else{
+    sh.insertColumnAfter(width);
+    try{const keyRange=sh.getRange(OA2.FIRST_ROW,width+1,n,1);keyRange.clearDataValidations();keyRange.setValues(keys);sh.getRange(OA2.FIRST_ROW,1,n,width+1).sort({column:width+1,ascending:true});}
+    finally{sh.deleteColumn(width+1);}
+  }
   const after=oa3RowSnapshot_(sh);if(JSON.stringify(Object.keys(before).sort())!==JSON.stringify(Object.keys(after).sort())||Object.keys(before).some(k=>JSON.stringify(before[k])!==JSON.stringify(after[k])))throw new Error('Arrival ownership or colleague inputs changed during native sorting.');
   return {sorted:Object.keys(before).length};
 }
@@ -516,6 +537,10 @@ function oa3ManualFullSyncState_(props) {
   if(state.projectionStep===undefined)state.projectionStep=state.phase==='complete'?8:0;
   if(state.accountPrepared===undefined)state.accountPrepared=false;
   if(state.pendingQueueOps===undefined)state.pendingQueueOps=0;
+  if(state.pendingDisplayChanges===undefined)state.pendingDisplayChanges=0;
+  if(state.sortSnapshotHash===undefined)state.sortSnapshotHash=null;
+  if(state.sortSnapshotHash!==null&&(typeof state.sortSnapshotHash!=='string'||!(/^[a-f0-9]{32}$/).test(state.sortSnapshotHash)||!['projection','complete'].includes(state.phase)||(state.phase==='projection'&&state.projectionStep!==7)))throw new Error('排序保留記錄未能核實；已保留原有記錄。');
+  if(!Number.isSafeInteger(state.pendingDisplayChanges)||state.pendingDisplayChanges<0||(state.pendingDisplayChanges>0&&(state.phase!=='projection'||state.projectionStep!==6)))throw new Error('顯示整理進度未能核實；已保留原有記錄。');
   if(!Number.isSafeInteger(state.pendingQueueOps)||state.pendingQueueOps<0||(['projection','complete'].includes(state.phase)&&state.pendingQueueOps!==0))throw new Error('同步剩餘進度未能核實；已保留原有記錄。');
   if(typeof state.accountPrepared!=='boolean'||(['projection','complete'].includes(state.phase)&&state.accountPrepared)||
     (state.attempt&&state.attempt.operation!==undefined&&(state.attempt.phase!=='account'||!['prepare','apply'].includes(state.attempt.operation)||(state.attempt.operation==='apply')!==state.accountPrepared)))throw new Error('同步套用進度未能核實；已保留原有記錄。');
@@ -533,7 +558,7 @@ function oa3ManualFullSyncView_(state) {
     reconciliationComplete:finished&&!needsReview&&state.projectionComplete,projectionComplete:state.projectionComplete,projectionStep:state.projectionStep||0,
     projectionLabel:state.projectionStep<6?'補齊同事資料（'+OMNI_ACCOUNT_TABS[state.projectionStep]+'）':state.projectionStep===6?'更新預約顯示':'排序到店記錄',
     processedAccounts:state.processedAccounts.length,totalAccounts:OMNI_ACCOUNT_TABS.length,
-    accountLabel:OMNI_ACCOUNT_TABS[state.accountIndex]||'',accountPrepared:state.accountPrepared===true,pendingQueueOps:state.pendingQueueOps||0,registered:state.registered,recovered:state.recovered,
+    accountLabel:OMNI_ACCOUNT_TABS[state.accountIndex]||'',accountPrepared:state.accountPrepared===true,pendingQueueOps:state.pendingQueueOps||0,pendingDisplayChanges:state.pendingDisplayChanges||0,registered:state.registered,recovered:state.recovered,
     added:state.added,changed:state.changed,reviewCount:state.reviewCount,countsVerified:state.countsVerified,unknownCountSteps:state.unknownCountSteps,
     reviewAccounts:state.reviewByAccount.filter(value=>value>0).length,
     startedAt:state.startedAt,processedAt:state.processedAt.slice(),updatedAt:state.updatedAt,
@@ -555,7 +580,7 @@ function startBookedArrivalsFullSync() {
     const now=new Date().toISOString();state={version:1,id:Utilities.getUuid(),phase:'identity',accountIndex:0,
       processedAccounts:[],processedAt:[],reviewByAccount:OMNI_ACCOUNT_TABS.map(()=>0),reviewCount:0,
       registered:0,recovered:0,added:0,changed:0,countsVerified:true,unknownCountSteps:0,attempt:null,blockedReason:null,
-      projectionComplete:false,projectionStep:0,accountPrepared:false,pendingQueueOps:0,startedAt:now,updatedAt:now};
+      projectionComplete:false,projectionStep:0,accountPrepared:false,pendingQueueOps:0,pendingDisplayChanges:0,sortSnapshotHash:null,startedAt:now,updatedAt:now};
     return oa3ManualFullSyncSave_(startup.props,state);
   } catch (ignored) {
     console.log(JSON.stringify({handler:'manual_complete_booking_sync',phase:'start',state:'retry_pending'}));
@@ -637,18 +662,22 @@ function continueBookedArrivalsFullSync(jobId) {
         if(!Number.isSafeInteger(result.csReviewByAccount.reduce((sum,value)=>sum+value,0)))throw new Error('API projection review count was not verified.');
         result.csReviewByAccount.forEach((review,i)=>state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],review));
         state.projectionStep=8;
+        state.pendingDisplayChanges=0;
       }else{
         // The canonical runtime admits one explicit Account at a time. The
         // migration-only initialRefresh privilege is never used by this button.
-        const i=state.projectionStep;
+        const i=state.projectionStep;let advance=true;
         if(i<OMNI_ACCOUNT_TABS.length){
           const cs=oa2TryRefreshQueueCs_(ss,{documentLock:lock,accountNames:[OMNI_ACCOUNT_TABS[i]],includeHistory:i===0});
           if(!cs||cs.ok!==true)throw new Error('Colleague projection was not verified.');
           state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],oa3ManualSyncCount_(cs.review));
-        }else if(i===6)oa3RefreshDisplay_(ss,false);
-        else if(i===7)oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL));
+        }else if(i===6){
+          const display=oa3RefreshDisplay_(ss,false,undefined,{singleWriteGroup:true});
+          if(!display||!Number.isSafeInteger(display.remainingDisplayChanges)||display.remainingDisplayChanges<0)throw new Error('Display application was not verified.');
+          state.pendingDisplayChanges=display.remainingDisplayChanges;advance=display.remainingDisplayChanges===0;
+        }else if(i===7)oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL),{useOwnedSortKey:true,expectedSnapshotHash:state.sortSnapshotHash,checkpoint:signature=>{state.sortSnapshotHash=signature;oa3ManualFullSyncSave_(props,state);}});
         else throw new Error('Unknown projection step.');
-        state.projectionStep++;
+        if(advance)state.projectionStep++;
       }
       if(state.projectionStep===8){state.projectionComplete=true;state.phase='complete';}
     } else throw new Error('Unknown phase.');
@@ -744,7 +773,7 @@ function syncAllBookedArrivals() {
       retryAttempt=0;
       if(result.restartRequired){jobId='';scheduleRun(150);return;}
       if(result.busy) {
-        status.textContent='同事正在修改或有其他同步進行，稍後會繼續。';
+        status.textContent='目前同步步驟仍在處理，完成後會自動繼續。';
         if(++busy<60)scheduleRun(3000);
         else {manualOnly=true;showRetry('目前仍有其他更新進行，請稍後繼續同步。');}
         return;
@@ -780,7 +809,7 @@ function syncAllBookedArrivals() {
         : result.phase==='account' ? (result.accountPrepared?'套用預約狀態及時間':'核對及保存同步進度') : (result.projectionLabel||'整理到店記錄');
       status.textContent=(result.accountLabel?result.accountLabel+'：':'')+label+'…';
       detail.textContent='已處理 '+result.processedAccounts+' / '+result.totalAccounts+
-        ' 個分頁。'+(result.pendingQueueOps>0?'此分頁尚有 '+result.pendingQueueOps+' 筆更新。':'')+'關閉後可再開啟繼續。';
+        ' 個分頁。'+(result.pendingQueueOps>0?'此分頁尚有 '+result.pendingQueueOps+' 筆更新。':'')+(result.pendingDisplayChanges>0?'尚有 '+result.pendingDisplayChanges+' 項顯示更新。':'')+'關閉後可再開啟繼續。';
       scheduleRun(150);
     }
 

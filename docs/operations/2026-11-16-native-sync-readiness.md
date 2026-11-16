@@ -113,3 +113,16 @@ The timeout follow-up keeps both experimental API flags false and retains the na
 Validation: the complete native contract passes, including real emitted-sidebar/controller, source transition/recovery, native metadata span, immutable queue identity, concurrent colleague edit, lost acknowledgement, zero/formula and corrupt-checkpoint tests. New deployment/readback, full ordinary-control execution, independent source/queue/master acceptance and measured post-change provider latency remain pending. No production latency improvement is claimed from local tests.
 
 Rollback must preserve accepted source anchors, queue IDs, registry/history and the durable job. An existing prepared phase must be applied/replayed before removing preparation support. Do not erase checkpoints or reappend appointments to recover a timed-out call.
+
+
+### Projection timeout follow-up
+
+All six Account workers and six explicit CS scopes returned on the ordinary retained job. Its global display phase then reached the provider execution limit: repeated sparse column reads/writes were another unbounded flush boundary. The native complete-job display now applies one contiguous, single-column group of at most 25 generated display changes per RPC. It re-reads canonical plans/sources/queue on every call and remains at projection step six until a verified zero-remaining receipt. Only selected CS changes receive owner-intent journal rows. Accepted fields are rediscovered as no-ops after a lost reply. Other scoped/default callers retain their established behavior.
+
+Manual native sorting now uses the uniquely governed existing `到店優先排序（內部）` column. It does not insert/delete a temporary column. A protected ownership/colleague/outcome/note/money-total digest is checkpointed before any sort-key write. An unknown retry compares this retained digest even if the rows are already ordered; changed protected data stays review rather than being overwritten. Whole-record sorting and independent post-sort preservation checks remain required.
+
+The full native command passed after this follow-up, including real bounded-display continuation, lost display acknowledgement, native owned-helper sorting, pre-write checkpoint failure, lost sort reply, protected-data drift, financial-total preservation and controller partial-display cases. Exact installed readback and complete final-control acceptance remain separate.
+
+### Master coverage acceptance
+
+A fresh independent metadata/formula/effective-cell read verified the retained master and identity-bridge contract. The current six Account references remain open-ended. The historical physical grid ends at the formula's inclusive row-7000 boundary, so there is no existing historical tail beyond it. Every current projected row had a consecutive source-row position and true row parity, eligibility, unique-identity and combined guard values; no cell error or master-capacity overflow was returned. This establishes the current inclusion/identity/freshness contract without replacing either formula. Source edits remain non-atomic across separate RPCs. Published application-report cache and authenticated acquisition operator acceptance are separate boundaries.

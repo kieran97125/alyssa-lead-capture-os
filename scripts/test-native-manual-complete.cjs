@@ -48,8 +48,8 @@ function fixture(){
     return{account:sheet.getName(),newQueue:1,changes:2,deferredQueueConflicts:0,deferredSourceRecords:0,remainingQueueOps:0,errors:[]};
   };
   b.oa2TryRefreshQueueCs_=(spreadsheet,options)=>{assert.equal(spreadsheet,ss);assert.ok(checkpoint().attempt,'Projection writer must have a persisted pre-step attempt marker');assert.equal(options.accountNames.length,1);assert.ok(names.includes(options.accountNames[0]));assert.notEqual(options.initialRefresh,true);calls.cs.push(options);if(control.projectionFailure)return{ok:false,reason:'synthetic_projection_failure'};return{ok:true,refreshed:6,changed:0};};
-  b.oa3RefreshDisplay_=(spreadsheet,repairOwners)=>{assert.equal(spreadsheet,ss);assert.equal(repairOwners,false);calls.display.push(true);if(control.displayFailure)throw new Error('PRIVATE_CUSTOMER_10000001 Display provider exception');return{displayRows:6,namesRestored:0,identitiesRepaired:0};};
-  b.oa3SortArrival_=()=>{calls.sort.push(true);return{sorted:6};};
+  b.oa3RefreshDisplay_=(spreadsheet,repairOwners,scope,options)=>{assert.equal(spreadsheet,ss);assert.equal(repairOwners,false);assert.equal(scope,undefined);assert.equal(options.singleWriteGroup,true);calls.display.push(true);if(control.displayFailure)throw new Error('PRIVATE_CUSTOMER_10000001 Display provider exception');return{displayRows:6,namesRestored:0,identitiesRepaired:0,remainingDisplayChanges:0};};
+  b.oa3SortArrival_=(sheet,options)=>{assert.equal(options.useOwnedSortKey,true);options.checkpoint('a'.repeat(32));calls.sort.push(true);return{sorted:6};};
   assert.equal(typeof b.startBookedArrivalsFullSync,'function','Full-sync start API must exist');
   assert.equal(typeof b.continueBookedArrivalsFullSync,'function','Full-sync continuation API must exist');
   const job=()=>{const raw=stored.get(jobKey);return raw?JSON.parse(raw):null;};
@@ -62,7 +62,7 @@ function fixture(){
 function test(name,run){try{run();tests.push(name);}catch(error){failures.push({name,error:error.message,stack:error.stack});}}
 function assertPendingProgress(f,before){
   const expected=JSON.parse(before),actual=f.job();
-  for(const key of ['phase','accountIndex','processedAccounts','registered','recovered','added','changed','reviewCount','projectionComplete','projectionStep','accountPrepared','pendingQueueOps'])assert.deepEqual(actual[key],expected[key],key+' must not be acknowledged after an unknown step');
+  for(const key of ['phase','accountIndex','processedAccounts','registered','recovered','added','changed','reviewCount','projectionComplete','projectionStep','accountPrepared','pendingQueueOps','pendingDisplayChanges','sortSnapshotHash'])assert.deepEqual(actual[key],expected[key],key+' must not be acknowledged after an unknown step');
   assert.ok(actual.attempt,'A failed step must leave its attempt checkpoint for honest retry accounting');
 }
 
@@ -211,6 +211,8 @@ test('partially applied display phase retries its idempotent finalizer without r
   assert.ok(error);assert.ok(!String(error.message).includes('PRIVATE_'));assert.equal(f.job().phase,'projection');assert.equal(f.job().projectionComplete,false);assert.equal(f.calls.sort.length,0);
   f.control.displayFailure=false;f.finish();assert.equal(f.job().phase,'complete');assert.deepEqual(f.calls.account,accounts);assert.equal(f.calls.sort.length,1);
 });
+test('partial display receipts remain on the same projection step until every planned change is applied',()=>{const f=fixture();f.start();for(let i=0;i<40&&(f.job().phase!=='projection'||f.job().projectionStep!==6);i++)f.step();const original=f.b.oa3RefreshDisplay_;let remaining=3;f.b.oa3RefreshDisplay_=(...args)=>({...original(...args),remainingDisplayChanges:--remaining});for(const expected of [2,1]){f.step();assert.equal(f.job().projectionStep,6);assert.equal(f.job().pendingDisplayChanges,expected);assert.equal(f.calls.sort.length,0);}f.step();assert.equal(f.job().projectionStep,7);assert.equal(f.job().pendingDisplayChanges,0);f.step();assert.equal(f.job().phase,'complete');assert.match(f.job().sortSnapshotHash,/^[a-f0-9]{32}$/);});
+test('a lost final sort checkpoint preserves the pre-sort digest and resumes without repeating source or display work',()=>{const f=fixture();f.start();for(let i=0;i<40&&(f.job().phase!=='projection'||f.job().projectionStep!==7);i++)f.step();const display=f.calls.display.length,accounts=f.calls.account.length;f.control.failSave=true;assert.throws(()=>f.step());assert.equal(f.job().projectionStep,7);assert.equal(f.job().sortSnapshotHash,'a'.repeat(32));f.step();assert.equal(f.job().phase,'complete');assert.equal(f.calls.display.length,display);assert.equal(f.calls.account.length,accounts);assert.equal(f.job().countsVerified,false);});
 
 for(const resultFailure of [false,true])test('worker failure retains Account checkpoint and never returns private error details: '+resultFailure,()=>{
   const f=fixture();f.start();f.toAccount();const before=f.stored.get(jobKey);
@@ -263,6 +265,9 @@ for(const [name,corrupt]of [
   ['nonboolean Account preparation',job=>({...job,accountPrepared:'true'})],
   ['negative remaining queue count',job=>({...job,pendingQueueOps:-1})],
   ['noninteger remaining queue count',job=>({...job,pendingQueueOps:'2'})],
+  ['negative pending display count',job=>({...job,pendingDisplayChanges:-1})],
+  ['pending display before its projection phase',job=>({...job,pendingDisplayChanges:1})],
+  ['malformed saved sort digest',job=>({...job,sortSnapshotHash:'not-a-digest'})],
   ['preparation operation outside Account phase',job=>({...job,attempt:{phase:'identity',accountIndex:0,startedAt:job.startedAt,operation:'prepare'}})],
 ])test('corrupt persisted checkpoint fails before operational writes: '+name,()=>{
   const f=fixture(),job=f.start(),value=corrupt(job);f.stored.set(jobKey,typeof value==='string'?value:JSON.stringify(value));
