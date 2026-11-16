@@ -468,14 +468,25 @@ function syncMissingBookedArrivals() {
       }
     }
     const addedOps=ops.filter(op=>op.kind==='append'),repaired=ops.filter(op=>op.kind==='schedule_only').length;
-    if(pending){oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false));}
-    else if(addedOps.length){
-      const ids=new Set(addedOps.map(op=>op.appt.id)),displayItems=processed.filter(item=>ids.has(item.record.appointmentId));
-      oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false,{appointments:ctx.appointments,ids,sources:oa3ManualDisplaySources_(displayItems,false),freshSources:()=>oa3ManualDisplaySources_(displayItems,true)}));
+    let apiProjection=null;
+    if((ops.length||pending)&&typeof OA3_FINALIZE_API_ENABLED!=='undefined'&&OA3_FINALIZE_API_ENABLED===true){
+      // The existing pending marker remains durable until every finalizer readback
+      // is accepted. API review/unknown results never fall back to native reads.
+      if(typeof oa3TryApiFinalize_!=='function')throw new Error('API finalizer is unavailable; finalization remains pending.');
+      apiProjection=oa3ManualPhase_(timings,'apiFinalizerMs',()=>oa3TryApiFinalize_(ss,{documentLock:lock,accountNames:OMNI_ACCOUNT_TABS.slice(),includeHistory:true}));
+      if(!apiProjection||apiProjection.completed!==true||!Array.isArray(apiProjection.csReviewByAccount)||apiProjection.csReviewByAccount.length!==OMNI_ACCOUNT_TABS.length||apiProjection.csReviewByAccount.some(value=>!Number.isSafeInteger(value)||value<0))throw new Error('API finalization was not verified; preserve its pending marker and retry.');
+      if(!Number.isSafeInteger(apiProjection.csReviewByAccount.reduce((sum,value)=>sum+value,0)))throw new Error('API finalization review count was not verified.');
+    }else{
+      if(pending){oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false));}
+      else if(addedOps.length){
+        const ids=new Set(addedOps.map(op=>op.appt.id)),displayItems=processed.filter(item=>ids.has(item.record.appointmentId));
+        oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false,{appointments:ctx.appointments,ids,sources:oa3ManualDisplaySources_(displayItems,false),freshSources:()=>oa3ManualDisplaySources_(displayItems,true)}));
+      }
+      if(ops.length||pending)oa3ManualPhase_(timings,'sortMs',()=>oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL)));
     }
-    if(ops.length||pending)oa3ManualPhase_(timings,'sortMs',()=>oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL)));
     if(ops.length||pending)props.deleteProperty(pendingKey);
     const receipt={completed:true,readEngine:initial.readEngine||'native',added:addedOps.length,repaired,skipped:selection.skipped,review,elapsedMs:Date.now()-started,initialReadMs,timings,noOp:!ops.length&&!pending};
+    if(apiProjection){receipt.finalizerTransport='sheets_api';receipt.csReviewCount=apiProjection.csReviewByAccount.reduce((sum,value)=>sum+value,0);}
     ss.toast('補上 '+receipt.added+' 個預約；補回 '+receipt.repaired+' 個日期／時間。','到店紀錄',8);
     console.log(JSON.stringify(Object.assign({handler:'manual_missing_booked_sync'},receipt)));return receipt;
   }finally{lock.releaseLock();}
@@ -545,7 +556,7 @@ function startBookedArrivalsFullSync() {
  * Explicit manual requests bypass only the idle hint, never the document lock or CAS.
  */
 function continueBookedArrivalsFullSync(jobId) {
-  let lock,locked=false,phase='startup',attemptPersisted=false,flushAttempted=false;
+  let lock,locked=false,phase='startup',attemptPersisted=false,flushAttempted=false,apiFinalization=false;
   try {
     if(typeof jobId!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(jobId))throw new Error('Invalid job.');
     const startup=oa3ManualStartup_({}),props=startup.props;
@@ -595,21 +606,38 @@ function continueBookedArrivalsFullSync(jobId) {
     } else if(phase==='projection') {
       // One final full display/CS projection and stable whole-record sort.
       // No source/registry snapshots or row positions cross RPC boundaries.
-      const cs=oa2TryRefreshQueueCs_(ss,{documentLock:lock,includeHistory:true});
-      if(!cs||cs.ok!==true)throw new Error('Colleague projection was not verified.');
-      oa3RefreshDisplay_(ss,false);oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL));
+      // API mode is explicitly opt-in. Unknown API results must never enter a
+      // native read/flush fallback, which can block on the dirty arrival grid.
+      apiFinalization=typeof OA3_FINALIZE_API_ENABLED!=='undefined'&&OA3_FINALIZE_API_ENABLED===true;
+      if(apiFinalization){
+        if(typeof oa3TryApiFinalize_!=='function')throw new Error('API finalizer is unavailable.');
+        const result=oa3TryApiFinalize_(ss,{documentLock:lock,accountNames:OMNI_ACCOUNT_TABS.slice(),includeHistory:true});
+        if(!result||result.completed!==true)throw new Error('API projection requires review.');
+        if(!Array.isArray(result.csReviewByAccount)||result.csReviewByAccount.length!==OMNI_ACCOUNT_TABS.length||result.csReviewByAccount.some(n=>!Number.isSafeInteger(n)||n<0))throw new Error('API projection receipt was not verified.');
+        if(!Number.isSafeInteger(result.csReviewByAccount.reduce((sum,value)=>sum+value,0)))throw new Error('API projection review count was not verified.');
+        result.csReviewByAccount.forEach((review,i)=>state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],review));
+      }else{
+        // The canonical runtime admits one explicit Account at a time. The
+        // migration-only initialRefresh privilege is never used by this button.
+        OMNI_ACCOUNT_TABS.forEach((name,i)=>{
+          const cs=oa2TryRefreshQueueCs_(ss,{documentLock:lock,accountNames:[name],includeHistory:i===0});
+          if(!cs||cs.ok!==true)throw new Error('Colleague projection was not verified.');
+          state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],oa3ManualSyncCount_(cs.review));
+        });
+        oa3RefreshDisplay_(ss,false);oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL));
+      }
       state.projectionComplete=true;state.phase='complete';
     } else throw new Error('Unknown phase.');
     // Flush native writes before acknowledging the phase. A failed property
     // checkpoint or lost response is retried through the same durable worker.
-    flushAttempted=true;SpreadsheetApp.flush();state.attempt=null;
+    flushAttempted=true;if(!apiFinalization)SpreadsheetApp.flush();state.attempt=null;
     const result=oa3ManualFullSyncSave_(props,state);
     console.log(JSON.stringify({handler:'manual_complete_booking_sync',phase,state:result.nativeState,processedAccounts:result.processedAccounts,needsReview:result.needsReview}));
     return result;
   } catch (ignored) {
     // A partial native writer can leave a durable intent. Flush once before
     // releasing its lock, without replacing the retained retry checkpoint.
-    if(locked&&attemptPersisted&&!flushAttempted){flushAttempted=true;try{SpreadsheetApp.flush();}catch(flushError){}}
+    if(locked&&attemptPersisted&&!flushAttempted&&!apiFinalization){flushAttempted=true;try{SpreadsheetApp.flush();}catch(flushError){}}
     console.log(JSON.stringify({handler:'manual_complete_booking_sync',phase,state:'retry_pending'}));
     throw new Error('未能確認今步同步，已保留進度及原有資料，請按「繼續同步」重試。');
   } finally {if(locked)lock.releaseLock();}
@@ -713,7 +741,7 @@ function syncAllBookedArrivals() {
           ? '已逐一處理各分頁，'+result.reviewAccounts+' 個分頁有資料需要核對。'
           : '已逐一更新所有分頁及到店記錄。';
         const countText=result.countsVerified
-          ? '確認新增 '+result.added+' 個預約。'
+          ? '新增／補回 '+result.added+' 筆預約記錄。'
           : '部分步驟曾中斷，新增數量未能完整核實；已按現有記錄重新核對。';
         const startedAt=new Date(result.startedAt).toLocaleString('zh-HK',{
           timeZone:'Asia/Hong_Kong',month:'2-digit',day:'2-digit',

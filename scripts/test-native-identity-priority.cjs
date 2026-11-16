@@ -747,6 +747,12 @@ function interruptedAllocationFixture() {
   f.queue.state.matrix[7][arrivalHeaders.indexOf('試做價')]=0;
   return f;
 }
+test('temporary maintenance pauses only the background timer before lock/source admission and expires automatically',()=>{
+  const f=timerFixture();f.box.pauseOmniArrivalTimerForRecovery20261116();const cursor=f.script.get('OMNI_ARRIVAL_V2_CURSOR');
+  const paused=f.box.omniArrivalV2Timer();assert.equal(paused.paused,true);assert.equal(f.counts.lock,0);assert.equal(f.counts.spreadsheets,0);assert.equal(f.script.get('OMNI_ARRIVAL_V2_CURSOR'),cursor);
+  f.script.set('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL',String(Date.now()-1));f.box.omniArrivalV2Timer();assert.equal(f.counts.process,1);
+  f.box.resumeOmniArrivalTimerAfterRecovery20261116();assert.equal(f.script.has('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL'),false);
+});
 test('manual recovery completes an accepted allocation on another Account without new identities or added-count inflation',()=>{
   const f=interruptedAllocationFixture(),lead=f.cell('Omni Lead ID'),pointer=f.cell('Appointment ID'),uuids=f.uuidCount(),source=clone(f.source.state.matrix[1].slice(0,25));
   const receipt=f.run({manualRequested:true,recoverPendingAllocations:true,accountNames:['Alyssa Main'],startAccountIndex:0});

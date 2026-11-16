@@ -1215,7 +1215,14 @@ function oa2AssertQueueBinding_(raw,a,origin) {
   if(oa2Text_(raw[17])!==a.queueId || oa2Text_(raw[19])!==a.id || oa2Text_(raw[25])!==origin)throw new Error('Arrival rows changed or sorted during processing; preserving stable-ID bindings for retry.');
 }
 function oa2WriteQueue_(ss,ctx,queue,operations,records) {
-  if(ctx.dryRun)throw new Error('Dry run cannot write queue.');if(!operations.length)return;const sh=ss.getSheetByName(OA2.ARRIVAL),layout=oa2QueueLayout_(sh,false),recordById={};(records||[]).forEach(r=>recordById[r.leadId]=r);
+  if(ctx.dryRun)throw new Error('Dry run cannot write queue.');if(!operations.length)return;
+  // Explicit qualification is required. An uncertain API reply never dispatches
+  // a second writer. Existing refresh and outcome operations remain native.
+  if(typeof OA2_QUEUE_APPEND_API_ENABLED!=='undefined'&&OA2_QUEUE_APPEND_API_ENABLED===true&&operations.every(op=>['append','schedule_only'].includes(op.kind))){
+    if(typeof oa2WriteQueueAppendApi_!=='function')throw new Error('Explicit API queue writer is not installed.');
+    return oa2WriteQueueAppendApi_(ss,ctx,queue,operations,records);
+  }
+  const sh=ss.getSheetByName(OA2.ARRIVAL),layout=oa2QueueLayout_(sh,false),recordById={};(records||[]).forEach(r=>recordById[r.leadId]=r);
   const adds=operations.filter(o=>o.kind==='append'),metadata=[],refresh=[],schedules=[],payload=[],descriptions=[],identities=[],associations=[],checks=[],relocations=[];
   if(adds.length)oa2EnsureRows_(sh,Math.max(...adds.map(o=>o.row)));
   // Fresh full-row snapshots cover only affected contiguous rows; all input/binding guards remain.
@@ -1304,6 +1311,10 @@ function oa2Commit_(ss,ctx,queue,ops,snaps,projectionRecords) {
   const nextHistoryRow=omniEditStage_(trace,'commit_history',()=>oa2WriteHistory_(ss,ctx));
   omniEditStage_(trace,'commit_registry',()=>oa2WriteRegistry_(ss,ctx));
   omniEditStage_(trace,'commit_source_metadata',()=>{(snaps||[]).forEach(oa2WriteAccountMeta_);});
+  // Advanced Sheets cannot observe SpreadsheetApp's execution-local write cache.
+  // Make the accepted intent durable before its API fence; never read/write the
+  // native arrival grid here or switch writers after an uncertain API result.
+  if(typeof OA2_QUEUE_APPEND_API_ENABLED!=='undefined'&&OA2_QUEUE_APPEND_API_ENABLED===true&&ops.length&&ops.every(op=>['append','schedule_only'].includes(op.kind)))omniEditStage_(trace,'commit_durable_intent',()=>SpreadsheetApp.flush());
   omniEditStage_(trace,'commit_queue_payload',()=>oa2WriteQueue_(ss,ctx,queue,ops,projectionRecords||(snaps||[]).reduce((out,s)=>out.concat(s.records),[])));
   // A completed queue update clears its recovery before-image. Interrupted updates retain it.
   ops.forEach(op=>op.appt.pendingQueueBefore='');
@@ -1582,8 +1593,21 @@ function installOmniArrivalV2Timer() {
   if(existing.length)return{created:false,ownedMatchingTriggers:existing.length};
   ScriptApp.newTrigger('omniArrivalV2Timer').timeBased().everyMinutes(5).create();return{created:true,handler:'omniArrivalV2Timer',cadenceMinutes:5};
 }
+function omniArrivalTimerMaintenanceActive_() {
+  const until=Number(PropertiesService.getScriptProperties().getProperty('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL')||0);
+  return Number.isFinite(until)&&until>Date.now()&&until<=Date.now()+30*60*1000;
+}
+function pauseOmniArrivalTimerForRecovery20261116() {
+  const until=Date.now()+20*60*1000;PropertiesService.getScriptProperties().setProperty('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL',String(until));
+  const result={paused:true,expiresAt:new Date(until).toISOString()};console.log(JSON.stringify(result));return result;
+}
+function resumeOmniArrivalTimerAfterRecovery20261116() {
+  PropertiesService.getScriptProperties().deleteProperty('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL');const result={paused:false};console.log(JSON.stringify(result));return result;
+}
 function omniArrivalV2Timer() {
-  if(!oa2Enabled_())return{enabled:false};if(omniStaffPriorityActive_())return omniStaffPriorityTimerSkip_();const lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return{busy:true};try{
+  if(!oa2Enabled_())return{enabled:false};if(omniArrivalTimerMaintenanceActive_())return{paused:true,reason:'maintenance_pause'};
+  if(omniStaffPriorityActive_())return omniStaffPriorityTimerSkip_();const lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return{busy:true};try{
+    if(omniArrivalTimerMaintenanceActive_())return{paused:true,reason:'maintenance_pause'};
     if(omniStaffPriorityActive_())return omniStaffPriorityTimerSkip_();
     const props=PropertiesService.getScriptProperties(),i=Number(props.getProperty(OA2.CURSOR)||0)%OMNI_ACCOUNT_TABS.length,ss=oa2Spreadsheet_();
     // Identity cannot wait behind another Account's display/sort/maintenance failure.
@@ -2470,6 +2494,7 @@ function catchUpOmniArrivalV2() {
     try{result=omniArrivalV2Timer();}
     catch(error){log(summary('account_failure'));throw error;}
     if(result&&result.busy){stopReason='busy';break;}
+    if(result&&result.paused===true&&result.reason==='maintenance_pause'){stopReason='maintenance_pause';break;}
     if(result&&result.skipped&&result.reason==='staff_priority'){stopReason='staff_priority';break;}
     if(result&&result.enabled===false){stopReason='disabled';break;}
     if(result&&result.identityOnly===true&&result.identity&&typeof result.identity==='object'){

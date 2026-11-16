@@ -74,8 +74,8 @@ Closing a sidebar retains the server checkpoint for reopening. This candidate do
 
 - Status: resolved for editor access and source installation; business reconciliation acceptance remains open.
 - The user subsequently explicitly authorized cloud Google sign-in and completed secure authentication. The original bound editor opened with edit access. Both live sources matched the retained pre-change backups before replacement; all extra live files and the appended read-only probe were preserved.
-- Reloaded cloud source readback exactly matched the installed follow-up: main SHA-256 `bdb9d765ea9cb5e57bfd410bae8d60603f249a38ddec525bcdc2ec10d5dfe965`; workflow with retained probe SHA-256 `90103e160f87a57c42456c980d5cb94c72e77f0580e7d3bb79469961a70b4921`.
-- At 21:27 HKT, a read-only native queue/six-Account probe completed in 9,538 ms. A later native missing-only repair reached its commit phase but hit the six-minute execution limit. This is an uncertain business-write boundary, not a completed repair receipt.
+- Reloaded cloud source readback exactly matched the initial installed follow-up: main SHA-256 `bdb9d765ea9cb5e57bfd410bae8d60603f249a38ddec525bcdc2ec10d5dfe965`; workflow with retained probe SHA-256 `90103e160f87a57c42456c980d5cb94c72e77f0580e7d3bb79469961a70b4921`.
+- At the execution UI label 21:27 (UI timezone), a read-only native queue/six-Account probe completed in 9,538 ms. A later native missing-only repair reached its commit phase but hit the six-minute execution limit. This is an uncertain business-write boundary, not a completed repair receipt.
 - The actual CS menu opened the new sidebar. Background and manual worker failures were traced to three exactly owned, partially populated `allocating` rows. There were no shared queue-entry groups or pending source anchors in the preceding audit. An independently accepted Account relocation was correctly distinguished from actual preflight violations.
 - Remaining acceptance: complete the same durable job, independently re-read source/registry/queue, verify retained staff inputs and an idempotent repeat. No direct business-row append or broad identity rebinding is authorized as a substitute.
 
@@ -88,3 +88,7 @@ An uncertain Account attempt returns through identity/allocation recovery before
 Validation: the full native contract command passed, including 99 identity tests, 51 manual workflow/sidebar tests and the expanded sanitized ownership audit. New cases cover real native allocation completion, partial payload, cross-Account recovery, repeat no-op, preserved note/zero amount and concurrent colleague outcome rejection. These local tests do not establish live completion or provider latency.
 
 Rollback: revert the catch-up wrapper and unobserved source policy independently if required. Neither introduces a spreadsheet migration, triggers or properties. Preserve accepted successor IDs, registry/journal and source recovery anchors; rollback must not delete accepted history. Reverting unobserved source protections reintroduces the risk of timer-created successors from stale closed-source schedules. The read-only audit card requires no rollback.
+
+## Provider transport qualification follow-up
+
+The separately reviewed PR #161 queue/finalizer adapters were integrated while preserving this branch’s sidebar backoff and accepted-allocation recovery. Repository flags remain disabled by default. Actual isolated Google runs established 27 queue assertions and 59 finalizer assertions; the latter explicitly retains `activationQualified:false` for operator review. See `2026-11-16-native-provider-qualification.md` for the measured contract and production canary boundary.

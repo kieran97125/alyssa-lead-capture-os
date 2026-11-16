@@ -67,7 +67,7 @@ for (const identity of [{ review: 1 }, { blocked: true }, { accountFailures: [{ 
   assert.equal(result.completedCalls, 0);
   assert.equal(f.calls(), 1);
 }
-for (const [response, reason] of [[{ busy: true }, 'busy'], [{ skipped: true, reason: 'staff_priority' }, 'staff_priority'], [{ enabled: false }, 'disabled']]) {
+for (const [response, reason] of [[{ busy: true }, 'busy'], [{ paused:true,reason:'maintenance_pause' }, 'maintenance_pause'], [{ skipped: true, reason: 'staff_priority' }, 'staff_priority'], [{ enabled: false }, 'disabled']]) {
   const f = fixture([response]);
   const result = f.run();
   assert.equal(result.stopReason, reason);

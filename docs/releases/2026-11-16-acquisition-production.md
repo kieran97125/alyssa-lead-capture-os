@@ -27,7 +27,7 @@ The prepared native source and expanded regression command are separate from thi
 | SYNC-004: formula-driven master coverage | Current formula inspected; bridge/source-tail parity pending | Independently verify current bridge bounds and source/history coverage; a successful native receipt alone does not establish master freshness. |
 | OPERATOR-001: authenticated acquisition readback | Login boundary observed | Reuse an authorized staff session and inspect the released catalogue/editor without creating customer enquiries. |
 
-The first 19:34 HKT probe had no terminal observation after a browser interruption. Following explicitly authorized secure sign-in, the 21:27 native probe completed in 9,538 ms. The installed follow-up and preserved live files are recorded in `docs/operations/2026-11-16-native-sync-readiness.md`. Full native tests passed locally. Candidate `f54dd81342496e6dd78960fbee083c955e06889f` also passed all five hosted workflows; follow-up hosted qualification and actual business reconciliation remain separate gates.
+The first 19:34 HKT probe had no terminal observation after a browser interruption. Following explicitly authorized secure sign-in, the execution UI’s 21:27 native probe completed in 9,538 ms. The installed follow-up and preserved live files are recorded in `docs/operations/2026-11-16-native-sync-readiness.md`. Full native tests passed locally. Candidate `f54dd81342496e6dd78960fbee083c955e06889f` also passed all five hosted workflows; follow-up hosted qualification and actual business reconciliation remain separate gates.
 
 ## Recovery
 
