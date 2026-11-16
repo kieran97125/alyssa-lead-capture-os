@@ -39,6 +39,32 @@ function canceledFixture(options = {}) {
   f.appendEvent(change.event);return f;
 }
 function stableQueueFields(f,row=7) { const v=f.queue.state.matrix[row];return ['CS同事名','備註','來源','試做價','開單金額','總金額'].map(name=>v[arrivalHeaders.indexOf(name)]); }
+function spacedWithdrawalFixture(){
+  const f=fixture(),template=f.source.state.matrix[1].slice(),visit=f.queue.state.matrix[7].slice();
+  for(let i=1;i<3;i++){
+    const a=appointment({id:'appt_spaced_'+i,leadId:'lead_spaced_'+i,phone:String(10000001+i),customerKey:'GOS Beauty|p:'+String(10000001+i),queueId:'queue_spaced_'+i});
+    const source=template.slice();for(const [key,value]of Object.entries({'電話':a.phone,'Omni Lead ID':a.leadId,'Appointment ID':a.id}))source[f.headers.indexOf(key)]=value;
+    f.source.appendRow(source);f.registry.appendRow(f.box.oa2LedgerRow_(a));
+    f.queue.appendRow(valuesRow(arrivalHeaders,{'備註':'Preserve intervening staff record '+i,'來源':'Manual source','試做價':0,'總金額':'=0'}));
+    const row=visit.slice();for(const [key,value]of Object.entries({'電話':a.phone,'穩定客戶識別（內部）':a.customerKey,'到店紀錄ID（內部）':a.queueId,'Appointment ID':a.id,'Omni Lead ID':a.leadId}))row[arrivalHeaders.indexOf(key)]=value;f.queue.appendRow(row);
+  }
+  f.source.state.matrix.slice(1).forEach(row=>row[f.headers.indexOf('跟進狀態')]='待跟進');return f;
+}
+
+test('bounded native queue groups retain unapplied before-images and converge without rewriting intervening staff records',()=>{
+  const f=spacedWithdrawalFixture(),separator=[clone(f.queue.state.matrix[8]),clone(f.queue.state.matrix[10])],staff=[7,9,11].map(row=>stableQueueFields(f,row));
+  f.run({prepareOnly:true,singleQueueGroup:true});
+  for(const remaining of [2,1,0]){const result=f.run({singleQueueGroup:true});assert.equal(result.remainingQueueOps,remaining);assert.equal(result.appliedQueueOps,1);assert.equal(result.newQueue,0);assert.equal(Object.values(f.appointments()).filter(a=>a.pendingQueueBefore).length,remaining);}
+  assert.ok(f.queueRows().filter(q=>q.appointmentId).every(q=>q.outcome==='取消'));assert.deepEqual([clone(f.queue.state.matrix[8]),clone(f.queue.state.matrix[10])],separator);assert.deepEqual([7,9,11].map(row=>stableQueueFields(f,row)),staff);
+  assert.equal(f.history.state.matrix.filter(row=>row[4]==='canceled').length,3);const writes=f.queue.state.writes.length;assert.equal(f.run({singleQueueGroup:true}).remainingQueueOps,0);assert.equal(f.queue.state.writes.length,writes);
+});
+
+test('a lost bounded queue payload reply retries accepted identities and preserves each cancellation exactly once',()=>{
+  const f=spacedWithdrawalFixture();f.run({prepareOnly:true,singleQueueGroup:true});let lost=true;f.queue.state.afterWrite=()=>{if(lost){lost=false;throw Error('Synthetic lost queue reply');}};
+  assert.throws(()=>f.run({singleQueueGroup:true}),/lost queue reply/);assert.equal(Object.values(f.appointments()).filter(a=>a.pendingQueueBefore).length,3);
+  for(const remaining of [2,1,0])assert.equal(f.run({singleQueueGroup:true}).remainingQueueOps,remaining);
+  assert.equal(f.history.state.matrix.filter(row=>row[4]==='canceled').length,3);assert.equal(f.queueRows().filter(q=>q.appointmentId).length,3);assert.equal(new Set(f.queueRows().filter(q=>q.appointmentId).map(q=>q.entryId)).size,3);
+});
 
 test('manual preparation saves only canonical source recovery intent; the next RPC applies the same withdrawal once',()=>{
   const f=fixture();f.set('跟進狀態','待跟進');const registry=clone(f.registry.state.matrix),queue=clone(f.queue.state.matrix),history=clone(f.history.state.matrix),staff=stableQueueFields(f);

@@ -50,4 +50,14 @@ test('large spans stay below 49152 written cells and never write a business colu
 test('unchanged metadata produces no provider reads or writes',()=>{
   const f=fixture();f.box.oa2WriteSourceMetadata_(f.snap,[],null);assert.equal(f.sh.state.reads,0);assert.equal(f.sh.state.writes.length,0);
 });
+function queueBudgetFixture(rows){const f=fixture(),appt={account:'GOS Beauty',customerKey:'GOS Beauty|p:10000001'},ops=rows.map(row=>({row,kind:'refresh',appt})),queue=rows.map(row=>({row,...appt}));return{...f,ops,queue};}
+test('a native queue RPC accepts at most 25 contiguous operations of the same kind',()=>{
+  const f=queueBudgetFixture(Array.from({length:40},(_,i)=>i+8)),selected=f.box.oa2BoundQueueCommit_(f.ops,f.queue,{singleQueueGroup:true});assert.equal(selected.length,25);assert.equal(selected[0].row,8);assert.equal(selected.at(-1).row,32);
+});
+for(const kind of ['gap','different operation'])test('a native queue RPC stops before '+kind+' instead of introducing another flush group',()=>{
+  const f=queueBudgetFixture(kind==='gap'?[8,9,11]:[8,9,10]);if(kind!=='gap')f.ops[2].kind='schedule_only';const selected=f.box.oa2BoundQueueCommit_(f.ops,f.queue,{singleQueueGroup:true});assert.deepEqual(Array.from(selected,op=>op.row),[8,9]);
+});
+test('Account relocation stays a single operation and an unadmitted budget leaves the ordinary writer unchanged',()=>{
+  const f=queueBudgetFixture([8,9]);f.queue[0].account='Alyssa Main';assert.equal(f.box.oa2BoundQueueCommit_(f.ops,f.queue,{singleQueueGroup:true}).length,1);assert.equal(f.box.oa2BoundQueueCommit_(f.ops,f.queue,{singleQueueGroup:'true'}),f.ops);
+});
 console.log(JSON.stringify({passed:tests.length,failed:failures.length,tests,failures},null,2));if(failures.length)process.exitCode=1;

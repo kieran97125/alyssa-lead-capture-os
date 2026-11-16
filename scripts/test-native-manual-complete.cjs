@@ -28,7 +28,7 @@ function fixture(){
     assert.equal(options.accountNames[0],names[options.startAccountIndex]);
     assert.equal(options.manualRequested,true,'Only an explicit manual request bypasses the idle hint; DocumentLock remains required');
     assert.equal(options.deferDisplay,true,'The complete job projects display once in its guarded final phase');
-    assert.equal(options.maxIdentityBatch,5,'Manual admission keeps each expensive identity batch small');
+    assert.equal(options.maxIdentityBatch,1,'Manual admission keeps each expensive identity transaction small');
     assert.ok(checkpoint().attempt,'Identity writer must have a persisted pre-step attempt marker');
     calls.identity.push(clone(options));
     if(control.identityBlocked)return{registered:0,recovered:0,bookedAdded:0,review:1,blocked:true,accountFailures:[{accountIndex:-1,reason:'synthetic_identity_review'}]};
@@ -45,7 +45,7 @@ function fixture(){
     if(control.accountFailure)throw new Error('PRIVATE_CUSTOMER_10000001 Provider exception');
     if(control.resultFailure)return{account:sheet.getName(),errors:['PRIVATE_CUSTOMER_10000001 Bad identity']};
     b.oa3AfterSync_(ss);
-    return{account:sheet.getName(),newQueue:1,changes:2,deferredQueueConflicts:0,deferredSourceRecords:0,errors:[]};
+    return{account:sheet.getName(),newQueue:1,changes:2,deferredQueueConflicts:0,deferredSourceRecords:0,remainingQueueOps:0,errors:[]};
   };
   b.oa2TryRefreshQueueCs_=(spreadsheet,options)=>{assert.equal(spreadsheet,ss);assert.ok(checkpoint().attempt,'Projection writer must have a persisted pre-step attempt marker');assert.equal(options.accountNames.length,1);assert.ok(names.includes(options.accountNames[0]));assert.notEqual(options.initialRefresh,true);calls.cs.push(options);if(control.projectionFailure)return{ok:false,reason:'synthetic_projection_failure'};return{ok:true,refreshed:6,changed:0};};
   b.oa3RefreshDisplay_=(spreadsheet,repairOwners)=>{assert.equal(spreadsheet,ss);assert.equal(repairOwners,false);calls.display.push(true);if(control.displayFailure)throw new Error('PRIVATE_CUSTOMER_10000001 Display provider exception');return{displayRows:6,namesRestored:0,identitiesRepaired:0};};
@@ -62,14 +62,14 @@ function fixture(){
 function test(name,run){try{run();tests.push(name);}catch(error){failures.push({name,error:error.message,stack:error.stack});}}
 function assertPendingProgress(f,before){
   const expected=JSON.parse(before),actual=f.job();
-  for(const key of ['phase','accountIndex','processedAccounts','registered','recovered','added','changed','reviewCount','projectionComplete','projectionStep','accountPrepared'])assert.deepEqual(actual[key],expected[key],key+' must not be acknowledged after an unknown step');
+  for(const key of ['phase','accountIndex','processedAccounts','registered','recovered','added','changed','reviewCount','projectionComplete','projectionStep','accountPrepared','pendingQueueOps'])assert.deepEqual(actual[key],expected[key],key+' must not be acknowledged after an unknown step');
   assert.ok(actual.attempt,'A failed step must leave its attempt checkpoint for honest retry accounting');
 }
 
-test('five-identity manual batches stay on the same Account and do not count as reconciliation coverage',()=>{
+test('one-identity manual transactions stay on the same Account and do not count as reconciliation coverage',()=>{
   const f=fixture();f.control.identityRemaining=16;f.start();
-  for(const remaining of [11,6,1,0]){f.step();assert.equal(f.control.identityRemaining,remaining);assert.equal(f.job().phase,'identity');assert.equal(f.job().accountIndex,0);assert.deepEqual(f.job().processedAccounts,[]);}
-  assert.equal(f.calls.account.length,0);assert.equal(f.calls.identity.length,4);assert.equal(f.job().registered,16);
+  for(let remaining=15;remaining>=0;remaining--){f.step();assert.equal(f.control.identityRemaining,remaining);assert.equal(f.job().phase,'identity');assert.equal(f.job().accountIndex,0);assert.deepEqual(f.job().processedAccounts,[]);}
+  assert.equal(f.calls.account.length,0);assert.equal(f.calls.identity.length,16);assert.equal(f.job().registered,16);
   f.step();assert.equal(f.job().phase,'account');assert.deepEqual(f.job().processedAccounts,[]);
   f.step();assert.equal(f.job().accountPrepared,true);assert.deepEqual(f.job().processedAccounts,[]);
   f.step();assert.deepEqual(f.job().processedAccounts,[0]);assert.equal(f.job().accountIndex,1);assert.equal(f.job().phase,'identity');
@@ -95,6 +95,13 @@ test('prepared source intent does not advance Account coverage or business count
   const f=fixture();f.start();f.step();const before=f.job();f.step();
   assert.equal(f.job().phase,'account');assert.equal(f.job().accountPrepared,true);assert.deepEqual(f.job().processedAccounts,[]);assert.equal(f.job().added,before.added);assert.equal(f.job().changed,before.changed);assert.equal(f.calls.account.length,0);assert.equal(f.calls.prepare.length,1);
   f.step();assert.deepEqual(f.job().processedAccounts,[0]);assert.equal(f.job().accountPrepared,false);assert.equal(f.calls.account.length,1);
+});
+
+test('accepted partial queue groups retain the same Account and advance coverage only after the final group',()=>{
+  const f=fixture();f.start();f.toAccount();const original=f.b.oa2ProcessAccount_;let remaining=3;
+  f.b.oa2ProcessAccount_=(...args)=>({...original(...args),remainingQueueOps:--remaining});
+  for(const expected of [2,1]){f.step();assert.equal(remaining,expected);assert.equal(f.job().accountIndex,0);assert.equal(f.job().accountPrepared,true);assert.deepEqual(f.job().processedAccounts,[]);}
+  f.step();assert.equal(f.job().accountIndex,1);assert.deepEqual(f.job().processedAccounts,[0]);assert.equal(f.job().added,3);
 });
 
 test('uncertain source-only preparation retries the existing canonical intent without unnecessary identity or queue recovery',()=>{
@@ -254,6 +261,8 @@ for(const [name,corrupt]of [
   ['projection cursor beyond bound',job=>({...job,projectionStep:9})],
   ['projection cursor before Account coverage',job=>({...job,projectionStep:1})],
   ['nonboolean Account preparation',job=>({...job,accountPrepared:'true'})],
+  ['negative remaining queue count',job=>({...job,pendingQueueOps:-1})],
+  ['noninteger remaining queue count',job=>({...job,pendingQueueOps:'2'})],
   ['preparation operation outside Account phase',job=>({...job,attempt:{phase:'identity',accountIndex:0,startedAt:job.startedAt,operation:'prepare'}})],
 ])test('corrupt persisted checkpoint fails before operational writes: '+name,()=>{
   const f=fixture(),job=f.start(),value=corrupt(job);f.stored.set(jobKey,typeof value==='string'?value:JSON.stringify(value));
@@ -267,7 +276,7 @@ for(const [key,value]of [['registered','1'],['recovered',null],['bookedAdded',-1
   const before=f.stored.get(jobKey);assert.throws(()=>f.step());assertPendingProgress(f,before);assert.equal(f.calls.account.length,0);
 });
 
-for(const [key,value]of [['newQueue','1'],['changes',null],['deferredQueueConflicts',-1],['deferredSourceRecords',Number.MAX_SAFE_INTEGER+1],['manualReviewCount','2']])test('malformed Account receipt cannot advance coverage or hide review: '+key,()=>{
+for(const [key,value]of [['newQueue','1'],['changes',null],['deferredQueueConflicts',-1],['deferredSourceRecords',Number.MAX_SAFE_INTEGER+1],['manualReviewCount','2'],['remainingQueueOps',null],['remainingQueueOps',-1]])test('malformed Account receipt cannot advance coverage or hide review: '+key,()=>{
   const f=fixture();f.start();f.toAccount();const original=f.b.oa2ProcessAccount_;f.b.oa2ProcessAccount_=(...args)=>({...original(...args),[key]:value});
   const before=f.stored.get(jobKey);assert.throws(()=>f.step());assertPendingProgress(f,before);assert.deepEqual(f.job().processedAccounts,[]);
 });

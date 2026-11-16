@@ -1315,12 +1315,21 @@ function oa2FilterQueueOps_(ctx,queue,ops,records) {
     return (verified && (q.account!==a.account || q.customerKey!==a.customerKey)) || !!a.pendingQueueBefore || !oa2QueueInputMatches_(q,a)||JSON.stringify(meta)!==JSON.stringify(q.raw.slice(19,26));
   });
 }
+function oa2BoundQueueCommit_(ops,queue,options) {
+  if(!options||options.singleQueueGroup!==true)return ops;
+  const sorted=ops.slice().sort((a,b)=>a.row-b.row);if(!sorted.length)return sorted;
+  const first=sorted[0],old=queue.find(q=>q.row===first.row),relocation=first.kind==='refresh'&&old&&(old.account!==first.appt.account||old.customerKey!==first.appt.customerKey);
+  if(relocation)return [first];
+  const selected=[];for(const op of sorted){const q=queue.find(q=>q.row===op.row);if(op.kind!==first.kind||selected.length>=25||(selected.length&&op.row!==selected[selected.length-1].row+1)||(op.kind==='refresh'&&q&&(q.account!==op.appt.account||q.customerKey!==op.appt.customerKey)))break;selected.push(op);}
+  return selected.length?selected:[first];
+}
 function oa2Commit_(ss,ctx,queue,ops,snaps,projectionRecords,options) {
   if(ctx.errors.length)throw new Error(ctx.errors.join('\n'));if(ctx.dryRun)throw new Error('Attempt to commit a dry run.');
   const trace=ctx.manualTrace===true||typeof OA3_MANUAL_RUN_ACTIVE!=='undefined'&&OA3_MANUAL_RUN_ACTIVE?{started:Date.now()}:null;
   oa2QueueLayout_(ss.getSheetByName(OA2.ARRIVAL),false); // Validate before source anchors, history or registry writes.
   omniEditStage_(trace,'commit_source_cas',()=>{(snaps||[]).forEach(oa2AssertSourceUnchanged_);});
   omniEditStage_(trace,'commit_queue_allocation',()=>oa2AllocateQueue_(ss,ctx,queue,ops));
+  const selectedOps=oa2BoundQueueCommit_(ops,queue,options);
   ops.forEach(op=>{const q=queue.find(q=>q.row===op.row);if(!op.appt.pendingQueueBefore)op.appt.pendingQueueBefore=q?oa2QueueInputState_(q):'new';});
   // The first mutation anchors each source record and its full intended appointment in one metadata write.
   omniEditStage_(trace,'commit_source_anchors',()=>{(snaps||[]).forEach(s=>oa2WriteSourceAnchors_(s,ctx));});
@@ -1336,12 +1345,13 @@ function oa2Commit_(ss,ctx,queue,ops,snaps,projectionRecords,options) {
   // Advanced Sheets cannot observe SpreadsheetApp's execution-local write cache.
   // Make the accepted intent durable before its API fence; never read/write the
   // native arrival grid here or switch writers after an uncertain API result.
-  if(typeof OA2_QUEUE_APPEND_API_ENABLED!=='undefined'&&OA2_QUEUE_APPEND_API_ENABLED===true&&ops.length&&ops.every(op=>['append','schedule_only'].includes(op.kind)))omniEditStage_(trace,'commit_durable_intent',()=>SpreadsheetApp.flush());
-  omniEditStage_(trace,'commit_queue_payload',()=>oa2WriteQueue_(ss,ctx,queue,ops,projectionRecords||(snaps||[]).reduce((out,s)=>out.concat(s.records),[])));
+  if(typeof OA2_QUEUE_APPEND_API_ENABLED!=='undefined'&&OA2_QUEUE_APPEND_API_ENABLED===true&&selectedOps.length&&selectedOps.every(op=>['append','schedule_only'].includes(op.kind)))omniEditStage_(trace,'commit_durable_intent',()=>SpreadsheetApp.flush());
+  omniEditStage_(trace,'commit_queue_payload',()=>oa2WriteQueue_(ss,ctx,queue,selectedOps,projectionRecords||(snaps||[]).reduce((out,s)=>out.concat(s.records),[])));
   // A completed queue update clears its recovery before-image. Interrupted updates retain it.
-  ops.forEach(op=>op.appt.pendingQueueBefore='');
+  selectedOps.forEach(op=>op.appt.pendingQueueBefore='');
   omniEditStage_(trace,'commit_registry_final',()=>oa2WriteRegistry_(ss,ctx));
   omniEditStage_(trace,'commit_history_cursor',()=>oa2AdvanceHistoryCursor_(ss,nextHistoryRow));
+  return {remainingQueueOps:ops.length-selectedOps.length,appliedQueueOps:selectedOps.length,newQueue:selectedOps.filter(op=>op.kind==='append').length};
 }
 /** Worker recovery isolates owned schedule/outcome evidence conflicts without discarding durable registry/journal recovery.
  * Identity ambiguity remains fatal. Stage each appointment transition before accepting it, so a
@@ -1542,7 +1552,7 @@ function oa2ProcessAccount_(ss,sheet,mode,edit,dryRun,trace,policy) {
   if(manual&&manual.rebookClaims.length)oa2AssertIdentityClaimsFresh_(ss,manual.rebookClaims,ctx.appointments);
   const result={dryRun,account:sheet.getName(),records:snap.records.filter(r=>r.meaningful).length,appointments:Object.keys(ctx.appointments).length,newQueue:ops.filter(o=>o.kind==='append').length,changes:ctx.events.length,deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size,manualReviewCount:manual?manual.reviewRows.size:0,manualRebookedCount:manual?manual.rebooked:0,errors:ctx.errors};
   const prepareOnly=!!(policy&&policy.manualComplete===true&&policy.prepareOnly===true);
-  if(!dryRun){const receipt=omniEditStage_(trace,'arrival_commit',()=>oa2Commit_(ss,ctx,queue,ops,[snap],undefined,{prepareOnly}));if(prepareOnly){if(!receipt||receipt.staged!==true)throw new Error('Source preparation was not verified.');result.staged=true;}}
+  if(!dryRun){const bounded=!!(policy&&policy.manualComplete===true&&policy.singleQueueGroup===true),receipt=omniEditStage_(trace,'arrival_commit',()=>oa2Commit_(ss,ctx,queue,ops,[snap],undefined,{prepareOnly,singleQueueGroup:bounded}));if(prepareOnly){if(!receipt||receipt.staged!==true)throw new Error('Source preparation was not verified.');result.staged=true;}else if(bounded){if(!receipt)throw new Error('Queue application was not verified.');result.remainingQueueOps=receipt.remainingQueueOps;result.appliedQueueOps=receipt.appliedQueueOps;result.newQueue=receipt.newQueue;}}
   if(!dryRun&&!prepareOnly&&typeof oa3AfterSync_==='function')oa3AfterSync_(ss);try{console.log(JSON.stringify({handler:'omni_arrival_reconciliation',dryRun,staged:prepareOnly,deferredReason:manual&&manual.reviewRows.size?'source_state_needs_review':deferredQueueConflicts?'queue_input_needs_review':'',deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size}));}catch(ignored){}return result;
 }
 function verifyOmniArrivalV2() {
