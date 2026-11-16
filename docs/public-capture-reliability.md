@@ -35,12 +35,15 @@ The master-only system audit panel exposes aggregate delivery states. Its explic
 
 ## Release order and rollback
 
-1. Verify the migration and fixtures against the matching schema; apply the additive migration **before** deploying the new API.
-2. After explicit rollout authorization, configure the dedicated production `LEAD_DELIVERY_SIGNING_SECRET` and matching encrypted Vault entries, then activate the reviewed source-only Supabase scheduling recipe. Verify that missing, global-cron-token, wrong-path, stale and future proofs return 401; a fresh dedicated proof reaches the bounded worker. This does not change the legacy daily Vercel cron or other cron credentials.
-3. Deploy the matching API/worker/browser release; verify real acceptance and delivery using an explicitly authorized safe staging campaign.
-4. Monitor the private status counts and reconcile blocked/uncertain deliveries before increasing traffic.
+1. After specific rollout authorization, apply the exact qualified additive migration to the intended database. Verify the target function signatures, RLS and grants before deploying any caller; never bulk-apply unrelated historical migrations.
+2. Configure the dedicated production `LEAD_DELIVERY_SIGNING_SECRET` and matching encrypted Vault URL/key references. Keep the new recovery job inactive. Preserve the existing daily job and its independent credential.
+3. Deploy and verify the matching API, worker and browser source. Check unauthorized/global-token/wrong-path/stale/future requests fail closed and a fresh dedicated proof reaches the bounded worker.
+4. Only after the matching deployment is confirmed, enable the reviewed five-minute database schedule. Observe schedule/HTTP status using safe metadata; job enqueue success alone is not delivery success.
+5. Verify acceptance, replay and actual delivery in an explicitly authorized controlled campaign, separately from report publication. Monitor blocked/uncertain states before increasing traffic.
 
-Rolling the application back leaves the additive receipt/outbox records intact. Do not delete delivery evidence or replay uncertain writes with the legacy append path. The public API and the migration must be treated as one release unit.
+The supported application downgrade is a separately qualified **UI-only** artifact retaining the complete new browser/capture/receipt/outbox/worker/event protocol and additive database schema. It is not a switch to the pre-release full application SHA: the old capture writer ignores the new replay receipt contract. See the release ledger for the exact compatible artifact and verification evidence. Retain all accepted records and delivery evidence; never replay an uncertain write through the legacy append path.
+
+Pausing `public-lead-delivery-recovery` stops future scheduled enqueueing only. It does not cancel queued HTTP requests, active leases or per-capture `after()` workers. During the compatible UI downgrade those workers remain on the same protocol and may finish safely. To investigate delivery, observe queued/in-flight metadata and live processing leases without exposing authentication headers; do not call the system fully paused or drained while new capture is still accepted. A full capture shutdown or downgrade to the legacy writer requires a separately implemented and verified maintenance path and is outside this rollout. No deletion of receipts, schema or accepted customer data is a rollback mechanism.
 
 ## Verification
 

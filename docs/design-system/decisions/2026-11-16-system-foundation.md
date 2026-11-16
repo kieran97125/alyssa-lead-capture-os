@@ -1,6 +1,6 @@
 # Foundation correctness and truthful interaction state
 
-Date: 2026-11-16 (HKT). Status: implemented; final qualification pending; unreleased.
+Date: 2026-11-16 (HKT). Status: source and reviewed baselines qualified; unreleased.
 
 ## Decision
 
@@ -22,11 +22,11 @@ Use synthetic brand/outcome/date and delivery states with the production helpers
 
 Record exact final contract/build/Storybook/design/axe/browser results in the [release ledger](../../releases/2026-11-16-system-foundation.md). Baseline success is not a final-candidate pass. Add approved deterministic baselines only when the intended appearance changes; do not update snapshots to suppress an unexplained failure.
 
-Eight working-tree foundation programs, including 25 capture cases and 16 HMAC-authentication cases, plus TypeScript have passed locally. Hosted Design Quality run `43802510052` passed production build/contracts, Storybook, standard visual/axe and rendered-report jobs on `dd80670663c27a86ba3f6944f5957a9f8a3aa612`. That earlier source does not automatically qualify later changes. PostgreSQL 17 run `43803102335` passed corrected persistence, real concurrency, atomic rollback and grants on `77c05e301694e4aa394d239d44b9eeb3ec1a164b`. Final focused browser selector/PNG qualification, full acceptance and human baseline review remain pending. Local browser execution failed with EPERM before UI inspection, so no local visual pass is claimed. Production schema, configuration, scheduler and deployed source remain unchanged; final exact-source evidence and specific rollout authorization remain in the release ledger.
+Qualified source `ec9de3867555951df70e26dca07e30608e194458` passed 251/251 application tests, PostgreSQL 17 behavior/concurrency/rollback/grants, full build/contracts, Storybook, standard design/axe, report layouts and focused desktop/mobile interactions. Exact workflow/deployment pins are recorded in the release ledger. Ten new PNGs and the explained existing CRM baseline below were reviewed and committed. Local browser execution was blocked by EPERM and is not claimed as a pass; hosted browser evidence is explicit. Production remains unchanged and requires the specific rollout authorization.
 
 ## Rollback
 
-The application baseline is `ed5f0d6aad482158d40d62d934b65bafc74c3214`. A source rollback must retain accepted registrations, durable delivery receipts and recovery evidence. Additive schema/worker compatibility and a qualified worker-pause procedure must be recorded before release. Client source rows, staff assignments and report snapshots are not rollback instruments.
+The audit reference is `ed5f0d6aad482158d40d62d934b65bafc74c3214`; its full legacy writer is not a compatible post-capture downgrade. A source rollback must retain accepted registrations, durable delivery receipts and recovery evidence. The release ledger records tested UI-only downgrade `a30834824eb67c98dd6c9a9cb5bc15e382609714`, which keeps the new capture/browser/worker contract and complete reads. Unscheduling does not cancel queued/active/per-capture workers; it is not a full mutation pause. Client source rows, staff assignments and report snapshots are not rollback instruments.
 
 ## Remaining design work
 
