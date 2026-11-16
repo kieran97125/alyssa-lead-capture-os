@@ -1,7 +1,6 @@
 import type { ReactNode } from "react";
 import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import "./crm-shell.css";
-import { withCrmBrandScope } from "@/lib/crm/navigation";
 
 type CrmSidebarKey =
   | "dashboard"
@@ -29,11 +28,9 @@ const sidebarItems: Array<{
 export function CrmShell({
   children,
   active = "inbox",
-  brandScope,
 }: {
   children: ReactNode;
   active?: CrmSidebarKey;
-  brandScope?: string | null;
 }) {
   return (
     <main className="crm-shell min-h-screen bg-[var(--command-page)] text-[var(--command-navy)]">
@@ -47,7 +44,7 @@ export function CrmShell({
             {sidebarItems.map((item) => (
               <IntentPrefetchLink
                 key={item.key}
-                href={withCrmBrandScope(item.href, brandScope)}
+                href={item.href}
                 className={`flex h-8 items-center gap-2 rounded-lg px-2.5 text-[12px] font-bold transition ${
                   item.key === active
                     ? "bg-[var(--command-primary-soft)] text-[var(--command-primary)]"
@@ -60,7 +57,7 @@ export function CrmShell({
             ))}
           </nav>
           <div className="border-t border-[var(--command-border)] px-2.5 py-2">
-            <IntentPrefetchLink href={withCrmBrandScope("/crm/settings/whatsapp", brandScope)} className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[var(--command-muted)] transition hover:bg-[var(--command-blush)] hover:text-[var(--command-navy)]">
+            <IntentPrefetchLink href="/crm/settings/whatsapp" className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[var(--command-muted)] transition hover:bg-[var(--command-blush)] hover:text-[var(--command-navy)]">
               WhatsApp 連接設定
             </IntentPrefetchLink>
             <IntentPrefetchLink href="/dashboard" className="block rounded-lg px-2.5 py-1.5 text-[11px] font-bold text-[var(--command-muted)] transition hover:bg-[var(--command-blush)] hover:text-[var(--command-navy)]">返回營運中心</IntentPrefetchLink>
@@ -68,7 +65,7 @@ export function CrmShell({
         </aside>
 
         <aside className="flex w-[52px] shrink-0 flex-col items-center border-r border-[var(--command-border)] bg-white py-3 text-[var(--command-navy)] lg:hidden">
-          <IntentPrefetchLink href={withCrmBrandScope("/crm?tab=dashboard", brandScope)} className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--command-primary-soft)] text-[11px] font-black text-[var(--command-primary)]" title="CRM Dashboard">C</IntentPrefetchLink>
+          <IntentPrefetchLink href="/crm?tab=dashboard" className="grid h-8 w-8 place-items-center rounded-lg bg-[var(--command-primary-soft)] text-[11px] font-black text-[var(--command-primary)]" title="CRM Dashboard">C</IntentPrefetchLink>
           <div className="mt-4 grid gap-2">
             {[
               { label: "首", href: "/crm?tab=dashboard", key: "dashboard", title: "首頁" },
@@ -80,7 +77,7 @@ export function CrmShell({
             ].map((item) => (
               <IntentPrefetchLink
                 key={item.key}
-                href={withCrmBrandScope(item.href, brandScope)}
+                href={item.href}
                 className={`grid h-8 w-8 place-items-center rounded-lg text-[10px] font-black ${
                   item.key === active
                     ? "bg-[var(--command-primary-soft)] text-[var(--command-primary)]"

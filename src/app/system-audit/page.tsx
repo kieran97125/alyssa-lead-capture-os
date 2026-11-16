@@ -1,7 +1,4 @@
 import { AppNav } from "@/components/alyssa/AppNav";
-import { LeadDeliveryStatusPanel, parseLeadDeliveryRecoveryFeedback } from "@/components/capture/LeadDeliveryStatusPanel";
-import { getLeadDeliverySummary } from "@/lib/capture/deliverySummary";
-import { getLeadDeliveryRecoveryAccess, recheckLeadDeliveriesAction } from "./actions";
 import {
   getAdminBaseUrl,
   getPublicBaseUrl,
@@ -231,17 +228,11 @@ async function getAuthEmailDeliveryReadiness(): Promise<{
   return { detail: "尚未寄出成員邀請", tone: "attention" };
 }
 
-export default async function SystemAuditPage({ searchParams }: {
-  searchParams?: Promise<Record<string, string | string[] | undefined>>;
-} = {}) {
-  const [summary, readinessChecks, deliverySummary, recoveryAccess, query] = await Promise.all([
+export default async function SystemAuditPage() {
+  const [summary, readinessChecks] = await Promise.all([
     getAuditSummary(),
     getReadinessChecks(),
-    getLeadDeliverySummary(),
-    getLeadDeliveryRecoveryAccess(),
-    searchParams ?? Promise.resolve({} as Record<string, string | string[] | undefined>),
   ]);
-  const recoveryFeedback = parseLeadDeliveryRecoveryFeedback(query);
 
   return (
     <main className="alyssa-shell">
@@ -266,8 +257,6 @@ export default async function SystemAuditPage({ searchParams }: {
             </p>
           )}
         </section>
-
-        <div className="mt-6"><LeadDeliveryStatusPanel summary={deliverySummary} recoveryAccess={recoveryAccess} recheckAction={recoveryAccess.allowed ? recheckLeadDeliveriesAction : undefined} feedback={recoveryFeedback} /></div>
 
         <section className="mt-6 rounded-[24px] border border-[#ead9cf] bg-white/82 p-5 shadow-sm">
           <h2 className="text-xl font-bold text-[#321428]">

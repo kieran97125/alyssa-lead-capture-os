@@ -17,9 +17,9 @@ function readString(formData: FormData, key: string, maxLength = 5000) {
   return typeof value === "string" ? value.trim().slice(0, maxLength) : "";
 }
 
-function redirectBack(status: "success" | "error", message: string, brandId: string): never {
+function redirectBack(status: "success" | "error", message: string): never {
   redirect(
-    `/crm/settings/whatsapp?brand=${encodeURIComponent(brandId)}&settings_${status}=${encodeURIComponent(message)}`
+    `/crm/settings/whatsapp?settings_${status}=${encodeURIComponent(message)}`
   );
 }
 
@@ -30,7 +30,7 @@ export async function saveWhatsAppConnectionAction(formData: FormData) {
     !moduleAccess.allowed ||
     !canAccessInternalBrand(moduleAccess.access, brandId)
   ) {
-    redirectBack("error", "你未獲授權修改呢個品牌嘅 WhatsApp 連接。", brandId);
+    redirectBack("error", "你未獲授權修改呢個品牌嘅 WhatsApp 連接。");
   }
   const result = await saveWhatsAppConnection({
     brandId,
@@ -47,7 +47,7 @@ export async function saveWhatsAppConnectionAction(formData: FormData) {
   });
 
   revalidatePath("/crm/settings/whatsapp");
-  redirectBack(result.ok ? "success" : "error", result.message, brandId);
+  redirectBack(result.ok ? "success" : "error", result.message);
 }
 
 export async function testWhatsAppSendAction(formData: FormData) {
@@ -57,7 +57,7 @@ export async function testWhatsAppSendAction(formData: FormData) {
     !moduleAccess.allowed ||
     !canAccessInternalBrand(moduleAccess.access, brandId)
   ) {
-    redirectBack("error", "你未獲授權使用呢個品牌嘅 WhatsApp 連接。", brandId);
+    redirectBack("error", "你未獲授權使用呢個品牌嘅 WhatsApp 連接。");
   }
   const result = await sendWhatsAppTextMessage({
     brandId,
@@ -68,5 +68,5 @@ export async function testWhatsAppSendAction(formData: FormData) {
   });
 
   revalidatePath("/crm/settings/whatsapp");
-  redirectBack(result.ok ? "success" : "error", result.message, brandId);
+  redirectBack(result.ok ? "success" : "error", result.message);
 }
