@@ -3,10 +3,6 @@
     {
       "path": "/api/cron/marketing-data-sources",
       "schedule": "30 16 * * *"
-    },
-    {
-      "path": "/api/cron/lead-deliveries",
-      "schedule": "*/5 * * * *"
     }
   ]
 }

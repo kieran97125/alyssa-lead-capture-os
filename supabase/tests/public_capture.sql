@@ -33,6 +33,23 @@ DO $$ DECLARE role_name text; BEGIN
   END LOOP;
 END; $$;
 
+DO $$ DECLARE statement text; BEGIN
+  SET LOCAL ROLE service_role;
+  FOREACH statement IN ARRAY ARRAY[
+    'UPDATE public.public_lead_capture_receipts SET response_json=response_json WHERE false',
+    'DELETE FROM public.public_lead_capture_receipts WHERE false',
+    'DELETE FROM public.public_lead_delivery_outbox WHERE false',
+    'UPDATE public.public_lead_delivery_rechecks SET delivery_count=delivery_count WHERE false',
+    'DELETE FROM public.public_lead_delivery_rechecks WHERE false'
+  ] LOOP
+    BEGIN
+      EXECUTE statement;
+      RAISE EXCEPTION 'qualification_failed: default GRANT ALL defeated append-only privileges';
+    EXCEPTION WHEN insufficient_privilege THEN NULL; END;
+  END LOOP;
+  RESET ROLE;
+END; $$;
+
 DO $$ DECLARE summary jsonb; BEGIN
   SET LOCAL ROLE service_role;
   summary:=public.get_public_lead_delivery_summary();

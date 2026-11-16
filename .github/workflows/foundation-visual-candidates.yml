@@ -1,0 +1,161 @@
+name: Foundation Visual Candidates
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/app/crm/**"
+      - "src/lib/crm/**"
+      - "src/components/crm/**"
+      - "src/lib/capture/**"
+      - "src/components/capture/**"
+      - "src/components/system/**"
+      - "src/app/e2e/crm-foundation/**"
+      - "src/app/e2e/lead-delivery/**"
+      - "src/app/design-system.css"
+      - "src/app/globals.css"
+      - "e2e/crm-foundation.spec.ts"
+      - "e2e/crm-foundation.spec.ts-snapshots/**"
+      - "e2e/lead-delivery-status.spec.ts"
+      - "e2e/lead-delivery-status.spec.ts-snapshots/**"
+      - "playwright.config.ts"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/foundation-visual-candidates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: foundation-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-candidates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      E2E_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      PLAYWRIGHT_NO_VIDEO: "1"
+
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build the isolated fixture application
+        id: build
+        run: npm run build
+
+      - name: Install the pinned official Chromium runtime
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the local fixture application
+        id: serve
+        shell: bash
+        run: |
+          npm run start -- --hostname 127.0.0.1 > foundation-server.log 2>&1 &
+          foundation_server_pid=$!
+          echo "$foundation_server_pid" > foundation-server.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$foundation_server_pid" 2>/dev/null; then
+              cat foundation-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          cat foundation-server.log
+          exit 1
+
+      # These are candidates for human review, not automatic approval or commits.
+      # This command can update only the two newly introduced fixture directories.
+      - name: Generate only the new foundation fixture candidates
+        id: candidates
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/foundation-candidates
+        run: >-
+          npx playwright test e2e/crm-foundation.spec.ts e2e/lead-delivery-status.spec.ts
+          --update-snapshots=all --workers=1 --retries=0
+          --output=test-results/foundation-candidates
+
+      - name: Verify the candidate command did not rewrite other baselines
+        if: always() && steps.serve.outcome == 'success'
+        shell: bash
+        run: |
+          while IFS= read -r changed_path; do
+            case "$changed_path" in
+              e2e/crm-foundation.spec.ts-snapshots/*|e2e/lead-delivery-status.spec.ts-snapshots/*) ;;
+              *) echo "Unexpected tracked modification: $changed_path" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only)
+          shopt -s nullglob
+          foundation_candidates=(e2e/crm-foundation.spec.ts-snapshots/*.png e2e/lead-delivery-status.spec.ts-snapshots/*.png)
+          if ((${#foundation_candidates[@]})); then
+            sha256sum "${foundation_candidates[@]}" > foundation-candidate-sha256.txt
+          fi
+
+      - name: Verify new candidates without updating snapshots
+        if: success() && steps.candidates.outcome == 'success'
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/foundation-qualified
+        run: >-
+          npx playwright test e2e/crm-foundation.spec.ts e2e/lead-delivery-status.spec.ts
+          --update-snapshots=none --workers=1 --retries=0
+          --output=test-results/foundation-qualified
+
+      - name: Upload new fixture candidates for human review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-visual-candidates
+          path: |
+            e2e/crm-foundation.spec.ts-snapshots/*.png
+            e2e/lead-delivery-status.spec.ts-snapshots/*.png
+            foundation-candidate-sha256.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload all qualification reports and server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: foundation-visual-reports
+          path: |
+            playwright-report/
+            test-results/
+            foundation-server.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop the fixture server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f foundation-server.pid ]]; then
+            read -r foundation_server_pid < foundation-server.pid
+            kill "$foundation_server_pid" 2>/dev/null || true
+          fi

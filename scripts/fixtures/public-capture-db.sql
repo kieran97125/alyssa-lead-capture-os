@@ -11,6 +11,9 @@ DO $$ BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='service_role') THEN CREATE ROLE service_role NOLOGIN BYPASSRLS; END IF;
 END; $$;
 GRANT USAGE ON SCHEMA public TO anon,authenticated,service_role;
+-- Supabase commonly grants new public tables to service_role by default. The
+-- candidate migration must explicitly narrow those inherited privileges.
+ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO service_role;
 
 -- Schema-only baseline; deliberately excludes the migration's client-specific seeds/views.
 create extension if not exists pgcrypto;

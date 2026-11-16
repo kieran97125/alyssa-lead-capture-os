@@ -175,16 +175,11 @@ assert.doesNotMatch(
 );
 
 const cron = JSON.parse(files["vercel.json"]);
-assert.deepEqual(cron.crons.filter((job) => job.path === "/api/cron/marketing-data-sources"), [
+assert.deepEqual(cron.crons, [
   {
     path: "/api/cron/marketing-data-sources",
     schedule: "30 16 * * *",
   },
-]);
-assert.equal(new Set(cron.crons.map((job) => job.path)).size, cron.crons.length,
-  "a source refresh or delivery worker must not be scheduled twice");
-assert.deepEqual(cron.crons.filter((job) => job.path === "/api/cron/lead-deliveries"), [
-  { path: "/api/cron/lead-deliveries", schedule: "*/5 * * * *" },
 ]);
 assert.match(files[".env.example"], /LEAD_AUDIT_ENCRYPTION_KEY=/);
 

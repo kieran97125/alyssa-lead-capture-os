@@ -11,7 +11,7 @@ create table public.public_lead_capture_receipts (
 );
 create index public_lead_capture_receipts_lead_idx on public.public_lead_capture_receipts(lead_id);
 alter table public.public_lead_capture_receipts enable row level security;
-revoke all on public.public_lead_capture_receipts from public, anon, authenticated;
+revoke all on public.public_lead_capture_receipts from public, anon, authenticated,service_role;
 grant select, insert on public.public_lead_capture_receipts to service_role;
 
 create table public.public_lead_delivery_outbox (
@@ -35,7 +35,7 @@ create table public.public_lead_delivery_outbox (
 create index public_lead_delivery_ready_idx on public.public_lead_delivery_outbox(status, next_attempt_at);
 create index public_lead_delivery_brand_idx on public.public_lead_delivery_outbox(brand_id, created_at desc);
 alter table public.public_lead_delivery_outbox enable row level security;
-revoke all on public.public_lead_delivery_outbox from public, anon, authenticated;
+revoke all on public.public_lead_delivery_outbox from public, anon, authenticated,service_role;
 grant select, insert, update on public.public_lead_delivery_outbox to service_role;
 comment on table public.public_lead_delivery_outbox is 'Private immutable capture-to-Sheet projection. Never stores webhook secrets or access tokens. Ambiguous append outcomes reconcile without blind retry.';
 
@@ -48,7 +48,7 @@ create table public.public_lead_delivery_rechecks (
 );
 create index public_lead_delivery_rechecks_actor_idx on public.public_lead_delivery_rechecks(actor_member_id,created_at desc);
 alter table public.public_lead_delivery_rechecks enable row level security;
-revoke all on public.public_lead_delivery_rechecks from public,anon,authenticated;
+revoke all on public.public_lead_delivery_rechecks from public,anon,authenticated,service_role;
 grant select,insert on public.public_lead_delivery_rechecks to service_role;
 comment on table public.public_lead_delivery_rechecks is 'Append-only audit of master-requested delivery rechecks. Contains member and delivery identifiers only, never customer fields or payloads.';
 
@@ -146,7 +146,7 @@ begin
   end if;
   -- A committed registration must contain its persisted-success, legal-consent
   -- and booking-request events. Anonymous telemetry cannot supply these rows.
-  if jsonb_array_length(p_events) <> 3 + case when p_lead->>'source_type' = 'organic_unknown' then 1 else 0 end
+  if jsonb_array_length(p_events) <> 3 + (case when p_lead->>'source_type' = 'organic_unknown' then 1 else 0 end)
      or exists(select 1 from jsonb_array_elements(p_events) e
       where jsonb_typeof(e) is distinct from 'object'
         or coalesce(e->>'event_type','') not in ('form_submit_success','booking_created','organic_source_assigned')
@@ -161,7 +161,7 @@ begin
        and nullif(btrim(e->'event_payload_json'->>'consent_text'),'') is not null
        and isfinite((e->'event_payload_json'->>'accepted_at')::timestamptz)) <> 1
      or (select count(*) from jsonb_array_elements(p_events) e where e->>'event_type' = 'organic_source_assigned')
-       <> case when p_lead->>'source_type' = 'organic_unknown' then 1 else 0 end then
+       <> (case when p_lead->>'source_type' = 'organic_unknown' then 1 else 0 end) then
     raise exception 'capture_invalid_events' using errcode = '22023';
   end if;
   -- This remains the pre-existing short-window same-form rule, not global phone deduplication.

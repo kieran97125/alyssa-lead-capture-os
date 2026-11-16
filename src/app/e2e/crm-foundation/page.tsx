@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { CrmInboxTable } from "@/components/crm/CrmInboxTable";
+import "@/components/crm/crm-shell.css";
 import { SystemButton } from "@/components/system/SystemButton";
 import { filterCrmBookingQueue, crmDayKey } from "@/lib/crm/operationQueues";
 import { resolveCrmChannelReadiness, resolveSingleCrmBrand } from "@/lib/crm/channelReadiness";
@@ -94,7 +95,7 @@ export default async function CrmFoundationFixture({ searchParams }: {
     } as WhatsAppConnectionRecord,
   }) : null;
 
-  return <main className="min-w-0 space-y-4 overflow-hidden bg-system-background p-4 text-system-foreground" data-testid="crm-foundation-fixture">
+  return <main className="crm-shell min-w-0 space-y-4 overflow-hidden bg-system-background p-4 text-system-foreground" data-testid="crm-foundation-fixture">
     <header className="space-y-1">
       <h1 className="text-2xl font-bold">CRM 預約流程驗收</h1>
       <p className="text-sm text-system-muted-foreground">隔離測試資料 · 香港日期 <time data-testid="fixture-hkt-day">{crmDayKey(fixtureNow)}</time></p>
