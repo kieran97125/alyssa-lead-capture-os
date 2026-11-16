@@ -2,6 +2,7 @@ import { IntentPrefetchLink } from "@/components/alyssa/IntentPrefetchLink";
 import type { ReactNode } from "react";
 import { CrmStatusBadge } from "@/components/crm/CrmStatusBadge";
 import type { CrmLeadCase, CrmStatus } from "@/lib/crm/leadOps";
+import { isCrmToday, isCrmTodayDateOnly, parseCrmBookingDateTime } from "@/lib/crm/operationQueues";
 
 export type CrmInboxPreset = "cs_booking" | "marketing" | "technical";
 
@@ -114,12 +115,16 @@ const e2eInboxCases: CrmLeadCase[] = [
 export function CrmInboxTable({
   cases,
   preset = "cs_booking",
+  allowEmptyFixture = false,
+  now = Date.now(),
 }: {
   cases: CrmLeadCase[];
   preset?: CrmInboxPreset;
+  allowEmptyFixture?: boolean;
+  now?: number;
 }) {
   const inboxCases =
-    process.env.ALYSSA_E2E_FIXTURES === "1" ? e2eInboxCases : cases;
+    allowEmptyFixture && cases.length === 0 && process.env.ALYSSA_E2E_FIXTURES === "1" ? e2eInboxCases : cases;
   const extraHeadings =
     preset === "marketing"
       ? marketingHeadings
@@ -231,10 +236,10 @@ export function CrmInboxTable({
                     </span>
                   </Cell>
                   <Cell>
-                    <BookingCell item={item} />
+                    <BookingCell item={item} now={now} />
                   </Cell>
                   <Cell>
-                    <FollowUpCell value={item.nextFollowUpAt} label={item.nextFollowUpLabel} />
+                    <FollowUpCell value={item.nextFollowUpAt} label={item.nextFollowUpLabel} now={now} />
                   </Cell>
                   <Cell>
                     <BookingOutcomeCell item={item} />
@@ -361,8 +366,8 @@ function Avatar({ name }: { name: string }) {
   );
 }
 
-function BookingCell({ item }: { item: CrmLeadCase }) {
-  const state = getBookingState(item);
+function BookingCell({ item, now }: { item: CrmLeadCase; now: number }) {
+  const state = getBookingState(item, now);
 
   return (
     <div className="grid gap-1">
@@ -390,6 +395,9 @@ function BookingOutcomeCell({ item }: { item: CrmLeadCase }) {
   }
   if (item.status === "no_show") {
     return <OutcomeBadge tone="red">未到店</OutcomeBadge>;
+  }
+  if (item.status === "cancelled") {
+    return <OutcomeBadge tone="slate">已取消</OutcomeBadge>;
   }
   if (item.status === "lost") {
     return <OutcomeBadge tone="slate">已流失</OutcomeBadge>;
@@ -425,8 +433,8 @@ function OutcomeBadge({
   );
 }
 
-function FollowUpCell({ value, label }: { value: string | null; label: string }) {
-  const state = getFollowUpState(value);
+function FollowUpCell({ value, label, now }: { value: string | null; label: string; now: number }) {
+  const state = getFollowUpState(value, now);
 
   return (
     <div className="grid gap-1">
@@ -480,39 +488,29 @@ function cleanUnconfirmed(value: string | null | undefined) {
   return cleaned || "未確認預約";
 }
 
-function getBookingState(item: CrmLeadCase) {
+function getBookingState(item: CrmLeadCase, now: number) {
   if (item.status !== "booked") return null;
   const bookingDate = parseBookingDateTime(item.confirmedBookingDate, item.confirmedBookingTime);
-  if (bookingDate && bookingDate.getTime() <= Date.now()) return "pending";
-  if (isTodayDateOnly(item.confirmedBookingDate)) return "today";
+  if (bookingDate && bookingDate.getTime() <= now) return "pending";
+  if (isTodayDateOnly(item.confirmedBookingDate, now)) return "today";
   return null;
 }
 
-function getFollowUpState(value: string | null) {
+function getFollowUpState(value: string | null, now: number) {
   if (!value) return null;
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return null;
-  const now = new Date();
-  const isSameDay =
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate();
+  const isSameDay = isCrmToday(value, now);
 
-  if (date.getTime() < now.getTime() && !isSameDay) return "overdue";
+  if (date.getTime() < now && !isSameDay) return "overdue";
   if (isSameDay) return "today";
   return "upcoming";
 }
 
-function isTodayDateOnly(value: string | null) {
-  if (!value) return false;
-  const today = new Date();
-  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  return value === todayDate;
+function isTodayDateOnly(value: string | null, now: number) {
+  return isCrmTodayDateOnly(value, now);
 }
 
 function parseBookingDateTime(date: string | null, time: string | null) {
-  if (!date) return null;
-  const normalizedTime = time ? (time.length === 5 ? `${time}:00` : time) : "23:59:59";
-  const parsed = new Date(`${date}T${normalizedTime}+08:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return parseCrmBookingDateTime(date, time);
 }

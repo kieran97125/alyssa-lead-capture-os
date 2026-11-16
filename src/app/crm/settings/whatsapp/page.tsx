@@ -9,6 +9,7 @@ import {
   getWhatsAppConnectionByBrandSlug,
 } from "@/lib/crm/whatsapp";
 import { getConfigurationData } from "@/lib/data/configuration";
+import { resolveCrmChannelReadiness, resolveSingleCrmBrand } from "@/lib/crm/channelReadiness";
 import {
   saveWhatsAppConnectionAction,
   testWhatsAppSendAction,
@@ -24,38 +25,40 @@ export default async function WhatsAppConnectionPage({
   searchParams,
 }: {
   searchParams?: Promise<{
+    brand?: string | string[];
     settings_success?: string | string[];
     settings_error?: string | string[];
   }>;
 }) {
   const [query, config] = await Promise.all([searchParams, getConfigurationData()]);
-  const brand =
-    config.brands.find((item) =>
-      ["ineffable", "ineffable-beauty"].includes(item.slug)
-    ) || null;
+  const requestedBrand = firstParam(query?.brand);
+  const brand = requestedBrand
+    ? resolveSingleCrmBrand(config.brands, requestedBrand)
+    : config.brands[0] ?? null;
   if (!brand) notFound();
   const connectionView = await getWhatsAppConnectionByBrandSlug(brand.slug);
   const connection = connectionView.connection;
+  const readiness = resolveCrmChannelReadiness(connectionView);
   const feedback = firstParam(query?.settings_success) || firstParam(query?.settings_error);
   const success = Boolean(firstParam(query?.settings_success));
   const setupReady = connectionView.tableReady && connectionView.encryptionConfigured;
 
   return (
-    <CrmShell active="settings">
+    <CrmShell active="settings" brandScope={brand?.slug}>
       <main className="min-h-screen bg-[#f6f8fb]">
         <header className="border-b border-[#e5e7eb] bg-white px-4 py-4 lg:px-6">
-          <Link href="/crm/settings" className="text-xs font-black text-[var(--crm-accent)]">
+          <Link href={`/crm/settings?brand=${encodeURIComponent(brand.slug)}`} className="text-xs font-black text-[var(--crm-accent)]">
             ← 返回設定
           </Link>
           <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <h1 className="text-xl font-black text-[#111827]">連接 WhatsApp</h1>
+              <h1 className="text-xl font-black text-[#111827]">{brand.name} · 連接 WhatsApp</h1>
               <p className="mt-1 text-sm font-semibold text-[#64748b]">
                 將 Meta 顯示的資料貼入，儲存後測試一次即可。
               </p>
             </div>
-            <span className={`w-fit rounded-full px-3 py-1.5 text-xs font-black ${connection ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
-              {connection ? "已儲存" : "尚未連接"}
+            <span className={`w-fit rounded-full px-3 py-1.5 text-xs font-black ${readiness.ready ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-800"}`}>
+              {readiness.label}
             </span>
           </div>
           {feedback ? (
@@ -126,7 +129,7 @@ export default async function WhatsAppConnectionPage({
             </div>
             <div className="grid gap-3 p-4 sm:grid-cols-2">
               <Field label="測試電話" name="testPhone" placeholder="85291234567" required />
-              <Field label="測試內容" name="testMessage" defaultValue="Ineffable Beauty WhatsApp connection test" required />
+              <Field label="測試內容" name="testMessage" defaultValue={`${brand.name} WhatsApp connection test`} required />
             </div>
             <div className="flex flex-wrap items-center gap-3 border-t border-[#eef2f7] px-4 py-3">
               <SubmitButton disabled={!connection} className="h-10 rounded-lg bg-[#16a34a] px-5 text-sm font-black text-white disabled:cursor-not-allowed disabled:opacity-40" pendingLabel="發送中…">

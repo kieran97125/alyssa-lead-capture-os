@@ -1,0 +1,16 @@
+Source: 3bbde1ac34799224d6b744a2820766a09856974a
+Workflow run: 43803391043 (candidate generation + non-update rerun passed)
+Artifact: 14197463036
+ZIP SHA256: 3218d10ec9027423b2a13253f0c3fb7ab9c4134e3c4e070c7f2824125eb62452
+Human review: CRM No Show desktop/mobile; delivery normal/review/member-required/unavailable desktop/mobile approved.
+
+53aeb92b9c6996ed40c73d59a25e310ba2ebb53c9345f9af98d11d58dcf30107  e2e/crm-foundation.spec.ts-snapshots/crm-foundation-noshow-desktop-chromium-linux.png
+79f4f2fab3a8bbf2b0018a66eab4522814dd642202166354d41779592b0ba965  e2e/crm-foundation.spec.ts-snapshots/crm-foundation-noshow-mobile-chromium-linux.png
+b03866b1698a3e72523210e9110598570113e6d0419081f52c7d925c4fe5c376  e2e/lead-delivery-status.spec.ts-snapshots/lead-delivery-member-required-desktop-chromium-linux.png
+62abd29494d88b9eb420c45ebba645e986bee2018b0abd3e4d6053c02cc45597  e2e/lead-delivery-status.spec.ts-snapshots/lead-delivery-member-required-mobile-chromium-linux.png
+8a1a6f513ec6ead95b5e9fb071eefc79a8bc060957ec9863a0de7cd04a27c11e  e2e/lead-delivery-status.spec.ts-snapshots/lead-delivery-normal-desktop-chromium-linux.png
+6a9d9dbaf954f5aec4deb9906669e9e92950cd553cf1775e4b747e22c8d8198d  e2e/lead-delivery-status.spec.ts-snapshots/lead-delivery-normal-mobile-chromium-linux.png
+3269840b651f302135a95162939f2f2edeffad7f7bf36793a2c01c9c58c97178  e2e/lead-delivery-status.spec.ts-snapshots/lead-delivery-review-desktop-chromium-linux.png
+1af436034130ef5cf00652c53bdef30a4da32ce72b721a3cde41ada4c1e4e996  e2e/lead-delivery-status.spec.ts-snapshots/lead-delivery-review-mobile-chromium-linux.png
+3ade49f7f818bb6d719e597750a75d01874e1d5e53ac43a9adc595b73df57680  e2e/lead-delivery-status.spec.ts-snapshots/lead-delivery-unavailable-desktop-chromium-linux.png
+a5c9d246a807c0ad668f1e24dfeae46b75984f7dac90b3c67921c17b93f99aca  e2e/lead-delivery-status.spec.ts-snapshots/lead-delivery-unavailable-mobile-chromium-linux.png

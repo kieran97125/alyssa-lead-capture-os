@@ -130,8 +130,28 @@ function isFromLeadsInsert(node) {
 const leadInsertObjects = [];
 const successResponseObjects = [];
 
+// Public capture is persisted atomically through its service-only RPC. Keep
+// the static column allowlist at the normalized boundary, not an obsolete
+// direct insert that would reintroduce partial contact/booking writes.
+for (const column of ["contact_id", "lead_uid", "source_snapshot_id", "submitted_at", "lead_status", "booking_status"]) requiredLeadInsertColumns.delete(column);
 function visit(node) {
+  if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && node.expression.text === "persistPublicCapture") {
+    const envelope = node.arguments[0];
+    if (!envelope || !ts.isObjectLiteralExpression(envelope)) throw new Error("Capture requires an explicit normalized envelope.");
+    for (const property of envelope.properties) {
+      if (!ts.isPropertyAssignment(property)) continue;
+      if (propertyName(property.name) === "lead") {
+        if (!ts.isObjectLiteralExpression(property.initializer)) throw new Error("Capture lead must use explicit columns.");
+        leadInsertObjects.push(property.initializer);
+      }
+      if (propertyName(property.name) === "response") {
+        if (!ts.isObjectLiteralExpression(property.initializer)) throw new Error("Capture receipt requires explicit response fields.");
+        successResponseObjects.push({ node: property.initializer, keys: new Set(objectKeys(property.initializer, "capture receipt response")) });
+      }
+    }
+  }
   if (isFromLeadsInsert(node)) {
+    throw new Error("Public lead capture must not bypass its atomic receipt transaction.");
     const payload = node.arguments[0];
     if (!payload || !ts.isObjectLiteralExpression(payload)) {
       throw new Error(
@@ -169,7 +189,7 @@ visit(sourceFile);
 
 if (leadInsertObjects.length !== 1) {
   throw new Error(
-    `Build contract failed: expected exactly one leads.insert() object, found ${leadInsertObjects.length}.`
+    `Build contract failed: expected exactly one transactional capture lead object, found ${leadInsertObjects.length}.`
   );
 }
 
@@ -216,5 +236,5 @@ for (const { keys } of successResponseObjects) {
 }
 
 console.log(
-  "Verified public lead insert columns, success trace responses, and immutable build source."
+  "Verified transactional public capture columns, durable receipt trace responses, and immutable build source."
 );

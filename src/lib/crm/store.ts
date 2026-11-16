@@ -1,4 +1,13 @@
 import {
+  CompleteReadError,
+  COMPLETE_READ_MAX_ROWS,
+  compareReadTimestamps,
+  completeReadCursorFilter,
+  readCompletePages,
+  readIdChunks,
+  withCompleteReadScope,
+} from "@/lib/data/completeRead";
+import {
   type LeadRow,
   formatDateTime,
 } from "@/lib/data/businessMetrics";
@@ -268,12 +277,39 @@ export async function getCrmRuntimeStatus(): Promise<CrmRuntimeStatus> {
   }
 }
 
-export async function getCrmCasesBySourceLeadIds(leadIds: string[]) {
+export async function getCrmCasesBySourceLeadIds(
+  leadIds: string[],
+  options: { completeness?: "complete" } = {},
+) {
   const uniqueIds = Array.from(new Set(leadIds.filter(Boolean)));
   const casesByLeadId = new Map<string, CrmLeadCaseRecord>();
 
   if (uniqueIds.length === 0 || !hasSupabaseAdminEnv()) {
     return casesByLeadId;
+  }
+
+  if (options.completeness === "complete") {
+    return withCompleteReadScope(async (scope) => {
+      const supabase = createSupabaseAdminClient();
+      let readCount = 0;
+      for (const chunk of readIdChunks(uniqueIds)) {
+        const rows = await readCompletePages<CrmLeadCaseRecord>(scope, async (cursor, size) => {
+          let query = supabase.from("crm_lead_cases").select("*", { count: "exact" })
+            .in("source_lead_id", chunk).lte("created_at", scope.startedAt)
+            .order("created_at", { ascending: false }).order("id", { ascending: false })
+            .limit(size).abortSignal(scope.signal);
+          if (cursor) query = query.or(completeReadCursorFilter(cursor));
+          return await query as unknown as { data: CrmLeadCaseRecord[] | null; error: unknown; count: number | null };
+        }, { maxRows: COMPLETE_READ_MAX_ROWS - readCount });
+        readCount += rows.length;
+        for (const row of rows) {
+          if (!row.source_lead_id) continue;
+          if (casesByLeadId.has(row.source_lead_id)) throw new CompleteReadError("incomplete");
+          casesByLeadId.set(row.source_lead_id, row);
+        }
+      }
+      return casesByLeadId;
+    });
   }
 
   try {
@@ -301,12 +337,42 @@ export async function getCrmCasesBySourceLeadIds(leadIds: string[]) {
   return casesByLeadId;
 }
 
-export async function getCrmBookingsByCaseIds(caseIds: string[]) {
+export async function getCrmBookingsByCaseIds(
+  caseIds: string[],
+  options: { completeness?: "complete" } = {},
+) {
   const uniqueIds = Array.from(new Set(caseIds.filter(Boolean)));
   const bookingsByCaseId = new Map<string, CrmBookingRecord>();
 
   if (uniqueIds.length === 0 || !hasSupabaseAdminEnv()) {
     return bookingsByCaseId;
+  }
+
+  if (options.completeness === "complete") {
+    return withCompleteReadScope(async (scope) => {
+      const supabase = createSupabaseAdminClient();
+      let readCount = 0;
+      for (const chunk of readIdChunks(uniqueIds)) {
+        const rows = await readCompletePages<CrmBookingRecord>(scope, async (cursor, size) => {
+          let query = supabase.from("crm_bookings").select("*", { count: "exact" })
+            .in("case_id", chunk).lte("created_at", scope.startedAt)
+            .order("created_at", { ascending: false }).order("id", { ascending: false })
+            .limit(size).abortSignal(scope.signal);
+          if (cursor) query = query.or(completeReadCursorFilter(cursor));
+          return await query as unknown as { data: CrmBookingRecord[] | null; error: unknown; count: number | null };
+        }, { maxRows: COMPLETE_READ_MAX_ROWS - readCount });
+        readCount += rows.length;
+        for (const row of rows) {
+          const previous = bookingsByCaseId.get(row.case_id);
+          // Query order is for stable paging; latest operational update remains authoritative.
+          const updateOrder = previous ? compareReadTimestamps(row.updated_at, previous.updated_at) : 1;
+          if (!previous || updateOrder > 0 || (updateOrder === 0 && row.id > previous.id)) {
+            bookingsByCaseId.set(row.case_id, row);
+          }
+        }
+      }
+      return bookingsByCaseId;
+    });
   }
 
   try {

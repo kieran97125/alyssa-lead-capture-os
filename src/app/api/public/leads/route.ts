@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto";
-import { NextRequest, NextResponse } from "next/server";
+import { after, NextRequest, NextResponse } from "next/server";
 import {
   classifyAttribution,
   cleanText,
@@ -26,14 +26,20 @@ import {
   LEGAL_CONSENT_TEXT,
 } from "@/lib/legal/consent";
 import { buildSubmittedSuccessRedirectUrl } from "@/lib/data/brandDefaults";
-import { appendLeadToGoogleSheet } from "@/lib/integrations/googleSheetsLeadSync";
+import { buildGoogleSheetsLeadPayload } from "@/lib/integrations/googleSheetsLeadSync";
+import { normalizedSubmissionId, persistPublicCapture, PublicCaptureError, publicCaptureRequestHash, readPublicCaptureReceipt, type CaptureResponse } from "@/lib/capture/publicCapture";
+import { processPublicLeadDeliveries } from "@/lib/capture/leadDelivery";
 import {
   createSupabaseAdminClient,
   hasSupabaseAdminEnv,
 } from "@/lib/supabase/admin";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 type LeadSubmitPayload = {
   form_token?: string;
+  submission_id?: string;
   form_id?: string;
   brand_id?: string;
   treatment_id?: string;
@@ -65,7 +71,6 @@ type AttributionSourceUsed =
   | "proxy_cookie"
   | "direct";
 
-const DUPLICATE_WINDOW_MS = 3 * 60 * 1000;
 const IP_RATE_WINDOW_MS = 3 * 60 * 1000;
 const IP_RATE_LIMIT = 8;
 const publicSubmitAttempts = new Map<string, number[]>();
@@ -932,6 +937,14 @@ async function createLocalResponse(
   );
 }
 
+function acceptedCaptureResponse(receipt: CaptureResponse, attributionDebug?: ReturnType<typeof createAttributionDebugPayload>) {
+  const finalRedirectUrl = receipt.conversion_mode === "thank_you_redirect"
+    ? buildSubmittedSuccessRedirectUrl({ successRedirectUrl: receipt.success_redirect_url,
+        leadId: receipt.lead_id, eventId: receipt.event_id, formId: receipt.form_id, value: receipt.value }) : null;
+  return NextResponse.json({ ...receipt, final_redirect_url: finalRedirectUrl,
+    ...(attributionDebug ? { attribution_debug: attributionDebug } : {}) }, { status: 201 });
+}
+
 export async function POST(request: NextRequest) {
   const payload = (await request.json().catch(() => null)) as
     | LeadSubmitPayload
@@ -1005,15 +1018,7 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (isIpRateLimited(clientIp)) {
-    return rejectPublicSubmit(
-      request,
-      429,
-      "rate_limited",
-      publicMessages.duplicate,
-      { formToken, normalizedPhone }
-    );
-  }
+
 
   if (!formToken || !phone || normalizedPhone.length < 8) {
     return NextResponse.json(
@@ -1049,6 +1054,12 @@ export async function POST(request: NextRequest) {
       })
     : undefined;
 
+  // Production must never acknowledge a registration that was not persisted.
+  // Explicit isolated acceptance fixtures are separate from missing configuration.
+  if (!hasSupabaseAdminEnv() && process.env.NODE_ENV === "production" && process.env.ALYSSA_E2E_FIXTURES !== "1") {
+    return rejectPublicSubmit(request, 503, "capture_database_unavailable", publicMessages.unavailable,
+      { formToken, normalizedPhone, attributionTraceId });
+  }
   // Attribution E2E must never write synthetic leads into a linked database.
   if (process.env.ALYSSA_E2E_FIXTURES === "1" || !hasSupabaseAdminEnv()) {
     if (formToken !== alyssaDefaultForm.publicFormToken) {
@@ -1082,6 +1093,36 @@ export async function POST(request: NextRequest) {
       403,
       "invalid_form",
       publicMessages.unavailable,
+      { formToken, normalizedPhone }
+    );
+  }
+
+  // A successful receipt remains replayable if the offer is subsequently edited
+  // or archived. A matching business hash is required before exposing its IDs.
+  if (payload.submission_id) {
+    try {
+      const receipt = await readPublicCaptureReceipt({
+        formId: form.id, submissionId: normalizedSubmissionId(payload.submission_id),
+        requestHash: publicCaptureRequestHash({ formId: form.id, customerName, phone: normalizedPhone, email,
+          treatmentId: cleanText(payload.treatment_id, 80) || "",
+          packageId: cleanText(payload.package_id, 80) || "",
+          branchId: cleanText(payload.branch_id, 80) || "",
+          appointmentDate, appointmentTime, paymentOption: payload.payment_option ?? "booking_only" }),
+      });
+      if (receipt) return acceptedCaptureResponse(receipt, attributionDebug);
+    } catch (error) {
+      const code = error instanceof PublicCaptureError ? error.code : "capture_transaction_unavailable";
+      return rejectPublicSubmit(request, code === "capture_idempotency_conflict" ? 409 : code === "capture_invalid_submission_id" ? 400 : 503,
+        code, code === "capture_idempotency_conflict" ? "登記資料已更改，請重新載入表格後再試。" : publicMessages.unavailable,
+        { formToken, normalizedPhone, attributionTraceId });
+    }
+  }
+  if (isIpRateLimited(clientIp)) {
+    return rejectPublicSubmit(
+      request,
+      429,
+      "rate_limited",
+      publicMessages.duplicate,
       { formToken, normalizedPhone }
     );
   }
@@ -1272,93 +1313,64 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const duplicateWindowStart = new Date(
-    Date.now() - DUPLICATE_WINDOW_MS
-  ).toISOString();
-  const { data: shortWindowDuplicate, error: duplicateCheckError } = await supabase
-    .from("leads")
-    .select("id")
-    .eq("normalized_phone", normalizedPhone)
-    .eq("form_id", form.id)
-    .gte("created_at", duplicateWindowStart)
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+  const paymentStatus = packageRecord.payment_required && payload.payment_option === "pay_now" ? "pending" : "booking_only";
+  const packageDisplayPrice = packageRecord.promo_price ?? packageRecord.original_price ?? 0;
+  const submittedAt = new Date().toISOString();
+  const legalBrandRecord = (brandRecord ?? {}) as Record<string, unknown>;
+  const legalProfile = getBrandLegalProfile({
+    brandSlug: cleanText(legalBrandRecord.slug, 120) || "brand",
+    brandName: cleanText(legalBrandRecord.name, 200) || "brand",
+    legalPageUrl: cleanText(legalBrandRecord.legal_page_url, 2000),
+    legalLinkLabel: cleanText(legalBrandRecord.legal_link_label, 120),
+    operatorName: cleanText(legalBrandRecord.operator_name, 200),
+  });
+  const legalConsentPayload = {
+    consent_event: "legal_consent_accepted",
+    accepted_at: new Date().toISOString(),
+    consent_text: LEGAL_CONSENT_TEXT,
+    legal_page_url: legalProfile.legalPageUrl,
+    legal_link_label: legalProfile.legalLinkLabel,
+    privacy_policy_url: legalProfile.privacyPolicyUrl,
+    terms_url: legalProfile.termsUrl,
+    disclaimer_url: legalProfile.disclaimerUrl,
+    form_token: formToken,
+    landing_page_url: cleanText(submittedTouch.landing_page_url, 2000),
+    current_page_url: currentPageUrl,
+    request_origin: normalizeOrigin(request.headers.get("origin")),
+    user_agent: shortUserAgent(request),
+  };
 
-  if (duplicateCheckError) {
-    console.warn("[LaunchHub] duplicate_check_failed", {
-      code: duplicateCheckError.code,
-      message: duplicateCheckError.message,
-      form_token: formToken,
-      normalized_phone: normalizedPhone,
+  let captured;
+  try {
+    const submissionId = normalizedSubmissionId(payload.submission_id);
+    const requestHash = publicCaptureRequestHash({
+      formId: form.id, customerName, phone: normalizedPhone, email,
+      treatmentId: cleanText(payload.treatment_id, 80) || "",
+      packageId: cleanText(payload.package_id, 80) || "",
+      branchId: cleanText(payload.branch_id, 80) || "",
+      appointmentDate, appointmentTime, paymentOption: payload.payment_option ?? "booking_only",
     });
-  }
-
-  if (shortWindowDuplicate) {
-    return rejectPublicSubmit(
-      request,
-      429,
-      "duplicate_recent_submission",
-      publicMessages.duplicate,
-      { formToken, normalizedPhone }
-    );
-  }
-
-  // booking_only means a booking request was submitted without starting payment.
-  const paymentStatus =
-    packageRecord.payment_required && payload.payment_option === "pay_now"
-      ? "pending"
-      : "booking_only";
-  const packageDisplayPrice =
-    packageRecord.promo_price ?? packageRecord.original_price ?? 0;
-
-  const { data: contact, error: contactError } = await supabase
-    .from("contacts")
-    .upsert(
-      {
-        customer_name: customerName,
-        phone,
-        normalized_phone: normalizedPhone,
-        email,
-      },
-      { onConflict: "normalized_phone" }
-    )
-    .select("id")
-    .single();
-
-  if (contactError || !contact) {
-    return rejectPublicSubmit(
-      request,
-      500,
-      "contact_upsert_failed",
-      publicMessages.unavailable,
-      { formToken, normalizedPhone }
-    );
-  }
-
-  const { data: recentDuplicate } = await supabase
-    .from("leads")
-    .select("id, payment_status, booking_status")
-    .eq("normalized_phone", normalizedPhone)
-    .eq("brand_id", form.brand_id)
-    .eq("treatment_id", treatmentId)
-    .gte("created_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
-    .order("created_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const isDuplicate =
-    Boolean(recentDuplicate) &&
-    recentDuplicate?.payment_status !== "paid" &&
-    recentDuplicate?.booking_status !== "confirmed";
-
-  const { data: snapshot, error: snapshotError } = await supabase
-    .from("lead_source_snapshots")
-    .insert({
+    const commonEvent = {
+      visitor_id: cleanText(submittedTouch.visitor_id, 120),
+      session_id: cleanText(submittedTouch.session_id, 120),
+      page_url: currentPageUrl, referrer: cleanText(submittedTouch.referrer, 2000),
+    };
+    const sheetPayload = buildGoogleSheetsLeadPayload({
+      brandId: form.brand_id, leadKey: "00000000-0000-4000-8000-000000000000", createdAt: submittedAt,
+      customerName, phone: normalizedPhone, email, brandName: brandRecord?.name || "",
+      formName: form.form_name || "", treatmentName: treatmentRecord.name || "",
+      packageName: packageRecord.name || "", price: packageDisplayPrice, branchName: branchRecord.name || "",
+      appointmentDate, appointmentTime, pageUrl: currentPageUrl, touch: submittedTouch,
+    });
+    // The projection contains display fields only, never webhook secrets/access tokens.
+    sheetPayload.secret = "";
+    captured = await persistPublicCapture({
+      formId: form.id, submissionId, requestHash,
+      contact: { customer_name: customerName, phone, normalized_phone: normalizedPhone, email },
+      snapshot: {
       source_type: classification.sourceType,
       visitor_id: cleanText(submittedTouch.visitor_id, 120),
       session_id: cleanText(submittedTouch.session_id, 120),
-      contact_id: contact.id,
       first_touch_json: resolvedAttribution.firstTouch,
       latest_touch_json: resolvedAttribution.latestTouch,
       submitted_touch_json: submittedTouch,
@@ -1419,287 +1431,60 @@ export async function POST(request: NextRequest) {
       ),
       first_seen_at: new Date().toISOString(),
       last_seen_at: new Date().toISOString(),
-    })
-    .select("id")
-    .single();
-
-  if (snapshotError || !snapshot) {
-    return rejectPublicSubmit(
-      request,
-      500,
-      "snapshot_create_failed",
-      publicMessages.unavailable,
-      { formToken, normalizedPhone }
-    );
-  }
-
-  const submittedAt = new Date().toISOString();
-
-  const { data: lead, error: leadError } = await supabase
-    .from("leads")
-    .insert({
-      contact_id: contact.id,
-      lead_uid: randomUUID(),
-      source_snapshot_id: snapshot.id,
-      source_type: classification.sourceType,
-      form_id: form.id,
-      brand_id: form.brand_id,
-      treatment_id: treatmentId,
-      package_id: packageRecord.id,
-      branch_id: branchId,
-      customer_name: customerName,
-      phone,
-      normalized_phone: normalizedPhone,
-      appointment_date: appointmentDate,
-      appointment_time: appointmentTime,
-      price: packageDisplayPrice,
-      currency: packageRecord.currency || "HKD",
-      payment_status: paymentStatus,
-      lead_status: isDuplicate ? "duplicate" : "submitted",
-      booking_status: "requested",
-      submitted_at: submittedAt,
-    })
-    .select("id,created_at")
-    .single();
-
-  if (leadError || !lead) {
-    const { error: cleanupError } = await supabase
-      .from("lead_source_snapshots")
-      .delete()
-      .eq("id", snapshot.id);
-    if (cleanupError) {
-      console.warn("[LaunchHub] orphan_snapshot_cleanup_failed", {
-        attribution_trace_id: attributionTraceId,
-        snapshot_id: snapshot.id,
-        code: cleanupError.code,
-      });
-    }
-    return rejectPublicSubmit(
-      request,
-      500,
-      "lead_create_failed",
-      publicMessages.unavailable,
-      {
-        formToken,
-        normalizedPhone,
-        attributionTraceId,
-        databaseError: databaseErrorForLog(leadError),
-      }
-    );
-  }
-
-  await supabase
-    .from("lead_source_snapshots")
-    .update({ lead_id: lead.id })
-    .eq("id", snapshot.id);
-
-  await supabase.from("bookings").insert({
-    lead_id: lead.id,
-    contact_id: contact.id,
-    brand_id: form.brand_id,
-    treatment_id: treatmentId,
-    branch_id: branchId,
-    appointment_date: appointmentDate,
-    appointment_time: appointmentTime,
-    booking_status: "requested",
-    created_by_source: classification.sourceType,
-  });
-
-  const legalBrandRecord = (brandRecord ?? {}) as Record<string, unknown>;
-  const legalProfile = getBrandLegalProfile({
-    brandSlug: cleanText(legalBrandRecord.slug, 120) || "brand",
-    brandName: cleanText(legalBrandRecord.name, 200) || "brand",
-    legalPageUrl: cleanText(legalBrandRecord.legal_page_url, 2000),
-    legalLinkLabel: cleanText(legalBrandRecord.legal_link_label, 120),
-    operatorName: cleanText(legalBrandRecord.operator_name, 200),
-  });
-  const legalConsentPayload = {
-    consent_event: "legal_consent_accepted",
-    accepted_at: new Date().toISOString(),
-    consent_text: LEGAL_CONSENT_TEXT,
-    legal_page_url: legalProfile.legalPageUrl,
-    legal_link_label: legalProfile.legalLinkLabel,
-    privacy_policy_url: legalProfile.privacyPolicyUrl,
-    terms_url: legalProfile.termsUrl,
-    disclaimer_url: legalProfile.disclaimerUrl,
-    form_token: formToken,
-    landing_page_url: cleanText(submittedTouch.landing_page_url, 2000),
-    current_page_url: currentPageUrl,
-    request_origin: normalizeOrigin(request.headers.get("origin")),
-    user_agent: shortUserAgent(request),
-  };
-
-  const { error: leadEventsError } = await supabase.from("lead_events").insert([
-    {
-      lead_id: lead.id,
-      contact_id: contact.id,
-      source_snapshot_id: snapshot.id,
-      visitor_id: cleanText(submittedTouch.visitor_id, 120),
-      session_id: cleanText(submittedTouch.session_id, 120),
-      event_type: "form_submit_success",
-      event_payload_json: {
-        source_type: classification.sourceType,
-        is_duplicate: isDuplicate,
-        attribution_source_used: resolvedAttribution.sourceUsed,
-        attribution_trace_id: attributionTraceId,
-        proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
+    },
+      lead: {
+        source_type: classification.sourceType, form_id: form.id, brand_id: form.brand_id,
+        treatment_id: treatmentId, package_id: packageRecord.id, branch_id: branchId,
+        customer_name: customerName, phone, normalized_phone: normalizedPhone,
+        appointment_date: appointmentDate, appointment_time: appointmentTime,
+        price: packageDisplayPrice, currency: packageRecord.currency || "HKD", payment_status: paymentStatus,
       },
-      page_url: currentPageUrl,
-      referrer: cleanText(submittedTouch.referrer, 2000),
-    },
-    {
-      lead_id: lead.id,
-      contact_id: contact.id,
-      source_snapshot_id: snapshot.id,
-      visitor_id: cleanText(submittedTouch.visitor_id, 120),
-      session_id: cleanText(submittedTouch.session_id, 120),
-      event_type: "form_submit_success",
-      event_payload_json: legalConsentPayload,
-      page_url: currentPageUrl,
-      referrer: cleanText(submittedTouch.referrer, 2000),
-    },
-    {
-      lead_id: lead.id,
-      contact_id: contact.id,
-      source_snapshot_id: snapshot.id,
-      visitor_id: cleanText(submittedTouch.visitor_id, 120),
-      session_id: cleanText(submittedTouch.session_id, 120),
-      event_type: "booking_created",
-      event_payload_json: {
-        booking_status: "requested",
-        created_by_source: classification.sourceType,
+      events: [
+        { ...commonEvent, event_type: "form_submit_success", event_payload_json: {
+          source_type: classification.sourceType, is_duplicate: false,
+          attribution_source_used: resolvedAttribution.sourceUsed, attribution_trace_id: attributionTraceId,
+          proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
+        } },
+        { ...commonEvent, event_type: "form_submit_success", event_payload_json: legalConsentPayload },
+        { ...commonEvent, event_type: "booking_created", event_payload_json: {
+          booking_status: "requested", created_by_source: classification.sourceType,
+        } },
+        ...(classification.sourceType === "organic_unknown" ? [{ ...commonEvent,
+          event_type: "organic_source_assigned", event_payload_json: { audit_reason: classification.auditReason },
+        }] : []),
+      ],
+      delivery: { enabled: process.env.GOOGLE_SHEETS_SYNC_ENABLED?.trim().toLowerCase() === "true", payload: sheetPayload },
+      response: {
+        form_id: form.id, event_id: cleanText(submittedTouch.client_event_id, 120) || "",
+        conversion_mode: normalizeConversionMode(form.conversion_mode),
+        success_redirect_url: typeof form.success_redirect_url === "string" ? form.success_redirect_url : null,
+        value: Number(packageDisplayPrice), source_type: classification.sourceType,
+        tracking_status: classification.trackingStatus, audit_reason: classification.auditReason,
+        attribution_trace_id: attributionTraceId,
       },
-      page_url: currentPageUrl,
-      referrer: cleanText(submittedTouch.referrer, 2000),
-    },
-    ...(classification.sourceType === "organic_unknown"
-      ? [
-          {
-            lead_id: lead.id,
-            contact_id: contact.id,
-            source_snapshot_id: snapshot.id,
-            visitor_id: cleanText(submittedTouch.visitor_id, 120),
-            session_id: cleanText(submittedTouch.session_id, 120),
-            event_type: "organic_source_assigned",
-            event_payload_json: { audit_reason: classification.auditReason },
-            page_url: currentPageUrl,
-            referrer: cleanText(submittedTouch.referrer, 2000),
-          },
-        ]
-      : []),
-    ...(isDuplicate
-      ? [
-          {
-            lead_id: lead.id,
-            contact_id: contact.id,
-            source_snapshot_id: snapshot.id,
-            event_type: "duplicate_detected",
-            event_payload_json: { duplicate_of_lead_id: recentDuplicate?.id },
-          },
-        ]
-      : []),
-  ]);
-
-  if (leadEventsError) {
-    console.warn("[LaunchHub] lead_events_insert_failed", {
-      lead_id: lead.id,
-      code: leadEventsError.code,
-      message: leadEventsError.message,
     });
+  } catch (error) {
+    const code = error instanceof PublicCaptureError ? error.code : "capture_transaction_unavailable";
+    const status = code === "capture_duplicate_recent" ? 429 : code === "capture_idempotency_conflict" ? 409
+      : ["capture_invalid_submission_id", "capture_form_changed", "capture_offer_changed", "capture_invalid_request", "capture_package_not_allowed", "capture_branch_not_allowed", "capture_invalid_events"].includes(code) ? 400 : 503;
+    return rejectPublicSubmit(request, status, code,
+      status === 429 ? publicMessages.duplicate : status === 409 ? "登記資料已更改，請重新載入表格後再試。" : status === 400 ? publicMessages.validation : publicMessages.unavailable,
+      { formToken, normalizedPhone, attributionTraceId });
   }
-
-  if (isDuplicate) {
-    console.warn("[LaunchHub] google_sheets_sync_skipped", {
-      reason: "duplicate_lead",
-      lead_id: lead.id,
-    });
-  } else {
+  const receipt = captured.response;
+  if (!captured.replayed && receipt.delivery_status === "pending") {
+    // Acceptance is already durable. Google latency is isolated from the customer;
+    // cron catches up if this bounded background attempt is interrupted.
     try {
-      console.info("[LaunchHub] google_sheets_sync_attempt", {
-        lead_id: lead.id,
-        payment_status: paymentStatus,
-        source_type: classification.sourceType,
-        utm_source: cleanText(submittedTouch.utm_source, 120),
-        utm_medium: cleanText(submittedTouch.utm_medium, 120),
-        utm_campaign: cleanText(submittedTouch.utm_campaign, 200),
-        attribution_source_used: resolvedAttribution.sourceUsed,
-        proxy_cookie_present: resolvedAttribution.proxyCookiePresent,
+      after(async () => {
+        try { await processPublicLeadDeliveries({ deliveryId: receipt.delivery_id, limit: 1 }); }
+        catch { console.error("public_lead_delivery_background_failed", { delivery_id: receipt.delivery_id }); }
       });
-
-      const sheetResult = await appendLeadToGoogleSheet({
-        brandId: form.brand_id,
-        leadKey: lead.id,
-        createdAt: typeof lead.created_at === "string" ? lead.created_at : submittedAt,
-        customerName,
-        phone: normalizedPhone,
-        email,
-        brandName: brandRecord?.name || "",
-        formName: form.form_name || "",
-        treatmentName: treatmentRecord.name || "",
-        packageName: packageRecord.name || "",
-        price: packageDisplayPrice,
-        branchName: branchRecord.name || "",
-        appointmentDate,
-        appointmentTime,
-        pageUrl: currentPageUrl,
-        touch: submittedTouch,
-      });
-
-      if (sheetResult.skipped) {
-        console.warn("[LaunchHub] google_sheets_sync_skipped", {
-          lead_id: lead.id,
-          reason: sheetResult.reason,
-          missing: sheetResult.missing,
-        });
-      } else {
-        console.info("[LaunchHub] google_sheets_sync_succeeded", {
-          lead_id: lead.id,
-          transport: sheetResult.transport,
-          webhook_status: sheetResult.webhookStatus,
-        });
-      }
-    } catch (error) {
-      console.warn("[LaunchHub] google_sheets_sync_failed", {
-        lead_id: lead.id,
-        message: error instanceof Error ? error.message : "unknown_error",
-      });
+    } catch {
+      // Scheduling is an optimization; the committed outbox remains available
+      // to cron and must never turn accepted customer data into an error.
+      console.error("public_lead_delivery_schedule_failed", { delivery_id: receipt.delivery_id });
     }
   }
-
-  const eventId = cleanText(submittedTouch.client_event_id, 120) || lead.id;
-  const conversionMode = normalizeConversionMode(form.conversion_mode);
-  const successRedirectUrl =
-    typeof form.success_redirect_url === "string"
-      ? form.success_redirect_url
-      : null;
-  const finalRedirectUrl =
-    conversionMode === "thank_you_redirect"
-      ? buildSubmittedSuccessRedirectUrl({
-          successRedirectUrl,
-          leadId: lead.id,
-          eventId,
-          formId: form.id,
-          value: packageDisplayPrice,
-        })
-      : null;
-
-  return NextResponse.json(
-    {
-      ok: true,
-      lead_id: lead.id,
-      event_id: eventId,
-      form_id: form.id,
-      conversion_mode: conversionMode,
-      success_redirect_url: successRedirectUrl,
-      final_redirect_url: finalRedirectUrl,
-      contact_id: contact.id,
-      source_snapshot_id: snapshot.id,
-      attribution_trace_id: attributionTraceId,
-      source_type: classification.sourceType,
-      tracking_status: classification.trackingStatus,
-      audit_reason: classification.auditReason,
-      ...(attributionDebug ? { attribution_debug: attributionDebug } : {}),
-    },
-    { status: 201 }
-  );
+  return acceptedCaptureResponse(receipt, attributionDebug);
 }
