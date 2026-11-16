@@ -27,7 +27,7 @@ The finalizer helper still reports `activationQualified:false`. Operator review 
 
 ## Local acceptance
 
-The complete native contract passes with schedule 76, missing-only 182, identity 100, source lifecycle 49, controller/sidebar 56, localized time 19, allocator 7, governed rebind 29, typed queue 91 and finalizer 37. New tests exercise numeric registry compatibility under exact identity proof, field/type changes, accepted native intent before API dispatch, retained unknown outcomes, nested key permutations and unchanged array/scalar semantics.
+The complete native contract passes with schedule 76, missing-only 182, identity 102, source lifecycle 49, controller/sidebar 56, localized time 19, allocator 7, governed rebind 29, typed queue 91 and finalizer 37. New tests exercise numeric registry compatibility under exact identity proof, field/type changes, accepted native intent before API dispatch, retained unknown outcomes, nested key permutations and unchanged array/scalar semantics.
 
 The prior source `0062d0ae2a132199226392d854d9dd24c501f5d1` passed CRM, acquisition management and both visual workflows. Its design workflow’s server startup reached its 120-second limit before executing design tests; that is not a visual failure or a pass. A changed integration head requires its own hosted qualification.
 
@@ -42,3 +42,13 @@ Background arrival scans can be paused for twenty minutes through an explicit re
 | SCRIPT-RUNTIME-VARIANT | Repository flags default false | Record exact runtime hashes, explicit activation and rollback after real source save/reload/readback. |
 
 Rollback changes code/flags from verified sources. It must preserve accepted stable identities, source anchors, registry/journal, staff fields and unknown attempt checkpoints. Never delete/reappend customer records to reset an uncertain result.
+
+## Current runtime boundary
+
+Automatic approval review rejected saving both experimental global flags before a separate controlled production acceptance. The rejected activation was not bypassed. Both installed adapters were saved, reloaded and read back with flags false. The temporary background pause was explicitly removed. Six failed/skipped synthetic files were removed after exact fixture-title/identity checks; the two passing fixtures remain available for review.
+
+Ordinary native continuation remains authorized and is being qualified. A fresh independent read showed the former Main allocation had converged, so it was rejected as a stale canary target; two other exactly owned allocating rows remained pending at that observation. A later native continuation completed its queue payload phase in 103,884 ms before continuing post-commit work. This is partial accepted progress, not a full manual completion receipt.
+
+The complete job now also defers per-identity display maintenance to its already guarded final projection. Source/registry/queue readback is retained. Ordinary CS identity edits keep their immediate display path. The two new real-native fixture tests prove this distinction and retained recovery readback. The change reduces repeated maintenance; no production latency claim is inferred from it.
+
+Reloaded source hashes for this native-only follow-up: main `9ea53e46310926ccb36e1d17cf37d78ce33469dcb926977072b7c96685c97a9e`; workflow with the retained read probe `85b66472d63a91d72d2f2974813c339e184aa93358bc1594947e02b6260442f0`. Both adapter sources remain the qualified disabled versions. Full ordinary-button acceptance and source/master parity are still open.

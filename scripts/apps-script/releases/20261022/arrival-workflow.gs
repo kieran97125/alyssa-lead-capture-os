@@ -400,7 +400,7 @@ function oa3CommitIdentityBookings_(ss,items,allSnaps,queue,ctx,options) {
   writeSnaps.forEach(snap=>{const targets=new Set(processed.filter(item=>item.snap===snap).map(item=>item.record.row));snap.deferredRows=new Set(snap.records.filter(r=>!targets.has(r.row)).map(r=>r.row));});
   oa2Commit_(ss,ctx,queue,ops,writeSnaps,processed.map(item=>item.record));
   const added=ops.filter(op=>op.kind==='append');
-  if(added.length){
+  if(added.length&&!(options&&options.deferDisplay===true)){
     const ids=new Set(added.map(op=>op.appt.id)),display=processed.filter(item=>ids.has(item.record.appointmentId));
     oa3RefreshDisplay_(ss,false,{appointments:ctx.appointments,ids,sources:oa3ManualDisplaySources_(display,false),freshSources:()=>oa3ManualDisplaySources_(display,true)});
   }
@@ -579,7 +579,7 @@ function continueBookedArrivalsFullSync(jobId) {
     state.blockedReason=null;state.attempt={phase,accountIndex:index,startedAt:new Date().toISOString()};
     oa3ManualFullSyncSave_(props,state);attemptPersisted=true;
     if(phase==='identity') {
-      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,manualRequested:true,recoverPendingAllocations:true});
+      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,manualRequested:true,recoverPendingAllocations:true,deferDisplay:true});
       if(!result)throw new Error('Identity completion was not verified.');
       if(['registered','recovered','bookedAdded','review'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0)||!Array.isArray(result.accountFailures))throw new Error('Identity completion was not verified.');
       if(result.skipped){if(result.registered||result.recovered||result.bookedAdded)throw new Error('Identity result remains pending.');state.attempt=null;return Object.assign(oa3ManualFullSyncSave_(props,state),{busy:true,reason:'staff_priority'});}

@@ -747,6 +747,13 @@ function interruptedAllocationFixture() {
   f.queue.state.matrix[7][arrivalHeaders.indexOf('試做價')]=0;
   return f;
 }
+for(const deferDisplay of [false,true])test('full-job identity recovery defers only display and retains native readback: '+deferDisplay,()=>{
+  const f=interruptedAllocationFixture();let display=0;f.box.oa3RefreshDisplay_=()=>{display++;return {};};
+  const receipt=f.run({manualRequested:true,recoverPendingAllocations:true,deferDisplay});
+  assert.equal(receipt.recovered,1);assert.equal(receipt.accountFailures.length,0);assert.equal(display,deferDisplay?0:1);
+  const q=f.box.oa2ReadQueue_(f.ss,false)[0];assert.equal(q.origin,'managed');assert.equal(q.appointmentId,f.cell('Appointment ID'));
+  assert.equal(f.box.oa2ReadRegistry_(f.ss).appointments[q.appointmentId].pendingQueueBefore,'');
+});
 test('temporary maintenance pauses only the background timer before lock/source admission and expires automatically',()=>{
   const f=timerFixture();f.box.pauseOmniArrivalTimerForRecovery20261116();const cursor=f.script.get('OMNI_ARRIVAL_V2_CURSOR');
   const paused=f.box.omniArrivalV2Timer();assert.equal(paused.paused,true);assert.equal(f.counts.lock,0);assert.equal(f.counts.spreadsheets,0);assert.equal(f.script.get('OMNI_ARRIVAL_V2_CURSOR'),cursor);

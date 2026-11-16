@@ -26,6 +26,7 @@ function fixture(){
     assert.notEqual(options.staffEdit,true,'A manual scan must not impersonate a current CS edit');assert.notEqual(options.bookingMutation,true,'A manual scan cannot invent an observed Book timestamp');
     assert.equal(options.accountNames[0],names[options.startAccountIndex]);
     assert.equal(options.manualRequested,true,'Only an explicit manual request bypasses the idle hint; DocumentLock remains required');
+    assert.equal(options.deferDisplay,true,'The complete job projects display once in its guarded final phase');
     assert.ok(checkpoint().attempt,'Identity writer must have a persisted pre-step attempt marker');
     calls.identity.push(clone(options));
     if(control.identityBlocked)return{registered:0,recovered:0,bookedAdded:0,review:1,blocked:true,accountFailures:[{accountIndex:-1,reason:'synthetic_identity_review'}]};

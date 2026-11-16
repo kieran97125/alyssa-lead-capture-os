@@ -92,3 +92,5 @@ Rollback: revert the catch-up wrapper and unobserved source policy independently
 ## Provider transport qualification follow-up
 
 The separately reviewed PR #161 queue/finalizer adapters were integrated while preserving this branch’s sidebar backoff and accepted-allocation recovery. Repository flags remain disabled by default. Actual isolated Google runs established 27 queue assertions and 59 finalizer assertions; the latter explicitly retains `activationQualified:false` for operator review. See `2026-11-16-native-provider-qualification.md` for the measured contract and production canary boundary.
+
+The complete job's identity stage now defers its scoped display refresh to the final projection, while retaining the source/registry/queue readback. This avoids another full-grid display read after each accepted identity batch. Immediate staff-edit display behavior is retained. All native suites passed with 102 identity cases and 56 controller/sidebar cases. Experimental API activation remains blocked and both flags are verified false; qualification continues on the ordinary native path.

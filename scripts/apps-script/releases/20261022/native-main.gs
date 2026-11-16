@@ -1887,7 +1887,7 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
         const queue=oa3ManualQueueSnapshot_(ss.getSheetByName(OA2.ARRIVAL));
         if(recoveryAccount&&booked.some(item=>!oa2PendingQueueRecoverySafe_(item.record,queue.find(q=>q.appointmentId===item.record.appointmentId),ctx.appointments[item.record.appointmentId]))){result.blocked=true;result.review++;result.reviewReasons.push('pending_queue_recovery_review');return;}
         oa3ManualPhase_(timings,'ownershipGuardMs',()=>oa2AssertIdentityClaimsFresh_(ss,booked));
-        const receipt=oa3ManualPhase_(timings,'bookingCommitMs',()=>oa3CommitIdentityBookings_(ss,booked,[snap],queue,ctx,{staffEdit:!!options.staffEdit,manualRequested:admittedManual,bookingMutation:!!options.bookingMutation}));
+        const receipt=oa3ManualPhase_(timings,'bookingCommitMs',()=>oa3CommitIdentityBookings_(ss,booked,[snap],queue,ctx,{staffEdit:!!options.staffEdit,manualRequested:admittedManual,bookingMutation:!!options.bookingMutation,deferDisplay:options.deferDisplay===true}));
         result.registered+=receipt.registered;result.recovered+=receipt.recovered;result.bookedAdded+=recoveryAccount?0:receipt.added;result.review+=receipt.review;
         (receipt.reviews||[]).forEach(review=>{result.reviewReasons.push(review.reason);if(options.staffEdit||admittedManual||!omniStaffPriorityActive_())oa2IdentityNotes_(snap.sheet,snap.c,booked.filter(item=>item.record.row===review.row).map(item=>item.record),snap.values,2,snap.meta,review.reason,false);});
         if(options.staffEdit||admittedManual||!omniStaffPriorityActive_())oa2IdentityNotes_(snap.sheet,snap.c,booked.filter(item=>(receipt.acceptedRows||[]).includes(item.record.row)).map(item=>item.record),snap.values,2,snap.meta,'',true);
