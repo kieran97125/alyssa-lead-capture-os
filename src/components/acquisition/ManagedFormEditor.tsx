@@ -42,9 +42,10 @@ export function ManagedFormEditor({ config, setting, selectedPackageIds, selecte
   const values = useWatch({ control: form.control, compute: (fields: ManagedFormFields) => fields });
   const brand = config.brands.find(item => item.id === setting.brandId);
   const treatments = config.treatments.filter(item => item.brandId === setting.brandId && (item.status === "active" || item.id === values.defaultTreatmentId));
-  const offers = config.packages.filter(item => item.treatmentId === values.defaultTreatmentId && (item.status === "active" || item.id === values.defaultPackageId || values.packageIds.includes(item.id)));
-  const brandTreatmentIds = new Set(config.treatments.filter(item => item.brandId === setting.brandId).map(item => item.id));
-  const choiceOffers = config.packages.filter(item => brandTreatmentIds.has(item.treatmentId) && (item.status === "active" || values.packageIds.includes(item.id)));
+  const brandTreatments = new Map(config.treatments.filter(item => item.brandId === setting.brandId).map(item => [item.id, item]));
+  const isOfferActive = (item: AcquisitionConfiguration["packages"][number]) => item.status === "active" && brandTreatments.get(item.treatmentId)?.status === "active";
+  const offers = config.packages.filter(item => item.treatmentId === values.defaultTreatmentId && (isOfferActive(item) || item.id === values.defaultPackageId || values.packageIds.includes(item.id)));
+  const choiceOffers = config.packages.filter(item => brandTreatments.has(item.treatmentId) && (isOfferActive(item) || values.packageIds.includes(item.id) || item.id === values.defaultPackageId));
   const branches = config.branches.filter(item => item.brandId === setting.brandId && (item.status === "active" || item.id === values.defaultBranchId || values.branchIds.includes(item.id)));
   const error = (name: keyof ManagedFormFields) => form.formState.errors[name]?.message;
   const errorText = (name: keyof ManagedFormFields) => error(name) ? <span role="alert" className="mt-2 block text-xs text-system-destructive">{error(name)}</span> : null;
@@ -57,7 +58,12 @@ export function ManagedFormEditor({ config, setting, selectedPackageIds, selecte
   }
   function toggleSelection(key: "packageIds" | "branchIds", id: string, checked: boolean) {
     const current = form.getValues(key);
-    form.setValue(key, checked ? [...new Set([...current, id])] : current.filter(value => value !== id), { shouldDirty: true });
+    const next = checked ? [...new Set([...current, id])] : current.filter(value => value !== id);
+    form.setValue(key, next, { shouldDirty: true });
+    if (key === "packageIds" && !checked && id === values.defaultPackageId) {
+      const replacement = config.packages.find(item => next.includes(item.id) && item.treatmentId === values.defaultTreatmentId && isOfferActive(item));
+      form.setValue("defaultPackageId", replacement?.id ?? "", { shouldDirty: true });
+    }
   }
   function save(fields: ManagedFormValues) {
     if (submissionLock.current) return;
@@ -97,7 +103,7 @@ export function ManagedFormEditor({ config, setting, selectedPackageIds, selecte
         const id = e.target.value;
         form.setValue("defaultPackageId", id, { shouldDirty: true });
         form.setValue("packageIds", values.packageSelectionMode === "fixed" ? [id].filter(Boolean) : [...new Set([...values.packageIds, id])].filter(Boolean), { shouldDirty: true });
-      }} aria-invalid={!!error("defaultPackageId")}><option value="">請選擇優惠</option>{offers.map(item => <option key={item.id} value={item.id}>{packagePriceLabel(item)}{item.status === "active" ? "" : "（已停用）"}</option>)}</select>{errorText("defaultPackageId")}</label>
+      }} aria-invalid={!!error("defaultPackageId")}><option value="">請選擇優惠</option>{offers.map(item => <option key={item.id} value={item.id}>{packagePriceLabel(item)}{isOfferActive(item) ? "" : "（已停用）"}</option>)}</select>{errorText("defaultPackageId")}</label>
       <label className="text-sm font-medium">預設分店<select aria-label="預設分店" className={acquisitionFieldClass} value={values.defaultBranchId} onChange={e => {
         const id = e.target.value;
         form.setValue("defaultBranchId", id, { shouldDirty: true });
@@ -112,7 +118,7 @@ export function ManagedFormEditor({ config, setting, selectedPackageIds, selecte
           form.setValue("packageSelectionMode", e.target.checked ? "customer_choice" : "fixed", { shouldDirty: true });
           if (!e.target.checked) form.setValue("packageIds", [values.defaultPackageId].filter(Boolean), { shouldDirty: true });
         }} />讓客人自行選擇優惠</label>
-        {values.packageSelectionMode === "customer_choice" ? <fieldset className="grid gap-2"><legend className="mb-2 text-sm font-medium">可選優惠</legend>{choiceOffers.map(item => <label key={item.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.packageIds.includes(item.id) || item.id === values.defaultPackageId} disabled={item.id === values.defaultPackageId} onChange={e => toggleSelection("packageIds", item.id, e.target.checked)} />{config.treatments.find(treatment => treatment.id === item.treatmentId)?.name} · {packagePriceLabel(item)}{item.status === "active" ? "" : "（已停用，請重新選擇）"}</label>)}</fieldset> : null}
+        {values.packageSelectionMode === "customer_choice" ? <fieldset className="grid gap-2"><legend className="mb-2 text-sm font-medium">可選優惠</legend>{choiceOffers.map(item => <label key={item.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.packageIds.includes(item.id) || item.id === values.defaultPackageId} disabled={item.id === values.defaultPackageId && isOfferActive(item)} onChange={e => toggleSelection("packageIds", item.id, e.target.checked)} />{brandTreatments.get(item.treatmentId)?.name} · {packagePriceLabel(item)}{isOfferActive(item) ? "" : "（已停用，請重新選擇）"}</label>)}</fieldset> : null}
         {branches.length > 1 ? <fieldset className="grid gap-2"><legend className="mb-2 text-sm font-medium">可選分店</legend>{branches.map(item => <label key={item.id} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={values.branchIds.includes(item.id) || item.id === values.defaultBranchId} disabled={item.id === values.defaultBranchId} onChange={e => toggleSelection("branchIds", item.id, e.target.checked)} />{item.name}{item.status === "active" ? "" : "（已停用，請重新選擇）"}</label>)}</fieldset> : null}
         <label className="text-sm font-medium">額外允許網站<textarea aria-label="額外允許網站" rows={3} className={acquisitionFieldClass} {...form.register("allowedDomains")} />{errorText("allowedDomains")}<span className="mt-2 block text-xs font-normal text-system-muted-foreground">每行一個網址；一般只需填寫上方網站網址。</span></label>
       </div>

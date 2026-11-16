@@ -26,6 +26,8 @@ async function openSettings(page: Page, purpose: "wix" | "landing_page", suffix 
 
 test("one creation flow shows only the selected purpose and valid dependent choices", async ({ page }) => {
   await page.goto(fixtureUrl);
+  let actionRequests = 0;
+  page.on("request", request => { if (request.method() === "POST" && request.headers()["next-action"]) actionRequests++; });
   const form = page.getByTestId("acquisition-creation-form");
   await expect(form.getByTestId("acquisition-next")).toBeDisabled();
   await expect(form.getByTestId("acquisition-purpose-wix")).toHaveAttribute("aria-pressed", "false");
@@ -55,6 +57,8 @@ test("one creation flow shows only the selected purpose and valid dependent choi
   await expect(form.getByTestId("acquisition-step")).toHaveAttribute("data-step", "3");
   await expect(form.getByTestId("acquisition-step")).toContainText("示例美容 B");
   await expect(form.getByTestId("acquisition-step")).toContainText("我自己命名的推廣");
+  await expect(form.getByTestId("acquisition-submit")).toBeEnabled();
+  expect(actionRequests).toBe(0);
   await form.getByTestId("acquisition-submit").click();
   const submitted = JSON.parse(await page.getByTestId("acquisition-submitted").innerText());
   expect(submitted).toMatchObject({
@@ -66,10 +70,13 @@ test("one creation flow shows only the selected purpose and valid dependent choi
   expect(submitted.packageIds).toEqual([fixtureIds.offerB]);
   expect(submitted.branchIds).toEqual([fixtureIds.branchB]);
   expect(submitted.heroTitle).toBe("");
+  expect(actionRequests).toBe(1);
 });
 
 test("LP reuse is scoped to active forms and clears a previous brand selection", async ({ page }) => {
   const form = await openSettings(page, "landing_page");
+  let actionRequests = 0;
+  page.on("request", request => { if (request.method() === "POST" && request.headers()["next-action"]) actionRequests++; });
   await expect(form.getByLabel("主要標題", { exact: true })).toBeVisible();
   await expect(form.getByLabel("頁面簡介", { exact: true })).toBeVisible();
   await expect(form.getByLabel("網站網址", { exact: true })).toHaveCount(0);
@@ -86,16 +93,22 @@ test("LP reuse is scoped to active forms and clears a previous brand selection",
   await form.getByLabel("管理名稱", { exact: true }).fill("11月塑形推廣");
   await form.getByLabel("主要標題", { exact: true }).fill("我新寫的廣告標題");
   await form.getByTestId("acquisition-next").click();
+  await expect(form.getByTestId("acquisition-step")).toHaveAttribute("data-step", "3");
+  await expect(form.getByTestId("acquisition-submit")).toBeEnabled();
+  expect(actionRequests).toBe(0);
   await form.getByTestId("acquisition-submit").click();
   const submitted = JSON.parse(await page.getByTestId("acquisition-submitted").innerText());
   expect(submitted).toMatchObject({ campaignMode: "existing_form_landing_page", existingFormId: fixtureIds.activeFormB,
     brandId: fixtureIds.brandB, defaultTreatmentId: fixtureIds.treatmentB,
     defaultPackageId: fixtureIds.offerB, defaultBranchId: fixtureIds.branchB,
     heroTitle: "我新寫的廣告標題", placementKind: "landing_page" });
+  expect(actionRequests).toBe(1);
 });
 
 test("a new advertising page includes its new registration form without requiring Wix settings", async ({ page }) => {
   const form = await openSettings(page, "landing_page");
+  let actionRequests = 0;
+  page.on("request", request => { if (request.method() === "POST" && request.headers()["next-action"]) actionRequests++; });
   await expect(form.getByLabel("使用現有登記表格", { exact: true })).not.toBeChecked();
   await expect(form.getByLabel("現有登記表格", { exact: true })).toHaveCount(0);
   await form.getByLabel("管理名稱", { exact: true }).fill("11月面部體驗推廣");
@@ -104,11 +117,14 @@ test("a new advertising page includes its new registration form without requirin
   await form.getByTestId("acquisition-next").click();
   await expect(form.getByTestId("acquisition-step")).toHaveAttribute("data-step", "3");
   await expect(form.getByTestId("acquisition-step")).toContainText("會先建立草稿");
+  await expect(form.getByTestId("acquisition-submit")).toBeEnabled();
+  expect(actionRequests).toBe(0);
   await form.getByTestId("acquisition-submit").click();
   const submitted = JSON.parse(await page.getByTestId("acquisition-submitted").innerText());
   expect(submitted).toMatchObject({ campaignMode: "new_landing_page", existingFormId: "",
     formName: "11月面部體驗推廣", pageTitle: "11月面部體驗推廣", placementKind: "landing_page",
     placementUrl: "", heroTitle: "為肌膚安排一次休息", heroSubtitle: "登記後由同事安排合適時間。" });
+  expect(actionRequests).toBe(1);
 });
 
 test("an incomplete Wix address keeps the operator beside the field that needs attention", async ({ page }) => {
@@ -130,10 +146,13 @@ test("a failed save retains choices and retry identity while a pending save cann
   await form.getByLabel("預設分店", { exact: true }).selectOption(fixtureIds.branchASecond);
   const requestId = await form.locator('input[name="requestId"]').inputValue();
   expect(requestId).toMatch(uuid);
-  await form.getByTestId("acquisition-next").click();
   let submits = 0;
   page.on("request", request => { if (request.method() === "POST" && request.headers()["next-action"]) submits++; });
+  await form.getByTestId("acquisition-next").click();
   const submit = form.getByTestId("acquisition-submit");
+  await expect(form.getByTestId("acquisition-step")).toHaveAttribute("data-step", "3");
+  await expect(submit).toBeEnabled();
+  expect(submits).toBe(0);
   await submit.focus(); await page.keyboard.press("Enter");
   await expect(submit).toBeDisabled();
   await page.keyboard.press("Enter");
@@ -297,7 +316,7 @@ test("a rejected registration setting update keeps the operator's modified field
   const form = page.getByTestId("form-settings-card");
   await form.getByLabel("管理名稱", { exact: true }).fill("尚未成功儲存的名稱");
   await form.getByLabel("網站網址", { exact: true }).fill("https://example.test/retained");
-  const save = form.getByRole("button", { name: "儲存設定", exact: true });
+  const save = form.getByTestId("form-settings-actions").getByRole("button");
   await save.click();
   await expect(save).toBeDisabled();
   await expect(form.getByRole("alert")).toHaveText("暫時未能儲存，請再試一次。");
@@ -305,6 +324,29 @@ test("a rejected registration setting update keeps the operator's modified field
   await expect(form.getByLabel("管理名稱", { exact: true })).toHaveValue("尚未成功儲存的名稱");
   await expect(form.getByLabel("網站網址", { exact: true })).toHaveValue("https://example.test/retained");
   await expect(form.locator('input[name="expectedRevision"]')).toHaveValue("1");
+});
+
+test("inactive legacy offer choices remain removable while unselected inactive treatment offers stay unavailable", async ({ page }) => {
+  await page.goto(`${fixtureUrl}?view=form-editor&inactiveChoices=1`, { waitUntil: "networkidle" });
+  const form = page.getByTestId("form-settings-card");
+  await form.locator("summary").filter({ hasText: "更多表格設定" }).click();
+  await expect(form.getByLabel("讓客人自行選擇優惠", { exact: true })).toBeChecked();
+  await expect(form.getByLabel("療程", { exact: true }).locator(`option[value="${fixtureIds.body}"]`)).toHaveCount(0);
+  await expect(form.getByRole("checkbox", { name: /未選取的停用療程優惠/ })).toHaveCount(0);
+  const archivedTreatmentOffer = form.getByRole("checkbox", { name: /輕盈身體體驗.*已停用，請重新選擇/ });
+  const archivedOffer = form.getByRole("checkbox", { name: /已停用舊優惠.*已停用，請重新選擇/ });
+  await expect(archivedTreatmentOffer).toBeChecked();
+  await expect(archivedTreatmentOffer).toBeEnabled();
+  await expect(archivedOffer).toBeChecked();
+  await expect(archivedOffer).toBeEnabled();
+  await archivedTreatmentOffer.uncheck();
+  await expect(archivedTreatmentOffer).toHaveCount(0);
+  await archivedOffer.uncheck();
+  await expect(archivedOffer).toHaveCount(0);
+  await form.getByRole("button", { name: "儲存設定", exact: true }).click();
+  const submitted = JSON.parse(await page.getByTestId("acquisition-submitted").innerText());
+  expect(submitted.packageIds).toEqual([fixtureIds.faceOffer]);
+  expect(submitted.defaultPackageId).toBe(fixtureIds.faceOffer);
 });
 
 for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 844]] as const) {
@@ -407,7 +449,8 @@ test("shared form offer changes update operational pricing while saved authored 
   await expect(page.getByRole("heading", { name: "尚未發布的草稿標題", exact: true })).toBeVisible();
   await expect(page.getByText("這是已儲存草稿的內容，公開頁尚未更新。", { exact: true }).first()).toBeVisible();
   await expect(page.getByText("A 分店二 · 身體護理", { exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: /登記.*580.*優惠/ })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "登記 HK$580 優惠", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "立即登記 HK$580 優惠", exact: true })).toBeVisible();
   await expect(page.locator("form")).toContainText("輕盈身體體驗");
   await expect(page.getByRole("heading", { name: /登記.*480.*優惠/ })).toHaveCount(0);
 });
@@ -426,7 +469,7 @@ test("catalogue distinguishes unavailable observations from a verified empty his
   await expect(duplicate.locator('input[name="expectedRevision"]')).toHaveValue("1");
   expect(await duplicate.locator('input[name="requestId"]').inputValue()).toMatch(uuid);
   await page.goto(`${fixtureUrl}?view=catalogue&tab=pages&unavailable=1`);
-  await expect(page.getByRole("alert")).toContainText("暫時未能讀取廣告頁");
+  await expect(page.getByTestId("acquisition-fixture").getByRole("alert")).toContainText("暫時未能讀取廣告頁");
   await expect(page.getByText("未有符合條件的廣告頁", { exact: true })).toHaveCount(0);
   await expect(page.getByTestId("landing-page-list")).toHaveCount(0);
 });

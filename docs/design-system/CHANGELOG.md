@@ -224,3 +224,7 @@ Expanded the graph to the available width, moved inspection into an optional ove
 
 Private source-scoped file library, nested Drive reconciliation, literal Chinese search, folder browsing and file-to-Job actions. Uses existing System controls and owner access; adds bounded PDF extraction. Decision and rollback: `decisions/2026-11-11-connected-work-resources.md`.
 
+## 2026-11-16 — Form and advertising-page management
+
+Unified acquisition navigation and guided creation; compact form settings and Wix installation; retained failed editor inputs; revision-safe publication and protected real previews; retired noisy Lead row-change monitoring. Reused System controls and added bounded React Hook Form/Zod integration. Evidence, remaining asset workflow and recovery: `decisions/2026-11-16-acquisition-management.md`.
+

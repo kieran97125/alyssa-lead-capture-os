@@ -28,12 +28,19 @@ async function inspectSubmission(formData: FormData, failure: boolean, actionNam
 }
 
 export default async function AcquisitionManagementFixture({ searchParams }: {
-  searchParams: Promise<{ view?: string; purpose?: string; action?: string; submitted?: string; tab?: string; unavailable?: string; disabled?: string; published?: string; archived?: string }>;
+  searchParams: Promise<{ view?: string; purpose?: string; action?: string; submitted?: string; tab?: string; unavailable?: string; disabled?: string; published?: string; archived?: string; inactiveChoices?: string }>;
 }) {
   if (process.env.ALYSSA_E2E_FIXTURES !== "1") notFound();
   const query = await searchParams;
   const failure = query.action === "failure";
   const throws = query.action === "throw";
+  const editorConfig = query.inactiveChoices === "1" ? {
+    ...acquisitionFixtureConfig,
+    treatments: acquisitionFixtureConfig.treatments.map(item => item.id === fixtureIds.body ? { ...item, status: "archived" } : item),
+    packages: [...acquisitionFixtureConfig.packages, { ...acquisitionFixtureConfig.packages.find(item => item.id === fixtureIds.bodyOffer)!,
+      id: "a3000000-0000-4000-8000-000000000004", name: "未選取的停用療程優惠" }],
+    forms: acquisitionFixtureConfig.forms.map(item => item.id === fixtureIds.activeFormA ? { ...item, packageSelectionMode: "customer_choice" as const } : item),
+  } : acquisitionFixtureConfig;
   if (query.view === "preview") return <div data-testid="acquisition-preview-fixture">
     <LandingPageView page={acquisitionFixtureDraft} config={acquisitionFixtureConfig} preview />
   </div>;
@@ -69,9 +76,9 @@ export default async function AcquisitionManagementFixture({ searchParams }: {
           <label className="grid gap-2 text-sm font-medium">主標題<input name="heroTitle" defaultValue="尚未發布的草稿標題" className="rounded-[var(--radius-control)] border border-system-input bg-system-background px-3 py-3" /></label>
           <label className="grid gap-2 text-sm font-medium">補充說明<textarea name="heroSubtitle" defaultValue="登記後由同事安排合適時間。" rows={3} className="rounded-[var(--radius-control)] border border-system-input bg-system-background px-3 py-3" /></label>
         </section>
-      </LandingPageEditorForm> : query.view === "form-editor" ? <ManagedFormEditor config={acquisitionFixtureConfig}
-        setting={acquisitionFixtureConfig.forms.find(form => form.id === (query.archived === "1" ? fixtureIds.stoppedFormA : fixtureIds.activeFormA))!}
-        selectedPackageIds={[query.archived === "1" ? fixtureIds.bodyOffer : fixtureIds.faceOffer]}
+      </LandingPageEditorForm> : query.view === "form-editor" ? <ManagedFormEditor config={editorConfig}
+        setting={editorConfig.forms.find(form => form.id === (query.archived === "1" ? fixtureIds.stoppedFormA : fixtureIds.activeFormA))!}
+        selectedPackageIds={query.inactiveChoices === "1" ? [fixtureIds.faceOffer, fixtureIds.bodyOffer, fixtureIds.inactiveOffer] : [query.archived === "1" ? fixtureIds.bodyOffer : fixtureIds.faceOffer]}
         selectedBranchIds={[query.archived === "1" ? fixtureIds.branchASecond : fixtureIds.branchA]}
         action={async data => { "use server"; return inspectSubmission(data, failure, "form-edit", throws); }} /> : query.view === "catalogue" ? <AcquisitionCatalogue config={acquisitionFixtureConfig} pages={[acquisitionFixtureDraft]}
         activity={activity} tab={query.tab === "pages" ? "pages" : "forms"} query={{}} pagesAvailable={query.unavailable !== "1"} /> : query.view === "setup" ? (

@@ -183,7 +183,7 @@ export function AcquisitionCreationForm({ config, initialBrandId, initialMode, a
     </section>
     <div className="flex items-center justify-between gap-3">
       {step > 1 ? <SystemButton type="button" variant="outline" disabled={pending} data-testid="acquisition-back" onClick={() => { setFailure(null); setStep(step - 1); }}><ArrowLeft size={16} />上一步</SystemButton> : <span />}
-      {step < 3 ? <SystemButton type="button" disabled={!purpose} data-testid="acquisition-next" onClick={() => { void next(); }}>繼續<ArrowRight size={16} /></SystemButton> : <SystemButton type="submit" disabled={pending} aria-busy={pending} data-testid="acquisition-submit">{pending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" size={16} /> : <Check size={16} />}{pending ? "建立中…" : purpose === "wix" ? "建立登記表格" : "建立廣告頁草稿"}</SystemButton>}
+      {step < 3 ? <SystemButton key="next" type="button" disabled={!purpose} data-testid="acquisition-next" onClick={event => { event.preventDefault(); void next(); }}>繼續<ArrowRight size={16} /></SystemButton> : <SystemButton key="submit" type="submit" disabled={pending} aria-busy={pending} data-testid="acquisition-submit">{pending ? <LoaderCircle className="animate-spin motion-reduce:animate-none" size={16} /> : <Check size={16} />}{pending ? "建立中…" : purpose === "wix" ? "建立登記表格" : "建立廣告頁草稿"}</SystemButton>}
     </div>
   </form>;
 }
