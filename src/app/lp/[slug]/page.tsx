@@ -41,6 +41,7 @@ import {
   getLegalFooterText,
 } from "@/lib/legal/consent";
 import { resolveBrandPixelId } from "@/lib/metaPixel/configuration";
+import { getPublicOfferCopy } from "@/lib/landingPages/publicCopy";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -212,7 +213,7 @@ export async function generateMetadata({
   if (!page) {
     return {
       title: "Campaign Landing Page",
-      description: "Ineffable Beauty campaign landing page",
+      description: "療程優惠及登記詳情",
     };
   }
 
@@ -305,14 +306,22 @@ export default async function PublicLandingPage({
   const themeStyle = publicThemeStyle(theme) as CSSProperties;
   const isIneffable = theme.key === "ineffable" || isIneffableCanonical;
   const brandDisplayName = isIneffable ? "Ineffable Beauty" : publicBrand.name;
-  const promoPrice = Number(selectedPackage.promoPrice ?? 0);
-  const price = promoPrice > 0 ? `HK$${promoPrice}` : "預約查詢";
-  const heroTitle =
-    page.heroTitle || (isIneffable ? "$388 柔清舒敏針清" : page.title);
+  const offerCopy = getPublicOfferCopy({
+    brandName: brandDisplayName,
+    treatmentName: selectedTreatment.name,
+    treatmentDescription: selectedTreatment.description,
+    packageName: selectedPackage.name,
+    branchName: selectedBranch.name,
+    promoPrice: selectedPackage.promoPrice,
+    originalPrice: selectedPackage.originalPrice,
+    currency: selectedPackage.currency,
+  });
+  const price = offerCopy.priceLabel;
+  const heroTitle = page.heroTitle || offerCopy.heroTitle;
   const heroSubtitle =
     page.heroSubtitle ||
-    "針對粉刺、粗糙及敏感後修護需要，提供清晰療程、價錢及分店安排。";
-  const offerBadge = page.offerBadge || `${price} 首次體驗`;
+    offerCopy.heroSubtitle;
+  const offerBadge = page.offerBadge || offerCopy.offerBadge;
   const ctaText = page.ctaText || "立即預約體驗";
   const secondaryCtaText = page.secondaryCtaText || "查看療程詳情";
   const offerSummaryImageUrl = page.offerImageUrl;
@@ -383,7 +392,7 @@ export default async function PublicLandingPage({
                   {brandDisplayName}
                 </p>
                 <p className="mt-1 text-[13px] font-semibold leading-5 text-[var(--public-muted)] sm:text-sm">
-                  銅鑼灣 · 針清護理 · 首次體驗
+                  {offerCopy.locationTreatmentSummary}
                 </p>
               </div>
             </div>
@@ -440,10 +449,10 @@ export default async function PublicLandingPage({
                   快速登記
                 </p>
                 <h2 className="mt-2 text-[22px] font-bold leading-tight text-[var(--public-heading)] sm:mt-3 sm:text-3xl md:text-4xl">
-                  立即登記 $388 首次體驗
+                  {offerCopy.registrationTitle}
                 </h2>
                 <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--public-muted)] sm:mt-3 sm:leading-7">
-                  填寫簡單資料，Ineffable Beauty 團隊會透過 WhatsApp 跟進確認。
+                  {offerCopy.followUpText}
                 </p>
               </div>
               <MotionAnchor
@@ -514,10 +523,10 @@ export default async function PublicLandingPage({
                   預約表格
                 </p>
                 <h2 className="mt-3 text-4xl font-bold leading-tight text-[var(--public-heading)]">
-                  立即預約 $388 優惠
+                  {offerCopy.formTitle}
                 </h2>
                 <p className="mt-4 text-sm leading-7 text-[var(--public-muted)]">
-                  填寫資料後，Ineffable Beauty 團隊會透過 WhatsApp 跟進確認。
+                  {offerCopy.followUpText}
                 </p>
                 <img
                   src={formSideImageUrl}
@@ -535,10 +544,10 @@ export default async function PublicLandingPage({
                     預約表格
                   </p>
                   <h2 className="mt-2 text-[24px] font-bold leading-tight text-[var(--public-heading)] sm:mt-3 sm:text-4xl">
-                    立即預約 $388 優惠
+                    {offerCopy.formTitle}
                   </h2>
                   <p className="mt-3 text-sm leading-6 text-[var(--public-muted)] sm:mt-4 sm:leading-7">
-                    填寫資料後，Ineffable Beauty 團隊會透過 WhatsApp 跟進確認。
+                    {offerCopy.followUpText}
                   </p>
                 </div>
               )}

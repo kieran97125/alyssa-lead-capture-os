@@ -480,3 +480,102 @@ export async function appendLeadViaNativeGoogleSheets(input: {
     throw error;
   }
 }
+
+// Durable intake delivery uses an explicit identity/reconciliation contract.
+// Keep the legacy caller above unchanged until its own consumers are migrated.
+export async function deliverCapturedLeadToNativeSheet(input: {
+  brandId: string;
+  payload: GoogleSheetsLeadWebhookPayload;
+  pinnedTarget: import("@/lib/capture/deliveryPolicy").PublicLeadDeliveryTarget | null;
+  reconcileOnly: boolean;
+  beforeAppend: (target: import("@/lib/capture/deliveryPolicy").PublicLeadDeliveryTarget) => Promise<boolean>;
+}): Promise<import("@/lib/capture/deliveryPolicy").PublicLeadDeliveryOutcome> {
+  const { deliveryIdentityMatches, classifyAppendResponse } = await import("@/lib/capture/deliveryPolicy");
+  const { normalizePhone } = await import("@/lib/attribution/classify");
+  const timeoutMs = 10_000;
+  const maxLookupRows = 50_000;
+  let target = input.pinnedTarget;
+  let appendIssued = false;
+  async function googleJson(url: string) {
+    const accessToken = await getGoogleSheetsOAuthAccessToken({ requireWrite: true });
+    const response = await fetch(url, {
+      headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json" },
+      cache: "no-store", signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) throw new Error(`sheet_read_${response.status}`);
+    return await response.json() as Record<string, unknown>;
+  }
+  try {
+    if (!hasSupabaseAdminEnv()) return { status: "retry", code: "database_unavailable", safeToRetry: true };
+    const oauthStatus = await getGoogleSheetsOAuthStatus();
+    if (!oauthStatus.writeEnabled) return { status: "blocked", code: "oauth_write_scope_missing", safeToRetry: true };
+    let payload = input.payload;
+    if (!target) {
+      const { destination, ambiguous } = await getLeadDestination(input.brandId);
+      if (ambiguous || !destination) return { status: "blocked", code: ambiguous ? "destination_ambiguous" : "destination_missing", safeToRetry: true };
+      const routed = routePayload(destination.configuration, payload);
+      payload = routed.payload;
+      target = { sourceId: destination.id, spreadsheetId: spreadsheetId(destination.configuration), tabName: routed.route.tabName || tabName(destination.configuration), headerRow: headerRowValue(destination.configuration.headerRow), sheetBrand: routed.payload.brand, account: routed.payload.account };
+    }
+    if (input.pinnedTarget) {
+      const rowValues = [...payload.rowValues];
+      const brandIndex = payload.headers.indexOf("品牌");
+      const accountIndex = payload.headers.indexOf("Account");
+      if (brandIndex >= 0) rowValues[brandIndex] = target.sheetBrand;
+      if (accountIndex >= 0) rowValues[accountIndex] = target.account;
+      payload = { ...payload, brand: target.sheetBrand, account: target.account, rowValues };
+    }
+    const base = `${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(target.spreadsheetId)}`;
+    const headerRange = `${quoteSheetName(target.tabName)}!${target.headerRow}:${target.headerRow}`;
+    const [metadata, headerBody] = await Promise.all([
+      googleJson(`${base}?fields=${encodeURIComponent("sheets(properties(title,gridProperties(rowCount)))")}`),
+      googleJson(`${base}/values/${encodeURIComponent(headerRange)}?valueRenderOption=FORMATTED_VALUE`),
+    ]);
+    const sheets = Array.isArray(metadata.sheets) ? metadata.sheets as Array<{properties?: {title?: string;gridProperties?: {rowCount?: number}}}> : [];
+    const sheet = sheets.find((entry) => entry.properties?.title === target!.tabName);
+    const rowCount = sheet?.properties?.gridProperties?.rowCount;
+    if (!Number.isInteger(rowCount) || !rowCount || rowCount > maxLookupRows) return { status: "blocked", code: "destination_lookup_incomplete", target, safeToRetry: true };
+    const rows = Array.isArray(headerBody.values) ? headerBody.values as unknown[][] : [];
+    const headers = (rows[0] ?? []).map((entry) => String(entry ?? ""));
+    if (headers.length === 0 || headers.length > MAX_HEADER_COLUMNS) return { status: "blocked", code: "destination_header_invalid", target, safeToRetry: true };
+    let values: string[];
+    try { values = alignLeadRowToDestinationHeaders(headers, payload); }
+    catch { return { status: "blocked", code: "destination_header_mismatch", target, safeToRetry: true }; }
+    const identityColumns = headers.flatMap((header, index) => header.trim().toLowerCase() === "omni lead id" ? [index] : []);
+    const phoneColumns = headers.flatMap((header, index) => header.trim() === "電話" ? [index] : []);
+    if (identityColumns.length !== 1 || phoneColumns.length !== 1) return { status: "blocked", code: "destination_stable_identity_missing", target, safeToRetry: true };
+    const idColumn = columnFromIndex(identityColumns[0]);
+    const firstRow = target.headerRow + 1;
+    const identityRange = `${quoteSheetName(target.tabName)}!${idColumn}${firstRow}:${idColumn}${rowCount}`;
+    const identityBody = rowCount >= firstRow ? await googleJson(`${base}/values/${encodeURIComponent(identityRange)}?valueRenderOption=UNFORMATTED_VALUE`) : {};
+    const identityValues = Array.isArray(identityBody.values) ? identityBody.values as unknown[][] : [];
+    const matches = deliveryIdentityMatches(identityValues, payload.leadKey);
+    if (matches.length > 1) return { status: "blocked", code: "destination_duplicate_identity", target };
+    if (matches.length === 1) {
+      const row = firstRow + matches[0];
+      const phoneColumn = columnFromIndex(phoneColumns[0]);
+      const phoneBody = await googleJson(`${base}/values/${encodeURIComponent(`${quoteSheetName(target.tabName)}!${phoneColumn}${row}:${phoneColumn}${row}`)}?valueRenderOption=UNFORMATTED_VALUE`);
+      const foundPhone = String((phoneBody.values as unknown[][] | undefined)?.[0]?.[0] ?? "");
+      if (normalizePhone(foundPhone) !== normalizePhone(payload.phone)) return { status: "blocked", code: "destination_identity_phone_mismatch", target };
+      return { status: "delivered", code: "sheet_delivery_reconciled", target, updatedRange: `${quoteSheetName(target.tabName)}!A${row}:${columnFromIndex(headers.length - 1)}${row}` };
+    }
+    if (input.reconcileOnly) return { status: "uncertain", code: "sheet_append_not_confirmed", target };
+    // Persist target + append intent with the current lease before issuing a write.
+    // A failure here is ambiguous from the journal's perspective; recovery reads only.
+    if (!await input.beforeAppend(target)) return { status: "blocked", code: "delivery_lease_lost", target };
+    const accessToken = await getGoogleSheetsOAuthAccessToken({ requireWrite: true });
+    const range = `${quoteSheetName(target.tabName)}!A${target.headerRow}:${columnFromIndex(values.length - 1)}`;
+    const query = new URLSearchParams({ valueInputOption: "RAW", insertDataOption: "INSERT_ROWS", includeValuesInResponse: "false" });
+    appendIssued = true;
+    const response = await fetch(`${base}/values/${encodeURIComponent(range)}:append?${query.toString()}`, {
+      method: "POST", headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ majorDimension: "ROWS", values: [values] }), cache: "no-store", signal: AbortSignal.timeout(timeoutMs),
+    });
+    if (!response.ok) return { ...classifyAppendResponse(response.status), target };
+    const result = await response.json() as {updates?: {updatedRows?: number;updatedRange?: string}};
+    if (result.updates?.updatedRows !== 1 || !result.updates.updatedRange) return { status: "uncertain", code: "sheet_append_receipt_incomplete", target };
+    return { status: "delivered", code: "sheet_delivery_appended", target, updatedRange: result.updates.updatedRange };
+  } catch {
+    return { status: appendIssued || input.reconcileOnly ? "uncertain" : "retry", code: appendIssued ? "sheet_append_network_uncertain" : "sheet_delivery_read_failed", target: target ?? undefined, safeToRetry: !appendIssued && !input.reconcileOnly };
+  }
+}

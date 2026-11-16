@@ -4,9 +4,22 @@ import {
   type CrmInboxPreset,
 } from "@/components/crm/CrmInboxTable";
 import { CrmShell } from "@/components/crm/CrmShell";
+import { DashboardRegionState } from "@/components/command-center/DashboardRegionState";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import { getCrmSettings } from "@/lib/crm/settingsLoader";
 import { getWhatsAppConnectionByBrandSlug } from "@/lib/crm/whatsapp";
+import { withCrmBrandScope } from "@/lib/crm/navigation";
+import { crmWhatsAppSettingsHref, resolveCrmChannelReadiness, resolveSingleCrmBrand } from "@/lib/crm/channelReadiness";
+import {
+  filterCrmBookingQueue,
+  isCrmOverdueFollowUp,
+  isCrmPendingShowOutcome,
+  isCrmToday,
+  isCrmTodayBooking,
+  isCrmTodayFollowUp,
+  matchesCrmQueue,
+  parseCrmBookingDateTime,
+} from "@/lib/crm/operationQueues";
 import { cleanAttributionText } from "@/lib/attribution/display";
 import {
   summarizeCrmCases,
@@ -90,6 +103,7 @@ export default async function CrmPage({
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
 }) {
   const query = await searchParams;
+  const operationsNow = Date.now();
   const activeTab = normalizeCrmTab(firstQueryValue(query?.tab));
   const range = parseRange(query?.range);
   const search = firstQueryValue(query?.search)?.trim() || "";
@@ -114,6 +128,7 @@ export default async function CrmPage({
   );
   const leadResultPromise = getLeadRows(range, leadLimit, {
     query: search,
+    completeness: "complete",
     brandIds: selectedBrandScope
       ? brandsForScope(configuredBrands ?? [], selectedBrandScope).map(
           (brand) => brand.id
@@ -124,19 +139,32 @@ export default async function CrmPage({
     leadResultPromise,
     configuredBrands ? Promise.resolve(configuredBrands) : configuredBrandsPromise,
   ]);
+  const retryParams = new URLSearchParams();
+  for (const [key, value] of Object.entries(query ?? {})) {
+    const first = firstQueryValue(value);
+    if (first) retryParams.set(key, first);
+  }
+  const retryHref = `/crm?${retryParams.toString()}`;
+  if (error) return <CrmReadUnavailable activeTab={activeTab} retryHref={retryHref} brandScope={selectedBrandScope} />;
   const leadById = new Map(leads.map((lead) => [lead.id, lead]));
   const crmBrands = resolvedBrands.map((item) => ({
     id: item.id,
     name: item.name,
     slug: item.slug,
   }));
-  const [runtime, crmCasesByLeadId, crmSettings] = await Promise.all([
+  const [runtime, crmSettings] = await Promise.all([
     getCrmRuntimeStatus(),
-    getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id)),
     getCrmSettings(),
   ]);
-  const caseIds = Array.from(crmCasesByLeadId.values()).map((item) => item.id);
-  const bookingsByCaseId = await getCrmBookingsByCaseIds(caseIds);
+  let crmCasesByLeadId: Map<string, CrmLeadCaseRecord>;
+  let bookingsByCaseId: Map<string, CrmBookingRecord>;
+  try {
+    crmCasesByLeadId = await getCrmCasesBySourceLeadIds(leads.map((lead) => lead.id), { completeness: "complete" });
+    const caseIds = Array.from(crmCasesByLeadId.values()).map((item) => item.id);
+    bookingsByCaseId = await getCrmBookingsByCaseIds(caseIds, { completeness: "complete" });
+  } catch {
+    return <CrmReadUnavailable activeTab={activeTab} retryHref={retryHref} brandScope={selectedBrandScope} />;
+  }
 
   const enrichedCases = leads.map((lead) => {
     const record = crmCasesByLeadId.get(lead.id) ?? null;
@@ -173,7 +201,7 @@ export default async function CrmPage({
     }
     return true;
   });
-  const summary = getCommandCenterSummary(baseFilteredCases);
+  const summary = getCommandCenterSummary(baseFilteredCases, operationsNow);
   const conversion = getConversionOverview(baseFilteredCases);
   const conversionBreakdown = getConversionBreakdown(baseFilteredCases);
   const sourceQualityRows = getSourceQualityRows(baseFilteredCases);
@@ -192,12 +220,10 @@ export default async function CrmPage({
   const readinessSummary = getOutcomeReadinessSummary(outcomeRows);
   const trackingCaptureAudit = getTrackingCaptureAudit(baseFilteredCases, leadById);
   const workbenchCases = baseFilteredCases
-    .filter((item) => (queue ? matchesQueue(item, queue) : true))
-    .sort(comparePriority);
-  const bookingCases = baseFilteredCases
-    .filter((item) => item.status === "booked" || isTodayBooking(item) || isPendingShowOutcome(item))
-    .filter((item) => (queue ? matchesQueue(item, queue) : true))
-    .sort(comparePriority);
+    .filter((item) => (queue ? matchesQueue(item, queue, operationsNow) : true))
+    .sort((a, b) => comparePriority(a, b, operationsNow));
+  const bookingCases = filterCrmBookingQueue(baseFilteredCases, queue, operationsNow)
+    .sort((a, b) => comparePriority(a, b, operationsNow));
   const visibleCases =
     activeTab === "bookings"
       ? bookingCases
@@ -205,7 +231,7 @@ export default async function CrmPage({
   const activeSubTabs = activeTab === "bookings" ? bookingSubTabs : inboxSubTabs;
   const activeQueueOptions = activeTab === "bookings" ? bookingQueueOptions : queueOptions;
   const dashboardCards = [
-    { label: "今日新 Lead", value: countTodayCreated(baseFilteredCases), href: "/crm?tab=leads" },
+    { label: "今日新 Lead", value: countTodayCreated(baseFilteredCases, operationsNow), href: "/crm?tab=leads" },
     { label: "待跟進", value: summary.newLeads, href: "/crm?tab=leads&queue=new" },
     { label: "今日跟進", value: summary.todayFollowUp, href: "/crm?tab=leads&queue=follow_up_today" },
     { label: "過期未跟", value: summary.overdueFollowUp, href: "/crm?tab=leads&queue=follow_up_overdue" },
@@ -213,12 +239,18 @@ export default async function CrmPage({
     { label: "待標記到店", value: summary.pendingShowOutcome, href: "/crm?tab=bookings&queue=pending_show_outcome" },
     { label: "已預約", value: summary.booked, href: "/crm?tab=bookings&queue=booked" },
     { label: "到店結果", value: conversion.showed + conversion.noShow, href: "/crm?tab=reports" },
-  ];
-  const whatsappConnectionView =
-    await getWhatsAppConnectionByBrandSlug("ineffable");
+  ].map((card) => ({ ...card, href: withCrmBrandScope(card.href, selectedBrandScope) }));
+  const connectionBrand = resolveSingleCrmBrand(resolvedBrands, selectedBrandScope);
+  const whatsappConnectionView = connectionBrand
+    ? await getWhatsAppConnectionByBrandSlug(connectionBrand.slug || connectionBrand.id)
+    : null;
+  const channelReadiness = whatsappConnectionView
+    ? resolveCrmChannelReadiness(whatsappConnectionView)
+    : null;
 
   return (
     <CrmShell
+      brandScope={selectedBrandScope}
       active={
         activeTab === "dashboard"
           ? "dashboard"
@@ -368,11 +400,11 @@ export default async function CrmPage({
               </div>
             ) : null}
 
-            {!whatsappConnectionView.connection ? (
-              <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-900">
-                Ineffable WhatsApp 尚未連接。{" "}
+            {connectionBrand && channelReadiness && !channelReadiness.ready ? (
+              <div data-testid="crm-channel-readiness" className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[12px] font-bold text-amber-900">
+                {connectionBrand.name} WhatsApp：{channelReadiness.label}。{" "}
                 <a
-                  href="/crm/settings/whatsapp"
+                  href={crmWhatsAppSettingsHref(connectionBrand)}
                   className="font-black underline underline-offset-2"
                 >
                   前往連接
@@ -636,22 +668,35 @@ export default async function CrmPage({
             </p>
           )}
 
-          {error && (
-            <p className="border-t border-red-100 bg-red-50 px-4 py-2 text-[12px] font-semibold text-red-700">
-              CRM 暫時未能讀取最新紀錄，請稍後再試。
-            </p>
-          )}
         </header>
 
         {activeTab === "dashboard" ? (
           <CrmDashboardOverview cards={dashboardCards} />
         ) : activeTab === "reports" ? null : (
-          <CrmInboxTable cases={visibleCases} preset={viewPreset} />
+          <CrmInboxTable cases={visibleCases} preset={viewPreset} allowEmptyFixture now={operationsNow} />
         )}
       </div>
     </CrmShell>
   );
 }
+function CrmReadUnavailable({ activeTab, retryHref, brandScope }: { activeTab: CrmTabKey; retryHref: string; brandScope?: string }) {
+  return (
+    <CrmShell active={activeTab === "leads" ? "inbox" : activeTab} brandScope={brandScope}>
+      <main className="command-page">
+        <div className="command-page-inner" data-testid="crm-read-unavailable">
+          <h1 className="command-page-title">CRM</h1>
+          <DashboardRegionState
+            title="CRM 資料暫未完整"
+            failed
+            retryHref={retryHref}
+            message="暫時未能確認完整紀錄，今次不顯示隊列及統計。請重新載入；其他功能仍可使用。"
+          />
+        </div>
+      </main>
+    </CrmShell>
+  );
+}
+
 function SourceQualityTable({ rows }: { rows: SourceQualityRow[] }) {
   return (
     <div className="mt-3 overflow-hidden rounded-lg border border-[#e5e7eb] bg-white">
@@ -968,16 +1013,16 @@ function applyBookingToCase(item: CrmLeadCase, booking: CrmBookingRecord | null)
   };
 }
 
-function getCommandCenterSummary(cases: CrmLeadCase[]) {
+function getCommandCenterSummary(cases: CrmLeadCase[], now: number) {
   const base = summarizeCrmCases(cases);
   return {
     newLeads: base.pendingFollowUp,
     contacting: base.contacting,
     booked: base.booked,
-    todayFollowUp: cases.filter(isTodayFollowUp).length,
-    overdueFollowUp: cases.filter(isOverdueFollowUp).length,
-    todayBookings: cases.filter(isTodayBooking).length,
-    pendingShowOutcome: cases.filter(isPendingShowOutcome).length,
+    todayFollowUp: cases.filter((item) => isTodayFollowUp(item, now)).length,
+    overdueFollowUp: cases.filter((item) => isOverdueFollowUp(item, now)).length,
+    todayBookings: cases.filter((item) => isTodayBooking(item, now)).length,
+    pendingShowOutcome: cases.filter((item) => isPendingShowOutcome(item, now)).length,
     lost: base.lost,
     invalid: base.invalid,
   };
@@ -1795,20 +1840,20 @@ function formatPercent(value: number) {
   return `${Math.round(value * 100)}%`;
 }
 
-function comparePriority(a: CrmLeadCase, b: CrmLeadCase) {
-  const rankDelta = getPriorityRank(a) - getPriorityRank(b);
+function comparePriority(a: CrmLeadCase, b: CrmLeadCase, now: number) {
+  const rankDelta = getPriorityRank(a, now) - getPriorityRank(b, now);
   if (rankDelta !== 0) return rankDelta;
   const aTime = getSortTime(a);
   const bTime = getSortTime(b);
   return aTime - bTime;
 }
 
-function getPriorityRank(item: CrmLeadCase) {
-  if (isOverdueFollowUp(item)) return 0;
-  if (isTodayFollowUp(item)) return 1;
+function getPriorityRank(item: CrmLeadCase, now: number) {
+  if (isOverdueFollowUp(item, now)) return 0;
+  if (isTodayFollowUp(item, now)) return 1;
   if (["new", "pending_follow_up"].includes(item.status)) return 2;
   if (["contacting", "contacted"].includes(item.status)) return 3;
-  if (isPendingShowOutcome(item) || isTodayBooking(item)) return 4;
+  if (isPendingShowOutcome(item, now) || isTodayBooking(item, now)) return 4;
   if (item.status === "booked") return 5;
   return 6;
 }
@@ -1822,56 +1867,28 @@ function getSortTime(item: CrmLeadCase) {
   return parseDate(item.createdAt)?.getTime() ?? 0;
 }
 
-function matchesQueue(item: CrmLeadCase, queue: string) {
-  if (queue === "follow_up_today") return isTodayFollowUp(item);
-  if (queue === "follow_up_overdue") return isOverdueFollowUp(item);
-  if (queue === "today_bookings") return isTodayBooking(item);
-  if (queue === "pending_show_outcome") return isPendingShowOutcome(item);
-  if (queue === "contacting") return ["contacting", "contacted"].includes(item.status);
-  if (queue === "new") return ["new", "pending_follow_up"].includes(item.status);
-  return item.status === queue;
+function matchesQueue(item: CrmLeadCase, queue: string, now: number) {
+  return matchesCrmQueue(item, queue, now);
 }
 
-function isTodayFollowUp(item: CrmLeadCase) {
-  return isToday(item.nextFollowUpAt);
+function isTodayFollowUp(item: CrmLeadCase, now: number) {
+  return isCrmTodayFollowUp(item, now);
 }
 
-function isOverdueFollowUp(item: CrmLeadCase) {
-  const date = parseDate(item.nextFollowUpAt);
-  if (!date) return false;
-  return date.getTime() < Date.now() && !isToday(item.nextFollowUpAt);
+function isOverdueFollowUp(item: CrmLeadCase, now: number) {
+  return isCrmOverdueFollowUp(item, now);
 }
 
-function isTodayBooking(item: CrmLeadCase) {
-  return item.status === "booked" && isTodayDateOnly(item.confirmedBookingDate);
+function isTodayBooking(item: CrmLeadCase, now: number) {
+  return isCrmTodayBooking(item, now);
 }
 
-function isPendingShowOutcome(item: CrmLeadCase) {
-  if (item.status !== "booked") return false;
-  const bookingDate = parseBookingDateTime(item.confirmedBookingDate, item.confirmedBookingTime);
-  return Boolean(bookingDate && bookingDate.getTime() <= Date.now());
+function isPendingShowOutcome(item: CrmLeadCase, now: number) {
+  return isCrmPendingShowOutcome(item, now);
 }
 
-function isToday(value: string | null) {
-  const date = parseDate(value);
-  if (!date) return false;
-  const now = new Date();
-  return (
-    date.getFullYear() === now.getFullYear() &&
-    date.getMonth() === now.getMonth() &&
-    date.getDate() === now.getDate()
-  );
-}
-
-function countTodayCreated(cases: CrmLeadCase[]) {
-  return cases.filter((item) => isToday(item.createdAt)).length;
-}
-
-function isTodayDateOnly(value: string | null) {
-  if (!value) return false;
-  const today = new Date();
-  const todayDate = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  return value === todayDate;
+function countTodayCreated(cases: CrmLeadCase[], now: number) {
+  return cases.filter((item) => isCrmToday(item.createdAt, now)).length;
 }
 
 function parseDate(value: string | null) {
@@ -1881,10 +1898,7 @@ function parseDate(value: string | null) {
 }
 
 function parseBookingDateTime(date: string | null, time: string | null) {
-  if (!date) return null;
-  const normalizedTime = time ? (time.length === 5 ? `${time}:00` : time) : "23:59:59";
-  const parsed = new Date(`${date}T${normalizedTime}+08:00`);
-  return Number.isNaN(parsed.getTime()) ? null : parsed;
+  return parseCrmBookingDateTime(date, time);
 }
 
 function normalizeInboxPreset(value: string | string[] | undefined): CrmInboxPreset {

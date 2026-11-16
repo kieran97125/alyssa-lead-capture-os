@@ -1,5 +1,6 @@
 "use client";
 
+import { clearSubmissionIdentity, getSubmissionIdentity, type SubmissionIdentity } from "@/lib/capture/submissionIdentity";
 import dynamic from "next/dynamic";
 import {
   FormEvent,
@@ -1131,6 +1132,7 @@ export function PublicLeadForm({
   }, [brandSlug, formId, formToken, initialConfig]);
   // LAUNCHHUB_ATTRIBUTION_BRIDGE_V2
   const conversionEventSentRef = useRef(false);
+  const submissionIdentityRef = useRef<SubmissionIdentity | null>(null);
   const attributionRef = useRef<AttributionEnvelope>({});
   const parentAttributionRef = useRef<AttributionEnvelope | null>(null);
   const bridgeWaitersRef = useRef<
@@ -1416,15 +1418,7 @@ export function PublicLeadForm({
     eventAttribution: AttributionEnvelope
   ) {
     setRedirectFallbackUrl(finalRedirectUrl);
-    void logPublicEvent(
-      "form_submit_success",
-      {
-        conversion_mode: "thank_you_redirect",
-        success_redirect_url_resolved: true,
-        success_redirect_started: true,
-      },
-      eventAttribution
-    );
+
 
     if (isEmbed && window.parent && window.parent !== window) {
       window.parent.postMessage(
@@ -1863,12 +1857,15 @@ export function PublicLeadForm({
         treatment_id: selectedTreatment?.id || formData.treatment_id,
         package_id: selectedPackage?.id || formData.package_id,
       };
+      const submissionIdentity = await getSubmissionIdentity(formToken, resolvedFormData, submissionIdentityRef.current);
+      submissionIdentityRef.current = submissionIdentity;
       const response = await fetch("/api/public/leads", {
         method: "POST",
         credentials: "same-origin",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...resolvedFormData,
+          submission_id: submissionIdentity.id,
           form_token: formToken,
           form_id: formId || publicForm.id,
           first_touch_json: liveAttribution.first_touch_json || {},
@@ -1899,6 +1896,8 @@ export function PublicLeadForm({
         return;
       }
 
+      clearSubmissionIdentity(formToken, submissionIdentityRef.current);
+      submissionIdentityRef.current = null;
       const successAttribution = nextAttributionDebug?.final_current_page_url
         ? {
             ...liveAttribution,

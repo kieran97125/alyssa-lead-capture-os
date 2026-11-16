@@ -1,0 +1,52 @@
+name: System Foundation Qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/capture/**"
+      - "src/app/api/public/leads/**"
+      - "src/app/api/cron/lead-deliveries/**"
+      - "supabase/migrations/*public_capture*.sql"
+      - "scripts/fixtures/public-capture-db.sql"
+      - "supabase/tests/public_capture.sql"
+      - "scripts/test-public-capture-concurrency.sh"
+      - ".github/workflows/foundation-qualification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  public-capture-database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fixture-only-password
+          POSTGRES_DB: public_capture_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: fixture-only-password
+      PGDATABASE: public_capture_test
+      PUBLIC_CAPTURE_TEST_DATABASE_URL: postgresql://postgres:fixture-only-password@localhost:5432/public_capture_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated capture schema
+        run: psql -v ON_ERROR_STOP=1 -f scripts/fixtures/public-capture-db.sql
+      - name: Apply candidate capture migration
+        run: psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261116033221_public_capture_receipts_and_delivery_outbox.sql
+      - name: Verify atomic registration and delivery recovery
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/public_capture.sql
+      - name: Verify concurrent submission identity
+        run: bash scripts/test-public-capture-concurrency.sh

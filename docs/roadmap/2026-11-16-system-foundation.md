@@ -1,0 +1,44 @@
+# Alyssa OS foundation and landing-page readiness
+
+Date: 2026-11-16 (HKT). Audit baseline: `ed5f0d6aad482158d40d62d934b65bafc74c3214`.
+
+This is a delivery ledger, not a claim that every item has shipped. A card becomes **Completed** only when its stated acceptance evidence is recorded. A passing build, an accepted customer registration, a Sheet delivery and a report publication are separate outcomes.
+
+## Product outcome
+
+Keep Alyssa's existing brand, acquisition, CS follow-up, performance, creative and private-work contexts. Make frequent staff actions clear and compact. Improve the current Next.js/React/Supabase application through domain-specific modules and shared controls. Keep customer identity separate from enquiry and appointment identity.
+
+The intended campaign workflow is brand/treatment/offer/assets → editable page → mobile preview → published link → accepted registration → CS follow-up → source-aligned performance. A registration preference is not a confirmed booking.
+
+## Delivery cards
+
+| Card | Priority | Status | Outcome | Acceptance |
+|---|---|---|---|---|
+| FND-001 — Architecture and workflow audit | P1 | Completed | Identify concrete correctness and readiness gaps before expanding page generation. | Source audit at the baseline, current repository/deployment history reviewed, strengths and runtime-verification limits documented. No production defect rate or complete UI qualification is claimed. |
+| FND-002 — CRM outcome, date and brand correctness | P1 | Implemented; qualification pending; unreleased | No Show is reachable from the booking queue; today uses HKT; channel health follows the selected brand and actual connection state. | Outcome/queue combinations and HKT day boundaries pass; synthetic multi-brand UI uses production helpers; saved credentials alone do not produce a connected label; existing permissions and staff-owned fields remain intact. |
+| FND-003 — Complete CRM data and truthful failures | P1 | Implemented; qualification pending; unreleased | Counts and filters are based on the complete selected scope rather than an implicit newest-row subset. | A matching record beyond the former cap is found; aggregates cover the same scope; CRM case/booking overlays are complete; interrupted, capped or timed-out reads display an unavailable/retry state rather than successful partial totals. |
+| FND-004 — Brand-aware public pages and event authority | P1 | Implemented; qualification pending; unreleased | Public page copy uses its configured brand/offer; visitor telemetry cannot assert operational outcomes. | Cross-brand, changed-price and missing-price cases render correctly; anonymous booking/payment/show/deal outcomes are rejected before privileged persistence; legitimate visitor telemetry is bounded and remains functional. |
+| FND-005 — Atomic accepted registration | P1 | Implemented; database qualification and rollout pending; unreleased | One accepted registration consistently persists its contact, immutable source, lead, requested booking, consent and delivery intent. | Concurrent same-key requests return one accepted identity; a changed payload cannot reuse a receipt; booking/event failure rolls back all capture writes; an intentional later enquiry is not globally phone-deduplicated. |
+| FND-006 — Durable external delivery and uncertain outcomes | P1 | Implemented; recovery qualification and rollout pending; unreleased | Accepted registrations have a durable delivery state and do not create duplicate rows after an ambiguous provider result. | Definite pre-append failure retries; a committed append with lost response reconciles by stable lead identity; ambiguous or duplicate matches hold for review; stale leases cannot overwrite a newer result; disabled/unconfigured targets are never called delivered. |
+| FND-007 — Coherent metric publication | P1 | Planned | Every reporting surface reads the same accepted generation and metric authority for its scope. | Publish daily facts, treatment facts and source status behind a validated generation switch; stale workers are fenced; interrupted publication retains the prior accepted generation; same-period cross-surface parity is verified. |
+| FND-008 — Readiness and monitoring | P2 | Planned | Operators can distinguish usable, configuration needed, temporarily unavailable and unconfirmed completion. | One capability/readiness contract replaces scattered presence checks; correlation IDs connect failures and runs; logs scrub phone, notes, payloads and secrets; source/delivery/report freshness remain distinct. |
+| UX-001 — Shared staff interaction standard | P2 | Planned | Tables, filters, statuses, fields, confirmations and feedback use the current System layer consistently. | Migrate one complete working flow at a time; compact row editing and progressive disclosure remain; keyboard/focus, mobile, loading/empty/error/permission states pass; relevant stories and approved deterministic baselines are retained. |
+| UX-002 — Navigation, save and recovery | P2 | Planned | Acquisition, CS, performance, creative and administration are discoverable; unsaved work survives expected interruptions. | Campaign/LP tools have a clear acquisition entry; one persistent product shell preserves contextual access; drafts have truthful pending/saved/error/conflict states, navigation protection and recovery; private workbench remains private. |
+| LP-001 — Protected real draft preview | P1 for LP trial | Planned | A new unpublished page can be previewed accurately before public release. | Protected preview shares the production section schema/renderer; it never makes a draft publicly discoverable; mobile/desktop views, edited/deleted sections and current unsaved/saved state are explicit. |
+| LP-002 — Atomic page versions and publish | P1 for LP trial | Planned | Publishing and rollback select one coherent page version without losing concurrent edits. | Expected-revision checks, atomic version/pointer updates, publish conflicts and rollback pass; slug/form/brand ownership remains validated; public visitors see published content only. |
+| LP-003 — Brand templates and asset workflow | P2 | Planned | Staff select reusable brand-aware layouts and existing approved assets without manual URL assembly. | Brand/treatment/offer chosen once; polished mobile layouts retain editable sections; permitted asset selection/upload has accessible preview and clear failure states; no cross-brand copy or asset leakage. |
+| LP-004 — Structured AI page generation | P2 | Planned | Generate an editable page from approved brand, treatment, offer and asset context. | Model output validates against the shared section schema; unsupported claims and missing offer facts are surfaced for editing; preview/publish are explicit; generated arbitrary application code is not deployed; failures preserve the current draft. |
+| LP-005 — Versioned trials and lead-quality reporting | P2 | Planned | Compare page versions by registration quality as well as conversion. | Persist page/version/variant/experiment identity with the accepted source; define visit and unique-phone registration denominators; link confirmed Book/Show using durable appointment identities; test repeat/retry semantics and cross-brand scope. |
+
+## First-release boundary
+
+The first foundation candidate targets FND-002 through FND-006. Their code is implemented and current working-tree foundation regressions, public capture contract checks and TypeScript have passed. Final PostgreSQL 17, visual/browser, build and hosted qualification remain pending. No production migration or application deployment has occurred. The [release record](../releases/2026-11-16-system-foundation.md) owns exact source evidence and the specific authorization needed for the additive database/authenticated scheduled-worker rollout. FND-007/008, UX and LP cards remain separate work until their acceptance is met.
+
+## Operating constraints
+
+- Preserve original attribution, consent, staff assignment, financial values and existing permission boundaries.
+- Keep requested appointments separate from CS-confirmed bookings and actual attendance.
+- Do not use phone similarity to merge or suppress independent enquiries or appointments.
+- Use existing System components, Storybook, Playwright and axe. Add dependencies only for a specific missing capability.
+- Keep Alyssa source data, provider credentials and client configuration isolated from reusable product-learning exports.
+- Record actual rollout evidence and recovery behavior; do not infer business-data parity from CI or deployment readiness.

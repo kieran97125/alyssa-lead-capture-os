@@ -4,6 +4,15 @@ import {
 } from "@/lib/supabase/admin";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 import {
+  CompleteReadError,
+  COMPLETE_READ_MAX_ROWS,
+  completeReadCursorFilter,
+  readCompletePages,
+  readIdChunks,
+  withCompleteReadScope,
+  type CompleteReadScope,
+} from "@/lib/data/completeRead";
+import {
   campaignDisplayLabel,
   cleanAttributionText,
   contentDisplayLabel,
@@ -137,6 +146,8 @@ export type LeadRowsResult = {
 };
 
 export type LeadRowsOptions = {
+  /** Required for operational queues/aggregates; never silently returns a capped subset. */
+  completeness?: "complete";
   brandId?: string;
   brandIds?: string[];
   source?: string;
@@ -483,52 +494,61 @@ function ids(values: Array<string | null | undefined>) {
 async function fetchByIds<T extends { id: string }>(
   table: string,
   columns: string,
-  idsToFetch: string[]
+  idsToFetch: string[],
+  scope?: CompleteReadScope,
 ) {
   if (idsToFetch.length === 0) return new Map<string, T>();
 
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from(table)
-    .select(columns)
-    .in("id", idsToFetch);
-
-  if (error) {
-    console.warn("business_metrics_lookup_failed", {
-      table,
-      code: error.code,
-      message: error.message,
-    });
-    return new Map<string, T>();
+  const rows: T[] = [];
+  for (const chunk of readIdChunks(idsToFetch)) {
+    scope?.signal.throwIfAborted();
+    let query = supabase.from(table).select(columns, scope ? { count: "exact" } : undefined).in("id", chunk);
+    if (scope) query = query.abortSignal(scope.signal);
+    const { data, error, count } = await query;
+    if (error || (scope && (count === null || (data ?? []).length !== count))) {
+      if (scope) throw new CompleteReadError(error ? "query" : "incomplete");
+      console.warn("business_metrics_lookup_failed", { table, code: error?.code });
+      return new Map<string, T>();
+    }
+    rows.push(...((data ?? []) as unknown as T[]));
   }
-  const rows = (data ?? []) as unknown as T[];
   return new Map(rows.map((item) => [item.id, item]));
 }
 
-async function fetchBookingsByLeadIds(leadIds: string[]) {
+async function fetchBookingsByLeadIds(leadIds: string[], scope?: CompleteReadScope) {
   if (leadIds.length === 0) return new Map<string, BookingRecord>();
 
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase
-    .from("bookings")
-    .select("id,lead_id,appointment_date,appointment_time,booking_status,created_at")
-    .in("lead_id", leadIds)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.warn("business_metrics_bookings_lookup_failed", {
-      code: error.code,
-      message: error.message,
-    });
-    return new Map<string, BookingRecord>();
-  }
-
   const bookings = new Map<string, BookingRecord>();
-  (data ?? []).forEach((booking) => {
-    if (!bookings.has(booking.lead_id)) {
-      bookings.set(booking.lead_id, booking as BookingRecord);
+  let readCount = 0;
+  for (const chunk of readIdChunks(leadIds)) {
+    scope?.signal.throwIfAborted();
+    const makeQuery = () => supabase.from("bookings")
+      .select("id,lead_id,appointment_date,appointment_time,booking_status,created_at", scope ? { count: "exact" } : undefined)
+      .in("lead_id", chunk)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
+    let data: BookingRecord[];
+    if (scope) {
+      data = await readCompletePages<BookingRecord & { created_at: string }>(scope, async (cursor, size) => {
+        let query = makeQuery().lte("created_at", scope.startedAt).limit(size).abortSignal(scope.signal);
+        if (cursor) query = query.or(completeReadCursorFilter(cursor));
+        return await query as unknown as { data: Array<BookingRecord & { created_at: string }> | null; error: unknown; count: number | null };
+      }, { maxRows: COMPLETE_READ_MAX_ROWS - readCount });
+      readCount += data.length;
+    } else {
+      const result = await makeQuery();
+      if (result.error) {
+        console.warn("business_metrics_bookings_lookup_failed", { code: result.error.code });
+        return new Map<string, BookingRecord>();
+      }
+      data = (result.data ?? []) as unknown as BookingRecord[];
     }
-  });
+    data.forEach((booking) => {
+      if (!bookings.has(booking.lead_id)) bookings.set(booking.lead_id, booking);
+    });
+  }
   return bookings;
 }
 
@@ -566,187 +586,206 @@ export async function getLeadRows(
   }
 
   try {
-    const supabase = createSupabaseAdminClient();
-    let query = supabase
-      .from("leads")
-      .select(
-        [
-          "id",
-          "created_at",
-          "submitted_at",
-          "contact_id",
-          "form_id",
-          "source_snapshot_id",
-          "customer_name",
-          "phone",
-          "normalized_phone",
-          "appointment_date",
-          "appointment_time",
-          "price",
-          "currency",
-          "source_type",
-          "payment_status",
-          "lead_status",
-          "booking_status",
-          "brand_id",
-          "treatment_id",
-          "package_id",
-          "branch_id",
-        ].join(",")
-      )
-      .gte("created_at", range.start)
-      .lt("created_at", range.end);
+    const read = async (scope?: CompleteReadScope): Promise<LeadRowsResult> => {
+      const supabase = createSupabaseAdminClient();
+      const makeLeadQuery = () => {
+        let query = supabase
+          .from("leads")
+          .select(
+            [
+              "id",
+              "created_at",
+              "submitted_at",
+              "contact_id",
+              "form_id",
+              "source_snapshot_id",
+              "customer_name",
+              "phone",
+              "normalized_phone",
+              "appointment_date",
+              "appointment_time",
+              "price",
+              "currency",
+              "source_type",
+              "payment_status",
+              "lead_status",
+              "booking_status",
+              "brand_id",
+              "treatment_id",
+              "package_id",
+              "branch_id",
+            ].join(","),
+            scope ? { count: "exact" } : undefined,
+          )
+          .gte("created_at", range.start)
+          .lt("created_at", range.end);
 
-    if (effectiveBrandIds?.length === 1) {
-      query = query.eq("brand_id", effectiveBrandIds[0]);
-    } else if (effectiveBrandIds !== null) {
-      query = query.in("brand_id", effectiveBrandIds);
-    }
-    if (options.treatmentId) query = query.eq("treatment_id", options.treatmentId);
-    if (options.branchId) query = query.eq("branch_id", options.branchId);
+        if (effectiveBrandIds?.length === 1) {
+          query = query.eq("brand_id", effectiveBrandIds[0]);
+        } else if (effectiveBrandIds !== null) {
+          query = query.in("brand_id", effectiveBrandIds);
+        }
+        if (options.treatmentId) query = query.eq("treatment_id", options.treatmentId);
+        if (options.branchId) query = query.eq("branch_id", options.branchId);
 
-    const { data, error } = await query
-      .order("created_at", { ascending: false })
-      .limit(limit);
-
-    if (error) throw error;
-
-    const leadRecords = (data ?? []) as unknown as LeadRecord[];
-    const [
-      contacts,
-      forms,
-      brands,
-      treatments,
-      packages,
-      branches,
-      snapshotsById,
-      bookingsByLeadId,
-    ] = await Promise.all([
-      fetchByIds<ContactRecord>(
-        "contacts",
-        "id,customer_name,phone,normalized_phone,email",
-        ids(leadRecords.map((lead) => lead.contact_id))
-      ),
-      fetchByIds<FormRecord>(
-        "forms",
-        "id,form_name,public_form_token",
-        ids(leadRecords.map((lead) => lead.form_id))
-      ),
-      fetchByIds<NameRecord>("brands", "id,name", ids(leadRecords.map((lead) => lead.brand_id))),
-      fetchByIds<NameRecord>(
-        "treatments",
-        "id,name",
-        ids(leadRecords.map((lead) => lead.treatment_id))
-      ),
-      fetchByIds<PackageRecord>(
-        "packages",
-        "id,name,promo_price,currency",
-        ids(leadRecords.map((lead) => lead.package_id))
-      ),
-      fetchByIds<NameRecord>(
-        "branches",
-        "id,name",
-        ids(leadRecords.map((lead) => lead.branch_id))
-      ),
-      fetchByIds<SourceSnapshotRecord>(
-        "lead_source_snapshots",
-        [
-          "id",
-          "lead_id",
-          "source_type",
-          "utm_source",
-          "utm_medium",
-          "utm_campaign",
-          "utm_content",
-          "utm_term",
-          "fbclid",
-          "gclid",
-          "wbraid",
-          "gbraid",
-          "landing_page_url",
-          "current_page_url",
-          "page_path",
-          "ctwa_id",
-          "whatsapp_phone_number_id",
-          "meta_ad_id",
-          "meta_adset_id",
-          "meta_campaign_id",
-          "meta_source_url",
-          "whatsapp_referral_headline",
-          "whatsapp_referral_body",
-          "whatsapp_referral_source_id",
-          "tracking_status",
-          "audit_reason",
-          "first_touch_json",
-          "latest_touch_json",
-          "submitted_touch_json",
-        ].join(","),
-        ids(leadRecords.map((lead) => lead.source_snapshot_id))
-      ),
-      fetchBookingsByLeadIds(leadRecords.map((lead) => lead.id)),
-    ]);
-
-    const leads = leadRecords.map((lead) => {
-      const sourceSnapshot =
-        (lead.source_snapshot_id && snapshotsById.get(lead.source_snapshot_id)) || null;
-
-      return {
-        ...lead,
-        contact: (lead.contact_id && contacts.get(lead.contact_id)) || null,
-        form: (lead.form_id && forms.get(lead.form_id)) || null,
-        sourceSnapshot,
-        booking: bookingsByLeadId.get(lead.id) || null,
-        brand: (lead.brand_id && brands.get(lead.brand_id)) || null,
-        treatment: (lead.treatment_id && treatments.get(lead.treatment_id)) || null,
-        package: (lead.package_id && packages.get(lead.package_id)) || null,
-        branch: (lead.branch_id && branches.get(lead.branch_id)) || null,
+        return query;
       };
-    });
+      let leadRecords: LeadRecord[];
+      if (scope) {
+        leadRecords = await readCompletePages<LeadRecord>(scope, async (cursor, size) => {
+          let page = makeLeadQuery().order("created_at", { ascending: false })
+            .order("id", { ascending: false }).lte("created_at", scope.startedAt)
+            .limit(size).abortSignal(scope.signal);
+          if (cursor) page = page.or(completeReadCursorFilter(cursor));
+          return await page as unknown as { data: LeadRecord[] | null; error: unknown; count: number | null };
+        });
+      } else {
+        const { data, error } = await makeLeadQuery().order("created_at", { ascending: false }).limit(limit);
+        if (error) throw error;
+        leadRecords = (data ?? []) as unknown as LeadRecord[];
+      }
+      const [
+        contacts,
+        forms,
+        brands,
+        treatments,
+        packages,
+        branches,
+        snapshotsById,
+        bookingsByLeadId,
+      ] = await Promise.all([
+        fetchByIds<ContactRecord>(
+          "contacts",
+          "id,customer_name,phone,normalized_phone,email",
+          ids(leadRecords.map((lead) => lead.contact_id)), scope
+        ),
+        fetchByIds<FormRecord>(
+          "forms",
+          "id,form_name,public_form_token",
+          ids(leadRecords.map((lead) => lead.form_id)), scope
+        ),
+        fetchByIds<NameRecord>("brands", "id,name", ids(leadRecords.map((lead) => lead.brand_id)), scope),
+        fetchByIds<NameRecord>(
+          "treatments",
+          "id,name",
+          ids(leadRecords.map((lead) => lead.treatment_id)), scope
+        ),
+        fetchByIds<PackageRecord>(
+          "packages",
+          "id,name,promo_price,currency",
+          ids(leadRecords.map((lead) => lead.package_id)), scope
+        ),
+        fetchByIds<NameRecord>(
+          "branches",
+          "id,name",
+          ids(leadRecords.map((lead) => lead.branch_id)), scope
+        ),
+        fetchByIds<SourceSnapshotRecord>(
+          "lead_source_snapshots",
+          [
+            "id",
+            "lead_id",
+            "source_type",
+            "utm_source",
+            "utm_medium",
+            "utm_campaign",
+            "utm_content",
+            "utm_term",
+            "fbclid",
+            "gclid",
+            "wbraid",
+            "gbraid",
+            "landing_page_url",
+            "current_page_url",
+            "page_path",
+            "ctwa_id",
+            "whatsapp_phone_number_id",
+            "meta_ad_id",
+            "meta_adset_id",
+            "meta_campaign_id",
+            "meta_source_url",
+            "whatsapp_referral_headline",
+            "whatsapp_referral_body",
+            "whatsapp_referral_source_id",
+            "tracking_status",
+            "audit_reason",
+            "first_touch_json",
+            "latest_touch_json",
+            "submitted_touch_json",
+          ].join(","),
+          ids(leadRecords.map((lead) => lead.source_snapshot_id)), scope
+        ),
+        fetchBookingsByLeadIds(leadRecords.map((lead) => lead.id), scope),
+      ]);
 
-    const search = options.query?.trim().toLowerCase() || "";
-    const sourceFilter = options.source?.trim().toLowerCase() || "";
-    const campaignFilter = options.campaign?.trim().toLowerCase() || "";
-    const filteredLeads = leads.filter((lead) => {
-      if (!options.includeTestData && isLikelyTestLead(lead)) return false;
+      const leads = leadRecords.map((lead) => {
+        const sourceSnapshot =
+          (lead.source_snapshot_id && snapshotsById.get(lead.source_snapshot_id)) || null;
 
-      if (sourceFilter) {
-        const source = sourceLabel(lead).toLowerCase();
-        const sourceType = (lead.source_type || "").toLowerCase();
-        if (!source.includes(sourceFilter) && sourceType !== sourceFilter) {
-          return false;
+        return {
+          ...lead,
+          contact: (lead.contact_id && contacts.get(lead.contact_id)) || null,
+          form: (lead.form_id && forms.get(lead.form_id)) || null,
+          sourceSnapshot,
+          booking: bookingsByLeadId.get(lead.id) || null,
+          brand: (lead.brand_id && brands.get(lead.brand_id)) || null,
+          treatment: (lead.treatment_id && treatments.get(lead.treatment_id)) || null,
+          package: (lead.package_id && packages.get(lead.package_id)) || null,
+          branch: (lead.branch_id && branches.get(lead.branch_id)) || null,
+        };
+      });
+
+      const search = options.query?.trim().toLowerCase() || "";
+      const sourceFilter = options.source?.trim().toLowerCase() || "";
+      const campaignFilter = options.campaign?.trim().toLowerCase() || "";
+      const filteredLeads = leads.filter((lead) => {
+        if (!options.includeTestData && isLikelyTestLead(lead)) return false;
+
+        if (sourceFilter) {
+          const source = sourceLabel(lead).toLowerCase();
+          const sourceType = (lead.source_type || "").toLowerCase();
+          if (!source.includes(sourceFilter) && sourceType !== sourceFilter) {
+            return false;
+          }
         }
-      }
 
-      if (campaignFilter) {
-        const campaign = campaignLabel(lead).toLowerCase();
-        const content = contentLabel(lead).toLowerCase();
-        if (!campaign.includes(campaignFilter) && !content.includes(campaignFilter)) {
-          return false;
+        if (campaignFilter) {
+          const campaign = campaignLabel(lead).toLowerCase();
+          const content = contentLabel(lead).toLowerCase();
+          if (!campaign.includes(campaignFilter) && !content.includes(campaignFilter)) {
+            return false;
+          }
         }
-      }
 
-      if (search) {
-        const haystack = [
-          displayCustomerName(lead),
-          displayPhone(lead),
-          lead.normalized_phone || "",
-          lead.form?.form_name || "",
-          lead.form?.public_form_token || "",
-          campaignLabel(lead),
-          contentLabel(lead),
-        ]
-          .join(" ")
-          .toLowerCase();
+        if (search) {
+          const haystack = [
+            displayCustomerName(lead),
+            displayPhone(lead),
+            lead.normalized_phone || "",
+            lead.form?.form_name || "",
+            lead.form?.public_form_token || "",
+            campaignLabel(lead),
+            contentLabel(lead),
+          ]
+            .join(" ")
+            .toLowerCase();
 
-        if (!haystack.includes(search)) return false;
-      }
+          if (!haystack.includes(search)) return false;
+        }
 
-      return true;
-    });
+        return true;
+      });
 
-    return { range, leads: filteredLeads, error: null };
+      return { range, leads: filteredLeads, error: null };
+    };
+    return options.completeness === "complete"
+      ? await withCompleteReadScope(read)
+      : await read();
   } catch (error) {
-    console.error("business_metrics_query_failed", error);
+    console.error("business_metrics_query_failed", {
+      code: error instanceof CompleteReadError ? error.code : "BUSINESS_METRICS_QUERY_FAILED",
+      reason: error instanceof CompleteReadError ? error.reason : "query",
+    });
     return {
       range,
       leads: [],
