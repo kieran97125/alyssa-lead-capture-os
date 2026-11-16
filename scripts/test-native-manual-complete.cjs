@@ -198,17 +198,17 @@ test('permanent identity review is an explicit blocked result with no automatic 
   const receipt=f.step();assert.equal(receipt.blocked,true);assert.equal(receipt.reason,'identity_review');assert.equal(f.job().phase,'identity');assert.equal(f.job().accountIndex,0);assert.deepEqual(f.job().processedAccounts,[]);assert.equal(f.calls.account.length,0);assert.equal(f.calls.display.length,0);
 });
 
-function sidebarFixture(){
+function sidebarFixture(options={}){
   const f=fixture();let content='';
   f.b.HtmlService={createHtmlOutput:value=>{content=value;return{setTitle(){return this;}};}};
   f.b.SpreadsheetApp.getUi=()=>({showSidebar(){}});f.b.syncAllBookedArrivals();
   const script=/<script>([\s\S]*?)<\/script>/.exec(content)?.[1];assert.ok(script,'Real sidebar must provide its continuation UI');
   const nodes=Object.fromEntries(['status','detail','progress','retry'].map(id=>[id,{textContent:'',hidden:false,value:0,max:7,focused:false,removeAttribute(){},focus(){this.focused=true;}}]));
-  const callbacks={},timers=[],calls={start:0,continue:[]};
-  const rpc={withSuccessHandler:handler=>{callbacks.success=handler;return rpc;},withFailureHandler:handler=>{callbacks.failure=handler;return rpc;},startBookedArrivalsFullSync:()=>{calls.start++;},continueBookedArrivalsFullSync:id=>{calls.continue.push(id);}};
-  const context={document:{getElementById:id=>nodes[id]},google:{script:{run:rpc}},setTimeout:(action,delay)=>{timers.push({action,delay});return timers.length;}};
+  const callbacks={},timers=[],requests=[],events={},calls={start:0,continue:[]};
+  const rpc={withSuccessHandler:handler=>{callbacks.success=handler;return rpc;},withFailureHandler:handler=>{callbacks.failure=handler;return rpc;},startBookedArrivalsFullSync:()=>{calls.start++;requests.push({...callbacks});},continueBookedArrivalsFullSync:id=>{calls.continue.push(id);requests.push({...callbacks,id});}};
+  const context={document:{getElementById:id=>nodes[id]},google:{script:{run:rpc}},navigator:{onLine:options.online!==false},window:{addEventListener:(name,handler)=>{events[name]=handler;}},setTimeout:(action,delay)=>{timers.push({action,delay,cleared:false});return timers.length;},clearTimeout:id=>{if(timers[id-1])timers[id-1].cleared=true;}};
   vm.createContext(context);vm.runInContext(script,context);
-  return{nodes,callbacks,timers,calls,context,content};
+  return{nodes,callbacks,timers,requests,events,calls,context,content};
 }
 const uiReceipt=overrides=>({jobId:'job-current',totalAccounts:6,processedAccounts:0,phase:'identity',finished:false,projectionComplete:false,needsReview:false,reviewAccounts:0,countsVerified:true,added:0,...overrides});
 
@@ -238,7 +238,50 @@ test('real sidebar does not present exact added totals after an unknown step and
 
 test('real sidebar uses fixed recovery feedback instead of rendering a raw provider exception',()=>{
   const f=sidebarFixture();f.callbacks.failure({message:'PRIVATE_CUSTOMER_10000001 Provider error'});
-  assert.equal(f.nodes.retry.hidden,false);assert.ok(!JSON.stringify(f.nodes).includes('PRIVATE_'));assert.equal(f.timers.length,0);
+  assert.equal(f.nodes.retry.hidden,false);assert.ok(!JSON.stringify(f.nodes).includes('PRIVATE_'));assert.equal(f.timers.length,1);assert.equal(f.timers[0].delay,2000);
+});
+
+test('transport failures rejoin the same durable job with bounded backoff rather than start another run',()=>{
+  const f=sidebarFixture();f.callbacks.success(uiReceipt({jobId:'retained-job'}));f.timers[0].action();
+  for(const delay of [2000,5000,10000]){f.callbacks.failure({message:'PRIVATE_TRANSPORT_ERROR'});const timer=f.timers.at(-1);assert.equal(timer.delay,delay);timer.action();}
+  const count=f.timers.length;f.callbacks.failure({message:'PRIVATE_TRANSPORT_ERROR'});
+  assert.equal(f.timers.length,count);assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job','retained-job','retained-job','retained-job']);
+  assert.equal(f.nodes.retry.hidden,false);assert.ok(f.nodes.status.textContent.includes('多次連線'));
+  f.events.online();assert.equal(f.timers.length,count,'Repeated reconnects cannot bypass exhausted recovery admission');
+});
+
+test('an initially offline sidebar waits for connectivity and starts preparation once without losing the retry control',()=>{
+  const f=sidebarFixture({online:false});assert.equal(f.calls.start,0);assert.equal(f.timers.length,0);assert.equal(f.nodes.retry.hidden,false);
+  f.context.navigator.onLine=true;f.events.online();assert.equal(f.calls.start,1);
+  f.events.online();assert.equal(f.calls.start,1,'A second online event cannot overlap the admitted RPC');
+});
+
+test('offline transport failure pauses timers and reconnect continues the retained job',()=>{
+  const f=sidebarFixture();f.callbacks.success(uiReceipt({jobId:'retained-job'}));f.timers[0].action();
+  f.context.navigator.onLine=false;f.events.offline();f.callbacks.failure({message:'PRIVATE_OFFLINE'});
+  assert.equal(f.timers.length,1);assert.ok(f.nodes.status.textContent.includes('離線'));
+  f.context.navigator.onLine=true;f.events.online();assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job','retained-job']);
+});
+
+test('manual retry cancels the scheduled retry and resets only client recovery admission',()=>{
+  const f=sidebarFixture();f.callbacks.success(uiReceipt({jobId:'retained-job'}));f.timers[0].action();f.callbacks.failure();
+  const timer=f.timers.at(-1);vm.runInContext('resume()',f.context);assert.equal(timer.cleared,true);
+  assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job','retained-job']);
+  f.callbacks.failure();assert.equal(f.timers.at(-1).delay,2000);
+});
+
+test('late callbacks cannot overwrite the active request or an accepted completion',()=>{
+  const f=sidebarFixture(),old=f.requests[0];old.failure();f.timers[0].action();const current=f.requests[1];
+  const timers=f.timers.length;old.success(uiReceipt({jobId:'stale-job'}));old.failure();assert.equal(f.timers.length,timers);
+  current.success(uiReceipt({finished:true,phase:'complete',processedAccounts:6,projectionComplete:true,startedAt:'2026-11-16T10:00:00.000Z'}));
+  const message=f.nodes.status.textContent,starts=f.calls.start;f.events.offline();f.events.online();vm.runInContext('run();resume()',f.context);
+  assert.equal(f.calls.start,starts);assert.equal(f.nodes.status.textContent,message);assert.equal(f.nodes.retry.hidden,true);
+});
+
+test('permanent review cannot be restarted by reconnection, but an explicit retry can recheck it',()=>{
+  const f=sidebarFixture();f.callbacks.success(uiReceipt({blocked:true,reason:'identity_review'}));
+  f.events.online();assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,[]);
+  vm.runInContext('resume()',f.context);assert.deepEqual(f.calls.continue,['job-current']);
 });
 
 test('real sidebar exposes accessible progress and keeps pending coverage separate from completion',()=>{

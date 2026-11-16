@@ -630,10 +630,12 @@ function syncAllBookedArrivals() {
     <progress id="progress" aria-label="同步進度" max="7" value="0"></progress>
     <p id="status" role="status" aria-live="polite">正在準備同步…</p>
     <small id="detail">會補上預約、更新日期時間，並移走已轉回跟進的待到店項目。已完成記錄會保留。</small>
-    <button id="retry" type="button" hidden onclick="run()">繼續同步</button>
+    <button id="retry" type="button" hidden onclick="resume()">繼續同步</button>
   </section>
   <script>
-    let jobId='',busy=0,running=false;
+    let jobId='',busy=0,running=false,finished=false,manualOnly=false;
+    let retryAttempt=0,retryTimer=0,requestSequence=0;
+    const retryDelays=[2000,5000,10000];
     const status=document.getElementById('status');
     const detail=document.getElementById('detail');
     const progress=document.getElementById('progress');
@@ -645,24 +647,53 @@ function syncAllBookedArrivals() {
       if(typeof retry.focus==='function')retry.focus();
     }
 
+    function cancelRetry() {
+      if(retryTimer)clearTimeout(retryTimer);
+      retryTimer=0;
+    }
+
+    function scheduleRun(delay) {
+      cancelRetry();
+      retryTimer=setTimeout(function(){retryTimer=0;run();},delay);
+    }
+
+    function resume() {
+      if(running||finished)return;
+      manualOnly=false;retryAttempt=0;busy=0;
+      cancelRetry();run();
+    }
+
     function failure() {
       running=false;
-      showRetry('未能確認同步，進度已保留。請繼續同步；原有記錄會先核對，再處理。');
+      if(finished)return;
+      if(navigator.onLine===false) {
+        showRetry('網絡暫時離線，進度已保留。恢復連線後會接續同步。');
+        return;
+      }
+      if(retryAttempt<retryDelays.length) {
+        const delay=retryDelays[retryAttempt++];
+        showRetry('連線暫時未有回應，'+Math.ceil(delay/1000)+' 秒後會接續原有進度。');
+        scheduleRun(delay);return;
+      }
+      manualOnly=true;
+      showRetry('多次連線仍未成功，進度已保留。請稍後按「繼續同步」；原有記錄會先核對，再處理。');
     }
 
     function receive(result) {
       running=false;
       if(!result){failure();return;}
-      if(result.restartRequired){jobId='';setTimeout(run,150);return;}
+      retryAttempt=0;
+      if(result.restartRequired){jobId='';scheduleRun(150);return;}
       if(result.busy) {
         status.textContent='同事正在修改或有其他同步進行，稍後會繼續。';
-        if(++busy<60)setTimeout(run,3000);
-        else showRetry('目前仍有其他更新進行，請稍後繼續同步。');
+        if(++busy<60)scheduleRun(3000);
+        else {manualOnly=true;showRetry('目前仍有其他更新進行，請稍後繼續同步。');}
         return;
       }
       busy=0;
       jobId=result.jobId||jobId;
       if(result.blocked) {
+        manualOnly=true;
         showRetry(result.reason==='identity_review'
           ? '有資料需要先核對，暫未完成同步。請聯絡管理員核對後，再按繼續同步。'
           : '同步尚未啟用，請聯絡系統管理員。');
@@ -671,6 +702,7 @@ function syncAllBookedArrivals() {
       progress.max=result.totalAccounts+1;
       progress.value=result.processedAccounts+(result.projectionComplete?1:0);
       if(result.finished) {
+        finished=true;cancelRetry();retry.hidden=true;
         status.textContent=result.needsReview
           ? '已逐一處理各分頁，'+result.reviewAccounts+' 個分頁有資料需要核對。'
           : '已逐一更新所有分頁及到店記錄。';
@@ -690,17 +722,34 @@ function syncAllBookedArrivals() {
       status.textContent=(result.accountLabel?result.accountLabel+'：':'')+label+'…';
       detail.textContent='已處理 '+result.processedAccounts+' / '+result.totalAccounts+
         ' 個分頁。關閉後可再開啟繼續。';
-      setTimeout(run,150);
+      scheduleRun(150);
     }
 
     function run() {
-      if(running)return;
+      if(running||finished||manualOnly)return;
+      cancelRetry();
+      if(navigator.onLine===false) {
+        showRetry('網絡暫時離線，進度已保留。恢復連線後會接續同步。');
+        return;
+      }
       running=true;
       retry.hidden=true;
-      const rpc=google.script.run.withSuccessHandler(receive).withFailureHandler(failure);
+      const sequence=++requestSequence;
+      const rpc=google.script.run
+        .withSuccessHandler(function(result){if(sequence===requestSequence)receive(result);})
+        .withFailureHandler(function(){if(sequence===requestSequence)failure();});
       if(jobId)rpc.continueBookedArrivalsFullSync(jobId);
       else rpc.startBookedArrivalsFullSync();
     }
+    window.addEventListener('offline',function(){
+      cancelRetry();
+      if(!finished)status.textContent=running
+        ? '網絡暫時中斷，正在等候同步結果；原有進度會保留。'
+        : '網絡暫時離線，進度已保留。恢復連線後會接續同步。';
+    });
+    window.addEventListener('online',function(){
+      if(!finished&&!manualOnly&&!running){retryAttempt=0;run();}
+    });
     run();
   </script>
 </body>

@@ -62,4 +62,19 @@ The identity suite verifies booked and simple-identity progress under an active 
 - A future combined button may declare end-to-end success only after native reconciliation and an independently verified fresh/complete master projection. A native receipt alone is insufficient.
 - Preserve retired row-change monitoring, source CAS, journal/recovery intents, staff fields and last-good published snapshots. No DDL or speculative formula replacement belongs to this fix.
 
+## Sidebar transport recovery candidate
+
+The manual control now retries an uncertain transport result after bounded 2/5/10-second delays, using the same durable job identity. The backend remains responsible for resolving an interrupted attempt; the browser never infers that a failed response means no write occurred. Offline state pauses dispatch. An online event resumes eligible pending work. Permanent identity review, disabled installation, exhausted retry admission and verified completion do not restart automatically. Explicit retry cancels an outstanding timer before dispatch; request-sequence guards ignore obsolete callbacks.
+
+The actual emitted sidebar JavaScript is exercised by the native manual suite: all 51 cases pass, including offline startup, reconnect, bounded backoff, lost response, retained job identity, manual retry cancellation, stale callbacks, review isolation and completion. The existing native checkpoint, lock, ownership, journal and CAS tests remain required. These are candidate tests, not a live installation, measured provider recovery or proof that network disconnections have been eliminated.
+
+Closing a sidebar retains the server checkpoint for reopening. This candidate does not claim that browser timers continue after a window closes. Existing background source maintenance remains a separate worker.
+
+### System card: SCRIPT-DEPLOYMENT-AUTHORITY
+
+- Status: blocked; the native candidate has not been installed by this takeover.
+- The active mobile session has connected Sheet-reading tools but no Apps Script project-write tool or connected desktop editor. The separate cloud browser is not signed into the required Google account.
+- Automatic approval review rejected opening the cloud Google sign-in flow because explicit authority for that browser sign-in was not established. Do not retry that authentication action or use a different surface as a workaround without the required explicit authorization.
+- Acceptance: a legitimately authorized editor or script-project deployment channel, fresh exact-source comparison, candidate save/readback, real button execution, durable source/registry/queue verification and idempotent repeat. No real business-row append is a substitute for the native writer.
+
 Rollback: revert the catch-up wrapper and unobserved source policy independently if required. Neither introduces a spreadsheet migration, triggers or properties. Preserve accepted successor IDs, registry/journal and source recovery anchors; rollback must not delete accepted history. Reverting unobserved source protections reintroduces the risk of timer-created successors from stale closed-source schedules. The read-only audit card requires no rollback.
