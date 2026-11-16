@@ -219,6 +219,7 @@ test('new identity booking preserves every existing completed arrival field incl
 });
 test('Advanced Sheets discovery batches all six Accounts once and keeps native writes/CAS authoritative', () => {
   const f = nativeFixture({ badMain: true }), requests = [];
+  f.box.OA3_MANUAL_USE_NATIVE_DISPLAY_READS = false;
   f.box.Sheets = { Spreadsheets: { Values: { batchGet: (id, options) => {
     requests.push({ id, options });
     return { valueRanges: f.accountNames().map(name => ({ values: f.sources.get(name).state.matrix.map(row => {
@@ -237,7 +238,8 @@ test('Advanced Sheets discovery batches all six Accounts once and keeps native w
 for (const [name, response] of [['null', null], ['missing ranges', {}], ['truncated ranges', { valueRanges: [] }],
   ['malformed matrix', { valueRanges: Array.from({ length: 6 }, () => ({ values: [{ invalid: true }] })) }]]) {
   test(`invalid Advanced Sheets discovery aborts without native fallback or writes: ${name}`, () => {
-    const f = nativeFixture(); f.box.Sheets = { Spreadsheets: { Values: { batchGet: () => response } } };
+    const f = nativeFixture(); f.box.OA3_MANUAL_USE_NATIVE_DISPLAY_READS = false;
+    f.box.Sheets = { Spreadsheets: { Values: { batchGet: () => response } } };
     assert.throws(() => f.run(), /Incomplete|Invalid/);
     assert.equal(f.source.state.reads, 0); assert.equal(f.writes().length, 0);
   });
@@ -703,6 +705,102 @@ for (const [field, value] of [['id', 'appt_foreign_checkpoint'], ['leadId', 'lea
     assert.equal(f.queue.state.writes.length, 0); assert.equal(f.cell('Omni Lead ID'), '');
   });
 }
+
+test('explicit manual admission under an active idle hint keeps imported Book time unknown without faking a staff edit', () => {
+  const f=nativeFixture(),original=f.box.oa3CommitIdentityBookings_;let seen;
+  f.box.omniStaffPriorityActive_=()=>true;
+  f.box.oa3CommitIdentityBookings_=(...args)=>{seen=args[5];return original(...args);};
+  const receipt=f.run({manualRequested:true});assert.equal(receipt.skipped,undefined);assert.equal(receipt.bookedAdded,1);assert.equal(receipt.accountFailures.length,0);
+  assert.equal(seen.manualRequested,true);assert.equal(seen.staffEdit,false);assert.equal(seen.bookingMutation,false);
+  const a=f.box.oa2ReadRegistry_(f.ss).appointments[f.cell('Appointment ID')];assert.equal(a.bookedAt,'');assert.equal(a.provenance,'legacy_registration_unknown');
+});
+for(const manualRequested of [undefined,false,1,'true'])test('background or non-boolean manualRequested '+String(manualRequested)+' retains idle-hint admission',()=>{
+  const f=nativeFixture();f.box.omniStaffPriorityActive_=()=>true;const receipt=f.run({manualRequested});
+  assert.equal(receipt.skipped,true);assert.equal(receipt.registered,0);assert.equal(receipt.bookedAdded,0);assert.equal(f.writes().length,0);
+});
+test('explicit manual simple identities retain the fifty-row bound while the idle hint is active',()=>{
+  const f=nativeFixture({fields:{'跟進狀態':'待跟進','預約日期':'','預約時間':''}}),template=f.source.state.matrix[1];
+  for(let i=1;i<52;i++){const row=template.slice();row[f.headers.indexOf('電話')]=String(10000001+i);f.source.appendRow(row);}
+  f.box.omniStaffPriorityActive_=()=>true;const first=f.run({manualRequested:true});assert.equal(first.registered,50);assert.equal(first.bookedAdded,0);assert.equal(first.accountFailures.length,0);
+  assert.equal(f.source.state.matrix.slice(1).filter(row=>row[f.headers.indexOf('Omni Lead ID')]).length,50);
+  const second=f.run({manualRequested:true});assert.equal(second.registered,2);assert.equal(second.bookedAdded,0);assert.equal(f.source.state.matrix.slice(1).filter(row=>row[f.headers.indexOf('Omni Lead ID')]).length,52);assert.equal(f.queue.state.writes.length,0);
+});
+test('a five-record native identity budget resumes without replacing accepted identities',()=>{
+  const f=nativeFixture({fields:{'跟進狀態':'待跟進','預約日期':'','預約時間':''}}),template=f.source.state.matrix[1];
+  for(let i=1;i<13;i++){const row=template.slice();row[f.headers.indexOf('電話')]=String(10000001+i);f.source.appendRow(row);}
+  const first=f.run({manualRequested:true,maxIdentityBatch:5});assert.equal(first.registered,5);const ids=f.source.state.matrix.slice(1,6).map(row=>row[f.headers.indexOf('Omni Lead ID')]);
+  assert.equal(f.run({manualRequested:true,maxIdentityBatch:5}).registered,5);assert.equal(f.run({manualRequested:true,maxIdentityBatch:5}).registered,3);
+  assert.deepEqual(f.source.state.matrix.slice(1,6).map(row=>row[f.headers.indexOf('Omni Lead ID')]),ids);assert.equal(f.queue.state.writes.length,0);
+});
+test('manualRequested cannot bypass an unheld native document lock',()=>{
+  const f=nativeFixture();f.box.omniStaffPriorityActive_=()=>true;
+  assert.throws(()=>f.box.oa2PrioritizeSourceIdentities_(f.ss,{hasLock:()=>false},{manualRequested:true}),/document lock/);assert.equal(f.writes().length,0);
+});
+test('manualRequested does not weaken the fresh source compare-and-swap guard under active staff hint',()=>{
+  const f=nativeFixture();let targeted=0;f.box.omniStaffPriorityActive_=()=>true;
+  f.source.state.beforeRead=(_count,range)=>{if(range.row===2&&range.column===1&&range.height===1&&range.width===31&&++targeted===2)f.source.state.matrix[1][f.headers.indexOf('CS Remark')]='Concurrent manual-admission edit';};
+  const receipt=f.run({manualRequested:true});assert.ok(targeted>=2);assert.equal(receipt.bookedAdded,0);assert.equal(f.cell('Omni Lead ID'),'');assert.equal(f.cell('CS Remark'),'Concurrent manual-admission edit');assert.equal(f.registry.state.writes.length,0);assert.equal(f.queue.state.writes.length,0);
+});
+test('manualRequested does not bypass duplicate global identity review under active staff hint',()=>{
+  const f=nativeFixture({fields:{'Omni Lead ID':'lead_duplicate'}});f.sources.get('Alyssa Main').appendRow(f.source.state.matrix[1]);f.box.omniStaffPriorityActive_=()=>true;
+  const before=f.writes().length,result=f.run({manualRequested:true});assert.equal(result.blocked,true);assert.ok(result.review>0);assert.equal(result.bookedAdded,0);assert.equal(f.writes().length,before);
+});
+
+function interruptedAllocationFixture() {
+  const f=nativeFixture();f.run();
+  f.queue.state.matrix[7][arrivalHeaders.indexOf('Record Origin')]='allocating';
+  f.registry.state.matrix[1][f.registryHeaders().indexOf('Pending Queue Before')]='["","","",""]';
+  f.queue.state.matrix[7][arrivalHeaders.indexOf('備註')]='Retain colleague recovery note';
+  f.queue.state.matrix[7][arrivalHeaders.indexOf('試做價')]=0;
+  return f;
+}
+for(const deferDisplay of [false,true])test('full-job identity recovery defers only display and retains native readback: '+deferDisplay,()=>{
+  const f=interruptedAllocationFixture();let display=0;f.box.oa3RefreshDisplay_=()=>{display++;return {};};
+  const receipt=f.run({manualRequested:true,recoverPendingAllocations:true,deferDisplay});
+  assert.equal(receipt.recovered,1);assert.equal(receipt.accountFailures.length,0);assert.equal(display,deferDisplay?0:1);
+  const q=f.box.oa2ReadQueue_(f.ss,false)[0];assert.equal(q.origin,'managed');assert.equal(q.appointmentId,f.cell('Appointment ID'));
+  assert.equal(f.box.oa2ReadRegistry_(f.ss).appointments[q.appointmentId].pendingQueueBefore,'');
+});
+test('temporary maintenance pauses only the background timer before lock/source admission and expires automatically',()=>{
+  const f=timerFixture();f.box.pauseOmniArrivalTimerForRecovery20261116();const cursor=f.script.get('OMNI_ARRIVAL_V2_CURSOR');
+  const paused=f.box.omniArrivalV2Timer();assert.equal(paused.paused,true);assert.equal(f.counts.lock,0);assert.equal(f.counts.spreadsheets,0);assert.equal(f.script.get('OMNI_ARRIVAL_V2_CURSOR'),cursor);
+  f.script.set('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL',String(Date.now()-1));f.box.omniArrivalV2Timer();assert.equal(f.counts.process,1);
+  f.box.resumeOmniArrivalTimerAfterRecovery20261116();assert.equal(f.script.has('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL'),false);
+});
+test('manual recovery completes an accepted allocation on another Account without new identities or added-count inflation',()=>{
+  const f=interruptedAllocationFixture(),lead=f.cell('Omni Lead ID'),pointer=f.cell('Appointment ID'),uuids=f.uuidCount(),source=clone(f.source.state.matrix[1].slice(0,25));
+  const receipt=f.run({manualRequested:true,recoverPendingAllocations:true,accountNames:['Alyssa Main'],startAccountIndex:0});
+  assert.equal(receipt.recovered,1);assert.equal(receipt.bookedAdded,0);assert.equal(receipt.accountFailures.length,0);
+  assert.equal(f.cell('Omni Lead ID'),lead);assert.equal(f.cell('Appointment ID'),pointer);assert.equal(f.uuidCount(),uuids);
+  assert.deepEqual(clone(f.source.state.matrix[1].slice(0,25)),source);
+  const queue=f.box.oa2ReadQueue_(f.ss,false);assert.equal(queue.length,1);assert.equal(queue[0].origin,'managed');assert.equal(queue[0].appointmentId,pointer);
+  assert.equal(f.queue.state.matrix[7][arrivalHeaders.indexOf('備註')],'Retain colleague recovery note');assert.equal(f.queue.state.matrix[7][arrivalHeaders.indexOf('試做價')],0);
+  assert.equal(f.box.oa2ReadRegistry_(f.ss).appointments[pointer].pendingQueueBefore,'');
+  const writes=f.writes().length;f.run({manualRequested:true,recoverPendingAllocations:true});assert.equal(f.writes().length,writes);
+});
+test('manual recovery resumes a partially written accepted payload rather than absorbing it as an outcome',()=>{
+  const f=interruptedAllocationFixture();f.queue.state.matrix[7][arrivalHeaders.indexOf('預約日期')]='';f.queue.state.matrix[7][arrivalHeaders.indexOf('到店日期')]='';
+  const receipt=f.run({manualRequested:true,recoverPendingAllocations:true});assert.equal(receipt.recovered,1);assert.equal(receipt.accountFailures.length,0);
+  const q=f.box.oa2ReadQueue_(f.ss,false)[0];assert.equal(q.origin,'managed');assert.equal(f.box.oa2Date_(q.date),'2026-10-24');assert.equal(q.outcome,'待到店');
+});
+test('a colleague outcome appearing after recovery discovery is preserved by the fresh queue guard',()=>{
+  const f=interruptedAllocationFixture(),context=f.box.oa2Context_;
+  f.box.oa2Context_=(...args)=>{const result=context(...args);f.queue.state.matrix[7][arrivalHeaders.indexOf('結果')]='已到店';return result;};
+  const writes=f.queue.state.writes.length,receipt=f.run({manualRequested:true,recoverPendingAllocations:true});
+  assert.equal(receipt.blocked,true);assert.equal(receipt.recovered,0);assert.equal(f.queue.state.writes.length,writes);
+  assert.equal(f.queue.state.matrix[7][arrivalHeaders.indexOf('結果')],'已到店');
+});
+for(const [name,change] of [
+  ['colleague outcome',f=>f.queue.state.matrix[7][arrivalHeaders.indexOf('結果')]='已到店'],
+  ['changed source schedule',f=>f.source.state.matrix[1][f.headers.indexOf('預約日期')]='2026-10-25'],
+  ['foreign queue lead',f=>f.queue.state.matrix[7][arrivalHeaders.indexOf('Omni Lead ID')]='lead_foreign'],
+  ['unknown recovery before-image',f=>f.registry.state.matrix[1][f.registryHeaders().indexOf('Pending Queue Before')]='{invalid'],
+  ['prior completed outcome',f=>f.registry.state.matrix[1][f.registryHeaders().indexOf('Pending Queue Before')]='["2026-10-01","14:00","已到店","2026-10-01"]'],
+])test('unsafe allocating row stays unchanged for review: '+name,()=>{
+  const f=interruptedAllocationFixture();change(f);const queue=clone(f.queue.state.matrix),registry=clone(f.registry.state.matrix),source=clone(f.source.state.matrix);
+  const receipt=f.run({manualRequested:true,recoverPendingAllocations:true});assert.equal(receipt.blocked,true);assert.ok(receipt.review>0);assert.equal(receipt.bookedAdded,0);
+  assert.deepEqual(clone(f.queue.state.matrix),queue);assert.deepEqual(clone(f.registry.state.matrix),registry);assert.deepEqual(clone(f.source.state.matrix),source);
+});
 
 // Synthetic cases above never contact Google or mutate production files.
 

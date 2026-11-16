@@ -63,13 +63,13 @@ Database assertions cover parent/child rollback, archived-save behavior, stale a
 | Managed-form Node behavior suite | Passed locally: `node scripts/test-managed-form-management.mjs` |
 | Combined acquisition Node suites | Passed locally: all six suites, including actual public-form runtime |
 | Type check | Passed locally: `npx tsc --noEmit` |
-| Production build | Pending final integrated run |
-| Migration and behavior transaction suites | Passed in temporary PGlite; native PostgreSQL 17 CI pending |
-| Concurrent-session qualification | Pending CI run |
-| Desktop/mobile/accessibility screenshots | Pending visual workflow run and human review |
-| Release commit / PR | Pending release record |
-| Production migration readback | Pending release record |
-| Production deployment and route readback | Pending release record |
+| Production build | Passed on exact PR head in all required hosted application/design workflows |
+| Migration and behavior transaction suites | Passed PostgreSQL 17 qualification `43818603494`; both additive production migrations applied and read back |
+| Concurrent-session qualification | Passed in acquisition qualification `43818603494` |
+| Desktop/mobile/accessibility screenshots | Passed Design `43818603524` and Acquisition Visual `43818603484`; ten acquisition screenshots visually reviewed |
+| Release commit / PR | PR #159; `890216ffc074ec4fee2c87d5c10cd21197bc8fa4` |
+| Production migration readback | 23 forms, seven pages, 26 versions retained; version metadata, receipt RLS and service-only invoker privileges verified |
+| Production deployment and route readback | `dpl_FNptGsbU5xZSFMoXN956dczhxR7v` READY with intended aliases; authenticated operator readback awaits a connected staff session |
 | Canonical Growth OS product-learning export | Pending sanitized classification and source evidence |
 
 Pending means unverified; it is not a passed gate. The release owner replaces these entries with actual run, commit and deployment evidence.
@@ -81,3 +81,5 @@ The previous deployed application can remain available while the additive migrat
 For a failed creation, retry the unchanged request identity to resolve an accepted response. For a revision conflict, reload and review the current settings before submitting a new operation. Archive a used form rather than trying to remove its historical references.
 
 Reusable product learning belongs in the canonical private Growth OS learning log after abstraction and classification. Client identifiers, domains, access credentials, public tokens and customer/staff data must remain isolated from that export.
+
+Production release and remaining native/operator acceptance are recorded in [the takeover release ledger](../releases/2026-11-16-acquisition-production.md).

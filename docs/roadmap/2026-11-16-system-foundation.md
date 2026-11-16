@@ -45,3 +45,7 @@ The first foundation batch FND-002 through FND-006 and FND-009 is released as PR
 - Use existing System components, Storybook, Playwright and axe. Add dependencies only for a specific missing capability.
 - Keep Alyssa source data, provider credentials and client configuration isolated from reusable product-learning exports.
 - Record actual rollout evidence and recovery behavior; do not infer business-data parity from CI or deployment readiness.
+
+## Acquisition follow-up release
+
+PR #159 / `890216ffc074ec4fee2c87d5c10cd21197bc8fa4` is now production READY. Protected real preview, atomic revision-checked form/page commands, guided acquisition navigation and noisy Lead-monitor retirement shipped with six passing hosted qualification workflows and production migration/privilege readback. This completes those acquisition behaviors within UX-002 / LP-001 / LP-002, while broader navigation, explicit rollback controls, asset selection and AI page generation remain separate cards. Authenticated operator acceptance and native synchronization are not inferred from this release. See [the acquisition rollout ledger](../releases/2026-11-16-acquisition-production.md).

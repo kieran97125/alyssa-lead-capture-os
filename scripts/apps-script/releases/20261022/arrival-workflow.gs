@@ -49,13 +49,13 @@ function oa3OwnerRepairDecision_(old,source,a) {
   if(!placeholder&&source.appointmentId!==a.id)return null;
   return old===source.cs?null:source.cs;
 }
-function oa3RefreshDisplay_(ss,repairOwners,scope) {
+function oa3RefreshDisplay_(ss,repairOwners,scope,options) {
   const sh=ss.getSheetByName(OA2.ARRIVAL),headers=oa2Header_(sh,OA2.HEADER_ROW),n=Math.max(0,sh.getLastRow()-OA2.FIRST_ROW+1);
-  if(!n)return {namesRestored:0,identitiesRepaired:0};
+  if(!n)return {namesRestored:0,identitiesRepaired:0,remainingDisplayChanges:0};
   const raw=sh.getRange(OA2.FIRST_ROW,1,n,sh.getLastColumn()).getValues(),reg=scope?scope.appointments:oa2ReadRegistry_(ss).appointments,sources=scope?scope.sources:oa3Sources_(ss),aliases=scope?new Map():oa3Aliases_(ss);
   const column=h=>headers.indexOf(h),ic=column('Appointment ID'),lc=column('Omni Lead ID'),qc=column('到店紀錄ID（內部）'),cc=column('CS同事名'),label=column('客人／預約'),brand=column('品牌'),phone=column('電話');
   const counts={};raw.forEach(row=>{const id=oa2Text_(row[ic]);if(id)counts[id]=(counts[id]||0)+1;});
-  const plans=[],result={namesRestored:0,identitiesRepaired:0,displayRows:0};
+  let plans=[];const result={namesRestored:0,identitiesRepaired:0,displayRows:0,remainingDisplayChanges:0};
   raw.forEach((row,i)=>{
     const id=oa2Text_(row[ic]),a=reg[id];if(scope&&!scope.ids.has(id))return;if(!a||counts[id]!==1||a.queueId!==oa2Text_(row[qc])||a.leadId!==oa2Text_(row[lc]))return;
     const source=oa3ResolveSource_(a,sources,aliases),changes=[];
@@ -73,6 +73,14 @@ function oa3RefreshDisplay_(ss,repairOwners,scope) {
     }
     if(changes.length)plans.push({row:OA2.FIRST_ROW+i,before:row,changes});
   });
+  if(options&&options.singleWriteGroup===true&&plans.length){
+    const total=plans.reduce((n,p)=>n+p.changes.length,0),col=Math.min(...plans.flatMap(p=>p.changes.map(c=>c.col)));
+    const selected=oa2RowGroups_(plans.filter(p=>p.changes.some(c=>c.col===col)))[0].slice(0,25);
+    plans=selected.map(p=>({row:p.row,before:p.before,changes:p.changes.filter(c=>c.col===col)}));
+    result.namesRestored=col===cc?plans.length:0;result.identitiesRepaired=col===label?plans.length:0;
+    result.remainingDisplayChanges=total-plans.length;
+    console.log(JSON.stringify({handler:'arrival_display_budget',plannedChanges:total,selectedChanges:plans.length,remainingChanges:result.remainingDisplayChanges}));
+  }
   if(!plans.length){console.log(JSON.stringify(Object.assign({handler:'arrival_display_repair'},result)));return result;}
   const freshSources=scope?scope.freshSources():oa3Sources_(ss);plans.forEach(p=>{const a=reg[oa2Text_(p.before[ic])],old=oa3ResolveSource_(a,sources,aliases),fresh=oa3ResolveSource_(a,freshSources,aliases);if(JSON.stringify(old)!==JSON.stringify(fresh))throw new Error('Source ownership changed during maintenance; safe retry required.');});
   const ownerChanges=plans.flatMap(p=>p.changes.filter(c=>c.col===cc).map(c=>({appointmentId:oa2Text_(p.before[ic]),before:p.before[cc],after:c.value})));
@@ -91,10 +99,10 @@ function oa3RefreshDisplay_(ss,repairOwners,scope) {
 }
 function oa3SnapshotValues_(headers,rows) {
   const idx=headers.indexOf('Appointment ID'),entry=headers.indexOf('到店紀錄ID（內部）');
-  const retained=headers.flatMap((h,i)=>['CS同事名','結果','到店日期','備註','補充Book登記日期','來源','試做價','開單金額'].includes(h)?[i]:[]),map={};
+  const retained=headers.flatMap((h,i)=>['CS同事名','結果','到店日期','備註','補充Book登記日期','來源','試做價','開單金額','總金額'].includes(h)?[i]:[]),ownershipFields=retained.filter(i=>headers[i]!=='總金額'),map={};
   rows.forEach(row=>{
     const id=oa2Text_(row[idx])||oa2Text_(row[entry]);
-    if(!id){if(retained.some(i=>oa2Text_(row[i])))throw new Error('Unowned colleague input must be resolved before sorting.');return;}
+    if(!id){if(ownershipFields.some(i=>oa2Text_(row[i])))throw new Error('Unowned colleague input must be resolved before sorting.');return;}
     if(map[id])throw new Error('Duplicate arrival ownership before sort.');map[id]=retained.map(i=>row[i]);
   });return map;
 }
@@ -105,14 +113,27 @@ function oa3RowSnapshot_(sh) {
 function oa3SortKey_(date,time,id,index,outcome) {
   const d=oa2Date_(date),t=oa2Time_(time),done=['已到店','Show','No Show','取消'].includes(oa2Text_(outcome));return (id?done?'1':'0':'2')+'|'+(d||'9999-99-99')+'|'+(t||'99:99')+'|'+String(index).padStart(8,'0');
 }
-function oa3SortArrival_(sh) {
+function oa3SortArrival_(sh,options) {
   const n=Math.max(0,sh.getLastRow()-OA2.FIRST_ROW+1);if(n<2)return {sorted:0};
   const headers=oa2Header_(sh,OA2.HEADER_ROW),date=headers.indexOf('預約日期'),time=headers.indexOf('時間'),id=headers.indexOf('Appointment ID'),width=sh.getMaxColumns();
   const outcome=headers.indexOf('結果'),rows=sh.getRange(OA2.FIRST_ROW,1,n,headers.length).getValues(),before=oa3SnapshotValues_(headers,rows),keys=rows.map((r,i)=>[oa3SortKey_(r[date],r[time],r[id],i,r[outcome])]);
+  if(options&&options.useOwnedSortKey===true){
+    const signature=oa2Hash_(JSON.stringify(Object.keys(before).sort().map(id=>[id,before[id]])));
+    if(options.expectedSnapshotHash&&options.expectedSnapshotHash!==signature)throw new Error('Arrival ownership or colleague inputs changed after an uncertain sort; review rather than overwrite.');
+    if(typeof options.checkpoint==='function')options.checkpoint(signature);
+  }
   if(keys.every((r,i)=>!i||r[0]>=keys[i-1][0]))return {sorted:0};
-  sh.insertColumnAfter(width);
-  try{const keyRange=sh.getRange(OA2.FIRST_ROW,width+1,n,1);keyRange.clearDataValidations();keyRange.setValues(keys);sh.getRange(OA2.FIRST_ROW,1,n,width+1).sort({column:width+1,ascending:true});}
-  finally{sh.deleteColumn(width+1);}
+  if(options&&options.useOwnedSortKey===true){
+    const columns=headers.flatMap((name,i)=>name==='到店優先排序（內部）'?[i+1]:[]);if(columns.length!==1)throw new Error('A unique governed arrival sort column is required.');
+    // This generated helper is already owned by the arrival register. Keeping
+    // it avoids a structural insert/delete boundary during a lost response.
+    sh.getRange(OA2.FIRST_ROW,columns[0],n,1).setValues(keys);
+    sh.getRange(OA2.FIRST_ROW,1,n,width).sort({column:columns[0],ascending:true});
+  }else{
+    sh.insertColumnAfter(width);
+    try{const keyRange=sh.getRange(OA2.FIRST_ROW,width+1,n,1);keyRange.clearDataValidations();keyRange.setValues(keys);sh.getRange(OA2.FIRST_ROW,1,n,width+1).sort({column:width+1,ascending:true});}
+    finally{sh.deleteColumn(width+1);}
+  }
   const after=oa3RowSnapshot_(sh);if(JSON.stringify(Object.keys(before).sort())!==JSON.stringify(Object.keys(after).sort())||Object.keys(before).some(k=>JSON.stringify(before[k])!==JSON.stringify(after[k])))throw new Error('Arrival ownership or colleague inputs changed during native sorting.');
   return {sorted:Object.keys(before).length};
 }
@@ -338,6 +359,7 @@ function oa3ManualPhase_(timings,name,action) {const start=Date.now();console.lo
  * never allowed to prevent reading the other Accounts. No raw values are logged.
  */
 function oa3IdentityDisplayContext_(ss) {
+  if(OA3_MANUAL_USE_NATIVE_DISPLAY_READS)return ss;
   if(typeof Sheets==='undefined')return ss;
   if(!Sheets||!Sheets.Spreadsheets||!Sheets.Spreadsheets.Values||typeof Sheets.Spreadsheets.Values.batchGet!=='function')throw new Error('Advanced Sheets identity discovery is not configured correctly.');
   const names=OMNI_ACCOUNT_TABS.slice(),ranges=names.map(name=>oa3ManualApiRange_(name));
@@ -394,12 +416,12 @@ function oa3CommitIdentityBookings_(ss,items,allSnaps,queue,ctx,options) {
   ops.push(...append);
   if(ctx.errors.length)throw new Error('Identity booking queue requires review.');
   if(!processed.length)return {registered:0,recovered:0,added:0,review,reviews,acceptedRows:[],metadataOnly:[]};
-  if(!(options&&options.staffEdit)&&omniStaffPriorityActive_())throw new Error('Staff edit takes priority; identity booking remains pending.');
+  if(!(options&&(options.staffEdit||options.manualRequested===true))&&omniStaffPriorityActive_())throw new Error('Staff edit takes priority; identity booking remains pending.');
   const writeSnaps=allSnaps.filter(snap=>processed.some(item=>item.snap===snap));
   writeSnaps.forEach(snap=>{const targets=new Set(processed.filter(item=>item.snap===snap).map(item=>item.record.row));snap.deferredRows=new Set(snap.records.filter(r=>!targets.has(r.row)).map(r=>r.row));});
   oa2Commit_(ss,ctx,queue,ops,writeSnaps,processed.map(item=>item.record));
   const added=ops.filter(op=>op.kind==='append');
-  if(added.length){
+  if(added.length&&!(options&&options.deferDisplay===true)){
     const ids=new Set(added.map(op=>op.appt.id)),display=processed.filter(item=>ids.has(item.record.appointmentId));
     oa3RefreshDisplay_(ss,false,{appointments:ctx.appointments,ids,sources:oa3ManualDisplaySources_(display,false),freshSources:()=>oa3ManualDisplaySources_(display,true)});
   }
@@ -427,7 +449,7 @@ function syncMissingBookedArrivals() {
     const pending=props.getProperty(pendingKey)==='1',current=oa3ManualPhase_(timings,'lockedReadMs',()=>oa3MissingWriteRead_(ss,timings)),queue=current.queue,snaps=current.snaps;
     let selection=current.selection,ops=[],processed=[],review=current.selection.reviewCount||0,ctx=null;
     if(selection.items.length){
-      ctx=oa3ManualPhase_(timings,'contextMs',()=>oa2Context_(ss,false));
+      ctx=oa3ManualPhase_(timings,'contextMs',()=>oa2Context_(ss,false));ctx.manualTrace=true;
       snaps.forEach(s=>oa2ReplaySourceAnchors_(ctx,s));
       oa3ManualPhase_(timings,'resolvedRawQueueMs',()=>oa3ManualHydrateResolvedQueue_(ctx,snaps,queue));
       const globalSelection=current.globalSnaps?oa3ManualPresenceSelection_(current.globalSnaps,queue):null;
@@ -467,20 +489,360 @@ function syncMissingBookedArrivals() {
       }
     }
     const addedOps=ops.filter(op=>op.kind==='append'),repaired=ops.filter(op=>op.kind==='schedule_only').length;
-    if(pending){oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false));}
-    else if(addedOps.length){
-      const ids=new Set(addedOps.map(op=>op.appt.id)),displayItems=processed.filter(item=>ids.has(item.record.appointmentId));
-      oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false,{appointments:ctx.appointments,ids,sources:oa3ManualDisplaySources_(displayItems,false),freshSources:()=>oa3ManualDisplaySources_(displayItems,true)}));
+    let apiProjection=null;
+    if((ops.length||pending)&&typeof OA3_FINALIZE_API_ENABLED!=='undefined'&&OA3_FINALIZE_API_ENABLED===true){
+      // The existing pending marker remains durable until every finalizer readback
+      // is accepted. API review/unknown results never fall back to native reads.
+      if(typeof oa3TryApiFinalize_!=='function')throw new Error('API finalizer is unavailable; finalization remains pending.');
+      apiProjection=oa3ManualPhase_(timings,'apiFinalizerMs',()=>oa3TryApiFinalize_(ss,{documentLock:lock,accountNames:OMNI_ACCOUNT_TABS.slice(),includeHistory:true}));
+      if(!apiProjection||apiProjection.completed!==true||!Array.isArray(apiProjection.csReviewByAccount)||apiProjection.csReviewByAccount.length!==OMNI_ACCOUNT_TABS.length||apiProjection.csReviewByAccount.some(value=>!Number.isSafeInteger(value)||value<0))throw new Error('API finalization was not verified; preserve its pending marker and retry.');
+      if(!Number.isSafeInteger(apiProjection.csReviewByAccount.reduce((sum,value)=>sum+value,0)))throw new Error('API finalization review count was not verified.');
+    }else{
+      if(pending){oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false));}
+      else if(addedOps.length){
+        const ids=new Set(addedOps.map(op=>op.appt.id)),displayItems=processed.filter(item=>ids.has(item.record.appointmentId));
+        oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false,{appointments:ctx.appointments,ids,sources:oa3ManualDisplaySources_(displayItems,false),freshSources:()=>oa3ManualDisplaySources_(displayItems,true)}));
+      }
+      if(ops.length||pending)oa3ManualPhase_(timings,'sortMs',()=>oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL)));
     }
-    if(ops.length||pending)oa3ManualPhase_(timings,'sortMs',()=>oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL)));
     if(ops.length||pending)props.deleteProperty(pendingKey);
     const receipt={completed:true,readEngine:initial.readEngine||'native',added:addedOps.length,repaired,skipped:selection.skipped,review,elapsedMs:Date.now()-started,initialReadMs,timings,noOp:!ops.length&&!pending};
+    if(apiProjection){receipt.finalizerTransport='sheets_api';receipt.csReviewCount=apiProjection.csReviewByAccount.reduce((sum,value)=>sum+value,0);}
     ss.toast('補上 '+receipt.added+' 個預約；補回 '+receipt.repaired+' 個日期／時間。','到店紀錄',8);
     console.log(JSON.stringify(Object.assign({handler:'manual_missing_booked_sync'},receipt)));return receipt;
   }finally{lock.releaseLock();}
 }
+const OA3_MANUAL_COMPLETE_SYNC_KEY='ARRIVAL_MANUAL_COMPLETE_SYNC_V1';
+function oa3ManualSyncCount_(value) {return Number.isSafeInteger(value)&&value>=0?value:0;}
+function oa3ManualSyncTimestamp_(value) {return typeof value==='string'&&/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/.test(value)&&Number.isFinite(Date.parse(value))&&new Date(value).toISOString()===value;}
+function oa3ManualFullSyncState_(props) {
+  const raw=props.getProperty(OA3_MANUAL_COMPLETE_SYNC_KEY);if(!raw)return null;
+  let state;try{state=JSON.parse(raw);}catch(ignored){}
+  if(!state||state.version!==1||typeof state.id!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(state.id)||
+    !['identity','account','projection','complete'].includes(state.phase)||!Number.isInteger(state.accountIndex)||state.accountIndex<0||state.accountIndex>OMNI_ACCOUNT_TABS.length||
+    !Array.isArray(state.processedAccounts)||state.processedAccounts.length!==state.accountIndex||state.processedAccounts.some((index,i)=>index!==i)||
+    !Array.isArray(state.reviewByAccount)||state.reviewByAccount.length!==OMNI_ACCOUNT_TABS.length||state.reviewByAccount.some(value=>!Number.isSafeInteger(value)||value<0)||
+    ['registered','recovered','added','changed','reviewCount'].some(key=>!Number.isSafeInteger(state[key])||state[key]<0)||
+    !Array.isArray(state.processedAt)||state.processedAt.length!==state.accountIndex||state.processedAt.some(value=>!oa3ManualSyncTimestamp_(value))||
+    !oa3ManualSyncTimestamp_(state.startedAt)||!oa3ManualSyncTimestamp_(state.updatedAt)||
+    typeof state.projectionComplete!=='boolean'||(state.phase!=='complete'&&state.projectionComplete)||typeof state.countsVerified!=='boolean'||
+    !Number.isSafeInteger(state.unknownCountSteps)||state.unknownCountSteps<0||(state.countsVerified&&state.unknownCountSteps>0)||![null,'identity_review'].includes(state.blockedReason)||
+    (state.attempt!==null&&(!state.attempt||state.attempt.phase!==state.phase||state.attempt.accountIndex!==state.accountIndex||!oa3ManualSyncTimestamp_(state.attempt.startedAt)))||
+    !Number.isSafeInteger(state.reviewByAccount.reduce((sum,value)=>sum+value,0))||state.reviewCount!==state.reviewByAccount.reduce((sum,value)=>sum+value,0)||
+    (['identity','account'].includes(state.phase)&&state.accountIndex>=OMNI_ACCOUNT_TABS.length)||
+    (['projection','complete'].includes(state.phase)&&state.accountIndex!==OMNI_ACCOUNT_TABS.length)||
+    (state.phase==='complete'&&(state.projectionComplete!==true||state.attempt!==null))||
+    (state.blockedReason&&(state.phase!=='identity'||state.reviewCount===0)))throw new Error('同步進度未能核實；已保留原有記錄，請聯絡系統管理員。');
+  // Existing v1 jobs can resume without resetting accepted Account coverage.
+  if(state.projectionStep===undefined)state.projectionStep=state.phase==='complete'?8:0;
+  if(state.accountPrepared===undefined)state.accountPrepared=false;
+  if(state.pendingQueueOps===undefined)state.pendingQueueOps=0;
+  if(state.pendingDisplayChanges===undefined)state.pendingDisplayChanges=0;
+  if(state.sortSnapshotHash===undefined)state.sortSnapshotHash=null;
+  if(state.sortSnapshotHash!==null&&(typeof state.sortSnapshotHash!=='string'||!(/^[a-f0-9]{32}$/).test(state.sortSnapshotHash)||!['projection','complete'].includes(state.phase)||(state.phase==='projection'&&state.projectionStep!==7)))throw new Error('排序保留記錄未能核實；已保留原有記錄。');
+  if(!Number.isSafeInteger(state.pendingDisplayChanges)||state.pendingDisplayChanges<0||(state.pendingDisplayChanges>0&&(state.phase!=='projection'||state.projectionStep!==6)))throw new Error('顯示整理進度未能核實；已保留原有記錄。');
+  if(!Number.isSafeInteger(state.pendingQueueOps)||state.pendingQueueOps<0||(['projection','complete'].includes(state.phase)&&state.pendingQueueOps!==0))throw new Error('同步剩餘進度未能核實；已保留原有記錄。');
+  if(typeof state.accountPrepared!=='boolean'||(['projection','complete'].includes(state.phase)&&state.accountPrepared)||
+    (state.attempt&&state.attempt.operation!==undefined&&(state.attempt.phase!=='account'||!['prepare','apply'].includes(state.attempt.operation)||(state.attempt.operation==='apply')!==state.accountPrepared)))throw new Error('同步套用進度未能核實；已保留原有記錄。');
+  if(!Number.isInteger(state.projectionStep)||state.projectionStep<0||state.projectionStep>8||
+    (['identity','account'].includes(state.phase)&&state.projectionStep!==0)||
+    (state.phase==='complete'&&state.projectionStep!==8)||
+    (state.phase==='projection'&&state.projectionStep>=8))throw new Error('同步整理進度未能核實；已保留原有記錄。');
+  return state;
+}
+function oa3ManualFullSyncView_(state) {
+  const finished=state.phase==='complete',needsReview=state.reviewCount>0,coverageComplete=state.processedAccounts.length===OMNI_ACCOUNT_TABS.length;
+  return {jobId:state.id,phase:state.phase,finished,completed:finished&&!needsReview,needsReview,
+    blocked:!!state.blockedReason,reason:state.blockedReason||undefined,
+    nativeState:state.blockedReason?'blocked':finished?(needsReview?'review':'complete'):'pending',coverageComplete,
+    reconciliationComplete:finished&&!needsReview&&state.projectionComplete,projectionComplete:state.projectionComplete,projectionStep:state.projectionStep||0,
+    projectionLabel:state.projectionStep<6?'補齊同事資料（'+OMNI_ACCOUNT_TABS[state.projectionStep]+'）':state.projectionStep===6?'更新預約顯示':'排序到店記錄',
+    processedAccounts:state.processedAccounts.length,totalAccounts:OMNI_ACCOUNT_TABS.length,
+    accountLabel:OMNI_ACCOUNT_TABS[state.accountIndex]||'',accountPrepared:state.accountPrepared===true,pendingQueueOps:state.pendingQueueOps||0,pendingDisplayChanges:state.pendingDisplayChanges||0,registered:state.registered,recovered:state.recovered,
+    added:state.added,changed:state.changed,reviewCount:state.reviewCount,countsVerified:state.countsVerified,unknownCountSteps:state.unknownCountSteps,
+    reviewAccounts:state.reviewByAccount.filter(value=>value>0).length,
+    startedAt:state.startedAt,processedAt:state.processedAt.slice(),updatedAt:state.updatedAt,
+    masterProjectionVerified:false,freshCoverageVerified:false,atomicSourceSnapshot:false};
+}
+function oa3ManualFullSyncSave_(props,state) {
+  state.updatedAt=new Date().toISOString();state.reviewCount=state.reviewByAccount.reduce((sum,value)=>sum+value,0);
+  props.setProperty(OA3_MANUAL_COMPLETE_SYNC_KEY,JSON.stringify(state));
+  return oa3ManualFullSyncView_(state);
+}
+/** Shared checkpoint only. Starting/resuming never invokes the booking writer. */
+function startBookedArrivalsFullSync() {
+  let lock,locked=false;
+  try {
+    const startup=oa3ManualStartup_({});omniArrivalRenewManualLease_();lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return {busy:true,reason:'busy'};locked=true;
+    if(!oa2Enabled_())return {blocked:true,reason:'disabled'};
+    let state=oa3ManualFullSyncState_(startup.props);
+    if(state&&state.phase!=='complete')return oa3ManualFullSyncView_(state);
+    const now=new Date().toISOString();state={version:1,id:Utilities.getUuid(),phase:'identity',accountIndex:0,
+      processedAccounts:[],processedAt:[],reviewByAccount:OMNI_ACCOUNT_TABS.map(()=>0),reviewCount:0,
+      registered:0,recovered:0,added:0,changed:0,countsVerified:true,unknownCountSteps:0,attempt:null,blockedReason:null,
+      projectionComplete:false,projectionStep:0,accountPrepared:false,pendingQueueOps:0,pendingDisplayChanges:0,sortSnapshotHash:null,startedAt:now,updatedAt:now};
+    return oa3ManualFullSyncSave_(startup.props,state);
+  } catch (ignored) {
+    console.log(JSON.stringify({handler:'manual_complete_booking_sync',phase:'start',state:'retry_pending'}));
+    throw new Error('未能開啟同步，原有進度已保留，請稍後再試。');
+  } finally {if(locked)lock.releaseLock();}
+}
+/** One admitted identity batch, one Account worker, or one final projection per RPC.
+ * The timer has its own cursor. Each call uses fresh canonical ownership/CAS reads.
+ * A failed/unknown step retains its checkpoint; retry never assumes nothing changed.
+ * Explicit manual requests bypass only the idle hint, never the document lock or CAS.
+ */
+function continueBookedArrivalsFullSync(jobId) {
+  let lock,locked=false,phase='startup',attemptPersisted=false,flushAttempted=false,apiFinalization=false;
+  try {
+    if(typeof jobId!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(jobId))throw new Error('Invalid job.');
+    const startup=oa3ManualStartup_({}),props=startup.props;omniArrivalRenewManualLease_();
+    lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return {busy:true,reason:'busy'};locked=true;
+    if(!oa2Enabled_())return {blocked:true,reason:'disabled'};
+    const state=oa3ManualFullSyncState_(props);
+    if(!state)return {stale:true,restartRequired:true,jobId:null};
+    if(state.id!==jobId)return Object.assign({stale:true},oa3ManualFullSyncView_(state));
+    phase=state.phase;if(phase==='complete'){omniArrivalClearManualLease_();return oa3ManualFullSyncView_(state);}
+    const ss=startup.spreadsheet,index=state.accountIndex,account=OMNI_ACCOUNT_TABS[index];
+    // A persisted attempt means the prior native call may have committed before
+    // its response/checkpoint was lost. Converge safely, but never advertise an
+    // exact accumulated added/changed count after such an uncertain boundary.
+    if(state.attempt){
+      state.countsVerified=false;state.unknownCountSteps++;
+      // An uncertain Account commit may have retained an allocating row after
+      // its payload write. Recover that accepted prefix before outcome reads.
+      if(phase==='account'&&state.attempt.operation!=='prepare'){state.phase='identity';phase='identity';}
+    }
+    state.blockedReason=null;state.attempt={phase,accountIndex:index,startedAt:new Date().toISOString()};
+    if(phase==='account')state.attempt.operation=state.accountPrepared?'apply':'prepare';
+    oa3ManualFullSyncSave_(props,state);attemptPersisted=true;
+    if(phase==='identity') {
+      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,maxIdentityBatch:1,manualRequested:true,recoverPendingAllocations:true,deferDisplay:true});
+      if(!result)throw new Error('Identity completion was not verified.');
+      if(['registered','recovered','bookedAdded','review'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0)||!Array.isArray(result.accountFailures))throw new Error('Identity completion was not verified.');
+      if(result.skipped){if(result.registered||result.recovered||result.bookedAdded)throw new Error('Identity result remains pending.');state.attempt=null;return Object.assign(oa3ManualFullSyncSave_(props,state),{busy:true,reason:'staff_priority'});}
+      const resultIndex=Number.isInteger(result.attemptedAccountIndex)&&result.attemptedAccountIndex>=0&&result.attemptedAccountIndex<OMNI_ACCOUNT_TABS.length?result.attemptedAccountIndex:index;
+      if(result.blocked){state.reviewByAccount[resultIndex]=Math.max(state.reviewByAccount[resultIndex],result.review,1);state.blockedReason='identity_review';state.attempt=null;flushAttempted=true;SpreadsheetApp.flush();return oa3ManualFullSyncSave_(props,state);}
+      const registered=oa3ManualSyncCount_(result.registered),recovered=oa3ManualSyncCount_(result.recovered),added=oa3ManualSyncCount_(result.bookedAdded);
+      state.registered+=registered;state.recovered+=recovered;state.added+=added;
+      const failures=Array.isArray(result.accountFailures)?result.accountFailures.filter(item=>item.accountIndex===index||item.accountIndex===-1).length:0;
+      state.reviewByAccount[resultIndex]=Math.max(state.reviewByAccount[resultIndex],oa3ManualSyncCount_(result.review),failures);
+      // Further accepted identities resume this same Account. A
+      // no-progress pass leaves review visible and advances to normal handling.
+      if(!registered&&!recovered&&!added)state.phase='account';
+    } else if(phase==='account') {
+      const previous=OA3_MANUAL_RUN_ACTIVE;let result;
+      try{OA3_MANUAL_RUN_ACTIVE=true;result=oa2ProcessAccount_(ss,ss.getSheetByName(account),'scan',null,false,undefined,{manualComplete:true,prepareOnly:!state.accountPrepared,singleQueueGroup:true});}
+      finally{OA3_MANUAL_RUN_ACTIVE=previous;}
+      if(!result||result.account!==account||!Array.isArray(result.errors)||result.errors.length||result.dryRun)throw new Error('Account completion was not verified.');
+      if(['newQueue','changes','deferredQueueConflicts','deferredSourceRecords'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0))throw new Error('Account counts were not verified.');
+      if(result.manualReviewCount!==undefined&&(!Number.isSafeInteger(result.manualReviewCount)||result.manualReviewCount<0))throw new Error('Account review was not verified.');
+      if(!state.accountPrepared){
+        if(result.staged!==true)throw new Error('Source preparation was not verified.');
+        state.accountPrepared=true;
+      }else{
+        if(result.staged===true)throw new Error('Account application was not verified.');
+        if(!Number.isSafeInteger(result.remainingQueueOps)||result.remainingQueueOps<0)throw new Error('Queue application coverage was not verified.');
+        state.pendingQueueOps=result.remainingQueueOps;
+        state.added+=oa3ManualSyncCount_(result.newQueue);state.changed+=oa3ManualSyncCount_(result.changes);
+        state.reviewByAccount[index]=Math.max(state.reviewByAccount[index],oa3ManualSyncCount_(result.manualReviewCount),oa3ManualSyncCount_(result.deferredQueueConflicts),oa3ManualSyncCount_(result.deferredSourceRecords));
+        if(result.remainingQueueOps===0){state.processedAccounts.push(index);state.processedAt.push(new Date().toISOString());state.accountIndex++;state.accountPrepared=false;state.phase=state.accountIndex===OMNI_ACCOUNT_TABS.length?'projection':'identity';}
+      }
+    } else if(phase==='projection') {
+      // One independently checkpointed projection operation per native RPC.
+      // No source/registry snapshots or row positions cross RPC boundaries.
+      // API mode is explicitly opt-in. Unknown API results must never enter a
+      // native read/flush fallback, which can block on the dirty arrival grid.
+      apiFinalization=typeof OA3_FINALIZE_API_ENABLED!=='undefined'&&OA3_FINALIZE_API_ENABLED===true;
+      if(apiFinalization){
+        if(typeof oa3TryApiFinalize_!=='function')throw new Error('API finalizer is unavailable.');
+        const result=oa3TryApiFinalize_(ss,{documentLock:lock,accountNames:OMNI_ACCOUNT_TABS.slice(),includeHistory:true});
+        if(!result||result.completed!==true)throw new Error('API projection requires review.');
+        if(!Array.isArray(result.csReviewByAccount)||result.csReviewByAccount.length!==OMNI_ACCOUNT_TABS.length||result.csReviewByAccount.some(n=>!Number.isSafeInteger(n)||n<0))throw new Error('API projection receipt was not verified.');
+        if(!Number.isSafeInteger(result.csReviewByAccount.reduce((sum,value)=>sum+value,0)))throw new Error('API projection review count was not verified.');
+        result.csReviewByAccount.forEach((review,i)=>state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],review));
+        state.projectionStep=8;
+        state.pendingDisplayChanges=0;
+      }else{
+        // The canonical runtime admits one explicit Account at a time. The
+        // migration-only initialRefresh privilege is never used by this button.
+        const i=state.projectionStep;let advance=true;
+        if(i<OMNI_ACCOUNT_TABS.length){
+          const cs=oa2TryRefreshQueueCs_(ss,{documentLock:lock,accountNames:[OMNI_ACCOUNT_TABS[i]],includeHistory:i===0});
+          if(!cs||cs.ok!==true)throw new Error('Colleague projection was not verified.');
+          state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],oa3ManualSyncCount_(cs.review));
+        }else if(i===6){
+          const display=oa3RefreshDisplay_(ss,false,undefined,{singleWriteGroup:true});
+          if(!display||!Number.isSafeInteger(display.remainingDisplayChanges)||display.remainingDisplayChanges<0)throw new Error('Display application was not verified.');
+          state.pendingDisplayChanges=display.remainingDisplayChanges;advance=display.remainingDisplayChanges===0;
+        }else if(i===7)oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL),{useOwnedSortKey:true,expectedSnapshotHash:state.sortSnapshotHash,checkpoint:signature=>{state.sortSnapshotHash=signature;oa3ManualFullSyncSave_(props,state);}});
+        else throw new Error('Unknown projection step.');
+        if(advance)state.projectionStep++;
+      }
+      if(state.projectionStep===8){state.projectionComplete=true;state.phase='complete';}
+    } else throw new Error('Unknown phase.');
+    // Flush native writes before acknowledging the phase. A failed property
+    // checkpoint or lost response is retried through the same durable worker.
+    flushAttempted=true;if(!apiFinalization)SpreadsheetApp.flush();state.attempt=null;
+    const result=oa3ManualFullSyncSave_(props,state);
+    if(state.phase==='complete')omniArrivalClearManualLease_();
+    console.log(JSON.stringify({handler:'manual_complete_booking_sync',phase,state:result.nativeState,processedAccounts:result.processedAccounts,needsReview:result.needsReview}));
+    return result;
+  } catch (ignored) {
+    // A partial native writer can leave a durable intent. Flush once before
+    // releasing its lock, without replacing the retained retry checkpoint.
+    if(locked&&attemptPersisted&&!flushAttempted&&!apiFinalization){flushAttempted=true;try{SpreadsheetApp.flush();}catch(flushError){}}
+    console.log(JSON.stringify({handler:'manual_complete_booking_sync',phase,state:'retry_pending'}));
+    throw new Error('未能確認今步同步，已保留進度及原有資料，請按「繼續同步」重試。');
+  } finally {if(locked)lock.releaseLock();}
+}
 function syncAllBookedArrivals() {
-  const html=HtmlService.createHtmlOutput(`<html><head><meta charset="utf-8"><style>body{font:14px system-ui,sans-serif;color:#213840;padding:20px;background:#f6f8f8}h2{font-size:18px;margin:0 0 16px}section{background:white;border-radius:12px;padding:18px;box-shadow:0 2px 8px #00000008}progress{width:100%;accent-color:#1d3a44;height:8px}p{line-height:1.6}button{border:0;border-radius:7px;padding:10px 18px;color:white;background:#1d3a44;cursor:pointer}</style></head><body><h2>補上未入表預約</h2><section><progress id="progress" max="1"></progress><p id="status" role="status" aria-live="polite">正在尋找未入表及欠日期／時間嘅預約…</p><button id="retry" hidden onclick="run()">再試</button></section><script>let busy=0,running=false,attemptStarted=0;const status=document.getElementById('status'),progress=document.getElementById('progress'),retry=document.getElementById('retry');function run(){if(running)return;if(!attemptStarted)attemptStarted=Date.now();running=true;retry.hidden=true;progress.removeAttribute('value');status.textContent='正在補上未入表及欠日期／時間嘅預約…';google.script.run.withSuccessHandler(r=>{running=false;if(r.busy){if(++busy>60){attemptStarted=0;status.textContent='其他同步仍在進行，請稍後再試。';retry.hidden=false;return;}status.textContent='等候目前同步完成…';setTimeout(run,3000);return;}if(!r.completed){attemptStarted=0;status.textContent='同步未完成，請再試。';retry.hidden=false;return;}busy=0;progress.value=1;const seconds=((Date.now()-attemptStarted)/1000).toFixed(1);attemptStarted=0;status.textContent=(r.noOp?'冇未入表或可補回嘅預約。':'已補上 '+r.added+' 個預約；補回 '+r.repaired+' 個日期／時間。')+' 略過 '+r.skipped+' 個毋須更新嘅記錄。'+(r.review?' '+r.review+' 個需核對。':'')+' 用時 '+seconds+' 秒。';}).withFailureHandler(e=>{running=false;attemptStarted=0;status.textContent='同步未完成：'+e.message;retry.hidden=false;}).syncMissingBookedArrivals();}run();</script></body></html>`).setTitle('到店紀錄');SpreadsheetApp.getUi().showSidebar(html);
+  const html=HtmlService.createHtmlOutput(`
+<html>
+<head>
+  <meta charset="utf-8">
+  <style>
+    body { font:14px system-ui,sans-serif; color:#213840; padding:20px; background:#f6f8f8; }
+    h2 { font-size:18px; margin:0 0 16px; }
+    section { background:white; border-radius:12px; padding:18px; }
+    progress { width:100%; accent-color:#1d3a44; height:8px; }
+    p { line-height:1.6; }
+    small { display:block; color:#52666e; line-height:1.6; }
+    button { border:0; border-radius:7px; padding:10px 18px; color:white; background:#1d3a44; cursor:pointer; }
+    button:focus-visible { outline:3px solid #1d3a44; outline-offset:3px; }
+  </style>
+</head>
+<body>
+  <h2>同步預約及到店記錄</h2>
+  <section>
+    <progress id="progress" aria-label="同步進度" max="7" value="0"></progress>
+    <p id="status" role="status" aria-live="polite">正在準備同步…</p>
+    <small id="detail">會補上預約、更新日期時間，並移走已轉回跟進的待到店項目。已完成記錄會保留。</small>
+    <button id="retry" type="button" hidden onclick="resume()">繼續同步</button>
+  </section>
+  <script>
+    let jobId='',busy=0,running=false,finished=false,manualOnly=false;
+    let retryAttempt=0,retryTimer=0,requestSequence=0;
+    const retryDelays=[2000,5000,10000];
+    const status=document.getElementById('status');
+    const detail=document.getElementById('detail');
+    const progress=document.getElementById('progress');
+    const retry=document.getElementById('retry');
+
+    function showRetry(message) {
+      status.textContent=message;
+      retry.hidden=false;
+      if(typeof retry.focus==='function')retry.focus();
+    }
+
+    function cancelRetry() {
+      if(retryTimer)clearTimeout(retryTimer);
+      retryTimer=0;
+    }
+
+    function scheduleRun(delay) {
+      cancelRetry();
+      retryTimer=setTimeout(function(){retryTimer=0;run();},delay);
+    }
+
+    function resume() {
+      if(running||finished)return;
+      manualOnly=false;retryAttempt=0;busy=0;
+      cancelRetry();run();
+    }
+
+    function failure() {
+      running=false;
+      if(finished)return;
+      if(navigator.onLine===false) {
+        showRetry('網絡暫時離線，進度已保留。恢復連線後會接續同步。');
+        return;
+      }
+      if(retryAttempt<retryDelays.length) {
+        const delay=retryDelays[retryAttempt++];
+        showRetry('連線暫時未有回應，'+Math.ceil(delay/1000)+' 秒後會接續原有進度。');
+        scheduleRun(delay);return;
+      }
+      manualOnly=true;
+      showRetry('多次連線仍未成功，進度已保留。請稍後按「繼續同步」；原有記錄會先核對，再處理。');
+    }
+
+    function receive(result) {
+      running=false;
+      if(!result){failure();return;}
+      retryAttempt=0;
+      if(result.restartRequired){jobId='';scheduleRun(150);return;}
+      if(result.busy) {
+        status.textContent='目前同步步驟仍在處理，完成後會自動繼續。';
+        if(++busy<60)scheduleRun(3000);
+        else {manualOnly=true;showRetry('目前仍有其他更新進行，請稍後繼續同步。');}
+        return;
+      }
+      busy=0;
+      jobId=result.jobId||jobId;
+      if(result.blocked) {
+        manualOnly=true;
+        showRetry(result.reason==='identity_review'
+          ? '有資料需要先核對，暫未完成同步。請聯絡管理員核對後，再按繼續同步。'
+          : '同步尚未啟用，請聯絡系統管理員。');
+        return;
+      }
+      progress.max=result.totalAccounts+8;
+      progress.value=result.processedAccounts+(result.projectionComplete?8:(result.projectionStep||0));
+      if(result.finished) {
+        finished=true;cancelRetry();retry.hidden=true;
+        status.textContent=result.needsReview
+          ? '已逐一處理各分頁，'+result.reviewAccounts+' 個分頁有資料需要核對。'
+          : '已逐一更新所有分頁及到店記錄。';
+        const countText=result.countsVerified
+          ? '新增／補回 '+result.added+' 筆預約記錄。'
+          : '部分步驟曾中斷，新增數量未能完整核實；已按現有記錄重新核對。';
+        const startedAt=new Date(result.startedAt).toLocaleString('zh-HK',{
+          timeZone:'Asia/Hong_Kong',month:'2-digit',day:'2-digit',
+          hour:'2-digit',minute:'2-digit',hour12:false
+        });
+        detail.textContent=countText+' 本次開始：'+startedAt+
+          '。各分頁按處理當刻更新；期間有新修改，請再同步一次。';
+        return;
+      }
+      const label=result.phase==='identity' ? '核對預約身份'
+        : result.phase==='account' ? (result.accountPrepared?'套用預約狀態及時間':'核對及保存同步進度') : (result.projectionLabel||'整理到店記錄');
+      status.textContent=(result.accountLabel?result.accountLabel+'：':'')+label+'…';
+      detail.textContent='已處理 '+result.processedAccounts+' / '+result.totalAccounts+
+        ' 個分頁。'+(result.pendingQueueOps>0?'此分頁尚有 '+result.pendingQueueOps+' 筆更新。':'')+(result.pendingDisplayChanges>0?'尚有 '+result.pendingDisplayChanges+' 項顯示更新。':'')+'關閉後可再開啟繼續。';
+      scheduleRun(150);
+    }
+
+    function run() {
+      if(running||finished||manualOnly)return;
+      cancelRetry();
+      if(navigator.onLine===false) {
+        showRetry('網絡暫時離線，進度已保留。恢復連線後會接續同步。');
+        return;
+      }
+      running=true;
+      retry.hidden=true;
+      const sequence=++requestSequence;
+      const rpc=google.script.run
+        .withSuccessHandler(function(result){if(sequence===requestSequence)receive(result);})
+        .withFailureHandler(function(){if(sequence===requestSequence)failure();});
+      if(jobId)rpc.continueBookedArrivalsFullSync(jobId);
+      else rpc.startBookedArrivalsFullSync();
+    }
+    window.addEventListener('offline',function(){
+      cancelRetry();
+      if(!finished)status.textContent=running
+        ? '網絡暫時中斷，正在等候同步結果；原有進度會保留。'
+        : '網絡暫時離線，進度已保留。恢復連線後會接續同步。';
+    });
+    window.addEventListener('online',function(){
+      if(!finished&&!manualOnly&&!running){retryAttempt=0;run();}
+    });
+    run();
+  </script>
+</body>
+</html>`).setTitle('到店紀錄');
+  SpreadsheetApp.getUi().showSidebar(html);
 }
 
 function markArrivalManualSyncComplete(added){if(!Number.isInteger(added)||added<0)throw new Error('Invalid count.');oa2Spreadsheet_().toast('同步完成；新增 '+added+' 個預約。','到店紀錄',8);}
@@ -581,10 +943,14 @@ function oa3ManualApiSheet_(ss,name,data) {
     getRange:(row,column,height,columns)=>({getDisplayValues:()=>memory.getRange(row,column,height,columns).getDisplayValues(),getValues:()=>real().getRange(row,column,height,columns).getValues()})
   };
 }
-/** No credentials or customer values are logged. Missing Advanced Service keeps the native route. */
+// Deliberate read-engine choice. Provider failure never triggers a second engine.
+// Retain the legacy API adapter for isolated parity checks and explicit rollback.
+var OA3_MANUAL_USE_NATIVE_DISPLAY_READS = true;
+/** No credentials or customer values are logged. Native raw reads remain authoritative. */
 function oa3ManualBatchDisplayContext_(ss,timings,prefix,includeRegistry) {
   const names=[OA2.ARRIVAL].concat(OMNI_ACCOUNT_TABS),metrics=timings||{},phase=prefix||'display';
   if(includeRegistry)names.push(OA2.LEDGER);
+  if(OA3_MANUAL_USE_NATIVE_DISPLAY_READS){console.log(JSON.stringify({handler:'manual_missing_read_engine',readEngine:'native',rangeCount:names.length}));return {spreadsheet:ss,readEngine:'native',rangeCount:names.length};}
   if(typeof Sheets==='undefined'){console.log(JSON.stringify({handler:'manual_missing_read_engine',readEngine:'native',rangeCount:names.length}));return {spreadsheet:ss,readEngine:'native',rangeCount:names.length};}
   if(!Sheets||!Sheets.Spreadsheets||!Sheets.Spreadsheets.Values||typeof Sheets.Spreadsheets.Values.batchGet!=='function')throw new Error('Advanced Sheets display service is not configured correctly.');
   const ranges=names.map(name=>oa3ManualApiRange_(name,name===OA2.LEDGER?'A:E':''));
