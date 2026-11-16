@@ -219,6 +219,7 @@ test('new identity booking preserves every existing completed arrival field incl
 });
 test('Advanced Sheets discovery batches all six Accounts once and keeps native writes/CAS authoritative', () => {
   const f = nativeFixture({ badMain: true }), requests = [];
+  f.box.OA3_MANUAL_USE_NATIVE_DISPLAY_READS = false;
   f.box.Sheets = { Spreadsheets: { Values: { batchGet: (id, options) => {
     requests.push({ id, options });
     return { valueRanges: f.accountNames().map(name => ({ values: f.sources.get(name).state.matrix.map(row => {
@@ -237,7 +238,8 @@ test('Advanced Sheets discovery batches all six Accounts once and keeps native w
 for (const [name, response] of [['null', null], ['missing ranges', {}], ['truncated ranges', { valueRanges: [] }],
   ['malformed matrix', { valueRanges: Array.from({ length: 6 }, () => ({ values: [{ invalid: true }] })) }]]) {
   test(`invalid Advanced Sheets discovery aborts without native fallback or writes: ${name}`, () => {
-    const f = nativeFixture(); f.box.Sheets = { Spreadsheets: { Values: { batchGet: () => response } } };
+    const f = nativeFixture(); f.box.OA3_MANUAL_USE_NATIVE_DISPLAY_READS = false;
+    f.box.Sheets = { Spreadsheets: { Values: { batchGet: () => response } } };
     assert.throws(() => f.run(), /Incomplete|Invalid/);
     assert.equal(f.source.state.reads, 0); assert.equal(f.writes().length, 0);
   });
@@ -703,6 +705,39 @@ for (const [field, value] of [['id', 'appt_foreign_checkpoint'], ['leadId', 'lea
     assert.equal(f.queue.state.writes.length, 0); assert.equal(f.cell('Omni Lead ID'), '');
   });
 }
+
+test('explicit manual admission under an active idle hint keeps imported Book time unknown without faking a staff edit', () => {
+  const f=nativeFixture(),original=f.box.oa3CommitIdentityBookings_;let seen;
+  f.box.omniStaffPriorityActive_=()=>true;
+  f.box.oa3CommitIdentityBookings_=(...args)=>{seen=args[5];return original(...args);};
+  const receipt=f.run({manualRequested:true});assert.equal(receipt.skipped,undefined);assert.equal(receipt.bookedAdded,1);assert.equal(receipt.accountFailures.length,0);
+  assert.equal(seen.manualRequested,true);assert.equal(seen.staffEdit,false);assert.equal(seen.bookingMutation,false);
+  const a=f.box.oa2ReadRegistry_(f.ss).appointments[f.cell('Appointment ID')];assert.equal(a.bookedAt,'');assert.equal(a.provenance,'legacy_registration_unknown');
+});
+for(const manualRequested of [undefined,false,1,'true'])test('background or non-boolean manualRequested '+String(manualRequested)+' retains idle-hint admission',()=>{
+  const f=nativeFixture();f.box.omniStaffPriorityActive_=()=>true;const receipt=f.run({manualRequested});
+  assert.equal(receipt.skipped,true);assert.equal(receipt.registered,0);assert.equal(receipt.bookedAdded,0);assert.equal(f.writes().length,0);
+});
+test('explicit manual simple identities retain the fifty-row bound while the idle hint is active',()=>{
+  const f=nativeFixture({fields:{'跟進狀態':'待跟進','預約日期':'','預約時間':''}}),template=f.source.state.matrix[1];
+  for(let i=1;i<52;i++){const row=template.slice();row[f.headers.indexOf('電話')]=String(10000001+i);f.source.appendRow(row);}
+  f.box.omniStaffPriorityActive_=()=>true;const first=f.run({manualRequested:true});assert.equal(first.registered,50);assert.equal(first.bookedAdded,0);assert.equal(first.accountFailures.length,0);
+  assert.equal(f.source.state.matrix.slice(1).filter(row=>row[f.headers.indexOf('Omni Lead ID')]).length,50);
+  const second=f.run({manualRequested:true});assert.equal(second.registered,2);assert.equal(second.bookedAdded,0);assert.equal(f.source.state.matrix.slice(1).filter(row=>row[f.headers.indexOf('Omni Lead ID')]).length,52);assert.equal(f.queue.state.writes.length,0);
+});
+test('manualRequested cannot bypass an unheld native document lock',()=>{
+  const f=nativeFixture();f.box.omniStaffPriorityActive_=()=>true;
+  assert.throws(()=>f.box.oa2PrioritizeSourceIdentities_(f.ss,{hasLock:()=>false},{manualRequested:true}),/document lock/);assert.equal(f.writes().length,0);
+});
+test('manualRequested does not weaken the fresh source compare-and-swap guard under active staff hint',()=>{
+  const f=nativeFixture();let targeted=0;f.box.omniStaffPriorityActive_=()=>true;
+  f.source.state.beforeRead=(_count,range)=>{if(range.row===2&&range.column===1&&range.height===1&&range.width===31&&++targeted===2)f.source.state.matrix[1][f.headers.indexOf('CS Remark')]='Concurrent manual-admission edit';};
+  const receipt=f.run({manualRequested:true});assert.ok(targeted>=2);assert.equal(receipt.bookedAdded,0);assert.equal(f.cell('Omni Lead ID'),'');assert.equal(f.cell('CS Remark'),'Concurrent manual-admission edit');assert.equal(f.registry.state.writes.length,0);assert.equal(f.queue.state.writes.length,0);
+});
+test('manualRequested does not bypass duplicate global identity review under active staff hint',()=>{
+  const f=nativeFixture({fields:{'Omni Lead ID':'lead_duplicate'}});f.sources.get('Alyssa Main').appendRow(f.source.state.matrix[1]);f.box.omniStaffPriorityActive_=()=>true;
+  const before=f.writes().length,result=f.run({manualRequested:true});assert.equal(result.blocked,true);assert.ok(result.review>0);assert.equal(result.bookedAdded,0);assert.equal(f.writes().length,before);
+});
 
 // Synthetic cases above never contact Google or mutate production files.
 
