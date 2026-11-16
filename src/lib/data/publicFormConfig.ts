@@ -30,7 +30,7 @@ export type PublicFormConfigSuccess = {
 
 export type PublicFormConfigFailure = {
   ok: false;
-  error: "invalid_form" | "form_unavailable";
+  error: "invalid_form" | "form_unavailable" | "configuration_unavailable";
   message?: string;
 };
 
@@ -38,6 +38,17 @@ export type PublicFormConfigResult = {
   body: PublicFormConfigSuccess | PublicFormConfigFailure;
   status: number;
 };
+
+function unavailableConfig(): PublicFormConfigResult {
+  return {
+    body: {
+      ok: false,
+      error: "configuration_unavailable",
+      message: "表格暫時未能載入，請稍後再試。",
+    },
+    status: 503,
+  };
+}
 
 function withDefaultBranchFlag(
   branch: BranchRow,
@@ -66,6 +77,9 @@ function publicFormRecord(form: PublicRecord): PublicRecord {
 async function loadPublicFormConfig(
   token: string
 ): Promise<PublicFormConfigResult> {
+  if (!hasSupabaseAdminEnv() && process.env.NODE_ENV === "production" && process.env.ALYSSA_E2E_FIXTURES !== "1") {
+    return unavailableConfig();
+  }
   if (
     process.env.ALYSSA_E2E_FIXTURES === "1" ||
     !hasSupabaseAdminEnv()
@@ -105,7 +119,8 @@ async function loadPublicFormConfig(
     .eq("public_form_token", token)
     .single();
 
-  if (formError || !form) {
+  if (formError && formError.code !== "PGRST116") return unavailableConfig();
+  if (!form) {
     return {
       body: { ok: false, error: "invalid_form" },
       status: 404,
@@ -123,12 +138,12 @@ async function loadPublicFormConfig(
     };
   }
 
-  const [{ data: brand }, { data: treatments }, { data: branches }] =
+  const [brandResult, treatmentsResult, branchesResult] =
     await Promise.all([
       supabase
         .from("brands")
         .select(
-          "id,name,slug,legal_page_url,legal_link_label,privacy_url,disclaimer_url,operator_name,meta_pixel_id"
+          "id,name,slug,legal_page_url,legal_link_label,privacy_url,disclaimer_url,operator_name,meta_pixel_id,meta_pixel_pageview_on_embed"
         )
         .eq("id", form.brand_id)
         .single(),
@@ -146,6 +161,13 @@ async function loadPublicFormConfig(
         .order("created_at", { ascending: true }),
     ]);
 
+  if (brandResult.error || treatmentsResult.error || branchesResult.error || !brandResult.data) {
+    return unavailableConfig();
+  }
+  const brand = brandResult.data;
+  const treatments = treatmentsResult.data;
+  const branches = branchesResult.data;
+
   const treatmentIds = (treatments ?? []).map((item) => item.id);
   const [{ data: formPackages, error: formPackagesError }, formBranchesResult] =
     await Promise.all([
@@ -162,6 +184,7 @@ async function loadPublicFormConfig(
         .eq("is_active", true)
         .order("display_order", { ascending: true }),
     ]);
+  if (formPackagesError || formBranchesResult.error) return unavailableConfig();
   const selectedPackageIds =
     form.package_selection_mode === "customer_choice" &&
     !formPackagesError &&
@@ -170,7 +193,7 @@ async function loadPublicFormConfig(
       : form.default_package_id
         ? [form.default_package_id]
         : [];
-  const { data: packageRows } =
+  const { data: packageRows, error: packagesError } =
     treatmentIds.length > 0
       ? await supabase
           .from("packages")
@@ -184,7 +207,8 @@ async function loadPublicFormConfig(
           )
           .eq("status", "active")
           .order("created_at", { ascending: true })
-      : { data: [] };
+      : { data: [], error: null };
+  if (packagesError) return unavailableConfig();
   const packageOrder = new Map(
     selectedPackageIds.map((packageId, index) => [packageId, index])
   );
@@ -223,20 +247,9 @@ async function loadPublicFormConfig(
             withDefaultBranchFlag(branch, index === 0)
           );
 
-  if (formBranchesError) {
-    console.warn("[LaunchHub] public_form_branches_read_failed", {
-      form_token: token,
-      code: formBranchesError.code,
-      message: formBranchesError.message,
-    });
-  }
-  if (formPackagesError) {
-    console.warn("[LaunchHub] public_form_packages_read_failed", {
-      form_token: token,
-      code: formPackagesError.code,
-      message: formPackagesError.message,
-    });
-  }
+  // An empty or partial offer must not look like a usable seeded form. Empty
+  // membership still deliberately retains the historic valid-default fallback.
+  if (publicTreatments.length === 0 || packages.length === 0 || selectedBranchRows.length === 0) return unavailableConfig();
 
   return {
     body: {
@@ -252,8 +265,14 @@ async function loadPublicFormConfig(
 }
 
 const getCachedPublicFormConfig = unstable_cache(
-  loadPublicFormConfig,
-  ["public-form-config-v2"],
+  async (token: string) => {
+    const result = await loadPublicFormConfig(token);
+    // Cache usable/terminal results, never a temporary provider outage. A retry
+    // can recover immediately after configuration storage becomes available.
+    if (result.status >= 500) throw new Error("public_form_configuration_unavailable");
+    return result;
+  },
+  ["public-form-config-v3"],
   {
     revalidate: 60,
     tags: [PUBLIC_FORM_CONFIG_CACHE_TAG],
@@ -261,5 +280,9 @@ const getCachedPublicFormConfig = unstable_cache(
 );
 
 export async function getPublicFormConfig(token: string) {
-  return getCachedPublicFormConfig(token);
+  try {
+    return await getCachedPublicFormConfig(token);
+  } catch {
+    return unavailableConfig();
+  }
 }

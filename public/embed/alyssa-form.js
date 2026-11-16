@@ -429,7 +429,7 @@
 
   try {
     var script = document.currentScript;
-    if (!script) return;
+    if (!script || script.getAttribute("data-launchhub-cancelled") === "true") return;
 
     var debugEnabled = script.getAttribute("data-debug") === "1";
     function debugLog(message, data) {
@@ -454,7 +454,7 @@
       script.getAttribute("data-pixel-pageview") === "true";
     var pixelEventValue = getPixelValue(
       script.getAttribute("data-pixel-event-value"),
-      388
+      0
     );
     var pixelCurrency = getPixelCurrency(
       script.getAttribute("data-pixel-currency")
@@ -470,6 +470,7 @@
       script.getAttribute("data-lazy-root-margin")
     );
     var conversionBeaconSent = false;
+    var serverConfigSeen = false;
     var successRedirectStarted = false;
     var iframeLoaded = false;
     var height = clampEmbedHeight(script.getAttribute("data-height") || "420");
@@ -489,7 +490,7 @@
       createId("ses");
 
     function fireEmbedPageViewBeacon() {
-      if (!pixelPageView || !pixelId) return;
+      if (!serverConfigSeen || !pixelPageView || !pixelId) return;
 
       window.__LAUNCHHUB_META_PIXEL_PAGEVIEWS__ =
         window.__LAUNCHHUB_META_PIXEL_PAGEVIEWS__ || {};
@@ -730,6 +731,7 @@
     }
 
     function fireCompleteRegistrationBeacon(message) {
+      if (!serverConfigSeen) return;
       if (conversionMode === "thank_you_redirect") return;
       if (!pixelId || conversionBeaconSent) return;
 
@@ -764,6 +766,30 @@
 
       if (event.origin !== embedOrigin || event.source !== iframe.contentWindow) return;
       if (
+        data.type === "launchhub:form-config" &&
+        data.source === "launchhub-form" &&
+        data.formToken === formToken
+      ) {
+        var nextBrand = typeof data.brandSlug === "string" ? data.brandSlug.trim() : "";
+        var nextPixel = typeof data.pixelId === "string" ? data.pixelId.trim() : "";
+        var nextValue = Number(data.value);
+        var nextCurrency = typeof data.currency === "string" ? data.currency.trim().toUpperCase() : "";
+        if (!/^[a-z0-9][a-z0-9-]{0,100}$/.test(nextBrand)) return;
+        if (nextPixel && !/^\d{5,30}$/.test(nextPixel)) return;
+        if (!Number.isFinite(nextValue) || nextValue < 0 || !/^[A-Z]{3}$/.test(nextCurrency)) return;
+        if (data.conversionMode !== "form_submit_pixel" && data.conversionMode !== "thank_you_redirect") return;
+        brand = nextBrand;
+        pixelId = nextPixel;
+        pixelEventValue = nextValue;
+        pixelCurrency = nextCurrency;
+        conversionMode = data.conversionMode;
+        successRedirectUrl = isAllowedSuccessRedirectUrl(data.successRedirectUrl, brand) ? data.successRedirectUrl : "";
+        pixelPageView = data.pageViewOnEmbed === true;
+        serverConfigSeen = true;
+        fireEmbedPageViewBeacon();
+        return;
+      }
+      if (
         data.type === "launchhub:resize" &&
         data.source === "launchhub-form" &&
         (!data.formToken || data.formToken === formToken)
@@ -781,7 +807,7 @@
       if (
         data.type === "launchhub:success-redirect" &&
         data.source === "launchhub-form" &&
-        data.formToken === formToken
+        data.formToken === formToken && serverConfigSeen
       ) {
         if (successRedirectStarted) return;
         successRedirectStarted = true;
@@ -804,7 +830,8 @@
       }
       if (
         data.type === "launchhub:form-submitted" &&
-        data.event === "CompleteRegistration"
+        data.event === "CompleteRegistration" &&
+        data.formToken === formToken && serverConfigSeen
       ) {
         fireCompleteRegistrationBeacon(data);
 

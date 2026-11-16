@@ -6,6 +6,15 @@
   var DEFAULT_TARGET_ID = "launchhub-dynamic-form-root";
   var currentScript = null;
   var currentKey = "";
+  var currentTarget = null;
+  var expectedParentOrigin = "";
+  try {
+    var referrerUrl = new URL(document.referrer);
+    if (referrerUrl.protocol === "https:" || referrerUrl.protocol === "http:") {
+      expectedParentOrigin = referrerUrl.origin;
+    }
+  } catch {
+  }
 
   function sendToParent(type, detail) {
     try {
@@ -16,7 +25,7 @@
             source: "launchhub-dynamic-form",
             detail: detail || {}
           },
-          "*"
+          expectedParentOrigin || "*"
         );
       }
     } catch {
@@ -54,7 +63,7 @@
     return {
       targetId: cleanText(value.targetId) || DEFAULT_TARGET_ID,
       formToken: cleanText(value.formToken),
-      brand: cleanText(value.brand) || "ineffable",
+      brand: cleanText(value.brand),
       formId: cleanText(value.formId),
       pixelId: cleanText(value.pixelId),
       pixelEventValue: safeNumber(value.pixelEventValue, 0),
@@ -71,7 +80,9 @@
 
   function getConfigKey(config) {
     return [
+      config.targetId,
       config.formToken,
+      config.brand,
       config.formId,
       config.pixelId,
       String(config.pixelEventValue),
@@ -82,8 +93,9 @@
   }
 
   function removeCurrentScript() {
-    if (currentScript && currentScript.parentNode) {
-      currentScript.parentNode.removeChild(currentScript);
+    if (currentScript) {
+      currentScript.setAttribute("data-launchhub-cancelled", "true");
+      if (currentScript.parentNode) currentScript.parentNode.removeChild(currentScript);
     }
     currentScript = null;
   }
@@ -103,6 +115,8 @@
     if (!config.formToken) {
       removeCurrentScript();
       currentKey = "";
+      if (currentTarget && currentTarget !== target) currentTarget.innerHTML = "";
+      currentTarget = target;
       showMessage(target, "表格資料尚未完成設定，請稍後再試或直接 WhatsApp 聯絡我們。");
       sendToParent(ERROR_EVENT, {
         code: "MISSING_FORM_TOKEN",
@@ -117,6 +131,8 @@
     }
 
     removeCurrentScript();
+    if (currentTarget && currentTarget !== target) currentTarget.innerHTML = "";
+    currentTarget = target;
     currentKey = nextKey;
     target.innerHTML = "";
 
@@ -138,6 +154,7 @@
     if (config.debug) script.setAttribute("data-debug", "1");
 
     script.addEventListener("error", function () {
+      if (currentScript !== script) return;
       showMessage(target, "表格暫時未能載入，請重新整理頁面或直接 WhatsApp 聯絡我們。");
       sendToParent(ERROR_EVENT, {
         code: "EMBED_SCRIPT_LOAD_FAILED",
@@ -151,6 +168,11 @@
 
   window.addEventListener("message", function (event) {
     if (!event.data || event.data.type !== CONFIG_EVENT) return;
+    // Wix HTML components receive configuration only from their immediate page
+    // parent. No referrer means there is no verified cross-window sender; direct
+    // same-document setup can still use LaunchHubDynamicForm.configure().
+    if (event.source !== window.parent || window.parent === window) return;
+    if (!expectedParentOrigin || event.origin !== expectedParentOrigin) return;
     configure(event.data.payload || {});
   });
 

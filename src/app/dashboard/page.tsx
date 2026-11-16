@@ -31,14 +31,9 @@ import {
   buildLeadDashboardReturnPath,
   normalizeLeadDashboardFilters,
 } from "@/lib/marketing/leadDashboardFilters";
-import { getLeadAuditNavigationSummary } from "@/lib/marketing/leadSheetAuditView";
 import { getSourcePerformanceSnapshot } from "@/lib/marketing/sourcePerformance";
 import { getCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 import { WorkspaceAccessUnavailableError } from "@/lib/security/workspaceAuth";
-import {
-  hasWorkspaceModulePermission,
-  normalizeWorkspaceRole,
-} from "@/lib/security/workspacePermissions";
 
 export const dynamic = "force-dynamic";
 // Two complete 60 s source reads plus validation and atomic publication.
@@ -113,17 +108,6 @@ export default async function DashboardPage({
       brandScope: filters.brandId,
     }, access)
   );
-  const canSeeLeadAudit =
-    access.accessLevel === "master" ||
-    (access.source === "supabase_auth" &&
-      hasWorkspaceModulePermission({
-        isMaster: false,
-        workspaceRole: normalizeWorkspaceRole(access.workspaceRole),
-        modulePermissions: access.modulePermissions ?? {},
-      }, "lead_audit"));
-  const leadAuditAlertPromise = settleDashboardData(
-    canSeeLeadAudit ? getLeadAuditNavigationSummary(access) : Promise.resolve(0)
-  );
   const isMaster = access.accessLevel === "master";
   const greetingName =
     access.source === "supabase_auth"
@@ -137,12 +121,7 @@ export default async function DashboardPage({
 
   return (
     <main className="alyssa-shell">
-      <AppNav
-        access={access}
-        leadAuditAlertPromise={leadAuditAlertPromise.then((result) =>
-          result.ok ? result.value : null
-        )}
-      />
+      <AppNav access={access} />
       <div className="command-page">
         <div className="command-page-inner">
           <header className="command-page-header">

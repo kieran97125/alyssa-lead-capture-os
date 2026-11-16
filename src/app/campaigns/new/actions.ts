@@ -1,191 +1,61 @@
 "use server";
 
-import { revalidatePath } from "next/cache";
+import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  createForm,
-  getFormByIdOrSlug,
-  parseAllowedDomains,
-  type ManagedFormInput,
-} from "@/lib/data/formManagement";
-import { createLandingPageDraft } from "@/lib/data/landingPageStore";
-import {
-  requireModuleAccess,
-  verifyCurrentInternalAccess,
-} from "@/lib/security/internalAccessServer";
+import { managedFormSchema } from "@/lib/acquisition/managedFormSchema";
+import { parseAllowedDomains, type ManagedFormInput } from "@/lib/data/formManagement";
+import { createAcquisitionAssets } from "@/lib/data/landingPageStore";
+import { PUBLIC_FORM_CONFIG_CACHE_TAG } from "@/lib/data/publicFormConfig";
+import { requireModuleAccess, verifyCurrentInternalAccess } from "@/lib/security/internalAccessServer";
+import { z } from "zod";
 
-type CampaignMode = "new_landing_page" | "wix_form" | "existing_form_landing_page";
-
-function readString(formData: FormData, key: string) {
-  return String(formData.get(key) ?? "").trim();
-}
-
-function readStringArray(formData: FormData, key: string) {
-  return formData
-    .getAll(key)
-    .map((value) => String(value).trim())
-    .filter(Boolean);
-}
-
+type ActionFailure = { ok: false; message: string; fieldErrors?: Record<string, string> };
+function readString(data: FormData, key: string) { return String(data.get(key) ?? "").trim(); }
+function readArray(data: FormData, key: string) { return data.getAll(key).map(value => String(value).trim()).filter(Boolean); }
 function redirectWithMessage(path: string, key: string, message: string): never {
   redirect(`${path}?${key}=${encodeURIComponent(message)}`);
 }
-
-function getCampaignMode(formData: FormData): CampaignMode {
-  const mode = readString(formData, "campaignMode");
-  if (mode === "wix_form" || mode === "existing_form_landing_page") return mode;
-  return "new_landing_page";
-}
-
-function parseNewFormInput(formData: FormData): ManagedFormInput | string {
-  const campaignName = readString(formData, "campaignName");
-  const formName = readString(formData, "formName") || `${campaignName} 表格`;
-  const parsedDomains = parseAllowedDomains(readString(formData, "allowedDomains"));
-
-  if (!campaignName) return "請輸入 Campaign 名稱。";
-  if (!parsedDomains.ok) return parsedDomains.message;
-
-  return {
-    formName,
-    brandId: readString(formData, "brandId"),
-    defaultTreatmentId: readString(formData, "defaultTreatmentId"),
-    defaultPackageId: readString(formData, "defaultPackageId"),
-    packageSelectionMode: "fixed",
-    packageIds: [readString(formData, "defaultPackageId")].filter(Boolean),
-    defaultBranchId: readString(formData, "defaultBranchId"),
-    branchIds: readStringArray(formData, "branchIds"),
-    allowedDomains: parsedDomains.domains,
-    status: "active",
-  };
-}
-
-async function createDraftForForm({
-  formId,
-  formData,
-  fallbackName,
-}: {
-  formId: string;
-  formData: FormData;
-  fallbackName: string;
-}) {
-  const pageTitle = readString(formData, "pageTitle") || fallbackName;
-  const heroTitle = readString(formData, "heroTitle") || pageTitle;
-  const heroSubtitle =
-    readString(formData, "heroSubtitle") ||
-    "適合用作廣告測試及預約收集，系統會同時記錄來源資料，方便之後跟進成效。";
-  const offerBadge = readString(formData, "offerBadge") || "限時體驗優惠";
-  const ctaText = readString(formData, "ctaText") || "立即預約體驗";
-
-  const { form } = await getFormByIdOrSlug(formId);
-  if (!form) {
-    return {
-      ok: false,
-      pageId: null as string | null,
-      message: "找不到要連接的登記表格，請重新選擇。",
-    };
-  }
-
-  return createLandingPageDraft({
-    title: pageTitle,
-    brandId: form.brandId,
-    treatmentId: form.defaultTreatmentId ?? "",
-    packageId: form.defaultPackageId ?? "",
-    branchId: form.defaultBranchId ?? "",
-    formId: form.id,
-    heroTitle,
-    heroSubtitle,
-    offerBadge,
-    ctaText,
-  });
-}
-
-export async function createCampaignAction(formData: FormData) {
+export async function createCampaignAction(data: FormData): Promise<ActionFailure | void> {
   const session = await verifyCurrentInternalAccess();
-  const moduleAccess = await requireModuleAccess("campaigns");
-  if (!session.ok || !moduleAccess.allowed) {
-    redirect("/login?next=/campaigns/new&error=permission_denied");
-  }
-  const mode = getCampaignMode(formData);
-  const campaignName = readString(formData, "campaignName");
-
-  if (!campaignName) {
-    redirectWithMessage("/campaigns/new", "campaign_status", "請輸入 Campaign 名稱。");
-  }
-
-  if (mode === "existing_form_landing_page") {
-    const existingFormId = readString(formData, "existingFormId");
-    if (!existingFormId) {
-      redirectWithMessage(
-        "/campaigns/new",
-        "campaign_status",
-        "請選擇要連接的登記表格。"
-      );
-    }
-
-    const pageResult = await createDraftForForm({
-      formId: existingFormId,
-      formData,
-      fallbackName: campaignName,
+  const access = await requireModuleAccess("campaigns");
+  if (!session.ok || !access.allowed) redirect("/login?next=/campaigns/new&error=permission_denied");
+  const mode = readString(data, "campaignMode");
+  if (!["wix_form", "new_landing_page", "existing_form_landing_page"].includes(mode)) return { ok: false, message: "請選擇建立方式。" };
+  const requestId = readString(data, "requestId");
+  if (!z.uuid().safeParse(requestId).success) return { ok: false, message: "操作資料不完整，請重新載入。" };
+  const campaignName = readString(data, "campaignName");
+  if (!campaignName) return { ok: false, message: "請輸入名稱。", fieldErrors: { formName: "請輸入名稱。" } };
+  let form: ManagedFormInput | undefined;
+  const brandId = readString(data, "brandId");
+  if (mode !== "existing_form_landing_page") {
+    const parsed = managedFormSchema.safeParse({
+      formName: readString(data, "formName") || campaignName, brandId,
+      defaultTreatmentId: readString(data, "defaultTreatmentId"), defaultPackageId: readString(data, "defaultPackageId"),
+      packageSelectionMode: readString(data, "packageSelectionMode") || "fixed", packageIds: readArray(data, "packageIds"),
+      defaultBranchId: readString(data, "defaultBranchId"), branchIds: readArray(data, "branchIds"),
+      allowedDomains: readString(data, "allowedDomains"), placementKind: readString(data, "placementKind") || (mode === "wix_form" ? "wix" : "landing_page"),
+      placementUrl: readString(data, "placementUrl"), requestId,
     });
-
-    revalidatePath("/landing-pages");
-
-    if (pageResult.ok && pageResult.pageId) {
-      redirectWithMessage(
-        `/landing-pages/${pageResult.pageId}`,
-        "builder_status",
-        "Landing Page 草稿已建立，並已連接選定表格。"
-      );
+    if (!parsed.success) {
+      const fieldErrors: Record<string, string> = {};
+      for (const issue of parsed.error.issues) fieldErrors[String(issue.path[0] ?? "form")] ??= issue.message;
+      return { ok: false, message: parsed.error.issues[0]?.message ?? "請檢查資料。", fieldErrors };
     }
-
-    redirectWithMessage(
-      "/campaigns/new",
-      "campaign_status",
-      pageResult.message || "Landing Page 暫時未能建立，請稍後再試。"
-    );
+    const domains = parseAllowedDomains(parsed.data.allowedDomains);
+    if (!domains.ok) return { ok: false, message: domains.message, fieldErrors: { allowedDomains: domains.message } };
+    form = { ...parsed.data, allowedDomains: domains.domains };
   }
-
-  const parsedForm = parseNewFormInput(formData);
-
-  if (typeof parsedForm === "string") {
-    redirectWithMessage("/campaigns/new", "campaign_status", parsedForm);
-  }
-
-  const formResult = await createForm(parsedForm);
-  revalidatePath("/forms");
-
-  if (!formResult.ok || !formResult.form) {
-    redirectWithMessage("/campaigns/new", "campaign_status", formResult.message);
-  }
-
-  if (mode === "wix_form") {
-    redirectWithMessage(
-      `/forms/${formResult.form.id}`,
-      "form_status",
-      "Wix 登記表格已建立，可以複製嵌入碼放入 Wix。"
-    );
-  }
-
-  const pageResult = await createDraftForForm({
-    formId: formResult.form.id,
-    formData,
-    fallbackName: campaignName,
-  });
-
-  revalidatePath("/landing-pages");
-
-  if (pageResult.ok && pageResult.pageId) {
-    redirectWithMessage(
-      `/landing-pages/${pageResult.pageId}`,
-      "builder_status",
-      "Campaign 已建立，Landing Page 草稿已連接新表格。"
-    );
-  }
-
-  redirectWithMessage(
-    `/forms/${formResult.form.id}`,
-    "form_status",
-    pageResult.message ||
-      "表格已建立，但 Landing Page 草稿未能建立。請稍後再試。"
-  );
+  const pageTitle = readString(data, "pageTitle") || campaignName;
+  const page = mode === "wix_form" ? undefined : {
+    title: pageTitle, heroTitle: readString(data, "heroTitle") || pageTitle,
+    heroSubtitle: readString(data, "heroSubtitle") || "了解療程及體驗優惠，留下電話即可安排專人跟進。",
+    offerBadge: readString(data, "offerBadge") || "限時體驗優惠", ctaText: readString(data, "ctaText") || "了解體驗優惠",
+  };
+  const result = await createAcquisitionAssets({ requestId, brandId, form,
+    existingFormId: mode === "existing_form_landing_page" ? readString(data, "existingFormId") : undefined, page });
+  if (!result.ok || !result.formId) return { ok: false, message: result.message };
+  revalidatePath("/forms"); revalidatePath("/campaigns"); revalidatePath("/landing-pages");
+  revalidateTag(PUBLIC_FORM_CONFIG_CACHE_TAG, { expire: 0 });
+  if (result.pageId) redirectWithMessage(`/landing-pages/${result.pageId}`, "builder_status", "登記頁草稿已建立，已連接登記表格。");
+  redirectWithMessage(`/forms/${result.formId}`, "form_status", "登記表格已建立，可以放入網站。" );
 }

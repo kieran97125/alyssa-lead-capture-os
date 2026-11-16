@@ -4,7 +4,7 @@ import { createRequire } from "node:module";
 import { PassThrough } from "node:stream";
 import { fileURLToPath } from "node:url";
 import React from "react";
-import { renderToPipeableStream } from "react-dom/server";
+import { renderToPipeableStream, renderToStaticMarkup } from "react-dom/server";
 import ts from "typescript";
 
 // Exercise the actual page and AppNav server components with synthetic delayed
@@ -50,7 +50,9 @@ function setup(currentAccess = access) {
       AppNavNotifications: ({ children }) => el(React.Fragment, null, el("nav", null, el("a", { href: "/calendar" }, "Navigation ready")), children),
       ApplyNavigationCounts: ({ counts }) => el("span", { "data-badges": JSON.stringify(counts) }),
     },
+    "./AppNavClient.module.css": {},
     "next/navigation": {
+      usePathname: () => "/dashboard",
       unstable_rethrow: (error) => { if (error?.digest?.startsWith("NEXT_")) throw error; },
       redirect: (location) => { throw Object.assign(new Error(location), { digest: "NEXT_REDIRECT" }); },
     },
@@ -110,7 +112,7 @@ try {
   assert.ok(output.includes('data-dashboard-state="loading"'));
   assert.ok(!output.includes("Source data ready"));
   assert.ok(!output.includes("Lead data ready"));
-  assert.equal(calls.audit.length, 1, "Navigation retains the audit read without a Dashboard banner");
+  assert.equal(calls.audit, undefined, "Retired monitoring never starts a badge database query");
 
   reads.source.resolve({ live: true, warnings: [] });
   await until(() => output.includes("Source data ready"), "Source panel while Lead is unresolved");
@@ -120,20 +122,38 @@ try {
   reads.lead.resolve({ live: false, warnings: ["Synthetic read timeout"] });
   await until(() => output.includes('data-dashboard-state="unavailable"'), "failed Lead displays availability state");
   assert.ok(!output.includes("Lead data ready"), "A failed snapshot must not render zero KPIs as data");
-  reads.audit.resolve(3);
   reads.work.reject(new Error("Synthetic notification timeout"));
   reads.creative.resolve(2);
   await until(() => output.includes('data-badges='), "notification failures remain isolated");
+  assert.ok(output.includes('&quot;creativeNotificationCount&quot;:2'), "A healthy notification result must stream even when its peer fails");
+  assert.ok(!output.includes('&quot;leadAuditAlertCount&quot;'), "Retired notification counts must not be streamed");
   assert.equal(failures.length, 0);
   assert.ok(!output.includes("項 Lead 資料異常待核對"), "Dashboard must not render the removed audit banner");
   stream.abort();
+
+  // Render the real client navigation: work notifications belong to Tasks,
+  // while Calendar remains a separate destination without a work-count badge.
+  // This catches an invalid E2E target without changing the notification model.
+  const NavClient = load("src/components/alyssa/AppNavClient.tsx").AppNavClient;
+  const linkBody = (html, path) => {
+    const match = html.match(new RegExp(`<a\\b[^>]*href="${path}"[^>]*>([\\s\\S]*?)<\\/a>`));
+    assert.ok(match, `Expected navigation destination ${path}`);
+    return match[1];
+  };
+  const initialNav = renderToStaticMarkup(el(NavClient, { access }));
+  assert.ok(!linkBody(initialNav, "/tasks").includes("command-nav-badge"), "An unresolved optional count is not a loaded badge");
+  const loadedNav = renderToStaticMarkup(el(NavClient, { access, workNotificationCount: 2, creativeNotificationCount: 1 }));
+  assert.match(linkBody(loadedNav, "/tasks"), /class="command-nav-badge">2<\/span>/);
+  assert.match(linkBody(loadedNav, "/creative-jobs"), /class="command-nav-badge">1<\/span>/);
+  assert.ok(!linkBody(loadedNav, "/calendar").includes("command-nav-badge"), "Work counts must not be assigned to the Calendar link");
+  assert.ok(!loadedNav.includes('href="/lead-audit"'), "The real client navigation must omit the retired monitor");
 
   // Supplied counts and module permissions must still control notification reads.
   const restricted = setup();
   const Nav = restricted.load("src/components/alyssa/AppNav.tsx").AppNav;
   await Nav({ access: { source: "supabase_auth", accessLevel: "admin", workspaceRole: "member", modulePermissions: { lead_audit: false, calendar: false, creative_jobs: false } } });
   assert.deepEqual(restricted.calls, {}, "Denied module notification queries must not start");
-  await Nav({ access, leadAuditAlertCount: 0, workNotificationCount: 4, creativeNotificationCount: 2 });
+  await Nav({ access, workNotificationCount: 4, creativeNotificationCount: 2 });
   assert.deepEqual(restricted.calls, {}, "Provided notification counts must not trigger duplicate reads");
   const unauthenticated = setup({ source: "unauthenticated", accessLevel: null });
   await assert.rejects(unauthenticated.load("src/app/dashboard/page.tsx").default({}), /auth_unavailable/);
@@ -141,7 +161,7 @@ try {
   const unavailableAuth = setup(new WorkspaceAccessUnavailableError("Synthetic auth outage"));
   await assert.rejects(unavailableAuth.load("src/app/dashboard/page.tsx").default({}), /auth_unavailable/);
   assert.deepEqual(unavailableAuth.calls, {}, "Unverified auth service failures must not start business reads");
-  console.log("Dashboard streaming verified: shell/navigation available with stalled reads; normalized independent Source; shared command/audit reads; independent Operations; honest Lead unavailable state; optional notification failures and permission boundaries.");
+  console.log("Dashboard streaming verified: shell/navigation available with stalled reads; normalized independent Source; shared command read and no retired-audit query; independent Operations; honest Lead unavailable state; isolated notification failures, real Tasks/Creative badge destinations and permission boundaries.");
 } finally {
   if (envBefore === undefined) delete process.env.ALYSSA_E2E_FIXTURES;
   else process.env.ALYSSA_E2E_FIXTURES = envBefore;

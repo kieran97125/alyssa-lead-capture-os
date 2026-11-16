@@ -149,7 +149,7 @@ type PackageOption = FormOption & {
   treatmentId: string;
   groupName: string;
   originalPrice: number;
-  promoPrice: number;
+  promoPrice: number | null;
   currency: string;
   paymentRequired: boolean;
   displayOrder: number;
@@ -168,6 +168,7 @@ type BrandOption = FormOption & {
   disclaimerUrl?: string | null;
   operatorName?: string | null;
   metaPixelId?: string | null;
+  metaPixelPageViewOnEmbed?: boolean;
 };
 
 type PublicFormConfig = {
@@ -194,6 +195,7 @@ type PublicLeadFormProps = {
   conversionMode?: ConversionMode;
   successRedirectUrl?: string;
   className?: string;
+  previewMode?: boolean;
 };
 
 const ATTRIBUTION_KEYS = [...publicAttributionParamKeys, "utm_id"] as const;
@@ -238,6 +240,19 @@ function getNumber(value: unknown) {
   return 0;
 }
 
+function nonnegativeValue(value: unknown) {
+  return Math.max(0, getNumber(value));
+}
+
+function conversionCurrency(value: unknown) {
+  const currency = getString(value).trim().toUpperCase();
+  return /^[A-Z]{3}$/.test(currency) ? currency : "HKD";
+}
+
+function packageValue(item: PackageOption | undefined) {
+  return nonnegativeValue(item?.promoPrice ?? item?.originalPrice);
+}
+
 function getAttributionDebugResponse(value: unknown) {
   if (!value || typeof value !== "object") return null;
   const item = value as Partial<AttributionDebugResponse>;
@@ -253,7 +268,8 @@ function normalizeOrigin(value: string | null | undefined) {
   if (!cleaned) return null;
 
   try {
-    return new URL(cleaned).origin.toLowerCase();
+    const url = new URL(cleaned);
+    return ["https:", "http:"].includes(url.protocol) ? url.origin.toLowerCase() : null;
   } catch {
     try {
       return new URL(`https://${cleaned}`).origin.toLowerCase();
@@ -864,13 +880,14 @@ function normalizeTreatment(raw: Record<string, unknown>): TreatmentOption {
 }
 
 function normalizePackage(raw: Record<string, unknown>): PackageOption {
+  const promoPrice = raw.promoPrice !== undefined ? raw.promoPrice : raw.promo_price;
   return {
     id: getString(raw.id),
     name: getString(raw.name),
     treatmentId: getString(raw.treatmentId) || getString(raw.treatment_id),
     groupName: getString(raw.groupName) || getString(raw.group_name),
     originalPrice: getNumber(raw.originalPrice ?? raw.original_price),
-    promoPrice: getNumber(raw.promoPrice ?? raw.promo_price),
+    promoPrice: promoPrice === undefined || promoPrice === null || promoPrice === "" ? null : nonnegativeValue(promoPrice),
     currency: getString(raw.currency) || "HKD",
     paymentRequired: Boolean(raw.paymentRequired ?? raw.payment_required),
     displayOrder: getNumber(raw.displayOrder ?? raw.display_order),
@@ -914,6 +931,8 @@ function normalizeBrand(raw: Record<string, unknown>): BrandOption {
     operatorName: getString(raw.operatorName) || getString(raw.operator_name) || null,
     metaPixelId:
       getString(raw.metaPixelId) || getString(raw.meta_pixel_id) || null,
+    metaPixelPageViewOnEmbed:
+      raw.metaPixelPageViewOnEmbed === true || raw.meta_pixel_pageview_on_embed === true,
   };
 }
 
@@ -929,23 +948,8 @@ function getBrandDisplayOverride(brandSlug?: string | null): BrandOption | null 
   return null;
 }
 
-function normalizeBrandSlugForMatch(value?: string | null) {
-  const cleaned = (value || "").trim().toLowerCase();
-  return cleaned === "ineffable-beauty" ? "ineffable" : cleaned;
-}
-
-function isCompatibleBrandSlug(
-  requestedBrandSlug?: string | null,
-  actualBrandSlug?: string | null
-) {
-  const requested = normalizeBrandSlugForMatch(requestedBrandSlug);
-  const actual = normalizeBrandSlugForMatch(actualBrandSlug);
-  if (!requested || !actual) return true;
-  return requested === actual;
-}
-
 function isDisplayPackage(item: PackageOption) {
-  return item.paymentRequired || item.promoPrice > 0;
+  return item.paymentRequired || packageValue(item) > 0;
 }
 
 function getPrimaryPackage(
@@ -974,35 +978,17 @@ function normalizePublicFormConfigPayload(
   result: PublicFormConfigSuccess,
   {
     formToken,
-    formId,
-    brandSlug,
   }: {
     formToken: string;
-    formId?: string;
-    brandSlug?: string;
   }
 ): NormalizedPublicFormConfig {
   const nextForm = normalizeForm(result.form ?? {});
-  if (nextForm.publicFormToken && nextForm.publicFormToken !== formToken) {
+  if (!getString(result.form?.id) || nextForm.publicFormToken !== formToken) {
     throw new Error("form_token_mismatch");
   }
-  if (formId && nextForm.id && nextForm.id !== formId) {
-    throw new Error("form_id_mismatch");
-  }
-
+  if (!getString(result.brand?.slug)) throw new Error("form_brand_missing");
   const apiBrand = normalizeBrand(result.brand ?? {});
-  if (!isCompatibleBrandSlug(brandSlug, apiBrand.slug)) {
-    throw new Error("brand_slug_mismatch");
-  }
-  const displayOverride = getBrandDisplayOverride(brandSlug);
-  const nextBrand = displayOverride
-    ? {
-        ...apiBrand,
-        id: displayOverride.id,
-        name: displayOverride.name,
-        slug: displayOverride.slug,
-      }
-    : apiBrand;
+  const nextBrand = apiBrand;
   const nextTreatments = (result.treatments ?? [])
     .map(normalizeTreatment)
     .filter((item) => item.id && item.name);
@@ -1012,7 +998,7 @@ function normalizePublicFormConfigPayload(
   const nextBranches = (result.branches ?? [])
     .map(normalizeBranch)
     .filter((item) => item.id && item.name);
-  if (nextTreatments.length === 0 || nextPackages.length === 0) {
+  if (nextTreatments.length === 0 || nextPackages.length === 0 || nextBranches.length === 0) {
     throw new Error("form_config_incomplete");
   }
   const nextPublicTheme = resolvePublicBrandTheme({
@@ -1037,6 +1023,33 @@ function getImmediateParentTargetOrigin(
   return (
     normalizeOrigin(document.referrer) || normalizeOrigin(expectedParentOrigin)
   );
+}
+
+function verifiedParentOrigin(expectedParentOrigin: string | undefined, allowedDomains: string[]) {
+  if (typeof window === "undefined" || !window.parent || window.parent === window) return null;
+  const expected = normalizeOrigin(expectedParentOrigin);
+  const immediate = getImmediateParentTargetOrigin(expectedParentOrigin);
+  if (!immediate) return null;
+  // Same-origin srcdoc wrappers have no serializable location origin. Their
+  // browser-provided HTTP referrer can independently prove an allowed parent.
+  if (!expected) return isAllowedParentOrigin(immediate, allowedDomains) ? immediate : null;
+  if (!isAllowedParentOrigin(expected, allowedDomains)) return null;
+  if (immediate === expected) return immediate;
+  // Wix hosts the installed HTML component between the public page and this form.
+  // Address that real immediate parent exactly; never broadcast a completion.
+  try {
+    const url = new URL(immediate);
+    return url.protocol === "https:" && url.hostname.endsWith(".filesusr.com") ? immediate : null;
+  } catch {
+    return null;
+  }
+}
+
+function emitToParent(expectedParentOrigin: string | undefined, allowedDomains: string[], message: Record<string, unknown>) {
+  const targetOrigin = verifiedParentOrigin(expectedParentOrigin, allowedDomains);
+  if (!targetOrigin) return false;
+  window.parent.postMessage(message, targetOrigin);
+  return true;
 }
 
 function postAttributionReadyMessages(
@@ -1083,8 +1096,7 @@ async function logPublicEvent(
 
 function priceLabel(item: PackageOption | undefined) {
   if (!item) return "";
-  const configuredPrice =
-    item.promoPrice > 0 ? item.promoPrice : item.originalPrice;
+  const configuredPrice = packageValue(item);
   return configuredPrice > 0 ? `HK$${configuredPrice}` : "預約查詢";
 }
 
@@ -1108,9 +1120,8 @@ export function PublicLeadForm({
   serverInitialAttribution,
   expectedParentOrigin,
   mode = "inline",
-  conversionMode,
-  successRedirectUrl,
   className = "",
+  previewMode = false,
 }: PublicLeadFormProps) {
   const normalizedInitialConfig = useMemo(() => {
     if (!initialConfig?.ok) return null;
@@ -1118,8 +1129,6 @@ export function PublicLeadForm({
     try {
       return normalizePublicFormConfigPayload(initialConfig, {
         formToken,
-        formId,
-        brandSlug,
       });
     } catch (error) {
       console.warn("[LaunchHub] initial_public_form_config_invalid", {
@@ -1129,7 +1138,7 @@ export function PublicLeadForm({
       });
       return null;
     }
-  }, [brandSlug, formId, formToken, initialConfig]);
+  }, [formId, formToken, initialConfig]);
   // LAUNCHHUB_ATTRIBUTION_BRIDGE_V2
   const conversionEventSentRef = useRef(false);
   const submissionIdentityRef = useRef<SubmissionIdentity | null>(null);
@@ -1290,30 +1299,34 @@ export function PublicLeadForm({
     publicForm.packageSelectionMode === "customer_choice" &&
     availablePackages.length > 1;
   const isEmbed = mode === "embed";
-  const effectiveConversionMode =
-    conversionMode ?? publicForm.conversionMode ?? "form_submit_pixel";
+  const effectiveConversionMode = normalizeConversionMode(publicForm.conversionMode);
   const effectiveSuccessRedirectUrl =
-    successRedirectUrl || publicForm.successRedirectUrl || "";
+    publicForm.successRedirectUrl || "";
+  const configuredValue = packageValue(selectedPackage);
+  const configuredCurrency = conversionCurrency(selectedPackage?.currency);
+  const configuredPixelId = getConfiguredMetaPixelIdForBrand(brand.slug, brand.metaPixelId) || "";
 
   useEffect(() => {
-    if (
-      !formData.appointment_time ||
-      standardBookingTimes.includes(formData.appointment_time)
-    ) {
-      return;
-    }
-
-    setFormData((current) => ({
-      ...current,
-      appointment_time: "",
-    }));
-  }, [formData.appointment_time, standardBookingTimes]);
+    if (previewMode || !isEmbed || configStatus !== "ready" || publicForm.publicFormToken !== formToken) return;
+    emitToParent(expectedParentOrigin, publicForm.allowedDomains, {
+      type: "launchhub:form-config",
+      source: "launchhub-form",
+      formToken,
+      brandSlug: brand.slug,
+      pixelId: configuredPixelId,
+      value: configuredValue,
+      currency: configuredCurrency,
+      conversionMode: effectiveConversionMode,
+      successRedirectUrl: effectiveSuccessRedirectUrl,
+      pageViewOnEmbed: brand.metaPixelPageViewOnEmbed === true,
+    });
+  }, [brand.metaPixelPageViewOnEmbed, brand.slug, configStatus, configuredCurrency, configuredPixelId, configuredValue, effectiveConversionMode, effectiveSuccessRedirectUrl, expectedParentOrigin, formToken, isEmbed, previewMode, publicForm.allowedDomains, publicForm.publicFormToken]);
 
   async function waitForParentAttribution(
     selfAttribution: AttributionEnvelope
   ): Promise<AttributionEnvelope | null> {
     if (
-      !isEmbed ||
+      previewMode || !isEmbed ||
       typeof window === "undefined" ||
       !window.parent ||
       window.parent === window ||
@@ -1341,14 +1354,20 @@ export function PublicLeadForm({
     eventId,
     eventAttribution,
     successRedirectUrl,
+    value,
+    currency,
+    acceptedFormId,
   }: {
     leadId: string;
     eventId: string;
     eventAttribution: AttributionEnvelope;
     successRedirectUrl?: string | null;
+    value: number;
+    currency: string;
+    acceptedFormId: string;
   }) {
     const baseUrl = sanitizeSuccessRedirectUrl(
-      successRedirectUrl || effectiveSuccessRedirectUrl,
+      successRedirectUrl,
       brand.slug || brandSlug
     );
     if (!baseUrl || !leadId) return null;
@@ -1363,11 +1382,10 @@ export function PublicLeadForm({
     }
     baseUrl.searchParams.set(
       "value",
-      String(
-        selectedPackage?.promoPrice ?? selectedPackage?.originalPrice ?? 0
-      )
+      String(value)
     );
-    baseUrl.searchParams.set("form_id", formId || publicForm.id);
+    baseUrl.searchParams.set("currency", currency);
+    baseUrl.searchParams.set("form_id", acceptedFormId);
     baseUrl.searchParams.set("lead_id", leadId);
     if (eventId) baseUrl.searchParams.set("event_id", eventId);
 
@@ -1381,11 +1399,10 @@ export function PublicLeadForm({
     return baseUrl.toString();
   }
 
-  function buildCompleteRegistrationPayload() {
+  function buildCompleteRegistrationPayload(value: number, currency: string) {
     return {
-      value:
-        selectedPackage?.promoPrice ?? selectedPackage?.originalPrice ?? 0,
-      currency: "HKD",
+      value,
+      currency,
       content_name: `${brand.name || "Growth OS"} registration`,
       content_category: "registration",
     };
@@ -1413,23 +1430,20 @@ export function PublicLeadForm({
     }
   }
 
-  function startSuccessRedirect(
-    finalRedirectUrl: string,
-    eventAttribution: AttributionEnvelope
-  ) {
+  function startSuccessRedirect(finalRedirectUrl: string) {
+    if (previewMode) return;
     setRedirectFallbackUrl(finalRedirectUrl);
 
 
     if (isEmbed && window.parent && window.parent !== window) {
-      window.parent.postMessage(
+      emitToParent(expectedParentOrigin, publicForm.allowedDomains,
         {
           type: "launchhub:success-redirect",
           source: "launchhub-form",
           formToken,
           brandSlug: brand.slug || brandSlug || "",
           redirectUrl: finalRedirectUrl,
-        },
-        "*"
+        }
       );
     }
 
@@ -1467,29 +1481,41 @@ export function PublicLeadForm({
 
   function handleSuccessfulRegistrationEvent(
     eventAttribution: AttributionEnvelope,
-    finalRedirectUrl: string | null
+    finalRedirectUrl: string | null,
+    acceptedConversion: { conversionMode: ConversionMode; value: number; currency: string; successRedirectUrl: string }
   ) {
+    if (previewMode || configStatus !== "ready" || publicForm.publicFormToken !== formToken) return;
     if (conversionEventSentRef.current) return;
     conversionEventSentRef.current = true;
 
-    if (effectiveConversionMode === "thank_you_redirect") {
+    // The persisted acceptance may predate a settings change or replay an older
+    // receipt. Its conversion settings also replace the embed's loaded snapshot.
+    if (isEmbed) emitToParent(expectedParentOrigin, publicForm.allowedDomains, {
+      type: "launchhub:form-config", source: "launchhub-form", formToken,
+      brandSlug: brand.slug, pixelId: configuredPixelId,
+      value: acceptedConversion.value, currency: acceptedConversion.currency,
+      conversionMode: acceptedConversion.conversionMode,
+      successRedirectUrl: acceptedConversion.successRedirectUrl,
+      pageViewOnEmbed: brand.metaPixelPageViewOnEmbed === true,
+    });
+
+    if (acceptedConversion.conversionMode === "thank_you_redirect") {
       if (finalRedirectUrl) {
-        startSuccessRedirect(finalRedirectUrl, eventAttribution);
+        startSuccessRedirect(finalRedirectUrl);
       } else {
         logSkippedConversion("thank_you_redirect_missing_or_not_allowed");
       }
       return;
     }
 
-    const payload = buildCompleteRegistrationPayload();
+    const payload = buildCompleteRegistrationPayload(acceptedConversion.value, acceptedConversion.currency);
 
     if (isEmbed && window.parent && window.parent !== window) {
-      const targetOrigin = normalizeOrigin(expectedParentOrigin);
+      const targetOrigin = verifiedParentOrigin(expectedParentOrigin, publicForm.allowedDomains);
       const referrerOrigin = normalizeOrigin(document.referrer);
 
       if (
-        !targetOrigin ||
-        !isAllowedParentOrigin(targetOrigin, publicForm.allowedDomains)
+        !targetOrigin
       ) {
         logSkippedConversion("parent_origin_missing_or_not_allowed");
         return;
@@ -1503,22 +1529,14 @@ export function PublicLeadForm({
         value: payload.value,
         currency: payload.currency,
       };
-      const shouldRelayViaImmediateParent =
-        Boolean(referrerOrigin && referrerOrigin !== targetOrigin) ||
-        Boolean(document.referrer.includes("filesusr.com"));
-
       logConversionDebug("iframe mode uses parent postMessage", {
         formToken,
         brandSlug: brand.slug || brandSlug || "",
         targetOrigin,
         referrerOrigin,
-        relayViaImmediateParent: shouldRelayViaImmediateParent,
+        relayViaImmediateParent: referrerOrigin !== normalizeOrigin(expectedParentOrigin),
       });
       window.parent.postMessage(conversionMessage, targetOrigin);
-
-      if (shouldRelayViaImmediateParent) {
-        window.parent.postMessage(conversionMessage, "*");
-      }
       return;
     }
 
@@ -1564,9 +1582,10 @@ export function PublicLeadForm({
 
   // LAUNCHHUB_EARLY_ATTRIBUTION_CAPTURE
   useLayoutEffect(() => {
+    if (previewMode) return;
     const earlyAttribution = captureCurrentPageAttribution({
       formToken,
-      formId: formId || publicForm.id,
+      formId: publicForm.publicFormToken === formToken ? publicForm.id : "",
       brandSlug: brand.slug || brandSlug || "alyssa",
       initialQueryString,
       serverInitialAttribution,
@@ -1584,11 +1603,14 @@ export function PublicLeadForm({
     formToken,
     initialQueryString,
     publicForm.id,
+    publicForm.publicFormToken,
+    previewMode,
     serverInitialAttribution,
   ]);
 
   useEffect(() => {
-    if (normalizedInitialConfig) return;
+    if (previewMode || normalizedInitialConfig) return;
+    let cancelled = false;
 
     async function loadConfig() {
       setConfigStatus("loading");
@@ -1600,10 +1622,10 @@ export function PublicLeadForm({
           { cache: "no-store" }
         );
         const result = await response.json();
+        if (cancelled) return;
 
         if (!response.ok || !result.ok) {
           setConfigStatus("error");
-          setConfigMessage("表格暫時未能載入，請稍後再試。");
           setConfigMessage("這張表格暫時未能使用，請稍後再試。");
           return;
         }
@@ -1612,7 +1634,7 @@ export function PublicLeadForm({
 
         const nextConfig = normalizePublicFormConfigPayload(
           result as PublicFormConfigSuccess,
-          { formToken, formId, brandSlug }
+          { formToken }
         );
 
         setPublicForm(nextConfig.form);
@@ -1641,26 +1663,27 @@ export function PublicLeadForm({
         }));
         setConfigStatus("ready");
       } catch (error) {
+        if (cancelled) return;
         console.warn("[LaunchHub] public_form_config_load_failed", {
           formToken,
           formId,
           reason: error instanceof Error ? error.message : "unknown_error",
         });
         setConfigStatus("error");
-        setConfigMessage("表格暫時未能載入，請稍後再試。");
         setConfigMessage("這張表格暫時未能讀取，請稍後再試。");
       }
     }
 
     void loadConfig();
-  }, [brandSlug, formId, formToken, normalizedInitialConfig]);
+    return () => { cancelled = true; };
+  }, [formId, formToken, normalizedInitialConfig, previewMode]);
 
   useEffect(() => {
-    if (configStatus !== "ready") return;
+    if (previewMode || configStatus !== "ready") return;
 
     const initialAttribution = captureCurrentPageAttribution({
       formToken,
-      formId: formId || publicForm.id,
+      formId: publicForm.id,
       brandSlug: brand.slug || brandSlug || "alyssa",
       initialQueryString,
       serverInitialAttribution,
@@ -1680,11 +1703,11 @@ export function PublicLeadForm({
 
       const immediateParentOrigin = normalizeOrigin(document.referrer);
       const receivedOrigin = normalizeOrigin(event.origin);
+      if (isEmbed && receivedOrigin !== verifiedParentOrigin(expectedParentOrigin, publicForm.allowedDomains)) return;
       if (immediateParentOrigin && receivedOrigin !== immediateParentOrigin) return;
       if (
         !immediateParentOrigin &&
-        expectedParentOrigin &&
-        receivedOrigin !== normalizeOrigin(expectedParentOrigin)
+        (!expectedParentOrigin || receivedOrigin !== normalizeOrigin(expectedParentOrigin))
       ) {
         return;
       }
@@ -1745,9 +1768,13 @@ export function PublicLeadForm({
     initialQueryString,
     serverInitialAttribution,
     publicForm.id,
+    publicForm.allowedDomains,
+    isEmbed,
+    previewMode,
   ]);
 
   function updateField(key: keyof typeof formData, value: string) {
+    if (previewMode) return;
     setFormData((current) => {
       if (key === "treatment_id") {
         const nextPackage =
@@ -1762,7 +1789,17 @@ export function PublicLeadForm({
         };
       }
 
-      return { ...current, [key]: value };
+      const next = { ...current, [key]: value };
+      if ((key === "branch_id" || key === "appointment_date") && next.appointment_time) {
+        const nextBranch = branches.find((item) => item.id === next.branch_id) || branches[0];
+        const validTimes = getPublicBookingTimeOptions({
+          openingHours: nextBranch?.openingHours,
+          appointmentDate: next.appointment_date,
+          brandSlug: brand.slug,
+        });
+        if (!validTimes.includes(next.appointment_time)) next.appointment_time = "";
+      }
+      return next;
     });
 
     if (!formStarted && key !== "honeypot") {
@@ -1773,6 +1810,7 @@ export function PublicLeadForm({
 
   async function submitForm(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (previewMode) return;
 
     if (configStatus !== "ready") {
       setState("error");
@@ -1782,7 +1820,7 @@ export function PublicLeadForm({
 
     let liveAttribution = captureCurrentPageAttribution({
       formToken,
-      formId: formId || publicForm.id,
+      formId: publicForm.id,
       brandSlug: brand.slug || brandSlug || "alyssa",
       initialQueryString,
       serverInitialAttribution,
@@ -1867,7 +1905,7 @@ export function PublicLeadForm({
           ...resolvedFormData,
           submission_id: submissionIdentity.id,
           form_token: formToken,
-          form_id: formId || publicForm.id,
+          form_id: publicForm.id,
           first_touch_json: liveAttribution.first_touch_json || {},
           latest_touch_json: liveAttribution.latest_touch_json || {},
           submitted_touch_json: liveAttribution.submitted_touch_json || {},
@@ -1915,24 +1953,41 @@ export function PublicLeadForm({
         getString(result.event_id) ||
         getString(successAttribution.submitted_touch_json?.client_event_id) ||
         leadId;
+      const acceptedConversion = {
+        conversionMode: normalizeConversionMode(result.conversion_mode),
+        value: nonnegativeValue(result.value),
+        currency: conversionCurrency(result.currency),
+        successRedirectUrl: getString(result.success_redirect_url),
+      };
       const apiFinalRedirectUrl = sanitizeSuccessRedirectUrl(
         getString(result.final_redirect_url),
         brand.slug || brandSlug
       )?.toString();
       const finalRedirectUrl =
-        effectiveConversionMode === "thank_you_redirect"
+        acceptedConversion.conversionMode === "thank_you_redirect"
           ? apiFinalRedirectUrl ||
             buildThankYouRedirectUrl({
               leadId,
               eventId,
               eventAttribution: successAttribution,
-              successRedirectUrl: getString(result.success_redirect_url),
+              successRedirectUrl: acceptedConversion.successRedirectUrl,
+              value: acceptedConversion.value,
+              currency: acceptedConversion.currency,
+              acceptedFormId: getString(result.form_id) || publicForm.id,
             })
           : null;
 
-      handleSuccessfulRegistrationEvent(successAttribution, finalRedirectUrl);
+      try {
+        handleSuccessfulRegistrationEvent(successAttribution, finalRedirectUrl, acceptedConversion);
+      } catch (error) {
+        // A committed registration remains accepted even if a browser blocks
+        // analytics or cross-window delivery after the response is received.
+        logConversionDebug("conversion delivery blocked", {
+          reason: error instanceof Error ? error.message : "unknown_error",
+        });
+      }
       setState(
-        effectiveConversionMode === "thank_you_redirect" && finalRedirectUrl
+        acceptedConversion.conversionMode === "thank_you_redirect" && finalRedirectUrl
           ? "loading"
           : "success"
       );
@@ -2059,6 +2114,7 @@ export function PublicLeadForm({
                 onSubmit={submitForm}
                 className="mt-4 w-full max-w-full overflow-x-hidden sm:mt-5"
               >
+                <fieldset disabled={previewMode} className="min-w-0 border-0 p-0">
                 <input
                   name="website"
                   aria-hidden="true"
@@ -2180,11 +2236,12 @@ export function PublicLeadForm({
                 </label>
 
                 <button
-                  disabled={state === "loading"}
+                  disabled={previewMode || state === "loading"}
                   className="mt-4 block min-h-12 w-full rounded-[14px] bg-[var(--public-cta)] px-5 py-3 text-base font-bold text-[var(--public-cta-text)] shadow-[0_10px_24px_rgba(255,90,31,0.2)] transition hover:bg-[var(--public-cta-hover)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--public-accent-soft)] disabled:opacity-60"
                 >
-                  {state === "loading" ? "正在提交..." : "提交預約  →"}
+                  {previewMode ? "預覽表格" : state === "loading" ? "正在提交..." : "提交預約  →"}
                 </button>
+                </fieldset>
               </form>
 
               {message && state === "error" && (
@@ -2307,7 +2364,8 @@ export function PublicLeadForm({
                 )}
               </div>
 
-              <form onSubmit={submitForm} className="mt-3 w-full max-w-full space-y-2.5 overflow-x-hidden sm:mt-3.5 sm:space-y-3">
+              <form onSubmit={submitForm} className="mt-3 w-full max-w-full overflow-x-hidden sm:mt-3.5">
+                <fieldset disabled={previewMode} className="min-w-0 space-y-2.5 border-0 p-0 sm:space-y-3">
                 <input
                   name="website"
                   aria-hidden="true"
@@ -2502,11 +2560,12 @@ export function PublicLeadForm({
                 </section>
 
                 <button
-                  disabled={state === "loading"}
+                  disabled={previewMode || state === "loading"}
                   className="w-full rounded-[14px] bg-[var(--public-cta)] px-5 py-2.5 text-sm font-bold text-[var(--public-cta-text)] shadow-none transition hover:bg-[var(--public-cta-hover)] disabled:opacity-60 sm:rounded-full sm:py-3"
                 >
-                  {state === "loading" ? "正在提交..." : "提交預約資料"}
+                  {previewMode ? "預覽表格" : state === "loading" ? "正在提交..." : "提交預約資料"}
                 </button>
+                </fieldset>
               </form>
 
               {message && state === "error" && (

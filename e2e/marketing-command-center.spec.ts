@@ -1282,7 +1282,7 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
     page.getByRole("button", { name: "跟 Lead Sheet 更新" })
   ).toBeVisible();
   const navigation = page.getByRole("navigation", { name: "主要功能" });
-  await expect(navigation.getByRole("link")).toHaveCount(15);
+  await expect(navigation.getByRole("link")).toHaveCount(14);
   await expect(
     page
       .getByRole("navigation", { name: "主要功能" })
@@ -1292,7 +1292,7 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
     navigation.getByRole("link", { name: "Dashboard" })
   ).toBeVisible();
   await expect(
-    navigation.getByRole("link", { name: "建立 Wix Form" })
+    navigation.getByRole("link", { name: "表格及廣告頁" })
   ).toBeVisible();
   await expect(navigation.getByRole("link", { name: "CRM" })).toBeVisible();
   await expect(
@@ -1306,7 +1306,7 @@ test("Dashboard exposes live Lead logic, budget, KPI and reorganized navigation"
   ).toBeVisible();
   await expect(
     navigation.getByRole("link", { name: "Lead 變更監察" })
-  ).toBeVisible();
+  ).toHaveCount(0);
   await expect(
     navigation.getByRole("link", { name: "同期對比" })
   ).toBeVisible();

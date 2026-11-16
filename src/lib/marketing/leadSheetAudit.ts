@@ -9,8 +9,6 @@ import {
 } from "node:crypto";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import {
-  LEAD_SHEET_AUDIT_POLICY_VERSION,
-  buildLeadAuditDiff,
   prepareLeadAuditRecords,
   type LeadAuditCanonicalRecord,
   type LeadAuditComparableRecord,
@@ -18,6 +16,8 @@ import {
 
 const MAX_AUDIT_ROWS = 50_000;
 const AUDIT_SNAPSHOT_PAGE_SIZE = 1_000;
+const LEAD_SOURCE_SNAPSHOT_POLICY_VERSION = "lead-source-snapshot.v2";
+const SNAPSHOT_INDEX_READ_BUDGET_MS = 5_000;
 const ACTIVE_KEY_VERSION =
   process.env.LEAD_AUDIT_ACTIVE_KEY_VERSION?.trim() || "v1";
 let cachedDecryptionKeys: Map<string, Buffer> | null = null;
@@ -278,6 +278,8 @@ function brandResolver(input: {
   return (value: string) => lookup.get(normalizeBrandKey(value))?.id ?? null;
 }
 
+// Retained for historical archive verification, never called by source refresh.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 async function getPreviousAcceptedSnapshot(dataSourceId: string) {
   const supabase = createSupabaseAdminClient();
   const { data: run, error: runError } = await supabase
@@ -349,6 +351,65 @@ function canonicalJson(record: LeadAuditCanonicalRecord) {
   return JSON.stringify(record);
 }
 
+/**
+ * The row-change monitor is retired. A previous hash is only an encrypted-storage
+ * deduplication hint; it has no authority over the current validated source.
+ * Reading old customer payloads or comparing staff edits is unnecessary here.
+ */
+async function getPreviousSnapshotStorageIndex(dataSourceId: string) {
+  const supabase = createSupabaseAdminClient();
+  const startedAt = Date.now();
+  const { data: run, error } = await supabase
+    .from("lead_sheet_audit_runs")
+    .select("id,row_count")
+    .eq("data_source_id", dataSourceId)
+    .in("status", ["baseline", "completed"])
+    .order("completed_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(1)
+    .abortSignal(AbortSignal.timeout(SNAPSHOT_INDEX_READ_BUDGET_MS))
+    .maybeSingle();
+  if (error) throw error;
+  const hashes = new Map<string, string>();
+  if (!run) return { runId: null, hashes };
+  const runId = String(run.id);
+  const expectedRows = Number(run.row_count);
+  if (!Number.isInteger(expectedRows) || expectedRows < 0 || expectedRows > MAX_AUDIT_ROWS) {
+    return { runId, hashes };
+  }
+  let readRows = 0;
+  let pages = 0;
+  while (readRows < expectedRows && pages < 100) {
+    const remainingMs = SNAPSHOT_INDEX_READ_BUDGET_MS - (Date.now() - startedAt);
+    if (remainingMs <= 0) break;
+    try {
+      const { data, error: indexError } = await supabase
+        .from("lead_sheet_audit_snapshot_entries")
+        .select("record_key,record_version:lead_sheet_audit_record_versions!inner(content_hash)")
+        .eq("run_id", run.id)
+        .order("row_number", { ascending: true })
+        .order("record_key", { ascending: true })
+        .range(readRows, Math.min(readRows + AUDIT_SNAPSHOT_PAGE_SIZE, expectedRows) - 1)
+        .abortSignal(AbortSignal.timeout(remainingMs));
+      if (indexError || !Array.isArray(data) || data.length === 0 || readRows + data.length > expectedRows) break;
+      pages += 1;
+      readRows += data.length;
+      for (const entry of data) {
+        const version = Array.isArray(entry.record_version) ? entry.record_version[0] : entry.record_version;
+        if (typeof entry.record_key === "string" && typeof version?.content_hash === "string") {
+          hashes.set(entry.record_key, version.content_hash);
+        }
+      }
+    } catch {
+      // An unavailable optimisation must not turn normal edits into a failed
+      // refresh. Unknown hashes are encrypted below; the RPC verifies that every
+      // current entry resolves to a stored version in the same transaction.
+      break;
+    }
+  }
+  return { runId, hashes };
+}
+
 export async function captureLeadSheetAuditSnapshot(input: {
   dataSourceId: string;
   actorIdentifier?: string;
@@ -360,7 +421,7 @@ export async function captureLeadSheetAuditSnapshot(input: {
   startedAt: string;
 }): Promise<LeadAuditCaptureResult> {
   if (input.rows.length > MAX_AUDIT_ROWS) {
-    throw new Error(`Lead Audit 最多支援 ${MAX_AUDIT_ROWS} 筆紀錄。`);
+    throw new Error(`來源資料超出 ${MAX_AUDIT_ROWS} 筆處理範圍，今次未更新報表。`);
   }
   // Validate the key before reading or constructing any sensitive snapshot.
   decryptionKeyMap();
@@ -380,39 +441,15 @@ export async function captureLeadSheetAuditSnapshot(input: {
     ...record,
     contentHash: hmac(canonicalJson(record.canonical)),
   }));
-  const previous = await getPreviousAcceptedSnapshot(input.dataSourceId);
-  // Re-resolve brands because encrypted versions deliberately do not duplicate
-  // client identity metadata outside their protected payload.
-  previous.records.forEach((record) => {
-    record.brandId = resolveBrandId(record.canonical.brand);
-  });
-  const diff = previous.runId
-    ? buildLeadAuditDiff({ previous: previous.records, current })
-    : {
-        changes: [],
-        addedCount: 0,
-        modifiedCount: 0,
-        deletedCount: 0,
-        warningCount: 0,
-        criticalCount: 0,
-        quarantined: false,
-        quarantineReason: null,
-      };
-  const previousByKey = new Map(
-    previous.records.map((record) => [record.recordKey, record])
-  );
+  const previous = await getPreviousSnapshotStorageIndex(input.dataSourceId);
   const versions = current
     .filter(
       (record) =>
-        previousByKey.get(record.recordKey)?.contentHash !== record.contentHash
+        previous.hashes.get(record.recordKey) !== record.contentHash
     )
     .map((record) => encryptRecord({ dataSourceId: input.dataSourceId, record }));
   const completedAt = new Date().toISOString();
-  const status = previous.runId
-    ? diff.quarantined
-      ? "quarantined"
-      : "completed"
-    : "baseline";
+  const status = previous.runId ? "completed" : "baseline";
   const sheetChecksum = hmac(
     [...current]
       .sort((left, right) => left.recordKey.localeCompare(right.recordKey))
@@ -425,16 +462,14 @@ export async function captureLeadSheetAuditSnapshot(input: {
     p_data_source_id: input.dataSourceId,
     p_previous_run_id: previous.runId,
     p_status: status,
-    p_policy_version: LEAD_SHEET_AUDIT_POLICY_VERSION,
+    p_policy_version: LEAD_SOURCE_SNAPSHOT_POLICY_VERSION,
     p_row_count: current.length,
     p_sheet_checksum: sheetChecksum,
     p_headers_checksum: headersChecksum,
     p_actor_identifier: input.actorIdentifier || "google_sheets_sync",
     p_summary: {
-      addedCount: diff.addedCount,
-      modifiedCount: diff.modifiedCount,
-      deletedCount: diff.deletedCount,
-      quarantineReason: diff.quarantineReason,
+      purpose: "validated_source_publication",
+      rowChangeMonitoring: "retired",
     },
     p_versions: versions,
     p_entries: current.map((record) => ({
@@ -442,7 +477,7 @@ export async function captureLeadSheetAuditSnapshot(input: {
       contentHash: record.contentHash,
       rowNumber: record.rowNumber,
     })),
-    p_changes: diff.changes,
+    p_changes: [],
     p_started_at: input.startedAt,
     p_completed_at: completedAt,
   });
@@ -454,14 +489,14 @@ export async function captureLeadSheetAuditSnapshot(input: {
   return {
     runId: String(result.runId ?? ""),
     status,
-    openAlerts: Number(result.openAlerts ?? 0),
-    warningCount: Number(result.warningCount ?? diff.warningCount),
-    criticalCount: Number(result.criticalCount ?? diff.criticalCount),
-    addedCount: diff.addedCount,
-    modifiedCount: diff.modifiedCount,
-    deletedCount: diff.deletedCount,
-    quarantined: diff.quarantined,
-    quarantineReason: diff.quarantineReason,
+    openAlerts: 0,
+    warningCount: 0,
+    criticalCount: 0,
+    addedCount: 0,
+    modifiedCount: 0,
+    deletedCount: 0,
+    quarantined: false,
+    quarantineReason: null,
   };
 }
 
@@ -487,13 +522,13 @@ export async function recordLeadSheetAuditFailure(input: {
       : "Lead Sheet audit snapshot failed.";
   const now = new Date().toISOString();
   const supabase = createSupabaseAdminClient();
-  const { data: failedRun, error } = await supabase
+  const { error } = await supabase
     .from("lead_sheet_audit_runs")
     .insert({
       data_source_id: input.dataSourceId,
       previous_run_id: null,
       status: "failed",
-      policy_version: LEAD_SHEET_AUDIT_POLICY_VERSION,
+      policy_version: LEAD_SOURCE_SNAPSHOT_POLICY_VERSION,
       snapshot_date: hkDate(),
       row_count: 0,
       actor_identifier: input.actorIdentifier || "google_sheets_sync",
@@ -501,9 +536,7 @@ export async function recordLeadSheetAuditFailure(input: {
       error_summary: message,
       started_at: input.startedAt,
       completed_at: now,
-    })
-    .select("id")
-    .single();
+    });
   if (error) {
     console.warn("lead_sheet_audit_failure_record_failed", {
       code: error.code,
@@ -511,22 +544,6 @@ export async function recordLeadSheetAuditFailure(input: {
     });
     return;
   }
-  const { error: changeError } = await supabase.from("lead_sheet_audit_changes").insert({
-    run_id: failedRun.id,
-    brand_id: null,
-    record_key: null,
-    subject_label: "Lead Sheet 同步",
-    change_type: "bulk_change",
-    severity: "critical",
-    risk_code: "sync_failed",
-    summary: message,
-    changed_fields: [],
-    review_status: "open",
-  });
-  if (changeError) {
-    console.warn("lead_sheet_audit_failure_alert_write_failed", {
-      code: changeError.code,
-      message: changeError.message,
-    });
-  }
+  // Retain the private diagnostic run for real synchronization failures. The
+  // retired row-change monitor must not create another review/alert workload.
 }

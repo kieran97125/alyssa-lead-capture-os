@@ -106,6 +106,8 @@ export type LandingPageImageAssets = {
 
 export type LandingPageConfig = {
   id: string;
+  revision?: number;
+  publishedSlug?: string | null;
   slug: string;
   title: string;
   brandId: string;

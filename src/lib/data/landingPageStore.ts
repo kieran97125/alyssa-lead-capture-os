@@ -1,5 +1,4 @@
-import { randomBytes } from "crypto";
-import { alyssaDefaultForm } from "@/lib/data/alyssaConfig";
+import { prepareManagedFormPayload, type ManagedFormInput } from "@/lib/data/formManagement";
 import {
   alyssaLandingPages,
   defaultLandingPageContent,
@@ -25,10 +24,12 @@ import {
 import {
   canAccessInternalBrand,
   getCurrentInternalAccess,
+  requireModuleAccess,
 } from "@/lib/security/internalAccessServer";
 
 async function canUseLandingPageBrand(brandId: string | null | undefined) {
   const access = await getCurrentInternalAccess();
+  if (access.source === "unauthenticated") return false;
   if (access.source !== "supabase_auth") return true;
   return Boolean(brandId && canAccessInternalBrand(access, brandId));
 }
@@ -51,6 +52,7 @@ type LandingPageRow = {
   published_at: string | null;
   created_at: string;
   updated_at: string;
+  revision: number;
 };
 
 type LandingPageVersionRow = {
@@ -61,6 +63,8 @@ type LandingPageVersionRow = {
   content_json: Record<string, unknown> | null;
   image_assets_json: Record<string, unknown> | null;
   created_at: string;
+  metadata_json?: Record<string, unknown> | null;
+  page_revision?: number | null;
 };
 
 export type LandingPageEditorData = {
@@ -74,6 +78,8 @@ export type LandingPageEditorData = {
   pageRecordId: string | null;
   versionId: string | null;
   versionCreatedAt: string | null;
+  revision: number;
+  publishedSlug: string | null;
 };
 
 export type LandingPageMutationResult = {
@@ -82,12 +88,18 @@ export type LandingPageMutationResult = {
   message: string;
   page?: LandingPageConfig;
   versionNumber?: number;
+  pageRecordId?: string;
+  versionId?: string;
+  revision?: number;
+  previousPublishedSlug?: string | null;
 };
 
 export type LandingPageDraftMeta = {
   title?: string;
   slug?: string;
   formId?: string;
+  expectedRevision?: number;
+  requestId?: string;
 };
 
 export type CreateLandingPageDraftInput = {
@@ -101,7 +113,16 @@ export type CreateLandingPageDraftInput = {
   heroSubtitle: string;
   offerBadge: string;
   ctaText: string;
+  requestId?: string;
 };
+
+export class LandingPageReadError extends Error {
+  constructor() { super("暫時未能讀取廣告頁，請重新載入。"); this.name = "LandingPageReadError"; }
+}
+
+function isLandingPageFixtureMode() {
+  return process.env.ALYSSA_E2E_FIXTURES === "1";
+}
 
 const uuidPattern =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -193,28 +214,6 @@ function normalizeIneffableAliasContentSections(
   }));
 }
 
-const supabaseToLocalIds = {
-  brand: {
-    "11111111-1111-4111-8111-111111111111": "alyssa-brand-seed",
-  },
-  treatment: {
-    "22222222-2222-4222-8222-222222222221": "skin-renewal-consult",
-    "22222222-2222-4222-8222-222222222222": "medical-beauty-trial",
-  },
-  package: {
-    "33333333-3333-4333-8333-333333333331": "consultation-booking",
-    "33333333-3333-4333-8333-333333333332": "trial-package-388",
-  },
-  branch: {
-    "44444444-4444-4444-8444-444444444441": "central",
-    "44444444-4444-4444-8444-444444444442": "causeway-bay",
-    "44444444-4444-4444-8444-444444444443": "tsim-sha-tsui",
-  },
-  form: {
-    "55555555-5555-4555-8555-555555555551": "alyssa-main-form",
-  },
-} as const;
-
 const knownDefaultTextReplacements = new Map<string, string>([
   ["Premium offer landing page", "高質感優惠 Landing Page"],
   ["HKD 388 First-Visit Trial", "HK$388 首次體驗優惠"],
@@ -294,10 +293,6 @@ function slugify(value: string) {
   return slug || "campaign";
 }
 
-function shortId() {
-  return randomBytes(3).toString("hex");
-}
-
 export function buildLandingPageSlugBase(title: string, brandSlug: string) {
   const selectedBrandSlug = slugify(brandSlug)
     .replace(/^alyssa-ineffable-beauty$/, "ineffable-beauty")
@@ -331,51 +326,8 @@ export function buildLandingPageSlugBase(title: string, brandSlug: string) {
     .replace(/^alyssa-ineffable-/, "ineffable-");
 }
 
-async function createUniqueLandingPageSlug(title: string, brandSlug: string) {
-  const base = buildLandingPageSlugBase(title, brandSlug);
-
-  if (!hasSupabaseAdminEnv()) return `${base}-${shortId()}`;
-
-  const supabase = createSupabaseAdminClient();
-
-  for (let attempt = 0; attempt < 8; attempt += 1) {
-    const slug = `${base}-${shortId()}`;
-    const { data, error } = await supabase
-      .from("landing_pages")
-      .select("id")
-      .eq("slug", slug)
-      .maybeSingle();
-
-    if (!error && !data) return slug;
-  }
-
-  return `${base}-${Date.now().toString(36)}-${shortId()}`;
-}
-
 function normalizeEditableLandingPageSlug(value: string | undefined, fallback: string) {
-  const slug = slugify(value || fallback);
-  return getCanonicalLandingPageSlug(slug);
-}
-
-async function ensureLandingPageSlugAvailable(slug: string, currentPageId: string) {
-  if (!hasSupabaseAdminEnv()) return null;
-
-  const supabase = createSupabaseAdminClient();
-  const lookupSlugs = getLandingPageLookupSlugs(slug);
-  const { data, error } = await supabase
-    .from("landing_pages")
-    .select("id,slug")
-    .in("slug", lookupSlugs);
-
-  if (error) {
-    return `Slug 未能檢查：${error.message}`;
-  }
-
-  const conflict = (data ?? []).find(
-    (row) => row.id !== currentPageId && typeof row.slug === "string"
-  );
-
-  return conflict ? "Slug 已被其他 Landing Page 使用。" : null;
+  return getCanonicalLandingPageSlug((value || fallback).trim().toLowerCase());
 }
 
 function asStringArray(value: unknown, fallback: string[]) {
@@ -701,14 +653,6 @@ function blankImageFallback(fallback: LandingPageConfig): LandingPageConfig {
   };
 }
 
-function mapKnownId(
-  value: string | null,
-  mapping: Record<string, string>,
-  fallback: string
-) {
-  return value ? mapping[value] ?? value : fallback;
-}
-
 function hasOwnContentSections(content: Record<string, unknown> | null | undefined) {
   return Boolean(
     content &&
@@ -717,36 +661,28 @@ function hasOwnContentSections(content: Record<string, unknown> | null | undefin
   );
 }
 
-function hasPersistedPageState(row: LandingPageRow) {
-  return Boolean(row.content_json || row.image_assets_json);
-}
-
-function logLandingPageLoad({
-  pageId,
-  slug,
-  loadedFrom,
-  page,
-}: {
-  pageId: string;
-  slug: string;
-  loadedFrom: LandingPageLoadSource;
-  page: LandingPageConfig;
-}) {
-  if (process.env.NODE_ENV !== "development") return;
-
-  console.info("[landing-page-load]", {
-    pageId,
-    slug,
-    loadedFrom,
-    contentSections: page.contentSections.length,
-    sectionIds: page.contentSections.map((section) => section.id),
-  });
-}
-
 function rowToConfig(
   row: LandingPageRow,
   version?: LandingPageVersionRow | null
 ): LandingPageConfig {
+  const originalRow = row;
+  const snapshot = version?.metadata_json;
+  if (snapshot && typeof snapshot === "object" && typeof snapshot.slug === "string") {
+    const textOrNull = (key: string, fallback: string | null) =>
+      typeof snapshot[key] === "string" ? snapshot[key] as string : snapshot[key] === null ? null : fallback;
+    row = {
+      ...row,
+      slug: textOrNull("slug", row.slug) || row.slug,
+      title: textOrNull("title", row.title) || row.title,
+      brand_id: textOrNull("brand_id", row.brand_id),
+      treatment_id: textOrNull("treatment_id", row.treatment_id),
+      package_id: textOrNull("package_id", row.package_id),
+      branch_id: textOrNull("branch_id", row.branch_id),
+      form_id: textOrNull("form_id", row.form_id),
+      template_key: textOrNull("template_key", row.template_key) || row.template_key,
+      mode: snapshot.mode === "form_only" ? "form_only" : snapshot.mode === "landing_page" ? "landing_page" : row.mode,
+    };
+  }
   const canonicalSlug = getCanonicalLandingPageSlug(row.slug);
   const fallback =
     getLocalLandingPageBySlug(canonicalSlug) ??
@@ -771,8 +707,10 @@ function rowToConfig(
     ...fallback,
     ...content,
     ...images,
-    id: canonicalSlug,
+    id: originalRow.id,
     slug: canonicalSlug,
+    revision: Number(originalRow.revision || 1),
+    publishedSlug: originalRow.published_version_id ? getCanonicalLandingPageSlug(originalRow.slug) : null,
     title: normalizeIneffableAliasText(
       localizeKnownDefaultText(row.title),
       canonicalSlug
@@ -787,19 +725,11 @@ function rowToConfig(
       content.secondaryCtaText,
       canonicalSlug
     ),
-    brandId: mapKnownId(row.brand_id, supabaseToLocalIds.brand, ""),
-    treatmentId: mapKnownId(
-      row.treatment_id,
-      supabaseToLocalIds.treatment,
-      ""
-    ),
-    packageId: mapKnownId(
-      row.package_id,
-      supabaseToLocalIds.package,
-      ""
-    ),
-    branchId: mapKnownId(row.branch_id, supabaseToLocalIds.branch, ""),
-    formId: mapKnownId(row.form_id, supabaseToLocalIds.form, ""),
+    brandId: row.brand_id || "",
+    treatmentId: row.treatment_id || "",
+    packageId: row.package_id || "",
+    branchId: row.branch_id || "",
+    formId: row.form_id || "",
     formToken: "",
     mode: row.mode,
     status: row.status,
@@ -826,7 +756,7 @@ function rowToConfig(
 }
 
 async function findLandingPageRow(pageId: string) {
-  if (!hasSupabaseAdminEnv()) return null;
+  if (!hasSupabaseAdminEnv() || isLandingPageFixtureMode()) return null;
 
   const supabase = createSupabaseAdminClient();
   if (uuidPattern.test(pageId)) {
@@ -841,7 +771,7 @@ async function findLandingPageRow(pageId: string) {
         code: error.code,
         message: error.message,
       });
-      return null;
+      throw new LandingPageReadError();
     }
 
     return data;
@@ -858,7 +788,7 @@ async function findLandingPageRow(pageId: string) {
       code: error.code,
       message: error.message,
     });
-    return null;
+    throw new LandingPageReadError();
   }
 
   return pickLandingPageRowBySlug((data ?? []) as LandingPageRow[], pageId);
@@ -879,7 +809,7 @@ async function getVersionById(versionId: string | null) {
       code: error.code,
       message: error.message,
     });
-    return null;
+    throw new LandingPageReadError();
   }
 
   return data;
@@ -905,24 +835,16 @@ async function getLatestVersion(pageId: string, status?: "draft" | "published") 
       code: error.code,
       message: error.message,
     });
-    return null;
+    throw new LandingPageReadError();
   }
 
   return (data?.[0] as LandingPageVersionRow | undefined) ?? null;
 }
 
 async function getPublishedVersionForRow(row: LandingPageRow) {
-  const pointedVersion = row.published_version_id
-    ? await getVersionById(row.published_version_id)
-    : null;
-
-  if (pointedVersion?.status === "published") return pointedVersion;
-
-  return getLatestVersion(row.id, "published");
-}
-
-function hasText(value: unknown) {
-  return typeof value === "string" && value.trim().length > 0;
+  if (!row.published_version_id) return null;
+  const version = await getVersionById(row.published_version_id);
+  return version?.status === "published" && version.page_id === row.id ? version : null;
 }
 
 function collectContentText(value: unknown): string[] {
@@ -959,1367 +881,245 @@ function hasInternalPublicCopy(content: Record<string, unknown> | null) {
   );
 }
 
-async function validatePublishReadinessWithResolvedForm(
-  row: LandingPageRow,
-  version: LandingPageVersionRow
-) {
-  const missing: string[] = [];
-  const content = version.content_json ?? {};
-
-  if (!row.form_id) missing.push("未連接登記表格");
-  if (!hasText(row.title)) missing.push("頁面標題未填");
-  if (!hasText(content.heroTitle)) missing.push("Hero 標題未填");
-  if (!hasText(content.ctaText)) missing.push("CTA 文字未填");
-  if (hasInternalPublicCopy(content)) {
-    missing.push("公開文案仍包含內部說明，請先改成客人會看到的內容");
-  }
-
-  if (!hasSupabaseAdminEnv()) return missing;
-
-  const supabase = createSupabaseAdminClient();
-  const formResult = row.form_id
-    ? await supabase
-        .from("forms")
-        .select(
-          "id,brand_id,form_name,public_form_token,default_treatment_id,default_package_id,default_branch_id"
-        )
-        .eq("id", row.form_id)
-        .maybeSingle()
-    : { data: null, error: null };
-
-  if (formResult.error) {
-    console.warn("landing_page_publish_form_check_failed", {
-      code: formResult.error.code,
-      message: formResult.error.message,
-    });
-  }
-
-  const form = formResult.data as Record<string, unknown> | null;
-  if (row.form_id && !form) missing.push("表格資料未找到");
-
-  const resolvedBrandId =
-    row.brand_id ?? (typeof form?.brand_id === "string" ? form.brand_id : null);
-  const resolvedTreatmentId =
-    row.treatment_id ??
-    (typeof form?.default_treatment_id === "string"
-      ? form.default_treatment_id
-      : null);
-  const resolvedPackageId =
-    row.package_id ??
-    (typeof form?.default_package_id === "string" ? form.default_package_id : null);
-  const resolvedBranchId =
-    row.branch_id ??
-    (typeof form?.default_branch_id === "string" ? form.default_branch_id : null);
-
-  if (!resolvedBrandId) missing.push("品牌未設定");
-  if (!resolvedTreatmentId) missing.push("療程未設定");
-  if (!resolvedPackageId) missing.push("套餐未設定");
-  if (!resolvedBranchId) missing.push("分店未設定");
-
-  const [brandResult, treatmentResult, packageResult, branchResult] =
-    await Promise.all([
-      resolvedBrandId
-        ? supabase
-            .from("brands")
-            .select("id,name,slug")
-            .eq("id", resolvedBrandId)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      resolvedTreatmentId
-        ? supabase
-            .from("treatments")
-            .select("id,brand_id")
-            .eq("id", resolvedTreatmentId)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      resolvedPackageId
-        ? supabase
-            .from("packages")
-            .select("id,treatment_id")
-            .eq("id", resolvedPackageId)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-      resolvedBranchId
-        ? supabase
-            .from("branches")
-            .select("id,brand_id")
-            .eq("id", resolvedBranchId)
-            .maybeSingle()
-        : Promise.resolve({ data: null, error: null }),
-    ]);
-
-  if (brandResult.error) {
-    console.warn("landing_page_publish_brand_check_failed", {
-      code: brandResult.error.code,
-      message: brandResult.error.message,
-    });
-  }
-
-  const brand = brandResult.data as Record<string, unknown> | null;
-  const treatment = treatmentResult.data as Record<string, unknown> | null;
-  const packageRow = packageResult.data as Record<string, unknown> | null;
-  const branch = branchResult.data as Record<string, unknown> | null;
-
-  if (resolvedBrandId && !brand) missing.push("品牌資料未找到");
-  if (resolvedTreatmentId && !treatment) missing.push("療程資料未找到");
-  if (resolvedPackageId && !packageRow) missing.push("套餐資料未找到");
-  if (resolvedBranchId && !branch) missing.push("分店資料未找到");
-
-  if (
-    resolvedBrandId &&
-    treatment?.brand_id &&
-    treatment.brand_id !== resolvedBrandId
-  ) {
-    missing.push("療程品牌與頁面品牌不一致");
-  }
-
-  if (
-    resolvedTreatmentId &&
-    packageRow?.treatment_id &&
-    packageRow.treatment_id !== resolvedTreatmentId
-  ) {
-    missing.push("套餐與療程不一致");
-  }
-
-  if (resolvedBrandId && branch?.brand_id && branch.brand_id !== resolvedBrandId) {
-    missing.push("分店品牌與頁面品牌不一致");
-  }
-
-  if (resolvedBrandId && form?.brand_id && form.brand_id !== resolvedBrandId) {
-    missing.push("表格品牌與頁面品牌不一致");
-  }
-
-  const brandName = String(brand?.name ?? "");
-  const brandSlug = String(brand?.slug ?? "");
-  const formName = String(form?.form_name ?? "");
-  const formToken = String(form?.public_form_token ?? "");
-  const isIneffablePage =
-    /ineffable/i.test(brandName) || /ineffable/i.test(brandSlug);
-  const isAlyssaMainForm =
-    /alyssa/i.test(formName) || formToken === alyssaDefaultForm.publicFormToken;
-
-  if (isIneffablePage && isAlyssaMainForm) {
-    missing.push(
-      "這個公開頁仍然連接 Alyssa 表格，請先改用 Ineffable Beauty 表格。"
-    );
-  }
-
-  return Array.from(new Set(missing));
+function localLandingPage(id: string) {
+  if (!isLandingPageFixtureMode()) return null;
+  const canonical = getCanonicalLandingPageSlug(id);
+  const page = getLocalLandingPageById(canonical) ?? getLocalLandingPageBySlug(canonical) ??
+    getLocalLandingPageById(id) ?? getLocalLandingPageBySlug(id);
+  return page ? { ...page, builderSource: "local_config" as const, contentSectionsExplicit: false } : null;
 }
 
-async function validatePublishReadiness(
-  row: LandingPageRow,
-  version: LandingPageVersionRow
-) {
-  return validatePublishReadinessWithResolvedForm(row, version);
-
-  /*
-  const missing: string[] = [];
-  const content = version.content_json ?? {};
-
-  if (!row.brand_id) missing.push("品牌未設定");
-  if (!row.treatment_id) missing.push("療程未設定");
-  if (!row.package_id) missing.push("套餐未設定");
-  if (!row.branch_id) missing.push("分店未設定");
-  if (!row.form_id) missing.push("未連接登記表格");
-  if (!hasText(row.title)) missing.push("頁面標題未填");
-  if (!hasText(content.heroTitle)) missing.push("Hero 標題未填");
-  if (!hasText(content.ctaText)) missing.push("CTA 文字未填");
-  if (hasInternalPublicCopy(content)) {
-    missing.push("公開文案仍包含內部說明，請先改成客人會看到的內容");
-  }
-
-  if (!hasSupabaseAdminEnv()) return missing;
-
-  const supabase = createSupabaseAdminClient();
-  const [
-    brandResult,
-    treatmentResult,
-    packageResult,
-    branchResult,
-    formResult,
-  ] = await Promise.all([
-    row.brand_id
-      ? supabase.from("brands").select("id,name,slug").eq("id", row.brand_id).maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    row.treatment_id
-      ? supabase
-          .from("treatments")
-          .select("id,brand_id")
-          .eq("id", row.treatment_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    row.package_id
-      ? supabase
-          .from("packages")
-          .select("id,treatment_id")
-          .eq("id", row.package_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    row.branch_id
-      ? supabase
-          .from("branches")
-          .select("id,brand_id")
-          .eq("id", row.branch_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-    row.form_id
-      ? supabase
-          .from("forms")
-          .select("id,brand_id,form_name,public_form_token")
-          .eq("id", row.form_id)
-          .maybeSingle()
-      : Promise.resolve({ data: null, error: null }),
-  ]);
-
-  if (brandResult.error) {
-    console.warn("landing_page_publish_brand_check_failed", {
-      code: brandResult.error.code,
-      message: brandResult.error.message,
-    });
-  }
-
-  if (formResult.error) {
-    console.warn("landing_page_publish_form_check_failed", {
-      code: formResult.error.code,
-      message: formResult.error.message,
-    });
-  }
-
-  const brand = brandResult.data as Record<string, unknown> | null;
-  const treatment = treatmentResult.data as Record<string, unknown> | null;
-  const packageRow = packageResult.data as Record<string, unknown> | null;
-  const branch = branchResult.data as Record<string, unknown> | null;
-  const form = formResult.data as Record<string, unknown> | null;
-
-  if (row.brand_id && !brand) missing.push("品牌資料未找到");
-  if (row.treatment_id && !treatment) missing.push("療程資料未找到");
-  if (row.package_id && !packageRow) missing.push("套餐資料未找到");
-  if (row.branch_id && !branch) missing.push("分店資料未找到");
-  if (row.form_id && !form) missing.push("表格資料未找到");
-
-  if (row.brand_id && treatment?.brand_id && treatment.brand_id !== row.brand_id) {
-    missing.push("療程品牌與頁面品牌不一致");
-  }
-
-  if (
-    row.treatment_id &&
-    packageRow?.treatment_id &&
-    packageRow.treatment_id !== row.treatment_id
-  ) {
-    missing.push("套餐與療程不一致");
-  }
-
-  if (row.brand_id && branch?.brand_id && branch.brand_id !== row.brand_id) {
-    missing.push("分店品牌與頁面品牌不一致");
-  }
-
-  if (row.brand_id && form?.brand_id && form.brand_id !== row.brand_id) {
-    missing.push("表格品牌與頁面品牌不一致");
-  }
-
-  const brandName = String(brand?.name ?? "");
-  const brandSlug = String(brand?.slug ?? "");
-  const formName = String(form?.form_name ?? "");
-  const formToken = String(form?.public_form_token ?? "");
-  const isIneffablePage =
-    /ineffable/i.test(brandName) || /ineffable/i.test(brandSlug);
-  const isAlyssaMainForm =
-    /alyssa/i.test(formName) || formToken === alyssaDefaultForm.publicFormToken;
-
-  if (isIneffablePage && isAlyssaMainForm) {
-    missing.push("Ineffable 公開頁仍然連接 Alyssa 表格，請先改用 Ineffable 表格");
-  }
-
-  return Array.from(new Set(missing));
-  */
+async function latestEditorVersion(row: LandingPageRow) {
+  const latest = await getLatestVersion(row.id);
+  return latest ?? await getPublishedVersionForRow(row);
 }
 
 export async function getLandingPageBySlug(slug: string) {
+  if (isLandingPageFixtureMode()) return localLandingPage(slug);
+  if (!hasSupabaseAdminEnv()) throw new LandingPageReadError();
   const row = await findLandingPageRow(slug);
-  if (!row) {
-    const canonicalSlug = getCanonicalLandingPageSlug(slug);
-    const fallback =
-      getLocalLandingPageBySlug(canonicalSlug) ?? getLocalLandingPageBySlug(slug);
-    return fallback
-      ? {
-          ...fallback,
-          builderSource: "local_config" as const,
-          contentSectionsExplicit: false,
-        }
-      : null;
-  }
-
-  const version =
-    (await getLatestVersion(row.id, "draft")) ??
-    (await getPublishedVersionForRow(row)) ??
-    (await getLatestVersion(row.id));
-
-  return rowToConfig(row, version);
+  if (!row || !await canUseLandingPageBrand(row.brand_id)) return null;
+  return rowToConfig(row, await latestEditorVersion(row));
 }
 
 export async function getLandingPageById(id: string) {
-  const row = await findLandingPageRow(id);
-  if (!row) {
-    const canonicalSlug = getCanonicalLandingPageSlug(id);
-    const fallback =
-      getLocalLandingPageById(canonicalSlug) ??
-      getLocalLandingPageBySlug(canonicalSlug) ??
-      getLocalLandingPageById(id) ??
-      getLocalLandingPageBySlug(id);
-    return fallback
-      ? {
-          ...fallback,
-          builderSource: "local_config" as const,
-          contentSectionsExplicit: false,
-        }
-      : null;
-  }
-
-  const version =
-    (await getLatestVersion(row.id, "draft")) ??
-    (await getPublishedVersionForRow(row)) ??
-    (await getLatestVersion(row.id));
-
-  return rowToConfig(row, version);
+  return getLandingPageBySlug(id);
 }
 
 export async function getPublishedLandingPageBySlug(slug: string) {
-  if (hasSupabaseAdminEnv()) {
-    const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("landing_pages")
-      .select("*")
-      .in("slug", getLandingPageLookupSlugs(slug))
-      .eq("status", "published");
-
-    if (error) {
-      console.warn("published landing page lookup failed", {
-        code: error.code,
-        message: error.message,
-      });
-    } else {
-      const row = pickLandingPageRowBySlug(
-        ((data ?? []) as LandingPageRow[]),
-        slug
-      );
-
-      if (!row) {
-        // Fall through to local fallback below.
-      } else {
-        const version = await getPublishedVersionForRow(row);
-
-        if (!version) {
-          console.warn("published_landing_page_version_unavailable", {
-            pageId: row.id,
-            slug: row.slug,
-            versionId: row.published_version_id,
-            versionStatus: "missing",
-          });
-          if (hasPersistedPageState(row)) {
-            const page = rowToConfig(row, null);
-            logLandingPageLoad({
-              pageId: row.id,
-              slug: row.slug,
-              loadedFrom: "published",
-              page,
-            });
-            return page;
-          }
-        } else {
-          const page = rowToConfig(row, version);
-          logLandingPageLoad({
-            pageId: row.id,
-            slug: row.slug,
-            loadedFrom: "published",
-            page,
-          });
-          return page;
-        }
-      }
-    }
+  if (isLandingPageFixtureMode()) {
+    const page = localLandingPage(slug);
+    return page?.status === "published" ? page : null;
   }
-
-  const canonicalSlug = getCanonicalLandingPageSlug(slug);
-  const fallback =
-    getLocalLandingPageBySlug(canonicalSlug) ?? getLocalLandingPageBySlug(slug);
-  return fallback
-    ? {
-        ...fallback,
-        builderSource: "local_config" as const,
-        contentSectionsExplicit: false,
-      }
-    : null;
+  if (!hasSupabaseAdminEnv()) throw new LandingPageReadError();
+  const { data, error } = await createSupabaseAdminClient().from("landing_pages")
+    .select("*").in("slug", getLandingPageLookupSlugs(slug)).eq("status", "published");
+  if (error) throw new LandingPageReadError();
+  const row = pickLandingPageRowBySlug((data ?? []) as LandingPageRow[], slug);
+  if (!row) return null;
+  const version = await getPublishedVersionForRow(row);
+  if (!version) return null;
+  return rowToConfig(row, version);
 }
 
-export async function getLandingPageEditorState(
-  pageId: string
-): Promise<LandingPageEditorData | null> {
-  if (hasSupabaseAdminEnv()) {
-    const row = await findLandingPageRow(pageId);
-    if (row) {
-      if (!(await canUseLandingPageBrand(row.brand_id))) return null;
-      const latestDraft = await getLatestVersion(row.id, "draft");
-      const publishedVersion = await getPublishedVersionForRow(row);
-      const latestVersion = latestDraft ?? publishedVersion;
-      const loadedFrom: LandingPageLoadSource = latestDraft
-        ? "draft"
-        : publishedVersion
-          ? "published"
-          : hasPersistedPageState(row)
-            ? "row"
-            : "seed";
-      const page = rowToConfig(row, latestVersion);
-
-      logLandingPageLoad({
-        pageId: row.id,
-        slug: row.slug,
-        loadedFrom,
-        page,
-      });
-
-      return {
-        page,
-        source: "supabase",
-        loadedFrom,
-        canPersist: true,
-        statusMessage:
-          loadedFrom === "draft"
-            ? "正在載入最新草稿。"
-            : loadedFrom === "published"
-              ? "正在載入最新已發布版本。"
-              : loadedFrom === "row"
-                ? "正在載入頁面目前保存內容。"
-                : "正在載入預設內容；儲存後會以草稿為準。",
-        latestDraftVersionNumber: latestDraft?.version_number ?? null,
-        publishedVersionNumber: publishedVersion?.version_number ?? null,
-        pageRecordId: row.id,
-        versionId: latestVersion?.id ?? null,
-        versionCreatedAt: latestVersion?.created_at ?? null,
-      };
-    }
+export async function getLandingPageEditorState(pageId: string): Promise<LandingPageEditorData | null> {
+  if (isLandingPageFixtureMode()) {
+    const page = localLandingPage(pageId);
+    if (!page || !await canUseLandingPageBrand(page.brandId)) return null;
+    return { page, source: "local_config", loadedFrom: "seed", canPersist: false,
+      statusMessage: "示例內容不會儲存至正式資料。", latestDraftVersionNumber: null,
+      publishedVersionNumber: null, pageRecordId: null, versionId: null,
+      versionCreatedAt: null, revision: 1, publishedSlug: page.status === "published" ? page.slug : null };
   }
+  if (!hasSupabaseAdminEnv()) throw new LandingPageReadError();
+  const row = await findLandingPageRow(pageId);
+  if (!row || !await canUseLandingPageBrand(row.brand_id)) return null;
+  const [latest, published] = await Promise.all([getLatestVersion(row.id), getPublishedVersionForRow(row)]);
+  const version = latest ?? published;
+  const loadedFrom: LandingPageLoadSource = version?.status === "draft" ? "draft" :
+    version?.status === "published" ? "published" : "row";
+  return { page: rowToConfig(row, version), source: "supabase", loadedFrom, canPersist: true,
+    statusMessage: loadedFrom === "draft" ? "最新草稿已載入。" : "已載入目前內容。",
+    latestDraftVersionNumber: latest?.status === "draft" ? latest.version_number : null,
+    publishedVersionNumber: published?.version_number ?? null, pageRecordId: row.id,
+    versionId: version?.id ?? null, versionCreatedAt: version?.created_at ?? null,
+    revision: Number(row.revision || 1), publishedSlug: published ? getCanonicalLandingPageSlug(row.slug) : null };
+}
 
-  const page = await getLandingPageById(pageId);
-  if (!page) return null;
-  if (!(await canUseLandingPageBrand(page.brandId))) return null;
-
-  const canPersist = page.builderSource === "supabase";
-
-  return {
-    page,
-    source: page.builderSource ?? "local_config",
-    loadedFrom: "seed",
-    canPersist,
-    statusMessage: canPersist
-      ? "這個 Landing Page 可以儲存草稿及發布公開版本。"
-      : "目前只可查看內容；儲存草稿及發布功能稍後開放。",
-    latestDraftVersionNumber: null,
-    publishedVersionNumber: null,
-    pageRecordId: null,
-    versionId: null,
-    versionCreatedAt: null,
-  };
+/** Internal only: caller must also enforce the landing_pages module boundary. */
+export async function getLandingPageDraftPreview(pageId: string, options: { versionId?: string; revision?: number } = {}): Promise<LandingPageEditorData | null> {
+  const access = await requireModuleAccess("landing_pages");
+  if (!access.allowed) return null;
+  if (isLandingPageFixtureMode()) return getLandingPageEditorState(pageId);
+  const row = await findLandingPageRow(pageId);
+  if (!row || !await canUseLandingPageBrand(row.brand_id)) return null;
+  const version = options.versionId ? await getVersionById(options.versionId) : await latestEditorVersion(row);
+  if (!version || version.page_id !== row.id) return null;
+  const savedRevision = Number(version.page_revision ?? row.revision ?? 1);
+  if (options.revision !== undefined && options.revision !== savedRevision) return null;
+  return { page: rowToConfig(row, version), source: "supabase", loadedFrom: version.status === "draft" ? "draft" : "published",
+    canPersist: false, statusMessage: "這是已儲存版本的預覽，不會接收正式登記。",
+    latestDraftVersionNumber: version.status === "draft" ? version.version_number : null,
+    publishedVersionNumber: version.status === "published" ? version.version_number : null,
+    pageRecordId: row.id, versionId: version.id, versionCreatedAt: version.created_at,
+    revision: savedRevision, publishedSlug: row.published_version_id ? getCanonicalLandingPageSlug(row.slug) : null };
 }
 
 export const getLandingPageEditorData = getLandingPageEditorState;
 
 export async function getLandingPageList() {
-  const access = await getCurrentInternalAccess();
-  const canUseBrand = (brandId: string | null | undefined) =>
-    access.source !== "supabase_auth" ||
-    Boolean(brandId && canAccessInternalBrand(access, brandId));
+  try {
+    const access = await getCurrentInternalAccess();
+    const allowed = (brandId: string | null | undefined) => access.source !== "unauthenticated" &&
+      (access.source !== "supabase_auth" || Boolean(brandId && canAccessInternalBrand(access, brandId)));
+    if (isLandingPageFixtureMode()) return {
+      pages: alyssaLandingPages.filter(page => allowed(page.brandId)).map(page => ({ ...page, builderSource: "local_config" as const })),
+      source: "local_config" as const, canPersist: false, available: true, error: null,
+    };
+    if (!hasSupabaseAdminEnv()) return { pages: [], source: "supabase" as const, canPersist: false, available: false, error: "暫時未能讀取廣告頁，請重新載入。" };
+    const { data, error, count } = await createSupabaseAdminClient().from("landing_pages")
+      .select("*", { count: "exact" }).order("updated_at", { ascending: false });
+    if (error || !Array.isArray(data) || count === null || count !== data.length) throw new LandingPageReadError();
+    const scoped = (data as LandingPageRow[]).filter(row => allowed(row.brand_id));
+    const pages = await Promise.all(scoped.map(async row => rowToConfig(row, await latestEditorVersion(row))));
+    return { pages, source: "supabase" as const, canPersist: true, available: true, error: null };
+  } catch {
+    return { pages: [], source: "supabase" as const, canPersist: false, available: false, error: "暫時未能讀取廣告頁，請重新載入。" };
+  }
+}
 
-  if (hasSupabaseAdminEnv()) {
-    const supabase = createSupabaseAdminClient();
-    const { data, error } = await supabase
-      .from("landing_pages")
-      .select("*")
-      .order("updated_at", { ascending: false });
+type LandingPageOperation = "create" | "save" | "publish" | "archive" | "restore" | "delete";
 
-    if (error) {
-      console.warn("landing page list lookup failed", {
-        code: error.code,
-        message: error.message,
-      });
-    } else if (data && data.length > 0) {
-      const pages = await Promise.all(
-        (data as LandingPageRow[]).map(async (row) => {
-          const version =
-            (await getLatestVersion(row.id, "draft")) ??
-            (await getPublishedVersionForRow(row)) ??
-            (await getLatestVersion(row.id));
-          return rowToConfig(row, version);
-        })
-      );
+function mutationFailure(message: string): LandingPageMutationResult {
+  return { ok: false, source: "supabase", message };
+}
 
-      return {
-        pages: pages.filter((page) => canUseBrand(page.brandId)),
-        source: "supabase" as const,
-        canPersist: true,
-      };
+function landingCommandMessage(error: { message?: string; code?: string } | null) {
+  const code = error?.message || "";
+  if (code.includes("revision_conflict")) return "內容已由其他人更新，請重新載入後再儲存。";
+  if (code.includes("request_conflict")) return "今次操作資料已更改，請重新載入後再試。";
+  if (code.includes("slug_conflict") || error?.code === "23505") return "這個網址已被其他廣告頁使用，請更改後再試。";
+  if (code.includes("form_inactive")) return "請先啟用已連接的登記表格，再發布廣告頁。";
+  if (code.includes("offer_inactive") || code.includes("offer_invalid")) return "請先檢查已連接表格的療程、優惠及分店。";
+  if (code.includes("brand_mismatch")) return "登記表格與廣告頁必須屬於同一品牌。";
+  if (code.includes("page_archived")) return "廣告頁已封存，請先恢復草稿。";
+  if (code.includes("delete_has_dependencies")) return "這個廣告頁已有發布或登記紀錄，請使用封存。";
+  return "暫時未能儲存，內容未有變更，請稍後再試。";
+}
+
+async function mutateLandingPage(operation: LandingPageOperation, pageId: string | null, payload: Record<string, unknown>, meta: LandingPageDraftMeta = {}): Promise<LandingPageMutationResult> {
+  try {
+    if (!hasSupabaseAdminEnv() || isLandingPageFixtureMode()) return mutationFailure("目前未能儲存正式資料，請重新載入。");
+    let row: LandingPageRow | null = null;
+    try { if (pageId) row = await findLandingPageRow(pageId); }
+    catch { return mutationFailure("暫時未能讀取廣告頁，請稍後再試。"); }
+    if (operation !== "create" && !row) return mutationFailure("找不到這個廣告頁。");
+    const brandId = row?.brand_id ?? (typeof payload.brand_id === "string" ? payload.brand_id : null);
+    if (!await canUseLandingPageBrand(brandId)) return mutationFailure("你未獲授權管理這個品牌的廣告頁。");
+    if (operation !== "create" && (!Number.isSafeInteger(meta.expectedRevision) || Number(meta.expectedRevision) < 1)) {
+      return mutationFailure("頁面版本已更新，請重新載入後再儲存。");
     }
-  }
-
-  return {
-    pages: alyssaLandingPages
-      .filter((page) => canUseBrand(page.brandId))
-      .map((page) => ({
-        ...page,
-        builderSource: "local_config" as const,
-      })),
-    source: "local_config" as const,
-    canPersist: false,
-  };
+    if (!meta.requestId || !uuidPattern.test(meta.requestId)) return mutationFailure("請重新載入頁面後再試。");
+    const { data, error } = await createSupabaseAdminClient().rpc("mutate_landing_page_v1", {
+      p_operation: operation, p_page_id: row?.id ?? null,
+      p_expected_revision: operation === "create" ? null : meta.expectedRevision,
+      p_request_id: meta.requestId, p_payload: payload,
+    });
+    if (error || !data?.page) return mutationFailure(landingCommandMessage(error));
+    const nextRow = data.page as LandingPageRow;
+    const version = data.version as LandingPageVersionRow | null;
+    return { ok: true, source: "supabase",
+      message: operation === "publish" ? "廣告頁已發布。" : operation === "archive" ? "廣告頁已封存。" :
+        operation === "restore" ? "已恢復為草稿，發布後才會公開。" : operation === "delete" ? "未使用的廣告頁已刪除。" : "草稿已儲存。",
+      page: rowToConfig(nextRow, version), pageRecordId: nextRow.id,
+      versionId: version?.id, versionNumber: version?.version_number, revision: Number(nextRow.revision),
+      previousPublishedSlug: row?.published_version_id ? getCanonicalLandingPageSlug(row.slug) : null };
+  } catch { return mutationFailure("暫時未能儲存，請稍後再試。"); }
 }
 
-type LandingPageCountCheckResult = {
-  ok: boolean;
-  count: number;
-  label: string;
-  errorMessage?: string;
-};
-
-async function countLandingPageDependency(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-  table: string,
-  column: string,
-  value: string | null | undefined,
-  label: string
-): Promise<LandingPageCountCheckResult> {
-  if (!value) return { ok: true, count: 0, label };
-
-  const { count, error } = await supabase
-    .from(table)
-    .select("id", { count: "exact", head: true })
-    .eq(column, value);
-
-  if (error) {
-    console.warn("landing_page_dependency_count_failed", {
-      table,
-      column,
-      code: error.code,
-      message: error.message,
-    });
-    return {
-      ok: false,
-      count: 0,
-      label,
-      errorMessage: error.message,
-    };
-  }
-
-  return { ok: true, count: count ?? 0, label };
+export async function archiveLandingPage(pageId: string, expectedRevision?: number, requestId?: string) {
+  return mutateLandingPage("archive", pageId, {}, { expectedRevision, requestId });
+}
+export async function restoreLandingPage(pageId: string, expectedRevision?: number, requestId?: string) {
+  return mutateLandingPage("restore", pageId, {}, { expectedRevision, requestId });
+}
+export async function deleteLandingPageSafely(pageId: string, expectedRevision?: number, requestId?: string) {
+  return mutateLandingPage("delete", pageId, {}, { expectedRevision, requestId });
 }
 
-async function countLandingPageUrlDependency(
-  supabase: ReturnType<typeof createSupabaseAdminClient>,
-  column: string,
-  slug: string,
-  label: string
-): Promise<LandingPageCountCheckResult> {
-  const { count, error } = await supabase
-    .from("lead_source_snapshots")
-    .select("id", { count: "exact", head: true })
-    .ilike(column, `%/lp/${slug}%`);
-
-  if (error) {
-    console.warn("landing_page_url_dependency_count_failed", {
-      column,
-      code: error.code,
-      message: error.message,
-      slug,
-    });
-    return {
-      ok: false,
-      count: 0,
-      label,
-      errorMessage: error.message,
-    };
-  }
-
-  return { ok: true, count: count ?? 0, label };
-}
-
-export async function archiveLandingPage(
-  pageId: string
-): Promise<LandingPageMutationResult> {
-  if (!hasSupabaseAdminEnv()) {
-    return {
-      ok: false,
-      source: "local_config",
-      message:
-        "Landing Page archive is unavailable because the admin database client is not configured.",
-    };
-  }
-
-  const row = await findLandingPageRow(pageId);
-  if (!row) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "Landing Page not found. No change was made.",
-    };
-  }
-  if (!(await canUseLandingPageBrand(row.brand_id))) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "你未獲授權管理呢個品牌嘅 Landing Page。",
-    };
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const { error } = await supabase
-    .from("landing_pages")
-    .update({
-      status: "archived",
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", row.id);
-
-  if (error) {
-    console.warn("landing_page_archive_failed", {
-      code: error.code,
-      message: error.message,
-      page_id: row.id,
-      slug: row.slug,
-    });
-    return {
-      ok: false,
-      source: "supabase",
-      message: "Landing Page archive failed. No change was made.",
-    };
-  }
-
-  return {
-    ok: true,
-    source: "supabase",
-    message:
-      "Landing Page archived. It is hidden from the default active list, but existing leads remain viewable.",
-  };
-}
-
-export async function deleteLandingPageSafely(
-  pageId: string
-): Promise<LandingPageMutationResult> {
-  if (!hasSupabaseAdminEnv()) {
-    return {
-      ok: false,
-      source: "local_config",
-      message:
-        "Landing Page delete is unavailable because the admin database client is not configured.",
-    };
-  }
-
-  const row = await findLandingPageRow(pageId);
-  if (!row) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "Landing Page not found. No change was made.",
-    };
-  }
-  if (!(await canUseLandingPageBrand(row.brand_id))) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "你未獲授權刪除呢個品牌嘅 Landing Page。",
-    };
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const checks = await Promise.all([
-    countLandingPageDependency(
-      supabase,
-      "landing_page_versions",
-      "page_id",
-      row.id,
-      "landing page versions"
-    ),
-    countLandingPageUrlDependency(
-      supabase,
-      "current_page_url",
-      row.slug,
-      "lead source snapshots by current URL"
-    ),
-    countLandingPageUrlDependency(
-      supabase,
-      "landing_page_url",
-      row.slug,
-      "lead source snapshots by landing URL"
-    ),
-  ]);
-  const blockers = checks.flatMap((check) => {
-    if (!check.ok) return [`${check.label} could not be verified`];
-    if (check.count > 0) return [`${check.count} ${check.label}`];
-    return [];
-  });
-
-  if (row.form_id) blockers.push("linked form");
-  if (row.published_version_id) blockers.push("published version");
-
-  if (blockers.length > 0) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `Safe delete blocked because this Landing Page has dependencies: ${blockers.join(
-        ", "
-      )}. Archive it instead.`,
-    };
-  }
-
-  const { error } = await supabase.from("landing_pages").delete().eq("id", row.id);
-  if (error) {
-    console.warn("landing_page_safe_delete_failed", {
-      code: error.code,
-      message: error.message,
-      page_id: row.id,
-      slug: row.slug,
-    });
-    return {
-      ok: false,
-      source: "supabase",
-      message: "Safe delete failed. No further action was taken.",
-    };
-  }
-
-  return {
-    ok: true,
-    source: "supabase",
-    message: "Landing Page permanently deleted. No linked form, versions, or lead snapshots were found.",
-  };
+function initialPageDocument(input: { title: string; heroTitle: string; heroSubtitle: string; offerBadge: string; ctaText: string }) {
+  const content: LandingPageContent = { templateName: "offer-landing-page", testingStatus: "ready_for_testing",
+    heroTitle: input.heroTitle, heroSubtitle: input.heroSubtitle, offerBadge: input.offerBadge,
+    offerHeadline: input.title, offerBody: input.heroSubtitle, ctaText: input.ctaText || "立即預約",
+    secondaryCtaText: "", painPoints: [], benefits: [], trustItems: [], sections: [], processSteps: [], contentSections: [], faqs: [] };
+  return { title: input.title, content_json: content, image_assets_json: {} };
 }
 
 export async function createLandingPageDraft(input: CreateLandingPageDraftInput) {
-  if (!hasSupabaseAdminEnv()) {
-    return {
-      ok: false,
-      message: "暫時未能建立 Landing Page 草稿，請確認正式資料庫設定。",
-      pageId: null as string | null,
-      slug: null as string | null,
-    };
-  }
-  if (!(await canUseLandingPageBrand(input.brandId))) {
-    return {
-      ok: false,
-      message: "你未獲授權為呢個品牌建立 Landing Page。",
-      pageId: null as string | null,
-      slug: null as string | null,
-    };
-  }
+  const document = initialPageDocument(input);
+  const result = await mutateLandingPage("create", null, {
+    ...document, brand_id: input.brandId, form_id: input.formId,
+  }, { requestId: input.requestId });
+  return { ...result, pageId: result.pageRecordId ?? null, slug: result.page?.slug ?? null };
+}
 
-  const supabase = createSupabaseAdminClient();
-  const { data: brand, error: brandError } = await supabase
-    .from("brands")
-    .select("slug")
-    .eq("id", input.brandId)
-    .maybeSingle<{ slug: string | null }>();
+export async function saveLandingPageDraft(pageId: string, content: LandingPageContent, imageAssets: LandingPageImageAssets, meta: LandingPageDraftMeta = {}) {
+  return saveLandingPageDraftWithSlug(pageId, content, imageAssets, meta);
+}
 
-  if (brandError || !brand?.slug) {
-    console.warn("landing_page_brand_slug_lookup_failed", brandError);
-    return {
-      ok: false,
-      message: "Landing Page 未能建立，請確認品牌資料及品牌代號。",
-      pageId: null,
-      slug: null,
-    };
-  }
+export async function saveLandingPageDraftWithSlug(pageId: string, content: LandingPageContent, imageAssets: LandingPageImageAssets, meta: LandingPageDraftMeta = {}) {
+  return mutateLandingPage("save", pageId, {
+    ...(meta.title ? { title: meta.title } : {}), ...(meta.slug ? { slug: normalizeEditableLandingPageSlug(meta.slug, meta.slug) } : {}),
+    ...(meta.formId ? { form_id: meta.formId } : {}), content_json: content, image_assets_json: imageAssets,
+  }, meta);
+}
 
-  const slug = await createUniqueLandingPageSlug(input.title, brand.slug);
-  const content: LandingPageContent = {
-    templateName: "offer-landing-page",
-    testingStatus: "ready_for_testing",
-    heroTitle: input.heroTitle,
-    heroSubtitle: input.heroSubtitle,
-    offerBadge: input.offerBadge,
-    offerHeadline: input.title,
-    offerBody: input.heroSubtitle,
-    ctaText: input.ctaText || "立即預約體驗",
-    secondaryCtaText: "",
-    painPoints: [],
-    benefits: [],
-    trustItems: [],
-    sections: [],
-    processSteps: [],
-    contentSections: [],
-    faqs: [],
-  };
-  const imageAssets: LandingPageImageAssets = {
-    heroImageUrl: "",
-    mobileHeroImageUrl: "",
-    offerImageUrl: "",
-    treatmentImageUrl: "",
-    processImage1Url: "",
-    processImage2Url: "",
-    processImage3Url: "",
-    processImage4Url: "",
-    processImage5Url: "",
-    processImage6Url: "",
-    trustImageUrl: "",
-  };
+export async function publishLandingPageFromEditor(pageId: string, content: LandingPageContent, imageAssets: LandingPageImageAssets, meta: LandingPageDraftMeta = {}) {
+  return publishLandingPageFromEditorWithSlug(pageId, content, imageAssets, meta);
+}
 
-  const { data: page, error: pageError } = await supabase
-    .from("landing_pages")
-    .insert({
-      slug,
-      title: input.title,
-      brand_id: input.brandId,
-      treatment_id: input.treatmentId,
-      package_id: input.packageId,
-      branch_id: input.branchId,
-      form_id: input.formId,
-      template_key: "premium_offer_landing_page",
-      mode: "landing_page",
-      status: "draft",
-      content_json: content,
-      image_assets_json: imageAssets,
-    })
-    .select("id,slug")
-    .single<{ id: string; slug: string }>();
+export async function publishLandingPageFromEditorWithSlug(pageId: string, content: LandingPageContent, imageAssets: LandingPageImageAssets, meta: LandingPageDraftMeta = {}) {
+  if (hasInternalPublicCopy(content as unknown as Record<string, unknown>)) return mutationFailure("請先將內部說明改成客人會看到的內容。");
+  return mutateLandingPage("publish", pageId, {
+    ...(meta.title ? { title: meta.title } : {}), ...(meta.slug ? { slug: normalizeEditableLandingPageSlug(meta.slug, meta.slug) } : {}),
+    ...(meta.formId ? { form_id: meta.formId } : {}), content_json: content, image_assets_json: imageAssets,
+  }, meta);
+}
 
-  if (pageError || !page) {
-    console.warn("landing_page_create_failed", pageError);
-    return {
-      ok: false,
-      message: "Landing Page 草稿未能建立，請稍後再試。",
-      pageId: null,
-      slug: null,
-    };
-  }
+export async function publishLandingPage(pageId: string, meta: LandingPageDraftMeta = {}) {
+  return mutateLandingPage("publish", pageId, {}, meta);
+}
 
-  const { error: versionError } = await supabase
-    .from("landing_page_versions")
-    .insert({
-      page_id: page.id,
-      version_number: 1,
-      status: "draft",
-      content_json: content,
-      image_assets_json: imageAssets,
+export type CreateAcquisitionAssetsInput = {
+  requestId: string;
+  brandId: string;
+  form?: ManagedFormInput;
+  existingFormId?: string;
+  page?: { title: string; heroTitle: string; heroSubtitle: string; offerBadge: string; ctaText: string };
+};
+
+/** Form, memberships and optional first LP version commit or roll back together. */
+export async function createAcquisitionAssets(input: CreateAcquisitionAssetsInput) {
+  const fail = (message: string) => ({ ok: false as const, message, formId: null, pageId: null, slug: null });
+  try {
+    if (!hasSupabaseAdminEnv() || isLandingPageFixtureMode()) return fail("暫時未能建立，請稍後再試。");
+    if (!uuidPattern.test(input.requestId)) return fail("請重新開啟建立頁面後再試。");
+    if (!await canUseLandingPageBrand(input.brandId)) return fail("你未獲授權管理這個品牌。");
+    let formPayload: Record<string, unknown> | undefined;
+    if (input.form) {
+      const prepared = await prepareManagedFormPayload(input.form);
+      if (!prepared.ok) return fail(prepared.message);
+      formPayload = prepared.payload as unknown as Record<string, unknown>;
+    } else if (!input.existingFormId || !uuidPattern.test(input.existingFormId)) return fail("請選擇登記表格。");
+    if (input.form && input.form.brandId !== input.brandId) return fail("登記表格與品牌不相符。");
+    const payload = { brand_id: input.brandId, ...(formPayload ? { form: formPayload } : { existing_form_id: input.existingFormId }),
+      ...(input.page ? { page: initialPageDocument(input.page) } : {}) };
+    const { data, error } = await createSupabaseAdminClient().rpc("create_acquisition_assets_v1", {
+      p_request_id: input.requestId, p_payload: payload,
     });
-
-  if (versionError) {
-    console.warn("landing_page_initial_version_failed", versionError);
-    return {
-      ok: false,
-      message:
-        "Landing Page 已建立，但初始草稿未能建立。請到 Landing Pages 檢查。",
-      pageId: null,
-      slug: null,
-    };
-  }
-
-  return {
-    ok: true,
-    message: "Landing Page 草稿已建立。",
-    pageId: page.slug,
-    slug: page.slug,
-  };
-}
-
-export async function saveLandingPageDraft(
-  pageId: string,
-  content: LandingPageContent,
-  imageAssets: LandingPageImageAssets,
-  meta: LandingPageDraftMeta = {}
-): Promise<LandingPageMutationResult> {
-  const row = await findLandingPageRow(pageId);
-  if (!row || !hasSupabaseAdminEnv()) {
-    return {
-      ok: false,
-      source: "local_config",
-      message: "目前未能儲存草稿，請確認這個 Landing Page 已連接正式資料。",
-    };
-  }
-  if (!(await canUseLandingPageBrand(row.brand_id))) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "你未獲授權修改呢個品牌嘅 Landing Page。",
-    };
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const latest = await getLatestVersion(row.id);
-  const versionNumber = (latest?.version_number ?? 0) + 1;
-
-  const { error: versionError } = await supabase
-    .from("landing_page_versions")
-    .insert({
-      page_id: row.id,
-      version_number: versionNumber,
-      status: "draft",
-      content_json: content,
-      image_assets_json: imageAssets,
-    });
-
-  if (versionError) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `草稿未能儲存：${versionError.message}`,
-    };
-  }
-
-  const { error: pageError } = await supabase
-    .from("landing_pages")
-    .update({
-      title: meta.title ?? row.title,
-      form_id: meta.formId ?? row.form_id,
-      status: row.published_version_id ? row.status : "draft",
-      content_json: content,
-      image_assets_json: imageAssets,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", row.id);
-
-  if (pageError) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `Landing Page 未能更新：${pageError.message}`,
-    };
-  }
-
-  return {
-    ok: true,
-    source: "supabase",
-    message: `草稿版本 ${versionNumber} 已儲存。`,
-    versionNumber,
-  };
-}
-
-export async function publishLandingPageFromEditor(
-  pageId: string,
-  content: LandingPageContent,
-  imageAssets: LandingPageImageAssets,
-  meta: LandingPageDraftMeta = {}
-): Promise<LandingPageMutationResult> {
-  const row = await findLandingPageRow(pageId);
-  if (!row || !hasSupabaseAdminEnv()) {
-    return {
-      ok: false,
-      source: "local_config",
-      message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
-    };
-  }
-  if (!(await canUseLandingPageBrand(row.brand_id))) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "你未獲授權發布呢個品牌嘅 Landing Page。",
-    };
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const now = new Date().toISOString();
-  const publishRow: LandingPageRow = {
-    ...row,
-    title: meta.title ?? row.title,
-    form_id: meta.formId ?? row.form_id,
-    content_json: content as unknown as Record<string, unknown>,
-    image_assets_json: imageAssets as unknown as Record<string, unknown>,
-    updated_at: now,
-  };
-  const latest = await getLatestVersion(row.id);
-  const versionNumber = (latest?.version_number ?? 0) + 1;
-  const pendingVersion: LandingPageVersionRow = {
-    id: "pending",
-    page_id: row.id,
-    version_number: versionNumber,
-    status: "published",
-    content_json: publishRow.content_json,
-    image_assets_json: publishRow.image_assets_json,
-    created_at: now,
-  };
-  const missing = await validatePublishReadiness(publishRow, pendingVersion);
-
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `發布前請先完成：${missing.join("、")}`,
-    };
-  }
-
-  const { data: version, error: versionError } = await supabase
-    .from("landing_page_versions")
-    .insert({
-      page_id: row.id,
-      version_number: versionNumber,
-      status: "published",
-      content_json: content,
-      image_assets_json: imageAssets,
-    })
-    .select("*")
-    .single<LandingPageVersionRow>();
-
-  if (versionError || !version) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `發布版本未能建立：${versionError?.message ?? "unknown error"}`,
-    };
-  }
-
-  const { error: pageError } = await supabase
-    .from("landing_pages")
-    .update({
-      title: publishRow.title,
-      form_id: publishRow.form_id,
-      status: "published",
-      content_json: content,
-      image_assets_json: imageAssets,
-      published_version_id: version.id,
-      published_at: now,
-      updated_at: now,
-    })
-    .eq("id", row.id);
-
-  if (pageError) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `Landing Page 發布狀態未能更新：${pageError.message}`,
-    };
-  }
-
-  return {
-    ok: true,
-    source: "supabase",
-    message: `發布版本 ${version.version_number} 已更新公開頁。`,
-    page: rowToConfig({ ...publishRow, status: "published", published_at: now }, version),
-    versionNumber: version.version_number,
-  };
-}
-
-export async function saveLandingPageDraftWithSlug(
-  pageId: string,
-  content: LandingPageContent,
-  imageAssets: LandingPageImageAssets,
-  meta: LandingPageDraftMeta = {}
-): Promise<LandingPageMutationResult> {
-  const row = await findLandingPageRow(pageId);
-  if (!row || !hasSupabaseAdminEnv()) {
-    return {
-      ok: false,
-      source: "local_config",
-      message: "目前未能保存，請確認這個 Landing Page 已連接正式資料。",
-    };
-  }
-  if (!(await canUseLandingPageBrand(row.brand_id))) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "你未獲授權修改呢個品牌嘅 Landing Page。",
-    };
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const latest = await getLatestVersion(row.id);
-  const versionNumber = (latest?.version_number ?? 0) + 1;
-  const savedAt = new Date().toISOString();
-  const nextSlug = normalizeEditableLandingPageSlug(meta.slug, row.slug);
-  const slugConflict = await ensureLandingPageSlugAvailable(nextSlug, row.id);
-
-  if (slugConflict) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: slugConflict,
-    };
-  }
-
-  const { error: versionError } = await supabase
-    .from("landing_page_versions")
-    .insert({
-      page_id: row.id,
-      version_number: versionNumber,
-      status: "draft",
-      content_json: content,
-      image_assets_json: imageAssets,
-    });
-
-  if (versionError) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `草稿未能保存：${versionError.message}`,
-    };
-  }
-
-  const updatedRow: LandingPageRow = {
-    ...row,
-    slug: nextSlug,
-    title: meta.title ?? row.title,
-    form_id: meta.formId ?? row.form_id,
-    content_json: content as unknown as Record<string, unknown>,
-    image_assets_json: imageAssets as unknown as Record<string, unknown>,
-    updated_at: savedAt,
-  };
-
-  const { error: pageError } = await supabase
-    .from("landing_pages")
-    .update({
-      slug: nextSlug,
-      title: updatedRow.title,
-      form_id: updatedRow.form_id,
-      status: row.published_version_id ? row.status : "draft",
-      content_json: content,
-      image_assets_json: imageAssets,
-      updated_at: savedAt,
-    })
-    .eq("id", row.id);
-
-  if (pageError) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `Landing Page 未能更新：${pageError.message}`,
-    };
-  }
-
-  return {
-    ok: true,
-    source: "supabase",
-    message: `草稿版本 ${versionNumber} 已保存。`,
-    page: rowToConfig(updatedRow, {
-      id: "draft",
-      page_id: row.id,
-      version_number: versionNumber,
-      status: "draft",
-      content_json: content as unknown as Record<string, unknown>,
-      image_assets_json: imageAssets as unknown as Record<string, unknown>,
-      created_at: savedAt,
-    }),
-    versionNumber,
-  };
-}
-
-export async function publishLandingPageFromEditorWithSlug(
-  pageId: string,
-  content: LandingPageContent,
-  imageAssets: LandingPageImageAssets,
-  meta: LandingPageDraftMeta = {}
-): Promise<LandingPageMutationResult> {
-  const row = await findLandingPageRow(pageId);
-  if (!row || !hasSupabaseAdminEnv()) {
-    return {
-      ok: false,
-      source: "local_config",
-      message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
-    };
-  }
-  if (!(await canUseLandingPageBrand(row.brand_id))) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "你未獲授權發布呢個品牌嘅 Landing Page。",
-    };
-  }
-
-  const supabase = createSupabaseAdminClient();
-  const now = new Date().toISOString();
-  const nextSlug = normalizeEditableLandingPageSlug(meta.slug, row.slug);
-  const slugConflict = await ensureLandingPageSlugAvailable(nextSlug, row.id);
-
-  if (slugConflict) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: slugConflict,
-    };
-  }
-
-  const publishRow: LandingPageRow = {
-    ...row,
-    slug: nextSlug,
-    title: meta.title ?? row.title,
-    form_id: meta.formId ?? row.form_id,
-    content_json: content as unknown as Record<string, unknown>,
-    image_assets_json: imageAssets as unknown as Record<string, unknown>,
-    updated_at: now,
-  };
-  const latest = await getLatestVersion(row.id);
-  const versionNumber = (latest?.version_number ?? 0) + 1;
-  const pendingVersion: LandingPageVersionRow = {
-    id: "pending",
-    page_id: row.id,
-    version_number: versionNumber,
-    status: "published",
-    content_json: publishRow.content_json,
-    image_assets_json: publishRow.image_assets_json,
-    created_at: now,
-  };
-  const missing = await validatePublishReadiness(publishRow, pendingVersion);
-
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `發布前請先完成：${missing.join("、")}`,
-    };
-  }
-
-  const { data: version, error: versionError } = await supabase
-    .from("landing_page_versions")
-    .insert({
-      page_id: row.id,
-      version_number: versionNumber,
-      status: "published",
-      content_json: content,
-      image_assets_json: imageAssets,
-    })
-    .select("*")
-    .single<LandingPageVersionRow>();
-
-  if (versionError || !version) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `發布版本未能建立：${versionError?.message ?? "unknown error"}`,
-    };
-  }
-
-  const { error: pageError } = await supabase
-    .from("landing_pages")
-    .update({
-      slug: nextSlug,
-      title: publishRow.title,
-      form_id: publishRow.form_id,
-      status: "published",
-      content_json: content,
-      image_assets_json: imageAssets,
-      published_version_id: version.id,
-      published_at: now,
-      updated_at: now,
-    })
-    .eq("id", row.id);
-
-  if (pageError) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `Landing Page 發布狀態未能更新：${pageError.message}`,
-    };
-  }
-
-  return {
-    ok: true,
-    source: "supabase",
-    message: `發布版本 ${version.version_number} 已更新公開頁。`,
-    page: rowToConfig(
-      { ...publishRow, status: "published", published_at: now },
-      version
-    ),
-    versionNumber: version.version_number,
-  };
-}
-
-export async function publishLandingPage(
-  pageId: string
-): Promise<LandingPageMutationResult> {
-  const row = await findLandingPageRow(pageId);
-  if (!row || !hasSupabaseAdminEnv()) {
-    return {
-      ok: false,
-      source: "local_config",
-      message: "目前未能發布，請確認這個 Landing Page 已連接正式資料。",
-    };
-  }
-  if (!(await canUseLandingPageBrand(row.brand_id))) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "你未獲授權發布呢個品牌嘅 Landing Page。",
-    };
-  }
-
-  const supabase = createSupabaseAdminClient();
-  let version = await getLatestVersion(row.id, "draft");
-
-  if (!version) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: "請先保存草稿，然後再發布公開頁。",
-    };
-  }
-
-  const missing = await validatePublishReadiness(row, version);
-
-  if (missing.length > 0) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `發布前請先完成：${missing.join("、")}`,
-    };
-  }
-
-  if (!version) {
-    const latest = await getLatestVersion(row.id);
-    const versionNumber = (latest?.version_number ?? 0) + 1;
-    const { data, error } = await supabase
-      .from("landing_page_versions")
-      .insert({
-        page_id: row.id,
-        version_number: versionNumber,
-        status: "published",
-        content_json: row.content_json,
-        image_assets_json: row.image_assets_json,
-      })
-      .select("*")
-      .single<LandingPageVersionRow>();
-
-    if (error) {
-      return {
-        ok: false,
-        source: "supabase",
-        message: `發布版本未能建立：${error.message}`,
-      };
-    }
-
-    version = data;
-  } else {
-    const { error } = await supabase
-      .from("landing_page_versions")
-      .update({ status: "published" })
-      .eq("id", version.id);
-
-    if (error) {
-      return {
-        ok: false,
-        source: "supabase",
-        message: `發布版本未能更新：${error.message}`,
-      };
-    }
-  }
-
-  const publishedAt = new Date().toISOString();
-  const { error: pageError } = await supabase
-    .from("landing_pages")
-    .update({
-      status: "published",
-      content_json: version.content_json,
-      image_assets_json: version.image_assets_json,
-      published_version_id: version.id,
-      published_at: publishedAt,
-      updated_at: publishedAt,
-    })
-    .eq("id", row.id);
-
-  if (pageError) {
-    return {
-      ok: false,
-      source: "supabase",
-      message: `Landing Page 未能發布：${pageError.message}`,
-    };
-  }
-
-  return {
-    ok: true,
-    source: "supabase",
-    message: `版本 ${version.version_number} 已發布。`,
-    versionNumber: version.version_number,
-  };
+    if (error || !data?.form?.id) return fail(landingCommandMessage(error));
+    return { ok: true as const, message: data.page ? "廣告頁草稿已建立。" : "登記表格已建立。",
+      formId: String(data.form.id), pageId: typeof data.page?.id === "string" ? data.page.id : null,
+      slug: typeof data.page?.slug === "string" ? data.page.slug : null };
+  } catch { return fail("暫時未能建立，請稍後再試。"); }
 }

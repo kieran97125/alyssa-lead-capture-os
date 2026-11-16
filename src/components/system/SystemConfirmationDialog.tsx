@@ -40,6 +40,10 @@ type SystemConfirmationDialogProps = {
   cancelLabel?: string;
   defaultOpen?: boolean;
   popupTestId?: string;
+  open?: boolean;
+  onOpenChange?: (open: boolean) => void;
+  /** Controlled dialogs opened by an existing navigation control need no second trigger. */
+  showTrigger?: boolean;
 };
 
 export function SystemConfirmationDialog({
@@ -58,10 +62,13 @@ export function SystemConfirmationDialog({
   cancelLabel = "取消",
   defaultOpen = false,
   popupTestId,
+  open,
+  onOpenChange,
+  showTrigger = true,
 }: SystemConfirmationDialogProps) {
   return (
-    <Dialog.Root defaultOpen={defaultOpen}>
-      <Dialog.Trigger
+    <Dialog.Root defaultOpen={defaultOpen} open={open} onOpenChange={onOpenChange}>
+      {showTrigger ? <Dialog.Trigger
         data-testid={triggerTestId}
         aria-label={triggerAriaLabel}
         title={triggerTitle}
@@ -80,7 +87,7 @@ export function SystemConfirmationDialog({
         ) : (
           triggerLabel
         )}
-      </Dialog.Trigger>
+      </Dialog.Trigger> : null}
 
       <Dialog.Portal>
         <Dialog.Backdrop className="fixed inset-0 z-[90] bg-system-foreground/45 backdrop-blur-sm transition-opacity data-[ending-style]:opacity-0 data-[starting-style]:opacity-0" />

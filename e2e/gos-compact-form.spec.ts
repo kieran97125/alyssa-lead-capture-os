@@ -179,7 +179,10 @@ test("GOS compact form shows the configured item and submits the short booking f
         ok: true,
         lead_id: "gos-test-lead",
         event_id: "gos-test-event",
-        event_payload: { value: 688, currency: "HKD" },
+        form_id: formId,
+        conversion_mode: "form_submit_pixel",
+        value: 688,
+        currency: "HKD",
       }),
     });
   });
@@ -348,7 +351,8 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
         form_id: formId,
         conversion_mode: "thank_you_redirect",
         success_redirect_url: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=1390`,
-        event_payload: { value: 4680, currency: "HKD" },
+        value: 4680,
+        currency: "HKD",
       }),
     });
   });
@@ -418,7 +422,10 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
         ok: true,
         lead_id: "gos-pixel-lead",
         event_id: "gos-pixel-event",
-        event_payload: { value: 688, currency: "HKD" },
+        form_id: formId,
+        conversion_mode: "form_submit_pixel",
+        value: 688,
+        currency: "HKD",
       }),
     });
   });
@@ -490,6 +497,8 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
         event_id: "gos-redirect-event",
         form_id: formId,
         conversion_mode: "thank_you_redirect",
+        value: 688,
+        currency: "HKD",
         success_redirect_url: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=688`,
         final_redirect_url: officialFinalRedirect,
       }),
@@ -502,36 +511,27 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
     });
   });
 
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
-  await page.evaluate(
-    async ({ targetId, token, id }) => {
-      await new Promise<void>((resolve, reject) => {
-        const target = document.createElement("div");
-        target.id = targetId;
-        const script = document.createElement("script");
-        script.src = `/embed/alyssa-form.js?redirect-test=${Date.now()}`;
-        script.dataset.formToken = token;
-        script.dataset.brand = "gos-beauty";
-        script.dataset.formId = id;
-        script.dataset.conversionMode = "thank_you_redirect";
-        script.dataset.successRedirectUrl =
-          "https://go.beautytrialhk.com/thank-you";
-        script.dataset.target = `#${targetId}`;
-        script.addEventListener("load", () => resolve(), { once: true });
-        script.addEventListener(
-          "error",
-          () => reject(new Error("Failed to load the embed helper")),
-          { once: true }
-        );
-        document.body.replaceChildren(target, script);
-      });
-    },
-    {
-      targetId: "gos-redirect-test-target",
-      token: formToken,
-      id: formId,
-    }
-  );
+  // A Wix installation runs outside React. A static same-origin host keeps the
+  // real loader test independent of the login page's asynchronous hydration.
+  await page.route("**/e2e/gos-embed-host", async (route) => {
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><html><head><title>Legacy GOS embed host</title></head><body>
+        <div id="gos-redirect-test-target"></div>
+        <script
+          src="/embed/alyssa-form.js?redirect-test=legacy-install"
+          data-form-token="${formToken}"
+          data-brand="gos-beauty"
+          data-form-id="${formId}"
+          data-conversion-mode="thank_you_redirect"
+          data-success-redirect-url="https://go.beautytrialhk.com/thank-you"
+          data-target="#gos-redirect-test-target">
+        </script>
+      </body></html>`,
+    });
+  });
+  await page.goto("/e2e/gos-embed-host", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveTitle("Legacy GOS embed host");
 
   const iframe = page.locator('iframe[title="Campaign registration form"]');
   await expect(iframe).toBeVisible({ timeout: 15_000 });

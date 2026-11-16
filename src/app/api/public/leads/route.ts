@@ -1458,7 +1458,7 @@ export async function POST(request: NextRequest) {
         form_id: form.id, event_id: cleanText(submittedTouch.client_event_id, 120) || "",
         conversion_mode: normalizeConversionMode(form.conversion_mode),
         success_redirect_url: typeof form.success_redirect_url === "string" ? form.success_redirect_url : null,
-        value: Number(packageDisplayPrice), source_type: classification.sourceType,
+        value: Number(packageDisplayPrice), currency: packageRecord.currency || "HKD", source_type: classification.sourceType,
         tracking_status: classification.trackingStatus, audit_reason: classification.auditReason,
         attribution_trace_id: attributionTraceId,
       },

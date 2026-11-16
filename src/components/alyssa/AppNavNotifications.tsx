@@ -5,7 +5,6 @@ import { AppNavClient } from "./AppNavClient";
 import type { InternalAccessContext } from "@/lib/security/internalAccess";
 
 export type NavigationCounts = {
-  leadAuditAlertCount?: number;
   workNotificationCount?: number;
   creativeNotificationCount?: number;
 };

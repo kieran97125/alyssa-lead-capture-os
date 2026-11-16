@@ -2,165 +2,106 @@
 
 import { revalidatePath, revalidateTag } from "next/cache";
 import { redirect } from "next/navigation";
-import {
-  archiveForm,
-  createForm,
-  deleteFormSafely,
-  duplicateForm,
-  parseAllowedDomains,
-  updateForm,
-  type ManagedFormInput,
-} from "@/lib/data/formManagement";
+import { archiveForm, createForm, deleteFormSafely, duplicateForm, parseAllowedDomains, restoreForm, updateForm, type ManagedFormInput } from "@/lib/data/formManagement";
+import { managedFormSchema } from "@/lib/acquisition/managedFormSchema";
 import { PUBLIC_FORM_CONFIG_CACHE_TAG } from "@/lib/data/publicFormConfig";
-import {
-  requireModuleAccess,
-  verifyCurrentInternalAccess,
-} from "@/lib/security/internalAccessServer";
+import { requireModuleAccess, verifyCurrentInternalAccess } from "@/lib/security/internalAccessServer";
 
-function readString(formData: FormData, key: string) {
-  return String(formData.get(key) ?? "").trim();
-}
-
-function readStringArray(formData: FormData, key: string) {
-  return formData
-    .getAll(key)
-    .map((value) => String(value).trim())
-    .filter(Boolean);
-}
-
+type ActionFailure = { ok: false; message: string; fieldErrors?: Record<string, string> };
+function readString(data: FormData, key: string) { return String(data.get(key) ?? "").trim(); }
+function readArray(data: FormData, key: string) { return data.getAll(key).map(value => String(value).trim()).filter(Boolean); }
+function readRevision(data: FormData) { const value = readString(data, "expectedRevision"); return value ? Number(value) : undefined; }
 function redirectWithMessage(path: string, message: string): never {
-  const [pathname, query = ""] = path.split("?");
-  const params = new URLSearchParams(query);
-  params.set("form_status", message);
-  redirect(`${pathname}?${params.toString()}`);
+  const url = new URL(path, "https://internal.invalid");
+  url.searchParams.set("form_status", message);
+  redirect(`${url.pathname}?${url.searchParams.toString()}`);
 }
-
 function safeReturnTo(value: string, fallback: string) {
-  if (value.startsWith("/forms") && !value.startsWith("//")) return value;
+  try {
+    const url = new URL(value, "https://internal.invalid");
+    if (url.origin === "https://internal.invalid" && (url.pathname === "/forms" || url.pathname.startsWith("/forms/") || url.pathname === "/campaigns")) return `${url.pathname}${url.search}`;
+  } catch {}
   return fallback;
 }
-
 async function requireAdmin(path: string) {
   const session = await verifyCurrentInternalAccess();
-  if (!session.ok) {
-    redirect(`/login?next=${encodeURIComponent(path)}`);
-  }
-  const moduleAccess = await requireModuleAccess("forms");
-  if (!moduleAccess.allowed) {
-    redirect(`/login?next=${encodeURIComponent(path)}&error=permission_denied`);
-  }
+  if (!session.ok) redirect(`/login?next=${encodeURIComponent(path)}`);
+  const access = await requireModuleAccess("forms");
+  if (!access.allowed) redirect(`/login?next=${encodeURIComponent(path)}&error=permission_denied`);
 }
-
-function revalidatePublicFormConfig() {
+function revalidateForms(formId?: string) {
+  revalidatePath("/forms"); revalidatePath("/campaigns");
+  if (formId) revalidatePath(`/forms/${formId}`);
   revalidateTag(PUBLIC_FORM_CONFIG_CACHE_TAG, { expire: 0 });
 }
-
-function parseFormInput(formData: FormData) {
-  const parsedDomains = parseAllowedDomains(readString(formData, "allowedDomains"));
-
-  if (!parsedDomains.ok) {
-    return { input: null, error: parsedDomains.message };
+function parseFormInput(data: FormData): { input: ManagedFormInput } | ActionFailure {
+  const parsed = managedFormSchema.safeParse({
+    formName: readString(data, "formName"), brandId: readString(data, "brandId"), defaultTreatmentId: readString(data, "defaultTreatmentId"),
+    defaultPackageId: readString(data, "defaultPackageId"), packageSelectionMode: readString(data, "packageSelectionMode") || "fixed", packageIds: readArray(data, "packageIds"),
+    defaultBranchId: readString(data, "defaultBranchId"), branchIds: readArray(data, "branchIds"), allowedDomains: readString(data, "allowedDomains"),
+    placementKind: readString(data, "placementKind") || "unspecified", placementUrl: readString(data, "placementUrl"), expectedRevision: readRevision(data), requestId: readString(data, "requestId") || undefined,
+  });
+  if (!parsed.success) {
+    const fieldErrors: Record<string, string> = {};
+    for (const issue of parsed.error.issues) { const key = String(issue.path[0] ?? "form"); fieldErrors[key] ??= issue.message; }
+    return { ok: false, message: parsed.error.issues[0]?.message ?? "請檢查資料。", fieldErrors };
   }
-
-  const input: ManagedFormInput = {
-    formName: readString(formData, "formName"),
-    brandId: readString(formData, "brandId"),
-    defaultTreatmentId: readString(formData, "defaultTreatmentId"),
-    defaultPackageId: readString(formData, "defaultPackageId"),
-    packageSelectionMode:
-      readString(formData, "packageSelectionMode") === "customer_choice"
-        ? "customer_choice"
-        : "fixed",
-    packageIds: readStringArray(formData, "packageIds"),
-    defaultBranchId: readString(formData, "defaultBranchId"),
-    branchIds: readStringArray(formData, "branchIds"),
-    allowedDomains: parsedDomains.domains,
-    status: "active",
-  };
-
-  return { input, error: null };
+  const domains = parseAllowedDomains(parsed.data.allowedDomains);
+  if (!domains.ok) return { ok: false, message: domains.message, fieldErrors: { allowedDomains: domains.message } };
+  return { input: { ...parsed.data, allowedDomains: domains.domains } };
 }
-
-export async function createFormAction(formData: FormData) {
+export async function createFormAction(data: FormData): Promise<ActionFailure | void> {
   await requireAdmin("/forms/new");
-  const parsed = parseFormInput(formData);
-  if (!parsed.input) {
-    redirectWithMessage("/forms/new", parsed.error ?? "資料未能儲存。");
-  }
-
+  const parsed = parseFormInput(data);
+  if (!("input" in parsed)) return parsed;
+  if (!parsed.input.requestId) return { ok: false, message: "操作資料不完整，請重新載入。" };
   const result = await createForm(parsed.input);
-  revalidatePath("/forms");
-
-  if (!result.ok || !result.form) {
-    redirectWithMessage("/forms/new", result.message);
-  }
-
-  revalidatePublicFormConfig();
+  if (!result.ok || !result.form) return { ok: false, message: result.message };
+  revalidateForms(result.form.id);
   redirectWithMessage(`/forms/${result.form.id}`, result.message);
 }
-
-export async function updateFormAction(formData: FormData) {
-  const formId = readString(formData, "formId");
+export async function updateFormAction(data: FormData): Promise<ActionFailure | void> {
+  const formId = readString(data, "formId");
   await requireAdmin(`/forms/${formId}`);
-  const parsed = parseFormInput(formData);
-  const path = `/forms/${formId}`;
-
-  if (!parsed.input) {
-    redirectWithMessage(path, parsed.error ?? "資料未能儲存。");
-  }
-
+  const parsed = parseFormInput(data);
+  if (!("input" in parsed)) return parsed;
   const result = await updateForm(formId, parsed.input);
-  revalidatePath("/forms");
-  revalidatePath(path);
-
-  if (result.ok) revalidatePublicFormConfig();
-
-  redirectWithMessage(path, result.message);
+  if (!result.ok) return { ok: false, message: result.message };
+  revalidateForms(formId);
+  redirectWithMessage(`/forms/${formId}`, result.message);
 }
-
-export async function duplicateFormAction(formData: FormData) {
-  const formId = readString(formData, "formId");
+export async function duplicateFormAction(data: FormData) {
+  const formId = readString(data, "formId");
   await requireAdmin(`/forms/${formId}`);
-  const result = await duplicateForm(formId);
-  revalidatePath("/forms");
-
-  if (!result.ok || !result.form) {
-    redirectWithMessage(`/forms/${formId}`, result.message);
-  }
-
-  revalidatePublicFormConfig();
+  const requestId = readString(data, "requestId");
+  if (!requestId) redirectWithMessage(`/forms/${formId}`, "操作資料不完整，請重新載入。");
+  const result = await duplicateForm(formId, { expectedRevision: readRevision(data), requestId });
+  if (!result.ok || !result.form) redirectWithMessage(`/forms/${formId}`, result.message);
+  revalidateForms(result.form.id);
   redirectWithMessage(`/forms/${result.form.id}`, result.message);
 }
-
-export async function archiveFormAction(formData: FormData) {
-  const formId = readString(formData, "formId");
+export async function archiveFormAction(data: FormData) {
+  const formId = readString(data, "formId");
   await requireAdmin(`/forms/${formId}`);
-  const confirmed = readString(formData, "confirmArchive") === "yes";
-  const returnTo = safeReturnTo(readString(formData, "returnTo"), "/forms?archive=active");
-
-  if (!confirmed) {
-    redirectWithMessage(returnTo, "尚未封存；請先勾選封存確認。");
-  }
-
-  const result = await archiveForm(formId);
-  revalidatePath("/forms");
-  revalidatePath(`/forms/${formId}`);
-  if (result.ok) revalidatePublicFormConfig();
+  const returnTo = safeReturnTo(readString(data, "returnTo"), "/campaigns?tab=forms");
+  if (readString(data, "confirmArchive") !== "yes") redirectWithMessage(returnTo, "請先確認封存表格。");
+  const result = await archiveForm(formId, { expectedRevision: readRevision(data) });
+  if (result.ok) revalidateForms(formId);
   redirectWithMessage(returnTo, result.message);
 }
-
-export async function deleteFormAction(formData: FormData) {
-  const formId = readString(formData, "formId");
+export async function restoreFormAction(data: FormData) {
+  const formId = readString(data, "formId");
   await requireAdmin(`/forms/${formId}`);
-  const confirmed = readString(formData, "confirmDelete") === "yes";
-  const returnTo = safeReturnTo(readString(formData, "returnTo"), "/forms?archive=active");
-
-  if (!confirmed) {
-    redirectWithMessage(returnTo, "尚未刪除；請先勾選永久刪除確認。");
-  }
-
-  const result = await deleteFormSafely(formId);
-  revalidatePath("/forms");
-  if (result.ok) revalidatePublicFormConfig();
+  const result = await restoreForm(formId, { expectedRevision: readRevision(data) });
+  if (result.ok) revalidateForms(formId);
+  redirectWithMessage(safeReturnTo(readString(data, "returnTo"), "/campaigns?tab=forms"), result.message);
+}
+export async function deleteFormAction(data: FormData) {
+  const formId = readString(data, "formId");
+  await requireAdmin(`/forms/${formId}`);
+  const returnTo = safeReturnTo(readString(data, "returnTo"), "/campaigns?tab=forms");
+  if (readString(data, "confirmDelete") !== "yes") redirectWithMessage(returnTo, "請先確認永久刪除表格。");
+  const result = await deleteFormSafely(formId, { expectedRevision: readRevision(data) });
+  if (result.ok) revalidateForms(formId);
   redirectWithMessage(returnTo, result.message);
 }
