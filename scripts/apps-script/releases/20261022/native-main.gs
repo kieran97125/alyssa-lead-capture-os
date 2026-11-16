@@ -769,7 +769,7 @@ function oa2ValidDate_(y,m,d) { const v=new Date(Date.UTC(y,m-1,d)); return y>=1
 function oa2Time_(v) {
   if (v instanceof Date) return isNaN(v.getTime())?'':Utilities.formatDate(v,OA2.TZ,'HH:mm');
   if (typeof v==='number' && v>=0 && v<1) { const n=Math.round(v*1440)%1440; return String(Math.floor(n/60)).padStart(2,'0')+':'+String(n%60).padStart(2,'0'); }
-  const m=oa2Text_(v).match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/); return m && +m[1]<24 && +m[2]<60?m[1].padStart(2,'0')+':'+m[2]:'';
+  const localized=oa2Text_(v).match(/^(上午|下午)\s*(\d{1,2}):(\d{2})(?::(\d{2}))?$/); if(localized) { const marker=localized[1],hour=+localized[2],minute=+localized[3],second=localized[4]===undefined?0:+localized[4]; if(hour>23||minute>59||second>59||(marker==='上午'&&hour>12)||(marker==='下午'&&hour===0))return ''; const h=marker==='上午'&&hour===12?0:marker==='下午'&&hour<12?hour+12:hour; return String(h).padStart(2,'0')+':'+String(minute).padStart(2,'0'); } const m=oa2Text_(v).match(/^(\d{1,2}):(\d{2})(?::\d{2})?$/); return m && +m[1]<24 && +m[2]<60?m[1].padStart(2,'0')+':'+m[2]:'';
 }
 function oa2Status_(v) { const s=oa2Text_(v).toLowerCase(); return ['已預約','booked','confirmed'].includes(s)?'booked':['已到店','show','show up','已完成','完成療程'].includes(s)?'show':['no show','noshow','no-show','未到店'].includes(s)?'no_show':s; }
 function oa2Outcome_(v) { const s=oa2Status_(v); return s==='show'?'Show':s==='no_show'?'No Show':['','待到店'].includes(oa2Text_(v))?'':null; }
@@ -802,11 +802,14 @@ function oa2ReconcileRecord_(ctx, record, mode) {
   if (appt && appt.account!==record.account) { ctx.errors.push('Appointment/account identity mismatch on '+record.account+' row '+record.row); return null; }
   // Timer discovers API-imported rows, but never invents registration time for pre-existing bookings.
   const genuineBooking = mode==='edit' && record.bookingMutation;
-  const needsNew = status==='booked' && (record.forceNew || !appt || (appt.state==='canceled' && genuineBooking) || (appt.state==='completed' && (schedule!==appt.lastSchedule || (genuineBooking && appt.lastStatus!=='booked') || record.forceNew)));
+  const needsNew = status==='booked' && (record.forceNew || !appt || (appt.state==='canceled' && genuineBooking) || (appt.state==='completed' && genuineBooking && (schedule!==appt.lastSchedule || appt.lastStatus!=='booked')));
   if (needsNew) {
-    const previous=appt?appt.id:'';
+    const previous=appt?appt.id:'',nextId='appt_'+oa2Hash_(record.leadId+'|after:'+previous);
+    // Canonical identities are immutable owners, including corrupted or
+    // interrupted lineage. Never overwrite accepted history at a colliding ID.
+    if(ctx.appointments[nextId]){ctx.errors.push('Canonical appointment successor already exists; preserve its owner and history for review.');return null;}
     if(appt && !appt.outcome && !['canceled','superseded'].includes(appt.state)) { const before=oa2StateView_(appt); appt.state='superseded'; appt.revision++; appt.updatedAt=ctx.now; oa2Event_(ctx,appt,'superseded',before,mode); }
-    appt={id:'appt_'+oa2Hash_(record.leadId+'|after:'+previous),leadId:record.leadId,account:record.account,customerKey:record.customerKey,phone:record.phone,name:record.name,brand:record.brand,treatment:record.treatment,branch:record.branch,createdAt:oa2Date_(record.createdAt),date,time,bookedAt:genuineBooking?ctx.now:'',provenance:genuineBooking?'observed_booking_edit':'legacy_registration_unknown',state:date?'active':'unscheduled',outcome:'',arrivalDate:'',outcomeAt:'',revision:1,previousId:previous,queueId:'',lastStatus:status,lastSchedule:schedule,firstSeenAt:ctx.now,updatedAt:ctx.now,generatedArrivalDate:'',pendingArrivalOverride:'scheduled'};
+    appt={id:nextId,leadId:record.leadId,account:record.account,customerKey:record.customerKey,phone:record.phone,name:record.name,brand:record.brand,treatment:record.treatment,branch:record.branch,createdAt:oa2Date_(record.createdAt),date,time,bookedAt:genuineBooking?ctx.now:'',provenance:genuineBooking?'observed_booking_edit':'legacy_registration_unknown',state:date?'active':'unscheduled',outcome:'',arrivalDate:'',outcomeAt:'',revision:1,previousId:previous,queueId:'',lastStatus:status,lastSchedule:schedule,firstSeenAt:ctx.now,updatedAt:ctx.now,generatedArrivalDate:'',pendingArrivalOverride:'scheduled'};
     ctx.appointments[appt.id]=appt; record.appointmentId=appt.id;
     oa2Event_(ctx,appt,'registered',null,mode);
   } else if (appt) {
@@ -1191,16 +1194,18 @@ function oa2AllocateQueue_(ss,ctx,queue,ops) {
     if(matches.length>1)throw new Error('Duplicate queue entry ID '+op.appt.queueId);
     const q=op.row?queue.find(q=>q.row===op.row):matches[0];
     if(!q)return;
+    if(q.entryId&&owners[q.entryId]&&owners[q.entryId]!==op.appt.id)throw new Error('Recovery queue entry is owned by another appointment.');
     if((q.appointmentId&&q.appointmentId!==op.appt.id)||(!op.row&&!q.blank))throw new Error('Queue recovery slot is occupied '+op.appt.queueId);
     if(reserved.has(q.row))throw new Error('Duplicate queue row ownership '+q.row);
     preferred.set(op,q);reserved.add(q.row);
   });
   adds.forEach(op=>{
     let q=preferred.get(op);
-    if(!q&&!op.recovery)q=slots.find(x=>!used.has(x.row)&&!reserved.has(x.row));
+    if(!q&&!op.recovery)q=slots.find(x=>!used.has(x.row)&&!reserved.has(x.row)&&(!x.entryId||!owners[x.entryId]||owners[x.entryId]===op.appt.id));
     if(q){used.add(q.row);op.row=q.row;op.entryId=q.entryId||op.entryId;op.prior=q;}
     else {op.row=next++;op.entryId=op.appt.queueId||op.entryId||ctx.id('arrival');op.prior=null;}
-    op.appt.queueId=op.entryId;
+    if(owners[op.entryId]&&owners[op.entryId]!==op.appt.id)throw new Error('Queue entry allocation conflicts with a retained appointment owner.');
+    op.appt.queueId=op.entryId;owners[op.entryId]=op.appt.id;
   });
 }
 function oa2RowGroups_(items) {
@@ -1403,9 +1408,86 @@ function oa2ScheduleOnlyQueueOps_(ctx,queue,changed,deferred) {
   return queue.filter(q=>changed.has(q.appointmentId)&&deferred.has(q.appointmentId)).map(q=>({kind:'schedule_only',appt:ctx.appointments[q.appointmentId],row:q.row,state:oa2Outcome_(q.outcome)==='Show'?'已到店：預約日期待核對':'結果待核對'}));
 }
 
-function oa2ProcessAccount_(ss,sheet,mode,edit,dryRun,trace) {
+/** Only a retained cancellation transition can authorize a missed source rebooking.
+ * lastStatus is an observation and may already have been overwritten by a scan.
+ * Read recent journal pages only when there are eligible candidates; older or
+ * missing evidence remains review rather than making a new appointment guess.
+ */
+function oa2SourceWithdrawalEvidence_(ss,appointments) {
+  const result=new Set(),pending=new Map(appointments.map(a=>[a.id,a]));if(!pending.size)return result;
+  const history=ss.getSheetByName(OA2.HISTORY);if(!history||history.getLastRow()<2)return result;
+  oa2ExactHeaders_(history,1,1,OA2.HISTORY_HEADERS);
+  const last=history.getLastRow(),first=Math.max(2,last-3999);
+  for(let end=last;end>=first&&pending.size;end-=500){
+    const start=Math.max(first,end-499),rows=history.getRange(start,1,end-start+1,OA2.HISTORY_HEADERS.length).getValues();
+    for(let i=rows.length-1;i>=0&&pending.size;i--){
+      const row=rows[i],a=pending.get(oa2Text_(row[2]));if(!a)continue;
+      if(row[4]==='state_checkpoint')continue;
+      // The latest lifecycle event must describe this exact current revision.
+      // A user cancellation, later correction or malformed event fails closed.
+      pending.delete(a.id);let before,after;try{before=JSON.parse(row[5]);after=JSON.parse(row[6]);}catch(ignored){continue;}
+      if(row[3]!==a.leadId||row[4]!=='canceled'||!['scan','edit','initialize'].includes(row[7])||
+        !before||!after||!['active','unscheduled','reschedule_requested'].includes(before.state)||before.outcome||
+        Number(before.revision)!==Number(a.revision)-1||Number(after.revision)!==Number(a.revision)||
+        after.state!=='canceled'||after.outcome||after.arrivalDate!==a.arrivalDate||
+        after.date!==a.date||after.time!==a.time||(after.pendingArrivalOverride||'')!==(a.pendingArrivalOverride||''))continue;
+      result.add(a.id);
+    }
+  }
+  return result;
+}
+/** Unobserved workers accept only unambiguous source reversals. Historical
+ * outcomes, explicit queue cancellations and retired rows remain governed.
+ * No persistent schema/property or inferred booking registration time is added.
+ */
+function oa2UnobservedSourcePolicy_(ss,ctx,snap,queue,edit) {
+  const reviewRows=new Set(),deferred=new Set(),protectedIds=new Set(ctx.retiredQueueAppointmentIds||[]),candidates=[],byLead={},children={},queues={};
+  Object.keys(ctx.appointments).forEach(id=>{const a=ctx.appointments[id];(byLead[a.leadId]||(byLead[a.leadId]=[])).push(a);if(a.previousId)(children[a.previousId]||(children[a.previousId]=[])).push(a);});
+  queue.forEach(q=>{if(q.appointmentId)(queues[q.appointmentId]||(queues[q.appointmentId]=[])).push(q);});
+  const review=r=>{reviewRows.add(r.row);(byLead[r.leadId]||[]).forEach(a=>deferred.add(a.id));if(r.appointmentId&&ctx.appointments[r.appointmentId])deferred.add(r.appointmentId);};
+  const sourceCounts={};snap.records.forEach(r=>{if(r.meaningful&&r.leadId)sourceCounts[r.leadId]=(sourceCounts[r.leadId]||0)+1;});
+  // Validate every queue before excluding reviewed rows from input absorption.
+  oa2PreflightQueueOwnership_(ctx,queue);Object.keys(queues).forEach(id=>{if(queues[id].length>1)ctx.errors.push('Duplicate queue appointment ID '+id);});
+  snap.records.forEach(r=>{
+    if(!r.meaningful)return;let a=r.appointmentId&&ctx.appointments[r.appointmentId];
+    if(!a){if(r.appointmentId)ctx.errors.push('Unknown appointment ID on '+r.account+' row '+r.row);else if((byLead[r.leadId]||[]).length)review(r);return;}
+    if(a.leadId!==r.leadId||a.account!==r.account){ctx.errors.push('Source appointment ownership mismatch before reconciliation.');return;}
+    const visited=new Set();while(children[a.id]&&children[a.id].length){
+      const next=children[a.id];if(next.length!==1||visited.has(a.id)||next[0].leadId!==r.leadId||next[0].account!==r.account){review(r);return;}
+      visited.add(a.id);a=next[0];
+    }
+    // A partial previous commit may have retained the old source pointer.
+    // Follow only a unique owned successor chain, never allocate a second one.
+    if(a.id!==r.appointmentId)r.appointmentId=a.id;
+    // Only the admitted edit rectangle proves an observed booking mutation.
+    // Other records scanned in that same execution retain scan protections.
+    const observed=edit&&r.row>=edit.firstRow&&r.row<=edit.lastRow&&(edit.forceNew||[snap.c.STATUS,snap.c.APPOINTMENT_DATE,snap.c.APPOINTMENT_TIME].some(c=>c>=edit.firstCol&&c<=edit.lastCol));
+    if(observed)return;
+    const status=oa2Status_(r.status),schedule=oa2Date_(r.date)+'|'+oa2Time_(r.time),invalid=(!!oa2Text_(r.date)&&!oa2Date_(r.date))|| (!!oa2Text_(r.time)&&!oa2Time_(r.time));
+    if(protectedIds.has(a.id)){review(r);return;}
+    const closed=a.outcome||a.provenance==='legacy_show'||['canceled','completed','superseded'].includes(a.state);
+    if(!closed)return;
+    if(a.state!=='canceled'||status!=='booked'){
+      if(a.state==='superseded'||invalid||schedule!==a.date+'|'+a.time||status!==a.lastStatus)review(r);
+      return;
+    }
+    const rows=queues[a.id]||[],q=rows[0],owned=r.leadId&&sourceCounts[r.leadId]===1&&r.customerKey&&r.customerKey===a.customerKey&&oa2Text_(r.phone)===oa2Text_(a.phone),queueUntouched=!a.queueId?!rows.length:rows.length===1&&q.account===a.account&&q.customerKey===a.customerKey&&q.origin==='managed'&&(oa2QueueInputMatches_(q,a)||(a.pendingQueueBefore&&a.pendingQueueBefore===oa2QueueInputState_(q)));
+    if(!owned||invalid||a.outcome||a.provenance==='legacy_show'||!queueUntouched){review(r);return;}
+    candidates.push({r,a});
+  });
+  const evidence=ctx.errors.length?new Set():oa2SourceWithdrawalEvidence_(ss,candidates.map(p=>p.a)),rebookClaims=[];let rebooked=0;
+  candidates.forEach(({r,a})=>{
+    if(!evidence.has(a.id)){review(r);return;}
+    r.forceNew=true;r.bookingMutation=false;protectedIds.add(a.id);rebookClaims.push({record:r,decision:{action:'recover',appointmentId:a.id}});rebooked++;
+  });
+  return {reviewRows,deferred,protectedIds,rebooked,rebookClaims};
+}
+
+function oa2ProcessAccount_(ss,sheet,mode,edit,dryRun,trace,policy) {
   const ctx=oa2Context_(ss,dryRun,trace),snap=omniEditStage_(trace,'account_snapshot',()=>oa2AccountSnapshot_(sheet,dryRun)),queue=omniEditStage_(trace,'arrival_queue_read',()=>oa2ReadQueue_(ss,dryRun));
-  oa2ReplaySourceAnchors_(ctx,snap);oa2RehomeMovedAccountAppointments_(ss,ctx,snap);const scheduleRecovery=oa2CatchUpSourceSchedules_(ctx,snap,queue,null,edit),deferred=oa2AbsorbWorkerQueueInputs_(ctx,scheduleRecovery.queue.filter(q=>!scheduleRecovery.blocked.has(q.appointmentId)));scheduleRecovery.blocked.forEach(id=>deferred.add(id));const deferredLeadIds=new Set(Array.from(deferred,id=>ctx.appointments[id].leadId));snap.deferredRows=new Set();
+  oa2ReplaySourceAnchors_(ctx,snap);oa2RehomeMovedAccountAppointments_(ss,ctx,snap);
+  const manual=mode!=='initialize'||policy&&policy.manualComplete?oa2UnobservedSourcePolicy_(ss,ctx,snap,queue,edit):null,sourceScope=manual?Object.assign({},snap,{records:snap.records.filter(r=>!manual.reviewRows.has(r.row))}):snap;
+  const scheduleRecovery=oa2CatchUpSourceSchedules_(ctx,sourceScope,queue,null,edit),deferred=oa2AbsorbWorkerQueueInputs_(ctx,scheduleRecovery.queue.filter(q=>!scheduleRecovery.blocked.has(q.appointmentId)&&(!manual||!manual.deferred.has(q.appointmentId)&&!manual.protectedIds.has(q.appointmentId))));scheduleRecovery.blocked.forEach(id=>deferred.add(id));const deferredQueueConflicts=deferred.size;if(manual)manual.deferred.forEach(id=>deferred.add(id));const deferredLeadIds=new Set(Array.from(deferred,id=>ctx.appointments[id].leadId));snap.deferredRows=new Set(manual?manual.reviewRows:[]);
   const duplicates={};snap.records.forEach(r=>{if(r.leadId){if(duplicates[r.leadId])ctx.errors.push('Duplicate Lead ID in '+sheet.getName());duplicates[r.leadId]=true;}});
   snap.records.forEach(r=>{
     if(!r.meaningful)return;if(oa2IsHistoricalCrossAccountRecord_(ctx,r)){snap.deferredRows.add(r.row);return;}if(deferred.has(r.appointmentId)||deferredLeadIds.has(r.leadId)){if(!scheduleRecovery.changed.has(r.appointmentId))snap.deferredRows.add(r.row);return;} if(!r.leadId){if(oa2MissingIdentityNeedsRecovery_(r,mode)){snap.deferredRows.add(r.row);ctx.errors.push('Missing source identity requires exact governed recovery.');return;}r.leadId=ctx.id('lead');}
@@ -1418,8 +1500,11 @@ function oa2ProcessAccount_(ss,sheet,mode,edit,dryRun,trace) {
     if(r.isCurrent || visitStatus==='booked' || visitStatus==='show' || r.appointmentId || (touched && r.bookingMutation))oa2ReconcileRecord_(ctx,r,touched?'edit':mode==='initialize'?'initialize':'scan');
   });
   const ops=oa2FilterQueueOps_(ctx,queue,oa2PlanQueue_(oa2WorkerPlanContext_(ctx,deferred),queue),snap.records).concat(oa2ScheduleOnlyQueueOps_(ctx,queue,scheduleRecovery.changed,deferred));
-  const result={dryRun,account:sheet.getName(),records:snap.records.filter(r=>r.meaningful).length,appointments:Object.keys(ctx.appointments).length,newQueue:ops.filter(o=>o.kind==='append').length,changes:ctx.events.length,deferredQueueConflicts:deferred.size,deferredSourceRecords:snap.deferredRows.size,errors:ctx.errors};
-  if(!dryRun)omniEditStage_(trace,'arrival_commit',()=>oa2Commit_(ss,ctx,queue,ops,[snap]));if(!dryRun&&typeof oa3AfterSync_==='function')oa3AfterSync_(ss);try{console.log(JSON.stringify({handler:'omni_arrival_reconciliation',dryRun,deferredReason:deferred.size?'queue_input_needs_review':'',deferredQueueConflicts:deferred.size,deferredSourceRecords:snap.deferredRows.size}));}catch(ignored){}return result;
+  // Re-read all governed metadata claims immediately before this scoped commit;
+  // manual cross-Account copies are not serialized by the document lock.
+  if(manual&&manual.rebookClaims.length)oa2AssertIdentityClaimsFresh_(ss,manual.rebookClaims,ctx.appointments);
+  const result={dryRun,account:sheet.getName(),records:snap.records.filter(r=>r.meaningful).length,appointments:Object.keys(ctx.appointments).length,newQueue:ops.filter(o=>o.kind==='append').length,changes:ctx.events.length,deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size,manualReviewCount:manual?manual.reviewRows.size:0,manualRebookedCount:manual?manual.rebooked:0,errors:ctx.errors};
+  if(!dryRun)omniEditStage_(trace,'arrival_commit',()=>oa2Commit_(ss,ctx,queue,ops,[snap]));if(!dryRun&&typeof oa3AfterSync_==='function')oa3AfterSync_(ss);try{console.log(JSON.stringify({handler:'omni_arrival_reconciliation',dryRun,deferredReason:manual&&manual.reviewRows.size?'source_state_needs_review':deferredQueueConflicts?'queue_input_needs_review':'',deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size}));}catch(ignored){}return result;
 }
 function verifyOmniArrivalV2() {
   const ss=oa2Spreadsheet_(),issues=[],details={};
@@ -1686,8 +1771,8 @@ function oa2IdentityAnchorScope_(items,appointments){
 /** DocumentLock serializes native writers, not manual copies/sorts. Re-read
  * identity ownership immediately before each scoped commit; source CAS remains
  * the final row-level guard. Never use phone to find an identity. */
-function oa2AssertIdentityClaimsFresh_(ss,items){
-  const scope=oa2IdentityAnchorScope_(items,{}),planned=new Set();
+function oa2AssertIdentityClaimsFresh_(ss,items,appointments){
+  const scope=oa2IdentityAnchorScope_(items,appointments||{}),planned=new Set();
   items.forEach(item=>{if(planned.has(item.record.leadId))throw new Error('Duplicate planned source ownership.');planned.add(item.record.leadId);});
   OMNI_ACCOUNT_TABS.forEach(account=>{
     const sh=ss.getSheetByName(account);if(!sh)throw new Error('Missing identity ownership source.');const meta=oa2Meta_(sh,false),height=sh.getLastRow()-1;if(height<1)return;
@@ -1708,7 +1793,8 @@ function oa2AssertIdentityClaimsFresh_(ss,items){
 function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
   if(!documentLock||typeof documentLock.hasLock==='function'&&!documentLock.hasLock())throw new Error('Identity priority requires the document lock.');
   const started=Date.now(),timings={},result={registered:0,recovered:0,bookedAdded:0,review:0,reviewReasons:[],accountFailures:[],processedAccounts:[],timings};options=options||{};
-  if(!options.staffEdit&&omniStaffPriorityActive_())return Object.assign(result,{skipped:true,reason:'staff_priority'});
+  const admittedManual=options.manualRequested===true;
+  if(!options.staffEdit&&!admittedManual&&omniStaffPriorityActive_())return Object.assign(result,{skipped:true,reason:'staff_priority'});
   const discovery=oa3ManualPhase_(timings,'discoveryMs',()=>oa2IdentityDiscovery_(ss));result.accountFailures=discovery.failures.slice();
   if(!discovery.identityComplete){result.review++;result.reviewReasons.push('identity_metadata_contract');result.blocked=true;return result;}
   const duplicates=Object.keys(discovery.owners).filter(id=>discovery.owners[id].length>1);
@@ -1718,7 +1804,7 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
   candidates.forEach(account=>{
     result.attemptedAccountIndex=account.accountIndex;result.nextAccountIndex=(account.accountIndex+1)%OMNI_ACCOUNT_TABS.length;
     if(result.skipped)return;
-    if(!options.staffEdit&&omniStaffPriorityActive_()){result.skipped=true;result.reason='staff_priority';return;}
+    if(!options.staffEdit&&!admittedManual&&omniStaffPriorityActive_()){result.skipped=true;result.reason='staff_priority';return;}
     let snap;const items=[];
     try{
       snap=oa3ManualPhase_(timings,'rawSourceMs',()=>oa3ManualAccountSnapshot_(ss.getSheetByName(account.account),account.account,new Map()));
@@ -1732,7 +1818,7 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
       missing.forEach(r=>{
         if(items.length>=50)return;
         const decision=oa2ResolveMissingLeadIdentity_(r,evidence,()=>'lead_'+Utilities.getUuid());
-        const flag=reason=>{result.review++;result.reviewReasons.push(reason);const line='【系統檢查・身份】未接納：'+oa2IdentityReviewMessage_(reason)+'。',old=warningNotes.get(r.row)||'';if(warningBudget>0&&old!==line&&!old.endsWith('\n'+line)&&(options.staffEdit||!omniStaffPriorityActive_())){warningBudget--;oa2IdentityNotes_(snap.sheet,snap.c,[r],snap.values,2,snap.meta,reason,false);}};
+        const flag=reason=>{result.review++;result.reviewReasons.push(reason);const line='【系統檢查・身份】未接納：'+oa2IdentityReviewMessage_(reason)+'。',old=warningNotes.get(r.row)||'';if(warningBudget>0&&old!==line&&!old.endsWith('\n'+line)&&(options.staffEdit||admittedManual||!omniStaffPriorityActive_())){warningBudget--;oa2IdentityNotes_(snap.sheet,snap.c,[r],snap.values,2,snap.meta,reason,false);}};
         if(decision.action==='review'){flag(decision.reason);return;}
         if(oa2Status_(r.status)==='booked'&&((oa2Text_(r.date)&&!oa2Date_(r.date))||(oa2Text_(r.time)&&!oa2Time_(r.time))||!r.customerKey)){flag('booking_schedule_invalid');return;}
         if(r.pendingSnapshot&&oa2Status_(r.status)!=='booked'){flag('pending_nonbooking_state');return;}
@@ -1745,21 +1831,21 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
         const scope=oa2IdentityAnchorScope_(booked,evidence.appointments),ctx=oa3ManualPhase_(timings,'contextMs',()=>oa2Context_(ss,false,undefined,overrides,scope));oa2ReplaySourceAnchors_(ctx,Object.assign({},snap,{records:booked.map(item=>item.record)}));
         const queue=oa3ManualQueueSnapshot_(ss.getSheetByName(OA2.ARRIVAL));
         oa3ManualPhase_(timings,'ownershipGuardMs',()=>oa2AssertIdentityClaimsFresh_(ss,booked));
-        const receipt=oa3ManualPhase_(timings,'bookingCommitMs',()=>oa3CommitIdentityBookings_(ss,booked,[snap],queue,ctx,{staffEdit:!!options.staffEdit,bookingMutation:!!options.bookingMutation}));
+        const receipt=oa3ManualPhase_(timings,'bookingCommitMs',()=>oa3CommitIdentityBookings_(ss,booked,[snap],queue,ctx,{staffEdit:!!options.staffEdit,manualRequested:admittedManual,bookingMutation:!!options.bookingMutation}));
         result.registered+=receipt.registered;result.recovered+=receipt.recovered;result.bookedAdded+=receipt.added;result.review+=receipt.review;
-        (receipt.reviews||[]).forEach(review=>{result.reviewReasons.push(review.reason);if(options.staffEdit||!omniStaffPriorityActive_())oa2IdentityNotes_(snap.sheet,snap.c,booked.filter(item=>item.record.row===review.row).map(item=>item.record),snap.values,2,snap.meta,review.reason,false);});
-        if(options.staffEdit||!omniStaffPriorityActive_())oa2IdentityNotes_(snap.sheet,snap.c,booked.filter(item=>(receipt.acceptedRows||[]).includes(item.record.row)).map(item=>item.record),snap.values,2,snap.meta,'',true);
+        (receipt.reviews||[]).forEach(review=>{result.reviewReasons.push(review.reason);if(options.staffEdit||admittedManual||!omniStaffPriorityActive_())oa2IdentityNotes_(snap.sheet,snap.c,booked.filter(item=>item.record.row===review.row).map(item=>item.record),snap.values,2,snap.meta,review.reason,false);});
+        if(options.staffEdit||admittedManual||!omniStaffPriorityActive_())oa2IdentityNotes_(snap.sheet,snap.c,booked.filter(item=>(receipt.acceptedRows||[]).includes(item.record.row)).map(item=>item.record),snap.values,2,snap.meta,'',true);
         simple.push(...receipt.metadataOnly);
       }
       if(simple.length){
         oa3ManualPhase_(timings,'simpleOwnershipGuardMs',()=>oa2AssertIdentityClaimsFresh_(ss,simple));
-        oa2WriteResolvedIdentityRows_(simple,documentLock,{staffEdit:!!options.staffEdit});
+        oa2WriteResolvedIdentityRows_(simple,documentLock,{staffEdit:!!options.staffEdit,manualRequested:admittedManual});
         result.registered+=simple.filter(item=>item.decision.action==='create').length;
         result.recovered+=simple.filter(item=>item.decision.action==='recover').length;
-        if(options.staffEdit||!omniStaffPriorityActive_())oa2IdentityNotes_(snap.sheet,snap.c,simple.map(item=>item.record),snap.values,2,snap.meta,'',true);
+        if(options.staffEdit||admittedManual||!omniStaffPriorityActive_())oa2IdentityNotes_(snap.sheet,snap.c,simple.map(item=>item.record),snap.values,2,snap.meta,'',true);
       }
       result.processedAccounts.push(account.account);
-    }catch(ignored){result.accountFailures.push({accountIndex:account.accountIndex,reason:'identity_processing_failed'});result.reviewReasons.push('identity_unverified');if(snap&&(options.staffEdit||!omniStaffPriorityActive_()))oa2IdentityNotes_(snap.sheet,snap.c,items.map(item=>item.record),snap.values,2,snap.meta,'identity_unverified',false);}
+    }catch(ignored){result.accountFailures.push({accountIndex:account.accountIndex,reason:'identity_processing_failed'});result.reviewReasons.push('identity_unverified');if(snap&&(options.staffEdit||admittedManual||!omniStaffPriorityActive_()))oa2IdentityNotes_(snap.sheet,snap.c,items.map(item=>item.record),snap.values,2,snap.meta,'identity_unverified',false);}
   });
   result.elapsedMs=Date.now()-started;
   console.log(JSON.stringify({handler:'arrival_identity_priority',registered:result.registered,recovered:result.recovered,bookedAdded:result.bookedAdded,review:result.review,accountFailures:result.accountFailures.length,processedAccounts:result.processedAccounts.length,skipped:!!result.skipped}));
@@ -1770,7 +1856,7 @@ function oa2WriteResolvedIdentityRows_(items,documentLock,options) {
   const bySnap=new Map();items.forEach(item=>{const list=bySnap.get(item.snap)||[];list.push(item);bySnap.set(item.snap,list);});
   bySnap.forEach((list,snap)=>{
     oa2RowGroups_(list.map(item=>({row:item.record.row,item}))).forEach(group=>{
-      if(!(options&&options.staffEdit)&&omniStaffPriorityActive_())throw new Error('Staff edit takes priority; retry identity registration.');
+      if(!(options&&(options.staffEdit||options.manualRequested===true))&&omniStaffPriorityActive_())throw new Error('Staff edit takes priority; retry identity registration.');
       const current=snap.sheet.getRange(group[0].row,1,group.length,snap.width).getValues();
       group.forEach((entry,i)=>{if(JSON.stringify(current[i])!==JSON.stringify(snap.values[entry.row-2]))throw new Error('Source changed before identity allocation; preserving for retry.');});
       snap.sheet.getRange(group[0].row,snap.meta,group.length,1).setValues(group.map(entry=>[entry.item.record.leadId]));
@@ -2334,11 +2420,17 @@ function rollbackOmniArrivalCsMigration(expectedFingerprint) {
  * Concurrent scheduled runs may advance the shared cursor; report observed coverage, never assume six calls cover six accounts.
  */
 function catchUpOmniArrivalV2() {
-  const started=Date.now(),budgetMs=200000,maxCalls=6,runs=[],covered=new Set();let lastDurationMs=0,stopReason='step_limit';
+  const started=Date.now(),budgetMs=200000,maxCalls=6,runs=[],preparatoryRuns=[],covered=new Set();let lastDurationMs=0,stopReason='step_limit',identityReview=false;
   const log=value=>{try{console.log(JSON.stringify(Object.assign({handler:'arrival_catch_up'},value)));}catch(ignored){}};
-  const summary=reason=>({stopReason:reason,coverageComplete:covered.size===OMNI_ACCOUNT_TABS.length,completedCalls:runs.length,
-    coveredAccounts:Array.from(covered),remainingAccounts:OMNI_ACCOUNT_TABS.filter(name=>!covered.has(name)),runs,
-    durationMs:Date.now()-started,admissionBudgetMs:budgetMs,hardDeadline:false});
+  const summary=reason=>{
+    const coverageComplete=covered.size===OMNI_ACCOUNT_TABS.length,needsReview=identityReview||runs.some(run=>run.deferredQueueConflicts>0||run.deferredSourceRecords>0),projectionPending=runs.some(run=>!run.csProjectionOk);
+    return {scope:'native_arrival_reconciliation',nativeState:needsReview?'review':coverageComplete&&!projectionPending?'complete':'pending',
+      stopReason:reason,coverageComplete,reconciliationComplete:coverageComplete&&!needsReview&&!projectionPending,needsReview,projectionPending,
+      // Account-worker coverage does not verify the separate lowercase lead formula.
+      masterProjectionVerified:false,completedCalls:runs.length,preparatoryCalls:preparatoryRuns.length,
+      coveredAccounts:Array.from(covered),remainingAccounts:OMNI_ACCOUNT_TABS.filter(name=>!covered.has(name)),runs,preparatoryRuns,
+      durationMs:Date.now()-started,admissionBudgetMs:budgetMs,hardDeadline:false};
+  };
   for(let i=0;i<maxCalls;i++) {
     const remaining=budgetMs-(Date.now()-started),reserve=Math.max(30000,Math.ceil(lastDurationMs*1.5));
     if(remaining<reserve){stopReason='time_budget';break;}
@@ -2348,10 +2440,22 @@ function catchUpOmniArrivalV2() {
     if(result&&result.busy){stopReason='busy';break;}
     if(result&&result.skipped&&result.reason==='staff_priority'){stopReason='staff_priority';break;}
     if(result&&result.enabled===false){stopReason='disabled';break;}
+    if(result&&result.identityOnly===true&&result.identity&&typeof result.identity==='object'){
+      const identity=result.identity;
+      identityReview=!!(result.review||identity.blocked||identity.review||Array.isArray(identity.accountFailures)&&identity.accountFailures.length);
+      preparatoryRuns.push({phase:'identity',registered:Number(identity.registered)||0,recovered:Number(identity.recovered)||0,
+        bookedAdded:Number(identity.bookedAdded)||0,needsReview:identityReview,durationMs:Date.now()-stepStarted});
+      // The timer already committed this bounded stage and advanced its cursor.
+      // Do not misreport it as an Account pass or start extra synchronous work.
+      stopReason=identityReview?'identity_review':'identity_pending';break;
+    }
+    if(result&&result.installed===true&&result.display&&typeof result.display==='object'&&result.sort&&typeof result.sort==='object'){
+      preparatoryRuns.push({phase:'maintenance',durationMs:Date.now()-stepStarted});stopReason='maintenance_pending';break;
+    }
     if(!result||!OMNI_ACCOUNT_TABS.includes(result.account)){log(summary('unexpected_result'));throw new Error('Arrival catch-up received an unexpected timer result.');}
     lastDurationMs=Date.now()-stepStarted;covered.add(result.account);
     const run={account:result.account,newQueue:Number(result.newQueue)||0,changes:Number(result.changes)||0,
-      deferredQueueConflicts:Number(result.deferredQueueConflicts)||0,csProjectionOk:!!(result.csProjection&&result.csProjection.ok),
+      deferredQueueConflicts:Number(result.deferredQueueConflicts)||0,deferredSourceRecords:Number(result.deferredSourceRecords)||0,csProjectionOk:!!(result.csProjection&&result.csProjection.ok),
       csChanged:Number(result.csProjection&&result.csProjection.changed)||0,durationMs:lastDurationMs};
     runs.push(run);log(Object.assign({phase:'account_complete',completedCalls:runs.length},run));
     if(covered.size===OMNI_ACCOUNT_TABS.length){stopReason='covered_all_accounts';break;}
