@@ -468,14 +468,25 @@ function syncMissingBookedArrivals() {
       }
     }
     const addedOps=ops.filter(op=>op.kind==='append'),repaired=ops.filter(op=>op.kind==='schedule_only').length;
-    if(pending){oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false));}
-    else if(addedOps.length){
-      const ids=new Set(addedOps.map(op=>op.appt.id)),displayItems=processed.filter(item=>ids.has(item.record.appointmentId));
-      oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false,{appointments:ctx.appointments,ids,sources:oa3ManualDisplaySources_(displayItems,false),freshSources:()=>oa3ManualDisplaySources_(displayItems,true)}));
+    let apiProjection=null;
+    if((ops.length||pending)&&typeof OA3_FINALIZE_API_ENABLED!=='undefined'&&OA3_FINALIZE_API_ENABLED===true){
+      // The existing pending marker remains durable until every finalizer readback
+      // is accepted. API review/unknown results never fall back to native reads.
+      if(typeof oa3TryApiFinalize_!=='function')throw new Error('API finalizer is unavailable; finalization remains pending.');
+      apiProjection=oa3ManualPhase_(timings,'apiFinalizerMs',()=>oa3TryApiFinalize_(ss,{documentLock:lock,accountNames:OMNI_ACCOUNT_TABS.slice(),includeHistory:true}));
+      if(!apiProjection||apiProjection.completed!==true||!Array.isArray(apiProjection.csReviewByAccount)||apiProjection.csReviewByAccount.length!==OMNI_ACCOUNT_TABS.length||apiProjection.csReviewByAccount.some(value=>!Number.isSafeInteger(value)||value<0))throw new Error('API finalization was not verified; preserve its pending marker and retry.');
+      if(!Number.isSafeInteger(apiProjection.csReviewByAccount.reduce((sum,value)=>sum+value,0)))throw new Error('API finalization review count was not verified.');
+    }else{
+      if(pending){oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false));}
+      else if(addedOps.length){
+        const ids=new Set(addedOps.map(op=>op.appt.id)),displayItems=processed.filter(item=>ids.has(item.record.appointmentId));
+        oa3ManualPhase_(timings,'displayMs',()=>oa3RefreshDisplay_(ss,false,{appointments:ctx.appointments,ids,sources:oa3ManualDisplaySources_(displayItems,false),freshSources:()=>oa3ManualDisplaySources_(displayItems,true)}));
+      }
+      if(ops.length||pending)oa3ManualPhase_(timings,'sortMs',()=>oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL)));
     }
-    if(ops.length||pending)oa3ManualPhase_(timings,'sortMs',()=>oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL)));
     if(ops.length||pending)props.deleteProperty(pendingKey);
     const receipt={completed:true,readEngine:initial.readEngine||'native',added:addedOps.length,repaired,skipped:selection.skipped,review,elapsedMs:Date.now()-started,initialReadMs,timings,noOp:!ops.length&&!pending};
+    if(apiProjection){receipt.finalizerTransport='sheets_api';receipt.csReviewCount=apiProjection.csReviewByAccount.reduce((sum,value)=>sum+value,0);}
     ss.toast('補上 '+receipt.added+' 個預約；補回 '+receipt.repaired+' 個日期／時間。','到店紀錄',8);
     console.log(JSON.stringify(Object.assign({handler:'manual_missing_booked_sync'},receipt)));return receipt;
   }finally{lock.releaseLock();}
@@ -597,6 +608,7 @@ function continueBookedArrivalsFullSync(jobId) {
         const result=oa3TryApiFinalize_(ss,{documentLock:lock,accountNames:OMNI_ACCOUNT_TABS.slice(),includeHistory:true});
         if(!result||result.completed!==true)throw new Error('API projection requires review.');
         if(!Array.isArray(result.csReviewByAccount)||result.csReviewByAccount.length!==OMNI_ACCOUNT_TABS.length||result.csReviewByAccount.some(n=>!Number.isSafeInteger(n)||n<0))throw new Error('API projection receipt was not verified.');
+        if(!Number.isSafeInteger(result.csReviewByAccount.reduce((sum,value)=>sum+value,0)))throw new Error('API projection review count was not verified.');
         result.csReviewByAccount.forEach((review,i)=>state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],review));
       }else{
         // The canonical runtime admits one explicit Account at a time. The

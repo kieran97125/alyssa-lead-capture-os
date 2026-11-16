@@ -91,9 +91,9 @@ test('enabled API finalizer receives explicit full scope and never enters native
  f.b.OA3_FINALIZE_API_ENABLED=true;let called=0;f.b.oa3TryApiFinalize_=(ss,opts)=>{called++;assert.deepEqual(Array.from(opts.accountNames),f.names);assert.equal(opts.includeHistory,true);assert.equal(opts.documentLock.hasLock(),true);return {completed:true,csReviewByAccount:[0,0,0,0,0,0]};};
  const receipt=f.step();assert.equal(receipt.completed,true);assert.equal(called,1);assert.equal(f.calls.flush,before);assert.equal(f.calls.cs.length,0);assert.equal(f.calls.display.length,0);assert.equal(f.calls.sort.length,0);
 });
-for(const mode of ['review','unknown','malformed'])test('API finalizer '+mode+' never falls back, flushes or acknowledges projection',()=>{
+for(const mode of ['review','unknown','malformed','overflow'])test('API finalizer '+mode+' never falls back, flushes or acknowledges projection',()=>{
  const f=fixture();f.start();for(let i=0;i<30&&f.job().phase!=='projection';i++)f.step();const before=f.calls.flush;f.b.OA3_FINALIZE_API_ENABLED=true;
- f.b.oa3TryApiFinalize_=()=>{if(mode==='unknown')throw Error('Synthetic API unknown');if(mode==='malformed')return {completed:true};return {completed:false,review:true};};
+ f.b.oa3TryApiFinalize_=()=>{if(mode==='unknown')throw Error('Synthetic API unknown');if(mode==='malformed')return {completed:true};if(mode==='overflow')return {completed:true,csReviewByAccount:Array(6).fill(Number.MAX_SAFE_INTEGER)};return {completed:false,review:true};};
  assert.throws(()=>f.step());assert.equal(f.job().phase,'projection');assert.equal(f.job().projectionComplete,false);assert.ok(f.job().attempt);assert.equal(f.calls.flush,before);assert.equal(f.calls.cs.length,0);assert.equal(f.calls.display.length,0);assert.equal(f.calls.sort.length,0);
 });
 
