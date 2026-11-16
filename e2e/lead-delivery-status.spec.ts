@@ -9,7 +9,9 @@ for (const [name, width, height] of [["desktop", 1440, 1000], ["mobile", 390, 84
     await expect(panel.getByTestId("lead-delivery-total")).toHaveText("1,289");
     await expect(panel.locator("dd")).toHaveText(["4", "3", "1,280", "0", "0", "2"]);
     await expect(panel).toHaveScreenshot(`lead-delivery-normal-${name}.png`);
-    const refresh = panel.getByRole("link", { name: "重新載入" });
+    // The shared Base UI button renders an anchor with button semantics.
+    const refresh = panel.getByRole("button", { name: "重新載入", exact: true });
+    await expect(refresh).toHaveJSProperty("tagName", "A");
     await refresh.focus();
     await expect(refresh).toBeFocused();
     await expect(refresh).toHaveAttribute("href", "/system-audit");

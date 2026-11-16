@@ -35,7 +35,7 @@
     "verify:lead-book-dimensions-contract": "node scripts/test-lead-book-dimensions.mjs && node scripts/test-manual-lead-dashboard.mjs",
     "verify:private-workbench": "node scripts/test-private-workbench.mjs",
     "verify:report-kol-contract": "node scripts/test-report-kol-performance.mjs",
-    "verify:system-foundation": "node scripts/test-crm-operations.mjs && node scripts/test-complete-lead-reads.mjs && node scripts/test-public-landing-copy.mjs && node scripts/test-public-events-boundary.mjs && node scripts/test-lead-delivery-summary.mjs && node scripts/test-public-capture.mjs && node scripts/test-lead-delivery-recheck.mjs"
+    "verify:system-foundation": "node scripts/test-crm-operations.mjs && node scripts/test-complete-lead-reads.mjs && node scripts/test-public-landing-copy.mjs && node scripts/test-public-events-boundary.mjs && node scripts/test-lead-delivery-summary.mjs && node scripts/test-public-capture.mjs && node scripts/test-lead-delivery-recheck.mjs && node scripts/test-lead-delivery-auth.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

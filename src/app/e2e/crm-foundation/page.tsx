@@ -102,13 +102,13 @@ export default async function CrmFoundationFixture({ searchParams }: {
     </header>
     <form className="flex flex-wrap items-end gap-3" method="get">
       <label className="grid gap-1 text-sm font-medium">品牌
-        <select name="brand" defaultValue={selectedBrand?.slug || ""} className="rounded-md border border-system-border bg-system-card px-3 py-2">
+        <select name="brand" aria-label="品牌" defaultValue={selectedBrand?.slug || ""} className="rounded-md border border-system-border bg-system-card px-3 py-2">
           <option value="">全部品牌</option>
           {fixtureBrands.map(brand => <option key={brand.id} value={brand.slug}>{brand.name}</option>)}
         </select>
       </label>
       <label className="grid gap-1 text-sm font-medium">預約佇列
-        <select name="queue" defaultValue={queue} className="rounded-md border border-system-border bg-system-card px-3 py-2">
+        <select name="queue" aria-label="預約佇列" defaultValue={queue} className="rounded-md border border-system-border bg-system-card px-3 py-2">
           {queueOptions.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}
         </select>
       </label>
