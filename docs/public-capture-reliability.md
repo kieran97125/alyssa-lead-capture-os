@@ -4,7 +4,7 @@
 
 A valid public registration is accepted only after `capture_public_lead_v1` commits the contact, immutable attribution snapshot, lead, **requested** booking, success/consent events, receipt and delivery journal in one database transaction. A requested appointment remains a customer preference, not a CS-confirmed Book. There is no fallback to independent table writes when the RPC is unavailable.
 
-The customer response is independent of Google latency. `after()` attempts queued delivery after the accepted response; the authenticated `/api/cron/lead-deliveries` catches up every five minutes. The production API returns a friendly 503 if database configuration is unavailable. Explicit isolated E2E fixtures retain their non-persistent demonstration response.
+The customer response is independent of Google latency. `after()` attempts queued delivery after the accepted response; the authenticated `/api/cron/lead-deliveries` catches up every five minutes through the reviewed, separately activated Supabase scheduler recipe. The production API returns a friendly 503 if database configuration is unavailable. Explicit isolated E2E fixtures retain their non-persistent demonstration response.
 
 ## Retries and duplicate handling
 
@@ -36,7 +36,7 @@ The master-only system audit panel exposes aggregate delivery states. Its explic
 ## Release order and rollback
 
 1. Verify the migration and fixtures against the matching schema; apply the additive migration **before** deploying the new API.
-2. Configure the server-owned cron authorization and verify that an unauthorized cron request returns 401.
+2. After explicit rollout authorization, configure the dedicated production `LEAD_DELIVERY_SIGNING_SECRET` and matching encrypted Vault entries, then activate the reviewed source-only Supabase scheduling recipe. Verify that missing, global-cron-token, wrong-path, stale and future proofs return 401; a fresh dedicated proof reaches the bounded worker. This does not change the legacy daily Vercel cron or other cron credentials.
 3. Deploy the matching API/worker/browser release; verify real acceptance and delivery using an explicitly authorized safe staging campaign.
 4. Monitor the private status counts and reconcile blocked/uncertain deliveries before increasing traffic.
 
@@ -47,3 +47,13 @@ Rolling the application back leaves the additive receipt/outbox records intact. 
 `node scripts/test-public-capture.mjs` exercises receipt validation, stable browser identity, actual HTTP validation/acceptance ordering, missing-database rejection, pinned native delivery, identity/phone reconciliation, ambiguous responses, lease fencing and retry exhaustion with isolated providers. It performs no external network or database writes.
 
 The separate PostgreSQL integration qualification verifies atomic rollback, receipt reuse/conflict, duplicate semantics, selection/consent invariants, private grants, delivery claims and recheck behavior. Passing offline tests is not a claim of production rollout or a real customer submission.
+
+## Scheduler authorization boundary
+
+The recovery endpoint accepts a SHA-256 HMAC over `GET`, the exact worker path and Unix seconds, separated by newlines. It accepts proofs at most 60 seconds old and at most 15 seconds in the future, compares the fixed-size signature in constant time and rejects query strings. There is no `CRON_SECRET` or Bearer fallback on this endpoint.
+
+The installed `pg_net` request queue is readable by broad database roles. Therefore the recipe never queues the long-lived signing key or another system's token: it queues only the timestamp and short-lived endpoint-scoped proof. A proof may be replayed only within that short window to dispatch this same bounded queue; existing delivery leases and append reconciliation continue to protect processing. It does not authorize customer data reads or another cron endpoint.
+
+Vault configuration is read and validated freshly at each dispatch. The direct production HTTPS URL must not redirect. HTTP timeout is 65 seconds, allowing the worker's 60-second maximum to complete; a PostgreSQL enqueue success is not proof that the remote request succeeded. Missing/late queued proofs fail closed and the next scheduled attempt can recover. Unscheduling prevents future dispatches but cannot cancel a request already queued or in flight. Retain delivery evidence during rollback; revoke/rotate the dedicated key separately if immediate authentication revocation is required.
+
+`node scripts/test-lead-delivery-auth.mjs` verifies the signing and actual HTTP route boundaries using synthetic keys only. Source preparation is not authorization to create environment secrets, Vault values or schedules.

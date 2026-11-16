@@ -16,11 +16,13 @@ The candidate separates complete operational reads, brand-aware presentation, vi
 |---|---|
 | Audit/rollback application baseline | `ed5f0d6aad482158d40d62d934b65bafc74c3214` |
 | Working branch | `fix/system-foundation-20261116` |
-| Tested candidate commit | Pending final commit; do not infer from the branch name. |
-| Source PR | Pending. |
+| Candidate source | Implementation source `3bbde1ac34799224d6b744a2820766a09856974a`; PostgreSQL, production build/contracts, Storybook, design/axe and focused fixture qualification passed. Reviewed PNG baselines and final full-acceptance qualification are recorded separately; this is not a production release claim. |
+| Earlier design-qualified source | `dd80670663c27a86ba3f6944f5957a9f8a3aa612`; [Design Quality run 43802510052](https://github.com/kieran97125/alyssa-lead-capture-os/actions/runs/43802510052) completed successfully. This evidence does not automatically qualify later source changes. |
+| Source PR | Draft [#158](https://github.com/kieran97125/alyssa-lead-capture-os/pull/158); unmerged. |
 | Database migration | Candidate `supabase/migrations/20261116033221_public_capture_receipts_and_delivery_outbox.sql`; not applied to production. |
 | Merged source / production deployment | Not merged or deployed as part of this candidate. |
-| Canonical product-learning export | Draft preparation only; publish after exact source evidence is supplied. |
+| Canonical product-learning export | Published entry + index only at canonical commit `6a180728678b27e8bfdde64c452d6a177ef3160c`; sanitized, unreleased, no Core/checkpoint changes. Final qualification evidence will be reconciled after the acceptance run. |
+| Recovery scheduling | Source-only `supabase/drafts/public_lead_delivery_schedule.sql`; dedicated time-bound HMAC authentication is implemented and its local contract passes. Not executed. Existing daily hosting schedule is preserved. |
 
 ## Intended scope
 
@@ -35,36 +37,40 @@ The roadmap tracks unified metric publication, broad UX consolidation and LP stu
 
 ## Qualification ledger
 
-| Gate | State | Required evidence |
+| Gate | State | Evidence |
 |---|---|---|
-| Baseline public/auth/brand/design Node contracts | Passed before final implementation | QA baseline observation only; rerun changed contracts for the final candidate. |
-| Baseline Storybook build | Passed before final implementation | QA baseline observation only; later changed story/dependency inputs require an appropriate rebuild. |
-| Five foundation regression programs | Passed in the current working tree | `verify:system-foundation`: CRM operations, complete lead reads, public landing copy, public event boundary and delivery summary. Record the final source SHA and repeat when changed inputs require it. |
-| Capture/public-lead contract checks | Passed in the current working tree | Contract success does not establish live persistence or provider-delivery success. Exact final source evidence remains to record. |
-| Capture transaction/idempotency database qualification | Pending | PostgreSQL 17 isolated CI: concurrent replay/conflict, rollback on dependent failure and preserved source/consent. |
-| External delivery state/recovery qualification | Pending final candidate | Definite failure, ambiguous committed append, reconciliation, stale claim and unavailable destination; distinguish application tests from database/provider evidence. |
-| TypeScript | Passed in the current working tree | Final source SHA remains to record. |
-| Production build | Pending | Exact final candidate. |
-| Storybook and design contract | Pending final candidate | Required shared/touched UX gates. |
-| Deterministic design/axe and critical-journey browser checks | Pending | Synthetic environment with customer/provider writes disabled. |
-| Migration and least-privilege review | Pending | Exact SQL, compatibility, RLS and service-role-only execution. |
-| Database rollback qualification | Pending | Isolated PostgreSQL 17 fixture and concurrency workflow; no production customer rows in receipts. |
-| Hosted CI and preview | Pending | Exact source SHA and terminal results. |
-| Production release | Awaiting specific rollout authorization and final gates | Merged SHA, intended target, READY deployment, migration and authenticated worker configuration readback. |
-| Legitimate registration/delivery observation | Pending | Separately observed acceptance, destination delivery and replay behavior; not implied by fixture tests. |
+| Eight foundation programs, including 25 capture and 16 HMAC cases | Passed | Production build in [Design Quality 43803391168](https://github.com/kieran97125/alyssa-lead-capture-os/actions/runs/43803391168) at implementation `3bbde1ac34799224d6b744a2820766a09856974a` runs all existing contracts and `verify:system-foundation`. |
+| Atomic capture, idempotency, rollback, role grants and real concurrency | Passed, isolated PostgreSQL 17 | [Database qualification 43803391032](https://github.com/kieran97125/alyssa-lead-capture-os/actions/runs/43803391032), same implementation source. Schema-only synthetic database; no production migration or provider call. |
+| External delivery/recheck/uncertain outcome contracts | Passed, synthetic application + isolated DB | Capture/summary/recheck tests and PostgreSQL behavior/concurrency passed. Unknown provider writes reconcile only; real provider delivery remains a rollout observation. |
+| TypeScript | Passed locally | `npx tsc --noEmit` passed after the final helper/fixture corrections; matching implementation tree. |
+| Production build, existing contracts, Storybook | Passed | Both jobs in Design Quality run `43803391168` completed successfully at the implementation source. |
+| Standard deterministic design/axe and rendered report layout | Passed, hosted | Design Quality run `43803391168`; local Chromium was blocked by EPERM before UI inspection and is not claimed as a pass. |
+| New CRM/delivery desktop/mobile interactions, keyboard and axe | Passed, hosted | [Focused qualification 43803391043](https://github.com/kieran97125/alyssa-lead-capture-os/actions/runs/43803391043) passed candidate generation and a separate non-update rerun at the implementation source. |
+| Human PNG review | Approved | Ten new fixture PNGs reviewed and hash-verified; one existing CRM baseline updated after reviewing expected/actual/diff and confirming intended notice removal plus stale pre-existing locale/filter content. No layout assertions removed. See design evidence manifest. |
+| Final full application acceptance against committed approved baselines | Pending baseline commit rerun | Earlier run passed 245/251; remaining failures were the now-corrected new selectors, uncommitted new PNGs and manually reviewed existing CRM baseline. This row requires the final ordinary non-update full-suite result. |
+| Worker request authentication | Passed source/16 synthetic HTTP cases + independent review | Exact GET/path/time HMAC; max60s age/15s future; no global bearer fallback. Draft SQL schedule remains unexecuted and real authenticated dispatch remains a rollout observation. |
+| Vercel preview | READY on implementation source | `dpl_FWhceHP1zBqqosPws9SyesjA7Gnb` at `3bbde1ac34799224d6b744a2820766a09856974a`. Unsupported five-minute Vercel manifest cron removed; existing daily refresh retained. READY is a build/deployment observation, not runtime DB/provider qualification. |
+| Production migration, key/Vault configuration, schedule and release | Awaiting specific rollout authorization | None applied. Matching additive migration must precede the application caller; enable schedule only after matching application deployment. |
+| Legitimate production registration and delivery | Pending rollout | Separately observe acceptance, actual destination delivery, replay and worker state transitions after approved activation. |
 
 ## Recovery and rollout
 
-The concrete production change is the additive capture receipt/outbox migration together with an authenticated scheduled `/api/cron/lead-deliveries` worker and matching application release. Automatic approval review rejected creating the new production/preview `CRON_SECRET` configuration because the existing fix authorization did not explicitly cover that security and scheduling scope. No environment value changed; no production migration or application deployment occurred. The required final authorization must cover this concrete rollout as a bundle, after the candidate is reviewable and its qualification evidence is recorded. This is the current blocker, not a general approval requirement for ordinary code fixes.
+The concrete production change is the additive capture receipt/outbox migration together with a dedicated HMAC-authenticated `/api/cron/lead-deliveries` worker, its database-owned five-minute recovery schedule and the matching application release. Automatic approval review rejected the earlier proposed new production/preview authentication configuration because the existing fix authorization did not explicitly cover that security and scheduling scope. No environment value changed; no production migration or application deployment occurred. The final proposal now uses a dedicated `LEAD_DELIVERY_SIGNING_SECRET` and encrypted URL/key references, not the earlier long-lived bearer design. The required authorization must cover this concrete rollout as a bundle after final source qualification. This is the current blocker, not a general approval requirement for ordinary code fixes.
+
+The five-minute worker is **not** a Vercel manifest cron. A preview attempt proved that unsupported schedule incompatible with the current hosting plan. `vercel.json` retains only the existing daily source-refresh job. Read-only inspection confirmed existing `pg_cron`, `pg_net` and Vault capabilities, but network-queue privilege metadata ruled out queuing a reusable long-lived bearer. The replacement source-only [schedule recipe](../../supabase/drafts/public_lead_delivery_schedule.sql) computes a short-lived signature from the dedicated Vault key; it requires approved encrypted configuration, the additive migration and the deployed matching worker before execution. It does not install or enable itself. See the [scheduling architecture](../architecture/2026-11-16-lead-delivery-scheduling.md).
 
 1. Validate the exact additive database migration and isolated rollback tests before activating a caller that requires it. Do not silently fall back to the old non-atomic writer when a required capture function is unavailable.
-2. Deploy the qualified application source with the intended schedule and access controls. Verify the exact merged source and production target.
+2. After specific authorization, configure the dedicated worker signing key and encrypted URL/key references, deploy the qualified application source, verify the exact production source, then enable the reviewed database-owned HMAC recovery schedule. Preserve the existing daily hosting schedule and its independent authentication.
 3. Treat accepted registration, delivery status and report publication as separate evidence. Delivery completion must not advance reporting freshness.
 4. On application rollback, retain durable receipts/outbox and accepted customer records. Do not remove additive schema or delete accepted data to make old source run.
 5. Hold uncertain provider writes for reconciliation. Do not replay append requests blindly. Preserve operator-owned source fields.
-6. Record a tested downgrade/worker-pause procedure for the final schema/worker interface; this pending item is a release gate rather than a promise.
+6. Qualify the named schedule's pause procedure (`cron.unschedule`) and compatible downgrade before rollout. Retain delivery records and hold uncertain mutations during a pause; never delete receipts or accepted customer data.
 
 ## Evidence limit
+
+The complete-read implementation has explicit 25,000-row and 20-second operation bounds. Exceeding capacity, reaching the deadline or detecting an inconsistent page sequence fails with a recoverable load state rather than presenting partial totals. This is a bounded complete-read safeguard, not an unlimited aggregate-query architecture or a transactional database snapshot. FND-010 tracks scalable database-side queue/aggregate projections.
+
+Delivery recheck does not resolve every exception. An uncertain append with zero stable-identity matches remains uncertain and cannot safely be retried as a new append. A pinned delivery destination is not automatically rebound when configuration changes. FND-011 tracks an explicit reviewed exception-resolution/rebinding operation; the current UI offers recheck, not that operation.
 
 The initial architecture review could not perform authenticated internal-page acceptance because the available live page was at its normal sign-in boundary. Synthetic browser qualification and a READY deployment must not be described as affected-staff-session or populated production-flow acceptance.
 
