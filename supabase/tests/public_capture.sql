@@ -194,8 +194,11 @@ DO $$ DECLARE before_counts jsonb; t text; BEGIN
     before_counts:=capture_fixture.counts();
     PERFORM set_config('capture_fixture.fail_table',t,true);
     BEGIN
-      -- Another brand/form with the existing contact exercises rollback of the upsert too.
-      PERFORM capture_fixture.capture(gen_random_uuid(),'+999000000001','e0000000-0000-4000-8000-000000000005');
+      -- This form permits any active branch but has no default. Supply the
+      -- visitor's valid choice so failure occurs at the injected INSERT.
+      -- Reusing an existing contact also exercises rollback of the upsert.
+      PERFORM capture_fixture.capture(gen_random_uuid(),'+999000000001','e0000000-0000-4000-8000-000000000005',
+        '{"branch_id":"d0000000-0000-4000-8000-000000000001"}');
       RAISE EXCEPTION 'qualification_failed: fault injection did not fire';
     EXCEPTION WHEN check_violation THEN IF SQLERRM<>'synthetic_insert_failure' THEN RAISE; END IF; END;
     PERFORM set_config('capture_fixture.fail_table','',true);
