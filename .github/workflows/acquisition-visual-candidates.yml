@@ -116,6 +116,36 @@ jobs:
           --update-snapshots=none --workers=1 --retries=0
           --output=test-results/acquisition-qualified
 
+      # The navigation retirement intentionally changes these two existing views.
+      # Generate review candidates; never commit or approve them automatically.
+      - name: Generate the two scoped navigation retirement candidates
+        if: success() && steps.candidates.outcome == 'success'
+        run: >-
+          npx playwright test e2e/dashboard-streaming.spec.ts --grep "visual and accessibility states"
+          --update-snapshots=all --workers=1 --retries=0
+          --output=test-results/navigation-candidates
+
+      - name: Constrain legacy candidate changes to the two reviewed views
+        if: always() && steps.serve.outcome == 'success'
+        shell: bash
+        run: |
+          while IFS= read -r changed_path; do
+            case "$changed_path" in
+              e2e/acquisition-management.spec.ts-snapshots/*|e2e/dashboard-streaming.spec.ts-snapshots/dashboard-availability-desktop-chromium-linux.png|e2e/dashboard-streaming.spec.ts-snapshots/dashboard-availability-mobile-chromium-linux.png) ;;
+              *) echo "Unexpected tracked modification: $changed_path" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only)
+
+      - name: Verify existing Wix attribution, receipt conversion and notification flows
+        if: success() && steps.candidates.outcome == 'success'
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/acquisition-compatibility
+        run: >-
+          npx playwright test e2e/attribution-tracking.spec.ts e2e/gos-compact-form.spec.ts
+          e2e/dashboard-streaming.spec.ts e2e/settings-management.spec.ts
+          --update-snapshots=none --workers=1 --retries=0
+          --output=test-results/acquisition-compatibility
+
       - name: Upload new fixture candidates for human review
         if: always()
         uses: actions/upload-artifact@v4
@@ -123,6 +153,7 @@ jobs:
           name: acquisition-visual-candidates
           path: |
             e2e/acquisition-management.spec.ts-snapshots/*.png
+            e2e/dashboard-streaming.spec.ts-snapshots/dashboard-availability-*-chromium-linux.png
             acquisition-candidate-sha256.txt
           if-no-files-found: warn
           retention-days: 14

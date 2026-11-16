@@ -24,6 +24,8 @@ function mockSuccessfulLeadResponse() {
     event_id: "e2e-event-id",
     form_id: "alyssa-main-form",
     conversion_mode: "form_submit_pixel",
+    value: 388,
+    currency: "HKD",
     success_redirect_url: null,
     final_redirect_url: null,
     contact_id: "e2e-contact-id",

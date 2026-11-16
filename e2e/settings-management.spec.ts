@@ -19,7 +19,10 @@ test("Growth OS keeps grouped navigation and settings overview compact", async (
   const primaryNavLinks = page
     .getByRole("navigation", { name: "主要功能" })
     .getByRole("link");
-  await expect(primaryNavLinks).toHaveCount(15);
+  await expect(primaryNavLinks).toHaveCount(14);
+  const navigation = page.getByRole("navigation", { name: "主要功能" });
+  await expect(navigation.getByRole("link", { name: "表格及廣告頁", exact: true })).toBeVisible();
+  await expect(navigation.getByRole("link", { name: "Lead 變更監察", exact: true })).toHaveCount(0);
   await expect(
     page
       .getByRole("navigation", { name: "主要功能" })
@@ -99,15 +102,28 @@ test("form rows expose one primary action and keep utilities under More", async 
 
   const firstRow = page
     .getByTestId("form-management-list")
-    .locator("tbody tr")
+    .getByTestId("acquisition-form-row")
     .first();
-  await expect(firstRow.getByRole("link", { name: "編輯" })).toBeVisible();
+  const manage = firstRow.getByRole("button", { name: "管理", exact: true });
+  await expect(manage).toBeVisible();
   await expect(firstRow.getByText("更多", { exact: true })).toBeVisible();
-  await expect(firstRow.getByRole("button", { name: "Copy Wix Embed" })).toBeHidden();
-  await expect(firstRow.getByTestId("form-public-token")).toBeHidden();
+  await expect(firstRow.getByRole("link", { name: "查看登記", exact: true })).toBeHidden();
+  await expect(firstRow.getByRole("button", { name: "複製成新表格", exact: true })).toBeHidden();
+  await expect(firstRow.getByTestId("form-public-token")).toHaveCount(0);
   await firstRow.locator("summary").filter({ hasText: "更多" }).click();
-  await expect(firstRow.getByTestId("form-public-token")).toBeVisible();
-  await expect(firstRow.getByRole("button", { name: "複製 Wix 嵌入碼" })).toBeVisible();
+  await expect(firstRow.getByRole("link", { name: "查看登記", exact: true })).toBeVisible();
+  await expect(firstRow.getByRole("button", { name: "複製成新表格", exact: true })).toBeVisible();
+  await manage.click();
+  await expect(page.getByTestId("form-settings-card")).toBeVisible();
+  const setup = page.getByTestId("wix-setup-panel");
+  await expect(setup.getByRole("button", { name: "複製表格安裝碼", exact: true })).toBeVisible();
+  await expect(setup.getByLabel("表格安裝碼", { exact: true })).toBeHidden();
+  const technical = page.locator("details").filter({ hasText: "技術資料" });
+  await expect(technical.getByText("表格識別碼", { exact: true })).toBeHidden();
+  await technical.locator(":scope > summary").click();
+  await expect(technical.getByText("表格識別碼", { exact: true })).toBeVisible();
+  await expect(technical.getByRole("button", { name: "複製識別碼", exact: true })).toBeVisible();
+  await expect(technical.locator("dd").first()).not.toBeEmpty();
 });
 
 test("source setup stays optional and retains canonical dataset and mapping values", async ({ page }) => {

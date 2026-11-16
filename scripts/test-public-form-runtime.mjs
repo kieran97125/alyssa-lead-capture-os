@@ -137,6 +137,19 @@ try {
   await denied.flush(); await denied.fill(); await denied.submit();
   assert.ok(!denied.calls.messages.some(([data]) => ["launchhub:form-config", "launchhub:form-submitted"].includes(data.type)), "An unrelated iframe intermediary cannot receive trusted config or conversion");
   assert.equal(denied.calls.fetch.find(([url]) => url === "/api/public/leads")[1].submitted_touch_json.utm_source, "meta", "The unrelated intermediary cannot replace captured attribution");
+
+  const srcdoc = harness({ expectedParentOrigin: undefined }); await srcdoc.flush();
+  assert.equal(srcdoc.calls.messages.find(([data]) => data.type === "launchhub:form-config")[1], "https://www.alyssa.hk", "A known allowlisted browser referrer independently authenticates a srcdoc wrapper without a serializable parent origin");
+  srcdoc.dispatch({ source: srcdoc.window.parent, origin: "https://www.alyssa.hk", data: { type: "launchhub_attribution_payload", schema_version: 1, payload: { submitted_touch_json: { utm_source: "meta", utm_medium: "paid_social", utm_campaign: "srcdoc-proof", source_capture_method: "wix_page_code" } } } });
+  await srcdoc.flush(); await srcdoc.fill(); await srcdoc.submit();
+  assert.equal(srcdoc.calls.fetch.find(([url]) => url === "/api/public/leads")[1].submitted_touch_json.source_capture_method, "wix_page_code", "Authenticated srcdoc attribution retains the original Wix capture method");
+  for (const referrer of ["https://unrelated.example.test/frame", "about:srcdoc", "https://component.filesusr.com/html", ""]) {
+    const unverified = harness({ expectedParentOrigin: undefined }, { referrer }); await unverified.flush();
+    unverified.dispatch({ source: unverified.window.parent, origin: referrer ? new URL(referrer).origin : "", data: { type: "launchhub_attribution_payload", schema_version: 1, payload: { submitted_touch_json: { utm_source: "spoofed", source_capture_method: "wix_page_code" } } } });
+    await unverified.flush();
+    assert.ok(!unverified.calls.messages.some(([data]) => data.type === "launchhub:form-config"), "Unallowlisted, opaque, missing and Wix sandbox origins without a verified real parent remain closed");
+    assert.ok(!unverified.calls.fetch.some(([url, body]) => url === "/api/public/events" && body.event_type === "parent_attribution_captured"));
+  }
   const unavailable = harness({ initialConfig: undefined }, { load: { ok: false } }); await unavailable.flush();
   assert.ok(!unavailable.calls.messages.some(([data]) => data.type === "launchhub:form-config")); assert.deepEqual(unavailable.calls.beacons, []);
 

@@ -179,7 +179,10 @@ test("GOS compact form shows the configured item and submits the short booking f
         ok: true,
         lead_id: "gos-test-lead",
         event_id: "gos-test-event",
-        event_payload: { value: 688, currency: "HKD" },
+        form_id: formId,
+        conversion_mode: "form_submit_pixel",
+        value: 688,
+        currency: "HKD",
       }),
     });
   });
@@ -348,7 +351,8 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
         form_id: formId,
         conversion_mode: "thank_you_redirect",
         success_redirect_url: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=1390`,
-        event_payload: { value: 4680, currency: "HKD" },
+        value: 4680,
+        currency: "HKD",
       }),
     });
   });
@@ -418,7 +422,10 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
         ok: true,
         lead_id: "gos-pixel-lead",
         event_id: "gos-pixel-event",
-        event_payload: { value: 688, currency: "HKD" },
+        form_id: formId,
+        conversion_mode: "form_submit_pixel",
+        value: 688,
+        currency: "HKD",
       }),
     });
   });
@@ -490,6 +497,8 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
         event_id: "gos-redirect-event",
         form_id: formId,
         conversion_mode: "thank_you_redirect",
+        value: 688,
+        currency: "HKD",
         success_redirect_url: `${gosThankYouUrl}?submitted=1&treatment=laser-hair-removal&value=688`,
         final_redirect_url: officialFinalRedirect,
       }),

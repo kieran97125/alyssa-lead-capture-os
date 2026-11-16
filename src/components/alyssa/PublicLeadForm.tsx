@@ -268,7 +268,8 @@ function normalizeOrigin(value: string | null | undefined) {
   if (!cleaned) return null;
 
   try {
-    return new URL(cleaned).origin.toLowerCase();
+    const url = new URL(cleaned);
+    return ["https:", "http:"].includes(url.protocol) ? url.origin.toLowerCase() : null;
   } catch {
     try {
       return new URL(`https://${cleaned}`).origin.toLowerCase();
@@ -1027,9 +1028,12 @@ function getImmediateParentTargetOrigin(
 function verifiedParentOrigin(expectedParentOrigin: string | undefined, allowedDomains: string[]) {
   if (typeof window === "undefined" || !window.parent || window.parent === window) return null;
   const expected = normalizeOrigin(expectedParentOrigin);
-  if (!expected || !isAllowedParentOrigin(expected, allowedDomains)) return null;
   const immediate = getImmediateParentTargetOrigin(expectedParentOrigin);
   if (!immediate) return null;
+  // Same-origin srcdoc wrappers have no serializable location origin. Their
+  // browser-provided HTTP referrer can independently prove an allowed parent.
+  if (!expected) return isAllowedParentOrigin(immediate, allowedDomains) ? immediate : null;
+  if (!isAllowedParentOrigin(expected, allowedDomains)) return null;
   if (immediate === expected) return immediate;
   // Wix hosts the installed HTML component between the public page and this form.
   // Address that real immediate parent exactly; never broadcast a completion.
