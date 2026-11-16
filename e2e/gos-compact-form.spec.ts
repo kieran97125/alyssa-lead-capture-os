@@ -511,36 +511,27 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
     });
   });
 
-  await page.goto("/login", { waitUntil: "domcontentloaded" });
-  await page.evaluate(
-    async ({ targetId, token, id }) => {
-      await new Promise<void>((resolve, reject) => {
-        const target = document.createElement("div");
-        target.id = targetId;
-        const script = document.createElement("script");
-        script.src = `/embed/alyssa-form.js?redirect-test=${Date.now()}`;
-        script.dataset.formToken = token;
-        script.dataset.brand = "gos-beauty";
-        script.dataset.formId = id;
-        script.dataset.conversionMode = "thank_you_redirect";
-        script.dataset.successRedirectUrl =
-          "https://go.beautytrialhk.com/thank-you";
-        script.dataset.target = `#${targetId}`;
-        script.addEventListener("load", () => resolve(), { once: true });
-        script.addEventListener(
-          "error",
-          () => reject(new Error("Failed to load the embed helper")),
-          { once: true }
-        );
-        document.body.replaceChildren(target, script);
-      });
-    },
-    {
-      targetId: "gos-redirect-test-target",
-      token: formToken,
-      id: formId,
-    }
-  );
+  // A Wix installation runs outside React. A static same-origin host keeps the
+  // real loader test independent of the login page's asynchronous hydration.
+  await page.route("**/e2e/gos-embed-host", async (route) => {
+    await route.fulfill({
+      contentType: "text/html",
+      body: `<!doctype html><html><head><title>Legacy GOS embed host</title></head><body>
+        <div id="gos-redirect-test-target"></div>
+        <script
+          src="/embed/alyssa-form.js?redirect-test=legacy-install"
+          data-form-token="${formToken}"
+          data-brand="gos-beauty"
+          data-form-id="${formId}"
+          data-conversion-mode="thank_you_redirect"
+          data-success-redirect-url="https://go.beautytrialhk.com/thank-you"
+          data-target="#gos-redirect-test-target">
+        </script>
+      </body></html>`,
+    });
+  });
+  await page.goto("/e2e/gos-embed-host", { waitUntil: "domcontentloaded" });
+  await expect(page).toHaveTitle("Legacy GOS embed host");
 
   const iframe = page.locator('iframe[title="Campaign registration form"]');
   await expect(iframe).toBeVisible({ timeout: 15_000 });
