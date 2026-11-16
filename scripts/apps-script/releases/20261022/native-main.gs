@@ -1105,6 +1105,29 @@ function oa2ReplayAllSourceAnchors_(ss,ctx,identityOverrides,sourceAnchorScope) 
 function oa2ReplaySourceAnchors_(ctx,snap) {
   snap.records.forEach(r=>{if(!r.pendingSnapshot)return;const anchor=JSON.parse(r.pendingSnapshot);oa2ReplayAnchor_(ctx,anchor,r.leadId,r.account);r.appointmentId=anchor.currentAppointmentId;const current=ctx.appointments[r.appointmentId];if(current)r.bookedAt=current.bookedAt;});
 }
+/** Batch only the six governed metadata columns. Alternating sparse writes and
+ * reads flushes SpreadsheetApp after every row and repeatedly recalculates the
+ * identity bridge. A bounded span gets one fresh full-row CAS and one write.
+ * Business cells are never written; formulas in an intervening metadata row
+ * keep the original sparse path rather than being replaced by their values.
+ */
+function oa2WriteSourceMetadata_(snap,items,anchored) {
+  if(!items.length)return;
+  const sorted=items.slice().sort((a,b)=>a.row-b.row),windows=[];
+  sorted.forEach(item=>{let group=windows[windows.length-1];if(!group||item.row-group[0].row>=8192){group=[];windows.push(group);}group.push(item);});
+  const expected=row=>{const values=snap.values[row-2].slice();if(anchored)anchored[row-2].forEach((v,j)=>values[snap.meta-1+j]=v);return values;};
+  const write=group=>{
+    const first=group[0].row,n=group[group.length-1].row-first+1,block=snap.sheet.getRange(first,snap.meta,n,6),sparse=n!==group.length;
+    if(sparse){
+      if(typeof block.getFormulas!=='function'||block.getFormulas().some(row=>row.some(Boolean))){oa2RowGroups_(group).forEach(write);return;}
+    }
+    const current=snap.sheet.getRange(first,1,n,snap.width).getValues();
+    current.forEach((row,i)=>{if(JSON.stringify(row)!==JSON.stringify(expected(first+i)))throw new Error('Account rows changed or sorted during processing; preserving them for stable-ID retry.');});
+    const values=current.map(row=>row.slice(snap.meta-1,snap.meta+5));group.forEach(item=>values[item.row-first]=item.values);
+    block.setValues(values);
+  };
+  windows.forEach(write);
+}
 function oa2WriteSourceAnchors_(snap,ctx) {
   if(!snap.values.length)return;const values=snap.values.map(row=>row.slice(snap.meta-1,snap.meta+5));let changed=false;
   snap.records.forEach(r=>{if(!r.meaningful||(snap.deferredRows&&snap.deferredRows.has(r.row)))return;const index=r.row-2;if(values[index][0]!==r.leadId){values[index][0]=r.leadId;changed=true;}
@@ -1115,20 +1138,15 @@ function oa2WriteSourceAnchors_(snap,ctx) {
   const changedRows=values.map((row,i)=>({row:i+2,values:row})).filter(x=>JSON.stringify(x.values)!==JSON.stringify(snap.values[x.row-2].slice(snap.meta-1,snap.meta+5)));
   if(!changedRows.length)return;
   oa2AssertSourceUnchanged_(snap);
-  // Each changed row's ID and complete recovery intent remain one atomic
-  // six-cell write. All anchor groups finish before history/registry writes.
-  // If a later group fails, earlier persisted anchors remain replayable.
-  oa2RowGroups_(changedRows).forEach(group=>{
-    const start=group[0].row,current=snap.sheet.getRange(start,1,group.length,snap.width).getValues();
-    group.forEach((x,i)=>{if(JSON.stringify(current[i])!==JSON.stringify(snap.values[x.row-2]))throw new Error('Account rows changed or sorted during anchor processing; preserving them for stable-ID retry.');});
-    snap.sheet.getRange(start,snap.meta,group.length,6).setValues(group.map(x=>x.values));
-  });
+  // Each ID and complete recovery intent remain in the same six-column write.
+  // All accepted anchors precede history/registry, including a lost reply.
+  oa2WriteSourceMetadata_(snap,changedRows,null);
   snap.anchoredValues=values;
 }
 function oa2WriteAccountMeta_(snap) {
   if(!snap.meta)throw new Error('Run explicit setup before writing metadata.');
   const changed=snap.records.filter(r=>r.meaningful&&!(snap.deferredRows&&snap.deferredRows.has(r.row))).map(r=>({row:r.row,values:[r.leadId,r.appointmentId,r.bookedAt?new Date(r.bookedAt):'',r.outcome==='Show'?'已到店':r.outcome,r.outcomeAt?new Date(r.outcomeAt):'','']})).filter(x=>JSON.stringify(x.values)!==JSON.stringify((snap.anchoredValues?snap.anchoredValues[x.row-2]:snap.values[x.row-2].slice(snap.meta-1,snap.meta+5))));
-  oa2RowGroups_(changed).forEach(g=>{const start=g[0].row,current=snap.sheet.getRange(start,1,g.length,snap.width).getValues();g.forEach((x,i)=>{const expected=snap.values[x.row-2].slice();if(snap.anchoredValues)snap.anchoredValues[x.row-2].forEach((v,j)=>expected[snap.meta-1+j]=v);if(JSON.stringify(current[i])!==JSON.stringify(expected))throw new Error('Account rows changed or sorted during processing; preserving them for stable-ID retry.');});snap.sheet.getRange(start,snap.meta,g.length,6).setValues(g.map(x=>x.values));});
+  oa2WriteSourceMetadata_(snap,changed,snap.anchoredValues);
 }
 function oa2QueueLabel_(a,record) {
   const bound=record&&record.account===a.account&&record.leadId===a.leadId;
@@ -1297,7 +1315,7 @@ function oa2FilterQueueOps_(ctx,queue,ops,records) {
     return (verified && (q.account!==a.account || q.customerKey!==a.customerKey)) || !!a.pendingQueueBefore || !oa2QueueInputMatches_(q,a)||JSON.stringify(meta)!==JSON.stringify(q.raw.slice(19,26));
   });
 }
-function oa2Commit_(ss,ctx,queue,ops,snaps,projectionRecords) {
+function oa2Commit_(ss,ctx,queue,ops,snaps,projectionRecords,options) {
   if(ctx.errors.length)throw new Error(ctx.errors.join('\n'));if(ctx.dryRun)throw new Error('Attempt to commit a dry run.');
   const trace=ctx.manualTrace===true||typeof OA3_MANUAL_RUN_ACTIVE!=='undefined'&&OA3_MANUAL_RUN_ACTIVE?{started:Date.now()}:null;
   oa2QueueLayout_(ss.getSheetByName(OA2.ARRIVAL),false); // Validate before source anchors, history or registry writes.
@@ -1306,6 +1324,10 @@ function oa2Commit_(ss,ctx,queue,ops,snaps,projectionRecords) {
   ops.forEach(op=>{const q=queue.find(q=>q.row===op.row);if(!op.appt.pendingQueueBefore)op.appt.pendingQueueBefore=q?oa2QueueInputState_(q):'new';});
   // The first mutation anchors each source record and its full intended appointment in one metadata write.
   omniEditStage_(trace,'commit_source_anchors',()=>{(snaps||[]).forEach(s=>oa2WriteSourceAnchors_(s,ctx));});
+  // Manual preparation stops at the existing durable recovery boundary. It
+  // never acknowledges queue/outcome completion; the next locked RPC replays
+  // these exact anchors and performs the ordinary canonical commit.
+  if(options&&options.prepareOnly===true)return {staged:true};
   // Registry identity is persisted before remaining account pointers or queue cells.
   omniEditStage_(trace,'commit_checkpoint',()=>oa2CheckpointChanges_(ctx));
   const nextHistoryRow=omniEditStage_(trace,'commit_history',()=>oa2WriteHistory_(ss,ctx));
@@ -1519,7 +1541,9 @@ function oa2ProcessAccount_(ss,sheet,mode,edit,dryRun,trace,policy) {
   // manual cross-Account copies are not serialized by the document lock.
   if(manual&&manual.rebookClaims.length)oa2AssertIdentityClaimsFresh_(ss,manual.rebookClaims,ctx.appointments);
   const result={dryRun,account:sheet.getName(),records:snap.records.filter(r=>r.meaningful).length,appointments:Object.keys(ctx.appointments).length,newQueue:ops.filter(o=>o.kind==='append').length,changes:ctx.events.length,deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size,manualReviewCount:manual?manual.reviewRows.size:0,manualRebookedCount:manual?manual.rebooked:0,errors:ctx.errors};
-  if(!dryRun)omniEditStage_(trace,'arrival_commit',()=>oa2Commit_(ss,ctx,queue,ops,[snap]));if(!dryRun&&typeof oa3AfterSync_==='function')oa3AfterSync_(ss);try{console.log(JSON.stringify({handler:'omni_arrival_reconciliation',dryRun,deferredReason:manual&&manual.reviewRows.size?'source_state_needs_review':deferredQueueConflicts?'queue_input_needs_review':'',deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size}));}catch(ignored){}return result;
+  const prepareOnly=!!(policy&&policy.manualComplete===true&&policy.prepareOnly===true);
+  if(!dryRun){const receipt=omniEditStage_(trace,'arrival_commit',()=>oa2Commit_(ss,ctx,queue,ops,[snap],undefined,{prepareOnly}));if(prepareOnly){if(!receipt||receipt.staged!==true)throw new Error('Source preparation was not verified.');result.staged=true;}}
+  if(!dryRun&&!prepareOnly&&typeof oa3AfterSync_==='function')oa3AfterSync_(ss);try{console.log(JSON.stringify({handler:'omni_arrival_reconciliation',dryRun,staged:prepareOnly,deferredReason:manual&&manual.reviewRows.size?'source_state_needs_review':deferredQueueConflicts?'queue_input_needs_review':'',deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size}));}catch(ignored){}return result;
 }
 function verifyOmniArrivalV2() {
   const ss=oa2Spreadsheet_(),issues=[],details={};
@@ -1843,6 +1867,7 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
   if(!documentLock||typeof documentLock.hasLock==='function'&&!documentLock.hasLock())throw new Error('Identity priority requires the document lock.');
   const started=Date.now(),timings={},result={registered:0,recovered:0,bookedAdded:0,review:0,reviewReasons:[],accountFailures:[],processedAccounts:[],timings};options=options||{};
   const admittedManual=options.manualRequested===true;
+  const identityLimit=Number.isInteger(options.maxIdentityBatch)&&options.maxIdentityBatch>=1&&options.maxIdentityBatch<=50?options.maxIdentityBatch:50;
   if(!options.staffEdit&&!admittedManual&&omniStaffPriorityActive_())return Object.assign(result,{skipped:true,reason:'staff_priority'});
   const discovery=oa3ManualPhase_(timings,'discoveryMs',()=>oa2IdentityDiscovery_(ss));result.accountFailures=discovery.failures.slice();
   if(!discovery.identityComplete){result.review++;result.reviewReasons.push('identity_metadata_contract');result.blocked=true;return result;}
@@ -1868,7 +1893,7 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
       let warningBudget=options.staffEdit?50:10;const warningNotes=new Map(),statusRange=snap.sheet.getRange(2,snap.c.STATUS,snap.records.length,1);
       if(typeof statusRange.getNotes==='function')statusRange.getNotes().forEach((v,i)=>warningNotes.set(i+2,v[0]||''));
       missing.forEach(r=>{
-        if(items.length>=50)return;
+        if(items.length>=identityLimit)return;
         const decision=oa2ResolveMissingLeadIdentity_(r,evidence,()=>'lead_'+Utilities.getUuid());
         const flag=reason=>{result.review++;result.reviewReasons.push(reason);const line='【系統檢查・身份】未接納：'+oa2IdentityReviewMessage_(reason)+'。',old=warningNotes.get(r.row)||'';if(warningBudget>0&&old!==line&&!old.endsWith('\n'+line)&&(options.staffEdit||admittedManual||!omniStaffPriorityActive_())){warningBudget--;oa2IdentityNotes_(snap.sheet,snap.c,[r],snap.values,2,snap.meta,reason,false);}};
         if(recoveryAccount&&!oa2PendingQueueRecoverySafe_(r,allocations.get(r.appointmentId),evidence.appointments[r.appointmentId])){flag('pending_queue_recovery_review');result.blocked=true;return;}

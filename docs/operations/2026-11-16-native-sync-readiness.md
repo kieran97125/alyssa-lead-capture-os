@@ -94,3 +94,20 @@ Rollback: revert the catch-up wrapper and unobserved source policy independently
 The separately reviewed PR #161 queue/finalizer adapters were integrated while preserving this branch’s sidebar backoff and accepted-allocation recovery. Repository flags remain disabled by default. Actual isolated Google runs established 27 queue assertions and 59 finalizer assertions; the latter explicitly retains `activationQualified:false` for operator review. See `2026-11-16-native-provider-qualification.md` for the measured contract and production canary boundary.
 
 The complete job's identity stage now defers its scoped display refresh to the final projection, while retaining the source/registry/queue readback. This avoids another full-grid display read after each accepted identity batch. Immediate staff-edit display behavior is retained. All native suites passed with 102 identity cases and 56 controller/sidebar cases. Experimental API activation remains blocked and both flags are verified false; qualification continues on the ordinary native path.
+
+
+## System card: SYNC-TIMEOUT-001 — native request work budget
+
+The ordinary native identity-recovery RPC completed in 277.253 seconds, including a 110.290-second queue payload and 216.413-second commit/readback. The next full Account worker reached `commit_source_anchors` and timed out at 361.078 seconds. A later recovery also measured a 156.036-second native container open. Provider calls themselves cannot be interrupted by a JavaScript time check. The retained job and accepted source anchors must remain authoritative.
+
+The timeout follow-up keeps both experimental API flags false and retains the native writer:
+
+- Complete-job identity batches admit at most five accepted identities per RPC; the normal background/staff maximum remains fifty.
+- Source anchor/metadata writes merge sparse changes into native six-column spans of at most 8,192 rows (49,152 cells). Every row in each span passes fresh full-row CAS. Business columns are never written. Intervening metadata formulas retain the original sparse path. Exact unchanged metadata, numeric zero and existing pending intents are preserved.
+- Each Account has a source-intent preparation RPC followed by the ordinary canonical apply RPC. Preparation stops at the existing source-anchor recovery boundary, before history/registry/account pointers/queue writes. Its receipt is flushed before acknowledging preparation, earns no Account coverage or business counters, and replay retains canonical queue identities after a lost reply. Application reacquires the common lock and re-reads/replays fresh canonical state. A new staff outcome between phases stays deferred rather than being overwritten.
+- A known uncertain preparation retries preparation directly. An uncertain application retains the prior allocation-recovery admission. Legacy v1 jobs resume without resetting accepted coverage.
+- Native final projection is eight checkpointed RPCs: six explicit CS scopes, one full display, one whole-record sort. Failed/lost responses retain the current step; accepted prior scopes are not repeated. The sidebar reports acknowledged projection progress and the actual current operation.
+
+Validation: the complete native contract passes, including real emitted-sidebar/controller, source transition/recovery, native metadata span, immutable queue identity, concurrent colleague edit, lost acknowledgement, zero/formula and corrupt-checkpoint tests. New deployment/readback, full ordinary-control execution, independent source/queue/master acceptance and measured post-change provider latency remain pending. No production latency improvement is claimed from local tests.
+
+Rollback must preserve accepted source anchors, queue IDs, registry/history and the durable job. An existing prepared phase must be applied/replayed before removing preparation support. Do not erase checkpoints or reappend appointments to recover a timed-out call.

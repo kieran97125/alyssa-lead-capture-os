@@ -725,6 +725,13 @@ test('explicit manual simple identities retain the fifty-row bound while the idl
   assert.equal(f.source.state.matrix.slice(1).filter(row=>row[f.headers.indexOf('Omni Lead ID')]).length,50);
   const second=f.run({manualRequested:true});assert.equal(second.registered,2);assert.equal(second.bookedAdded,0);assert.equal(f.source.state.matrix.slice(1).filter(row=>row[f.headers.indexOf('Omni Lead ID')]).length,52);assert.equal(f.queue.state.writes.length,0);
 });
+test('a five-record native identity budget resumes without replacing accepted identities',()=>{
+  const f=nativeFixture({fields:{'跟進狀態':'待跟進','預約日期':'','預約時間':''}}),template=f.source.state.matrix[1];
+  for(let i=1;i<13;i++){const row=template.slice();row[f.headers.indexOf('電話')]=String(10000001+i);f.source.appendRow(row);}
+  const first=f.run({manualRequested:true,maxIdentityBatch:5});assert.equal(first.registered,5);const ids=f.source.state.matrix.slice(1,6).map(row=>row[f.headers.indexOf('Omni Lead ID')]);
+  assert.equal(f.run({manualRequested:true,maxIdentityBatch:5}).registered,5);assert.equal(f.run({manualRequested:true,maxIdentityBatch:5}).registered,3);
+  assert.deepEqual(f.source.state.matrix.slice(1,6).map(row=>row[f.headers.indexOf('Omni Lead ID')]),ids);assert.equal(f.queue.state.writes.length,0);
+});
 test('manualRequested cannot bypass an unheld native document lock',()=>{
   const f=nativeFixture();f.box.omniStaffPriorityActive_=()=>true;
   assert.throws(()=>f.box.oa2PrioritizeSourceIdentities_(f.ss,{hasLock:()=>false},{manualRequested:true}),/document lock/);assert.equal(f.writes().length,0);

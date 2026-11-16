@@ -6,8 +6,8 @@ function fixture(){
   for(const path of ['apps-script/releases/20261022/native-main.gs','apps-script/releases/20261022/arrival-workflow.gs'])vm.runInContext(fs.readFileSync(root+'/'+path,'utf8'),b);
   const names=Array.from(vm.runInContext('OMNI_ACCOUNT_TABS',b));
   const stored=new Map([['ARRIVAL_WORKFLOW_V3_ENABLED','1'],['ARRIVAL_DISPLAY_V3_ENABLED','1']]);
-  const writes=[],calls={identity:[],account:[],cs:[],display:[],sort:[],release:0,flush:0};
-  const control={busy:false,staff:false,identityRemaining:0,identityReview:0,identityBlocked:false,accountFailure:false,resultFailure:false,projectionFailure:false,displayFailure:false,failSave:false,failFlush:false};
+  const writes=[],calls={identity:[],prepare:[],account:[],cs:[],display:[],sort:[],release:0,flush:0};
+  const control={busy:false,staff:false,identityRemaining:0,identityReview:0,identityBlocked:false,prepareFailure:false,accountFailure:false,resultFailure:false,projectionFailure:false,displayFailure:false,failSave:false,failFlush:false};
   const checkpoint=()=>{const raw=stored.get(jobKey);return raw?JSON.parse(raw):null;};
   const props={getProperty:key=>stored.get(key)??null,setProperty:(key,value)=>{if(control.failSave&&key===jobKey&&JSON.parse(value).attempt===null){control.failSave=false;throw new Error('PRIVATE_PROPERTY_WRITE_FAILURE');}writes.push({key,value});stored.set(key,String(value));return props;},deleteProperty:key=>{writes.push({key,deleted:true});stored.delete(key);return props;}};
   let serial=0;
@@ -27,10 +27,11 @@ function fixture(){
     assert.equal(options.accountNames[0],names[options.startAccountIndex]);
     assert.equal(options.manualRequested,true,'Only an explicit manual request bypasses the idle hint; DocumentLock remains required');
     assert.equal(options.deferDisplay,true,'The complete job projects display once in its guarded final phase');
+    assert.equal(options.maxIdentityBatch,5,'Manual admission keeps each expensive identity batch small');
     assert.ok(checkpoint().attempt,'Identity writer must have a persisted pre-step attempt marker');
     calls.identity.push(clone(options));
     if(control.identityBlocked)return{registered:0,recovered:0,bookedAdded:0,review:1,blocked:true,accountFailures:[{accountIndex:-1,reason:'synthetic_identity_review'}]};
-    if(options.startAccountIndex===0&&control.identityRemaining>0){const registered=Math.min(50,control.identityRemaining);control.identityRemaining-=registered;return{registered,recovered:0,bookedAdded:registered,review:0,accountFailures:[],processedAccounts:[names[0]]};}
+    if(options.startAccountIndex===0&&control.identityRemaining>0){const registered=Math.min(options.maxIdentityBatch,control.identityRemaining);control.identityRemaining-=registered;return{registered,recovered:0,bookedAdded:registered,review:0,accountFailures:[],processedAccounts:[names[0]]};}
     return{registered:0,recovered:0,bookedAdded:0,review:control.identityReview,accountFailures:[],processedAccounts:[]};
   };
   b.oa2ProcessAccount_=(spreadsheet,sheet,mode,edit,dryRun,trace,options)=>{
@@ -38,6 +39,7 @@ function fixture(){
     assert.equal(trace,undefined);assert.equal(options?.manualComplete,true);
     assert.equal(b.OA3_MANUAL_RUN_ACTIVE,true,'A complete manual job must suppress per-Account global display/sort');
     assert.ok(checkpoint().attempt,'Account writer must have a persisted pre-step attempt marker');
+    if(options.prepareOnly){calls.prepare.push(sheet.getName());if(control.prepareFailure)throw Error('PRIVATE_PREPARE_FAILURE');return{account:sheet.getName(),newQueue:1,changes:2,deferredQueueConflicts:0,deferredSourceRecords:0,errors:[],staged:true};}
     calls.account.push(sheet.getName());
     if(control.accountFailure)throw new Error('PRIVATE_CUSTOMER_10000001 Provider exception');
     if(control.resultFailure)return{account:sheet.getName(),errors:['PRIVATE_CUSTOMER_10000001 Bad identity']};
@@ -52,22 +54,23 @@ function fixture(){
   const job=()=>{const raw=stored.get(jobKey);return raw?JSON.parse(raw):null;};
   const start=()=>{b.startBookedArrivalsFullSync();return job();};
   const step=()=>b.continueBookedArrivalsFullSync(job().id);
-  const toAccount=()=>{for(let i=0;i<10&&job().phase==='identity';i++)step();assert.equal(job().phase,'account');};
+  const toAccount=()=>{for(let i=0;i<30&&(job().phase==='identity'||!job().accountPrepared);i++)step();assert.equal(job().phase,'account');assert.equal(job().accountPrepared,true);};
   const finish=()=>{for(let i=0;i<100&&job().phase!=='complete';i++)step();assert.equal(job().phase,'complete','Bounded successive RPCs must eventually cover all six Accounts and final projection');return job();};
   return{b,names,stored,writes,calls,control,logs,job,start,step,toAccount,finish};
 }
 function test(name,run){try{run();tests.push(name);}catch(error){failures.push({name,error:error.message,stack:error.stack});}}
 function assertPendingProgress(f,before){
   const expected=JSON.parse(before),actual=f.job();
-  for(const key of ['phase','accountIndex','processedAccounts','registered','recovered','added','changed','reviewCount','projectionComplete'])assert.deepEqual(actual[key],expected[key],key+' must not be acknowledged after an unknown step');
+  for(const key of ['phase','accountIndex','processedAccounts','registered','recovered','added','changed','reviewCount','projectionComplete','projectionStep','accountPrepared'])assert.deepEqual(actual[key],expected[key],key+' must not be acknowledged after an unknown step');
   assert.ok(actual.attempt,'A failed step must leave its attempt checkpoint for honest retry accounting');
 }
 
-test('identity batches larger than 50 stay on the same Account and do not count as reconciliation coverage',()=>{
-  const f=fixture();f.control.identityRemaining=121;f.start();
-  for(const remaining of [71,21,0]){f.step();assert.equal(f.control.identityRemaining,remaining);assert.equal(f.job().phase,'identity');assert.equal(f.job().accountIndex,0);assert.deepEqual(f.job().processedAccounts,[]);}
-  assert.equal(f.calls.account.length,0);assert.equal(f.calls.identity.length,3);assert.equal(f.job().registered,121);
+test('five-identity manual batches stay on the same Account and do not count as reconciliation coverage',()=>{
+  const f=fixture();f.control.identityRemaining=16;f.start();
+  for(const remaining of [11,6,1,0]){f.step();assert.equal(f.control.identityRemaining,remaining);assert.equal(f.job().phase,'identity');assert.equal(f.job().accountIndex,0);assert.deepEqual(f.job().processedAccounts,[]);}
+  assert.equal(f.calls.account.length,0);assert.equal(f.calls.identity.length,4);assert.equal(f.job().registered,16);
   f.step();assert.equal(f.job().phase,'account');assert.deepEqual(f.job().processedAccounts,[]);
+  f.step();assert.equal(f.job().accountPrepared,true);assert.deepEqual(f.job().processedAccounts,[]);
   f.step();assert.deepEqual(f.job().processedAccounts,[0]);assert.equal(f.job().accountIndex,1);assert.equal(f.job().phase,'identity');
 });
 
@@ -80,10 +83,28 @@ test('all six Account receipts are distinct from preparatory identity calls and 
   }
   assert.equal(f.job().phase,'projection');assert.equal(f.job().projectionComplete,false);
   assert.deepEqual(f.calls.account,f.names);assert.equal(f.calls.identity.length,6);
-  f.step();assert.equal(f.job().phase,'complete');assert.equal(f.job().projectionComplete,true);
+  for(let i=0;i<8;i++){const before=f.calls.cs.length+f.calls.display.length+f.calls.sort.length;f.step();assert.equal(f.calls.cs.length+f.calls.display.length+f.calls.sort.length,before+1);assert.equal(f.job().projectionStep,i+1);}
+  assert.equal(f.job().phase,'complete');assert.equal(f.job().projectionComplete,true);
   assert.equal(f.calls.cs.length,6);assert.equal(f.calls.display.length,1);assert.equal(f.calls.sort.length,1);
   assert.equal(f.job().added,6);assert.equal(f.job().changed,12);
   f.step();assert.equal(f.calls.cs.length,6);assert.equal(f.calls.account.length,6,'A retry after completion cannot repeat accepted worker calls');
+});
+
+test('prepared source intent does not advance Account coverage or business counters until application is acknowledged',()=>{
+  const f=fixture();f.start();f.step();const before=f.job();f.step();
+  assert.equal(f.job().phase,'account');assert.equal(f.job().accountPrepared,true);assert.deepEqual(f.job().processedAccounts,[]);assert.equal(f.job().added,before.added);assert.equal(f.job().changed,before.changed);assert.equal(f.calls.account.length,0);assert.equal(f.calls.prepare.length,1);
+  f.step();assert.deepEqual(f.job().processedAccounts,[0]);assert.equal(f.job().accountPrepared,false);assert.equal(f.calls.account.length,1);
+});
+
+test('uncertain source-only preparation retries the existing canonical intent without unnecessary identity or queue recovery',()=>{
+  const f=fixture();f.start();f.step();f.control.prepareFailure=true;assert.throws(()=>f.step());assert.equal(f.job().attempt.operation,'prepare');
+  const identities=f.calls.identity.length;f.control.prepareFailure=false;f.step();assert.equal(f.calls.identity.length,identities);assert.equal(f.job().accountPrepared,true);assert.equal(f.calls.account.length,0);assert.equal(f.job().countsVerified,false);
+  f.step();assert.equal(f.calls.account.length,1);assert.deepEqual(f.job().processedAccounts,[0]);
+});
+
+test('failed preparation checkpoint retains its unknown attempt and safely prepares again',()=>{
+  const f=fixture();f.start();f.step();f.control.failSave=true;assert.throws(()=>f.step());assert.equal(f.job().accountPrepared,false);assert.equal(f.job().attempt.operation,'prepare');
+  f.step();assert.equal(f.job().accountPrepared,true);assert.equal(f.calls.account.length,0);assert.deepEqual(f.job().processedAccounts,[]);
 });
 
 test('enabled API finalizer receives explicit full scope and never enters native projection or flush',()=>{
@@ -127,8 +148,29 @@ test('projection failure retains projection phase and successful retry does not 
   f.control.projectionFailure=true;
   let error;try{f.step();}catch(value){error=value;}
   assert.ok(error,'An unsuccessful projection must not be reported complete');assert.equal(f.job().phase,'projection');assert.equal(f.job().projectionComplete,false);
-  f.control.projectionFailure=false;f.step();assert.equal(f.job().phase,'complete');assert.deepEqual(f.calls.account,accountCalls);
+  f.control.projectionFailure=false;f.finish();assert.equal(f.job().phase,'complete');assert.deepEqual(f.calls.account,accountCalls);
   assert.equal(f.calls.display.length,1);assert.equal(f.calls.sort.length,1);
+});
+
+test('failed later CS scope resumes that scope without repeating the earlier accepted scopes',()=>{
+  const f=fixture();f.start();for(let i=0;i<30&&f.job().phase!=='projection';i++)f.step();
+  for(let i=0;i<3;i++)f.step();assert.equal(f.job().projectionStep,3);
+  f.control.projectionFailure=true;assert.throws(()=>f.step());assert.equal(f.job().projectionStep,3);
+  f.control.projectionFailure=false;f.finish();
+  assert.deepEqual(f.calls.cs.map(options=>options.accountNames[0]),[...f.names.slice(0,4),...f.names.slice(3)]);
+  assert.equal(f.calls.display.length,1);assert.equal(f.calls.sort.length,1);assert.equal(f.job().countsVerified,false);
+});
+
+test('lost projection reply reads the persisted next step instead of repeating an accepted CS scope',()=>{
+  const f=fixture();f.start();for(let i=0;i<30&&f.job().phase!=='projection';i++)f.step();
+  f.step();const resumed=f.start();assert.equal(resumed.projectionStep,1);f.step();
+  assert.deepEqual(f.calls.cs.map(options=>options.accountNames[0]),f.names.slice(0,2));assert.equal(f.calls.account.length,6);
+});
+
+test('an existing v1 job with no projection cursor resumes without discarding accepted Account coverage',()=>{
+  const f=fixture();f.start();for(let i=0;i<30&&f.job().phase!=='projection';i++)f.step();
+  const job=f.job();delete job.projectionStep;f.stored.set(jobKey,JSON.stringify(job));f.step();
+  assert.equal(f.job().projectionStep,1);assert.deepEqual(f.job().processedAccounts,[0,1,2,3,4,5]);assert.equal(f.calls.account.length,6);
 });
 
 test('stale job identity rejoins the latest verified view without operational or checkpoint writes',()=>{
@@ -139,9 +181,10 @@ test('stale job identity rejoins the latest verified view without operational or
 
 test('partially applied display phase retries its idempotent finalizer without repeating Account commits',()=>{
   const f=fixture();f.start();for(let i=0;i<30&&f.job().phase!=='projection';i++)f.step();assert.equal(f.job().phase,'projection');const accounts=f.calls.account.slice();
+  for(let i=0;i<6;i++)f.step();assert.equal(f.job().projectionStep,6);
   f.control.displayFailure=true;let error;try{f.step();}catch(value){error=value;}
   assert.ok(error);assert.ok(!String(error.message).includes('PRIVATE_'));assert.equal(f.job().phase,'projection');assert.equal(f.job().projectionComplete,false);assert.equal(f.calls.sort.length,0);
-  f.control.displayFailure=false;f.step();assert.equal(f.job().phase,'complete');assert.deepEqual(f.calls.account,accounts);assert.equal(f.calls.sort.length,1);
+  f.control.displayFailure=false;f.finish();assert.equal(f.job().phase,'complete');assert.deepEqual(f.calls.account,accounts);assert.equal(f.calls.sort.length,1);
 });
 
 for(const resultFailure of [false,true])test('worker failure retains Account checkpoint and never returns private error details: '+resultFailure,()=>{
@@ -189,6 +232,11 @@ for(const [name,corrupt]of [
   ['exact counts after an unknown step',job=>({...job,countsVerified:true,unknownCountSteps:1})],
   ['negative unknown-step count',job=>({...job,unknownCountSteps:-1})],
   ['attempt from a different phase',job=>({...job,attempt:{phase:'account',accountIndex:0,startedAt:job.startedAt}})],
+  ['negative projection cursor',job=>({...job,projectionStep:-1})],
+  ['projection cursor beyond bound',job=>({...job,projectionStep:9})],
+  ['projection cursor before Account coverage',job=>({...job,projectionStep:1})],
+  ['nonboolean Account preparation',job=>({...job,accountPrepared:'true'})],
+  ['preparation operation outside Account phase',job=>({...job,attempt:{phase:'identity',accountIndex:0,startedAt:job.startedAt,operation:'prepare'}})],
 ])test('corrupt persisted checkpoint fails before operational writes: '+name,()=>{
   const f=fixture(),job=f.start(),value=corrupt(job);f.stored.set(jobKey,typeof value==='string'?value:JSON.stringify(value));
   const before=f.stored.get(jobKey),writes=f.writes.length;
@@ -304,9 +352,14 @@ test('real sidebar exposes accessible progress and keeps pending coverage separa
   assert.ok(!f.nodes.status.textContent.includes('已逐一更新所有'));
 });
 
+test('real sidebar reports the current projection scope and acknowledged progress without premature completion',()=>{
+  const f=sidebarFixture();f.callbacks.success(uiReceipt({phase:'projection',processedAccounts:6,projectionStep:4,projectionLabel:'補齊同事資料（Synthetic Account）'}));
+  assert.equal(f.nodes.progress.max,14);assert.equal(f.nodes.progress.value,10);assert.ok(f.nodes.status.textContent.includes('Synthetic Account'));assert.ok(!f.nodes.status.textContent.includes('已逐一更新所有'));
+});
+
 test('real sidebar announces verified completion and returns keyboard focus to a retry after failure',()=>{
   const done=sidebarFixture();done.callbacks.success(uiReceipt({finished:true,phase:'complete',processedAccounts:6,projectionComplete:true,countsVerified:true,added:5,startedAt:'2026-11-16T10:00:00.000Z'}));
-  assert.equal(done.nodes.progress.value,7);assert.ok(done.nodes.detail.textContent.includes('新增／補回 5 筆預約記錄'));assert.equal(done.timers.length,0);
+  assert.equal(done.nodes.progress.value,14);assert.ok(done.nodes.detail.textContent.includes('新增／補回 5 筆預約記錄'));assert.equal(done.timers.length,0);
   const retry=sidebarFixture();retry.callbacks.failure({message:'PRIVATE_ERROR'});assert.equal(retry.nodes.retry.focused,true);
 });
 

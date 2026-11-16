@@ -22,7 +22,7 @@ function fixture(options = {}) {
   const set = (name,value) => { source.state.matrix[1][headers.indexOf(name)]=value; };
   const get = name => source.state.matrix[1][headers.indexOf(name)];
   const setQueue = (name,value) => { queue.state.matrix[7][arrivalHeaders.indexOf(name)]=value; };
-  const run = policy => f.box.oa2ProcessAccount_(ss,source,'scan',null,false,undefined,policy === false ? undefined : {manualComplete:true});
+  const run = policy => f.box.oa2ProcessAccount_(ss,source,'scan',null,false,undefined,policy === false ? undefined : {manualComplete:true,...(policy&&typeof policy==='object'?policy:{})});
   const appointments = () => clone(f.box.oa2ReadRegistry_(ss).appointments);
   const queueRows = () => f.box.oa2ReadQueue_(ss,false);
   const appendEvent = row => history.appendRow(row);
@@ -39,6 +39,27 @@ function canceledFixture(options = {}) {
   f.appendEvent(change.event);return f;
 }
 function stableQueueFields(f,row=7) { const v=f.queue.state.matrix[row];return ['CS同事名','備註','來源','試做價','開單金額','總金額'].map(name=>v[arrivalHeaders.indexOf(name)]); }
+
+test('manual preparation saves only canonical source recovery intent; the next RPC applies the same withdrawal once',()=>{
+  const f=fixture();f.set('跟進狀態','待跟進');const registry=clone(f.registry.state.matrix),queue=clone(f.queue.state.matrix),history=clone(f.history.state.matrix),staff=stableQueueFields(f);
+  const staged=f.run({prepareOnly:true});assert.equal(staged.staged,true);assert.ok(f.get('Pending Appointment Snapshot'));
+  assert.deepEqual(clone(f.registry.state.matrix),registry);assert.deepEqual(clone(f.queue.state.matrix),queue);assert.deepEqual(clone(f.history.state.matrix),history);
+  const applied=f.run();assert.notEqual(applied.staged,true);assert.equal(f.appointments()[f.a.id].state,'canceled');assert.equal(f.get('Pending Appointment Snapshot'),'');assert.equal(f.queueRows()[0].outcome,'取消');assert.deepEqual(stableQueueFields(f),staff);
+  assert.equal(f.history.state.matrix.filter(row=>row[4]==='canceled').length,1);const accepted=clone(f.registry.state.matrix);f.run();assert.deepEqual(clone(f.registry.state.matrix),accepted);assert.equal(f.history.state.matrix.filter(row=>row[4]==='canceled').length,1);
+});
+
+test('lost prepare acknowledgement replays a canonical successor without replacing its reserved queue identity',()=>{
+  const f=canceledFixture();f.set('預約日期','2026-10-25');let lost=true;f.source.state.afterWrite=()=>{if(lost){lost=false;throw Error('Synthetic lost prepare reply');}};
+  assert.throws(()=>f.run({prepareOnly:true}),/lost prepare reply/);const intent=JSON.parse(f.get('Pending Appointment Snapshot')),nextId=intent.currentAppointmentId,next=intent.appointments.find(a=>a.id===nextId);
+  assert.ok(next.queueId);assert.equal(Object.keys(f.appointments()).length,1);assert.equal(f.queueRows().length,1);
+  f.run({prepareOnly:true});f.run();assert.equal(f.get('Appointment ID'),nextId);assert.equal(f.appointments()[nextId].queueId,next.queueId);assert.equal(f.queueRows().filter(q=>q.appointmentId===nextId).length,1);
+  const count=f.uuidCount();f.run();assert.equal(f.uuidCount(),count);assert.equal(Object.keys(f.appointments()).length,2);
+});
+
+test('a colleague outcome between preparation and application stays visible and deferred rather than overwritten',()=>{
+  const f=fixture();f.set('跟進狀態','待跟進');f.run({prepareOnly:true});f.setQueue('結果','已到店');f.setQueue('到店日期',f.a.date);const staff=stableQueueFields(f),result=f.run();
+  assert.ok(result.deferredQueueConflicts>0);assert.equal(f.queueRows()[0].outcome,'已到店');assert.deepEqual(stableQueueFields(f),staff);assert.equal(f.get('Pending Appointment Snapshot')!=='',true);
+});
 
 test('source booked→待跟進 retains identity and moves the existing pending queue entry to canceled history',()=>{
   const f=fixture(), input=f.source.state.matrix[1].slice(0,25), retained=stableQueueFields(f);

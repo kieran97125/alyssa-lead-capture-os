@@ -512,6 +512,15 @@ function oa3ManualFullSyncState_(props) {
     (['projection','complete'].includes(state.phase)&&state.accountIndex!==OMNI_ACCOUNT_TABS.length)||
     (state.phase==='complete'&&(state.projectionComplete!==true||state.attempt!==null))||
     (state.blockedReason&&(state.phase!=='identity'||state.reviewCount===0)))throw new Error('同步進度未能核實；已保留原有記錄，請聯絡系統管理員。');
+  // Existing v1 jobs can resume without resetting accepted Account coverage.
+  if(state.projectionStep===undefined)state.projectionStep=state.phase==='complete'?8:0;
+  if(state.accountPrepared===undefined)state.accountPrepared=false;
+  if(typeof state.accountPrepared!=='boolean'||(['projection','complete'].includes(state.phase)&&state.accountPrepared)||
+    (state.attempt&&state.attempt.operation!==undefined&&(state.attempt.phase!=='account'||!['prepare','apply'].includes(state.attempt.operation)||(state.attempt.operation==='apply')!==state.accountPrepared)))throw new Error('同步套用進度未能核實；已保留原有記錄。');
+  if(!Number.isInteger(state.projectionStep)||state.projectionStep<0||state.projectionStep>8||
+    (['identity','account'].includes(state.phase)&&state.projectionStep!==0)||
+    (state.phase==='complete'&&state.projectionStep!==8)||
+    (state.phase==='projection'&&state.projectionStep>=8))throw new Error('同步整理進度未能核實；已保留原有記錄。');
   return state;
 }
 function oa3ManualFullSyncView_(state) {
@@ -519,9 +528,10 @@ function oa3ManualFullSyncView_(state) {
   return {jobId:state.id,phase:state.phase,finished,completed:finished&&!needsReview,needsReview,
     blocked:!!state.blockedReason,reason:state.blockedReason||undefined,
     nativeState:state.blockedReason?'blocked':finished?(needsReview?'review':'complete'):'pending',coverageComplete,
-    reconciliationComplete:finished&&!needsReview&&state.projectionComplete,projectionComplete:state.projectionComplete,
+    reconciliationComplete:finished&&!needsReview&&state.projectionComplete,projectionComplete:state.projectionComplete,projectionStep:state.projectionStep||0,
+    projectionLabel:state.projectionStep<6?'補齊同事資料（'+OMNI_ACCOUNT_TABS[state.projectionStep]+'）':state.projectionStep===6?'更新預約顯示':'排序到店記錄',
     processedAccounts:state.processedAccounts.length,totalAccounts:OMNI_ACCOUNT_TABS.length,
-    accountLabel:OMNI_ACCOUNT_TABS[state.accountIndex]||'',registered:state.registered,recovered:state.recovered,
+    accountLabel:OMNI_ACCOUNT_TABS[state.accountIndex]||'',accountPrepared:state.accountPrepared===true,registered:state.registered,recovered:state.recovered,
     added:state.added,changed:state.changed,reviewCount:state.reviewCount,countsVerified:state.countsVerified,unknownCountSteps:state.unknownCountSteps,
     reviewAccounts:state.reviewByAccount.filter(value=>value>0).length,
     startedAt:state.startedAt,processedAt:state.processedAt.slice(),updatedAt:state.updatedAt,
@@ -543,7 +553,7 @@ function startBookedArrivalsFullSync() {
     const now=new Date().toISOString();state={version:1,id:Utilities.getUuid(),phase:'identity',accountIndex:0,
       processedAccounts:[],processedAt:[],reviewByAccount:OMNI_ACCOUNT_TABS.map(()=>0),reviewCount:0,
       registered:0,recovered:0,added:0,changed:0,countsVerified:true,unknownCountSteps:0,attempt:null,blockedReason:null,
-      projectionComplete:false,startedAt:now,updatedAt:now};
+      projectionComplete:false,projectionStep:0,accountPrepared:false,startedAt:now,updatedAt:now};
     return oa3ManualFullSyncSave_(startup.props,state);
   } catch (ignored) {
     console.log(JSON.stringify({handler:'manual_complete_booking_sync',phase:'start',state:'retry_pending'}));
@@ -574,12 +584,13 @@ function continueBookedArrivalsFullSync(jobId) {
       state.countsVerified=false;state.unknownCountSteps++;
       // An uncertain Account commit may have retained an allocating row after
       // its payload write. Recover that accepted prefix before outcome reads.
-      if(phase==='account'){state.phase='identity';phase='identity';}
+      if(phase==='account'&&state.attempt.operation!=='prepare'){state.phase='identity';phase='identity';}
     }
     state.blockedReason=null;state.attempt={phase,accountIndex:index,startedAt:new Date().toISOString()};
+    if(phase==='account')state.attempt.operation=state.accountPrepared?'apply':'prepare';
     oa3ManualFullSyncSave_(props,state);attemptPersisted=true;
     if(phase==='identity') {
-      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,manualRequested:true,recoverPendingAllocations:true,deferDisplay:true});
+      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,maxIdentityBatch:5,manualRequested:true,recoverPendingAllocations:true,deferDisplay:true});
       if(!result)throw new Error('Identity completion was not verified.');
       if(['registered','recovered','bookedAdded','review'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0)||!Array.isArray(result.accountFailures))throw new Error('Identity completion was not verified.');
       if(result.skipped){if(result.registered||result.recovered||result.bookedAdded)throw new Error('Identity result remains pending.');state.attempt=null;return Object.assign(oa3ManualFullSyncSave_(props,state),{busy:true,reason:'staff_priority'});}
@@ -589,22 +600,28 @@ function continueBookedArrivalsFullSync(jobId) {
       state.registered+=registered;state.recovered+=recovered;state.added+=added;
       const failures=Array.isArray(result.accountFailures)?result.accountFailures.filter(item=>item.accountIndex===index||item.accountIndex===-1).length:0;
       state.reviewByAccount[resultIndex]=Math.max(state.reviewByAccount[resultIndex],oa3ManualSyncCount_(result.review),failures);
-      // More than fifty accepted identities resume this same Account. A
+      // More than five accepted identities resume this same Account. A
       // no-progress pass leaves review visible and advances to normal handling.
       if(!registered&&!recovered&&!added)state.phase='account';
     } else if(phase==='account') {
       const previous=OA3_MANUAL_RUN_ACTIVE;let result;
-      try{OA3_MANUAL_RUN_ACTIVE=true;result=oa2ProcessAccount_(ss,ss.getSheetByName(account),'scan',null,false,undefined,{manualComplete:true});}
+      try{OA3_MANUAL_RUN_ACTIVE=true;result=oa2ProcessAccount_(ss,ss.getSheetByName(account),'scan',null,false,undefined,{manualComplete:true,prepareOnly:!state.accountPrepared});}
       finally{OA3_MANUAL_RUN_ACTIVE=previous;}
       if(!result||result.account!==account||!Array.isArray(result.errors)||result.errors.length||result.dryRun)throw new Error('Account completion was not verified.');
       if(['newQueue','changes','deferredQueueConflicts','deferredSourceRecords'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0))throw new Error('Account counts were not verified.');
       if(result.manualReviewCount!==undefined&&(!Number.isSafeInteger(result.manualReviewCount)||result.manualReviewCount<0))throw new Error('Account review was not verified.');
-      state.added+=oa3ManualSyncCount_(result.newQueue);state.changed+=oa3ManualSyncCount_(result.changes);
-      state.reviewByAccount[index]=Math.max(state.reviewByAccount[index],oa3ManualSyncCount_(result.manualReviewCount),oa3ManualSyncCount_(result.deferredQueueConflicts),oa3ManualSyncCount_(result.deferredSourceRecords));
-      state.processedAccounts.push(index);state.processedAt.push(new Date().toISOString());state.accountIndex++;
-      state.phase=state.accountIndex===OMNI_ACCOUNT_TABS.length?'projection':'identity';
+      if(!state.accountPrepared){
+        if(result.staged!==true)throw new Error('Source preparation was not verified.');
+        state.accountPrepared=true;
+      }else{
+        if(result.staged===true)throw new Error('Account application was not verified.');
+        state.added+=oa3ManualSyncCount_(result.newQueue);state.changed+=oa3ManualSyncCount_(result.changes);
+        state.reviewByAccount[index]=Math.max(state.reviewByAccount[index],oa3ManualSyncCount_(result.manualReviewCount),oa3ManualSyncCount_(result.deferredQueueConflicts),oa3ManualSyncCount_(result.deferredSourceRecords));
+        state.processedAccounts.push(index);state.processedAt.push(new Date().toISOString());state.accountIndex++;state.accountPrepared=false;
+        state.phase=state.accountIndex===OMNI_ACCOUNT_TABS.length?'projection':'identity';
+      }
     } else if(phase==='projection') {
-      // One final full display/CS projection and stable whole-record sort.
+      // One independently checkpointed projection operation per native RPC.
       // No source/registry snapshots or row positions cross RPC boundaries.
       // API mode is explicitly opt-in. Unknown API results must never enter a
       // native read/flush fallback, which can block on the dirty arrival grid.
@@ -616,17 +633,21 @@ function continueBookedArrivalsFullSync(jobId) {
         if(!Array.isArray(result.csReviewByAccount)||result.csReviewByAccount.length!==OMNI_ACCOUNT_TABS.length||result.csReviewByAccount.some(n=>!Number.isSafeInteger(n)||n<0))throw new Error('API projection receipt was not verified.');
         if(!Number.isSafeInteger(result.csReviewByAccount.reduce((sum,value)=>sum+value,0)))throw new Error('API projection review count was not verified.');
         result.csReviewByAccount.forEach((review,i)=>state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],review));
+        state.projectionStep=8;
       }else{
         // The canonical runtime admits one explicit Account at a time. The
         // migration-only initialRefresh privilege is never used by this button.
-        OMNI_ACCOUNT_TABS.forEach((name,i)=>{
-          const cs=oa2TryRefreshQueueCs_(ss,{documentLock:lock,accountNames:[name],includeHistory:i===0});
+        const i=state.projectionStep;
+        if(i<OMNI_ACCOUNT_TABS.length){
+          const cs=oa2TryRefreshQueueCs_(ss,{documentLock:lock,accountNames:[OMNI_ACCOUNT_TABS[i]],includeHistory:i===0});
           if(!cs||cs.ok!==true)throw new Error('Colleague projection was not verified.');
           state.reviewByAccount[i]=Math.max(state.reviewByAccount[i],oa3ManualSyncCount_(cs.review));
-        });
-        oa3RefreshDisplay_(ss,false);oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL));
+        }else if(i===6)oa3RefreshDisplay_(ss,false);
+        else if(i===7)oa3SortArrival_(ss.getSheetByName(OA2.ARRIVAL));
+        else throw new Error('Unknown projection step.');
+        state.projectionStep++;
       }
-      state.projectionComplete=true;state.phase='complete';
+      if(state.projectionStep===8){state.projectionComplete=true;state.phase='complete';}
     } else throw new Error('Unknown phase.');
     // Flush native writes before acknowledging the phase. A failed property
     // checkpoint or lost response is retried through the same durable worker.
@@ -733,8 +754,8 @@ function syncAllBookedArrivals() {
           : '同步尚未啟用，請聯絡系統管理員。');
         return;
       }
-      progress.max=result.totalAccounts+1;
-      progress.value=result.processedAccounts+(result.projectionComplete?1:0);
+      progress.max=result.totalAccounts+8;
+      progress.value=result.processedAccounts+(result.projectionComplete?8:(result.projectionStep||0));
       if(result.finished) {
         finished=true;cancelRetry();retry.hidden=true;
         status.textContent=result.needsReview
@@ -752,7 +773,7 @@ function syncAllBookedArrivals() {
         return;
       }
       const label=result.phase==='identity' ? '核對預約身份'
-        : result.phase==='account' ? '更新預約狀態及時間' : '整理到店記錄';
+        : result.phase==='account' ? (result.accountPrepared?'套用預約狀態及時間':'核對及保存同步進度') : (result.projectionLabel||'整理到店記錄');
       status.textContent=(result.accountLabel?result.accountLabel+'：':'')+label+'…';
       detail.textContent='已處理 '+result.processedAccounts+' / '+result.totalAccounts+
         ' 個分頁。關閉後可再開啟繼續。';
