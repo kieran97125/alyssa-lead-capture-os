@@ -126,3 +126,26 @@ The full native command passed after this follow-up, including real bounded-disp
 ### Master coverage acceptance
 
 A fresh independent metadata/formula/effective-cell read verified the retained master and identity-bridge contract. The current six Account references remain open-ended. The historical physical grid ends at the formula's inclusive row-7000 boundary, so there is no existing historical tail beyond it. Every current projected row had a consecutive source-row position and true row parity, eligibility, unique-identity and combined guard values; no cell error or master-capacity overflow was returned. This establishes the current inclusion/identity/freshness contract without replacing either formula. Source edits remain non-atomic across separate RPCs. Published application-report cache and authenticated acquisition operator acceptance are separate boundaries.
+
+
+## Native control acceptance and remaining cards
+
+The complete ordinary control returned after all six Account workers, six CS scopes, display and sort. It retained a terminal review result for existing source/queue evidence. The latest bounded-display/owned-sort controller was saved, reloaded and read back exactly (main `9aef169864b7b8ef60aa712c22b18994f6ed631af62d326bb730a73f2f90f2ab`; controller with the preserved probe `227ff8995a70a27022508b05b1130625bef7bee217b00fc0e0cc2d2d8ecf66a9`).
+
+A fresh normal-menu repeat also returned after all six sources and final projection. Its visible receipt reported `新增／補回 0 筆預約記錄` with verified counts, rather than the earlier unknown-count feedback. Existing review was retained. This is normal-control idempotence evidence, not a statement that every business-data conflict was resolved.
+
+Independent provider snapshots before/after finalization and after the repeat found no missing stable record, changed appointment binding, occupied-CS change, lost note, changed financial literal/zero, changed relative-formula layout or unkeyed protected-record loss. Available effective values matched; omitted effective-value slots were empty on both observations and no amount was inferred. Earlier retained allocation samples also preserved their original owners and protected fields. The grid remained at its original column count, with no temporary sort column left behind.
+
+Exact qualified software head `7e92f170a27ca4b671bf27508c1be5c2d21ebbbc` / tree `4571dc9bc7004dd26cd1bdaa95f483d7f9b34418` passed the full native command (schedule 76, missing/display/sort 189, identity 103, controller/sidebar 84, lifecycle/recovery 54, metadata/groups 12 and the remaining established suites). All five hosted workflows passed: CRM `43899235657`, design `43899235374`, acquisition management `43899235575`, foundation visuals `43899236116` and acquisition visuals `43899235508`. This subsequent documentation-only acceptance commit does not change those tested sources.
+
+| Card | Current state | Boundary |
+| --- | --- | --- |
+| SYNC-001 accepted allocations | Accepted original allocation prefixes recovered and independently read back | Preserve original appointments/queue entries; do not reopen closed history. Business evidence needing review stays separate. |
+| SYNC-002 ordinary manual control | Installed, full terminal receipt and normal-menu zero-addition repeat verified | Six-source coverage/presentation is accepted. Terminal review is not `reconciliationComplete`. |
+| SYNC-004 master/identity bridge | Current inclusion/coverage/parity/identity contract independently verified | No historical tail beyond the retained bound; no formula replacement; future concurrent edits remain non-atomic. |
+| OPS-SOURCE-REVIEW-001 | Open: existing source-state and deferred queue evidence | The UI reports reviewed source scopes, not unique customer conflicts. Global deferred evidence can affect several scopes. Review retained identity/provenance before any correction; do not change a historical outcome/date merely to clear a warning. |
+| OPERATOR-001 | Open: authenticated acquisition operator acceptance | The production application showed its invited-account secure-link boundary. Google editor access does not provide this application session. No authentication bypass or new credential request was used. |
+| SYNC-007 optional typed transports | Isolated qualification retained; production activation remains disabled | Both flags are false. The automatic-review rejection was not bypassed; the accepted repair uses native writes. |
+| PROVIDER-NATIVE-CACHE | Bounded manual work and recovery qualified; sustained latency remains observation work | A single blocking provider call cannot be interrupted by a JavaScript clock check. Retain checkpoints, source CAS, shared locking and the expiring foreground lease. |
+
+The temporary maintenance pause had already been explicitly removed. Verified full completion clears only the manual priority lease; an interrupted client lease expires automatically. No staff-edit handler or background trigger was deleted or disabled.
