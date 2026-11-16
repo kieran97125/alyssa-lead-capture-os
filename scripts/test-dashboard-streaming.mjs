@@ -110,7 +110,7 @@ try {
   assert.ok(output.includes('data-dashboard-state="loading"'));
   assert.ok(!output.includes("Source data ready"));
   assert.ok(!output.includes("Lead data ready"));
-  assert.equal(calls.audit.length, 1, "Navigation retains the audit read without a Dashboard banner");
+  assert.equal(calls.audit, undefined, "Retired monitoring never starts a badge database query");
 
   reads.source.resolve({ live: true, warnings: [] });
   await until(() => output.includes("Source data ready"), "Source panel while Lead is unresolved");
@@ -120,7 +120,6 @@ try {
   reads.lead.resolve({ live: false, warnings: ["Synthetic read timeout"] });
   await until(() => output.includes('data-dashboard-state="unavailable"'), "failed Lead displays availability state");
   assert.ok(!output.includes("Lead data ready"), "A failed snapshot must not render zero KPIs as data");
-  reads.audit.resolve(3);
   reads.work.reject(new Error("Synthetic notification timeout"));
   reads.creative.resolve(2);
   await until(() => output.includes('data-badges='), "notification failures remain isolated");
@@ -133,7 +132,7 @@ try {
   const Nav = restricted.load("src/components/alyssa/AppNav.tsx").AppNav;
   await Nav({ access: { source: "supabase_auth", accessLevel: "admin", workspaceRole: "member", modulePermissions: { lead_audit: false, calendar: false, creative_jobs: false } } });
   assert.deepEqual(restricted.calls, {}, "Denied module notification queries must not start");
-  await Nav({ access, leadAuditAlertCount: 0, workNotificationCount: 4, creativeNotificationCount: 2 });
+  await Nav({ access, workNotificationCount: 4, creativeNotificationCount: 2 });
   assert.deepEqual(restricted.calls, {}, "Provided notification counts must not trigger duplicate reads");
   const unauthenticated = setup({ source: "unauthenticated", accessLevel: null });
   await assert.rejects(unauthenticated.load("src/app/dashboard/page.tsx").default({}), /auth_unavailable/);
@@ -141,7 +140,7 @@ try {
   const unavailableAuth = setup(new WorkspaceAccessUnavailableError("Synthetic auth outage"));
   await assert.rejects(unavailableAuth.load("src/app/dashboard/page.tsx").default({}), /auth_unavailable/);
   assert.deepEqual(unavailableAuth.calls, {}, "Unverified auth service failures must not start business reads");
-  console.log("Dashboard streaming verified: shell/navigation available with stalled reads; normalized independent Source; shared command/audit reads; independent Operations; honest Lead unavailable state; optional notification failures and permission boundaries.");
+  console.log("Dashboard streaming verified: shell/navigation available with stalled reads; normalized independent Source; shared command read and no retired-audit query; independent Operations; honest Lead unavailable state; optional notification failures and permission boundaries.");
 } finally {
   if (envBefore === undefined) delete process.env.ALYSSA_E2E_FIXTURES;
   else process.env.ALYSSA_E2E_FIXTURES = envBefore;

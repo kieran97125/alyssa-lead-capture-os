@@ -78,6 +78,9 @@ export type FormSetting = {
   successRedirectUrl?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
+  revision?: number;
+  placementKind?: "unspecified" | "wix" | "landing_page" | "both";
+  placementUrl?: string | null;
 };
 
 export type FormBranchSetting = {
@@ -124,7 +127,44 @@ export type ConfigurationData = {
 
 type ConfigurationScopeOptions = {
   unscoped?: boolean;
+  strict?: boolean;
 };
+
+export class ConfigurationReadError extends Error {
+  constructor() { super("configuration_unavailable"); this.name = "ConfigurationReadError"; }
+}
+
+export type AcquisitionConfigurationResult =
+  | { available: true; config: ConfigurationData; source: "supabase" | "fixture" }
+  | { available: false; config: null; source: "unavailable"; message: string };
+
+export async function getAcquisitionConfigurationData(): Promise<AcquisitionConfigurationResult> {
+  try {
+    const config = await getConfigurationData({ strict: true });
+    return { available: true, config, source: hasSupabaseAdminEnv() ? "supabase" : "fixture" };
+  } catch {
+    return { available: false, config: null, source: "unavailable", message: "暫時未能讀取設定，請重新載入。" };
+  }
+}
+
+function verifyStrictCatalogueRead(
+  result: { data: unknown[] | null; error: unknown; count?: number | null },
+  strict: boolean | undefined,
+) {
+  if (strict && (result.error || !Array.isArray(result.data)
+    || !Number.isSafeInteger(result.count) || result.count !== result.data.length)) {
+    throw new ConfigurationReadError();
+  }
+}
+
+function managedFormMetadata(row: Record<string, unknown>) {
+  return {
+    revision: typeof row.revision === "number" && Number.isSafeInteger(row.revision) && row.revision > 0 ? row.revision : undefined,
+    placementKind: (["wix", "landing_page", "both"].includes(String(row.placement_kind))
+      ? row.placement_kind : "unspecified") as NonNullable<FormSetting["placementKind"]>,
+    placementUrl: typeof row.placement_url === "string" ? row.placement_url : null,
+  };
+}
 
 function scopeConfiguration(
   data: ConfigurationData,
@@ -307,27 +347,7 @@ function normalizeFormConversionMode(
     : "form_submit_pixel";
 }
 
-function moneyValue(value: number | string | null | undefined, currency = "HKD") {
-  const amount = typeof value === "string" ? Number(value) : value;
-  if (typeof amount !== "number" || !Number.isFinite(amount)) return "未設定";
-
-  return new Intl.NumberFormat("zh-HK", {
-    style: "currency",
-    currency,
-    maximumFractionDigits: 0,
-  }).format(amount);
-}
-
-export function packagePriceLabel(item: PackageSetting | null | undefined) {
-  if (!item) return "未設定";
-  const price =
-    item.promoPrice !== null && item.promoPrice !== ""
-      ? item.promoPrice
-      : item.originalPrice;
-  return `${item.name} · ${
-    price === null || price === "" ? "預約查詢" : moneyValue(price, item.currency)
-  }`;
-}
+export { packagePriceLabel } from "@/lib/acquisition/offerDisplay";
 
 export function getBrand(data: ConfigurationData, id: string | null | undefined) {
   return data.brands.find((item) => item.id === id) ?? null;
@@ -512,28 +532,33 @@ export async function getConfigurationData(
 ): Promise<ConfigurationData> {
   const allowedBrandIds = await getAllowedBrandIds(options);
   if (!hasSupabaseAdminEnv()) {
-    return scopeConfiguration(localConfiguration(), allowedBrandIds);
+    if (options.strict && process.env.ALYSSA_E2E_FIXTURES !== "1") throw new ConfigurationReadError();
+    const config = localConfiguration();
+    if (process.env.ALYSSA_E2E_FIXTURES === "1") {
+      config.forms = config.forms.map(form => ({ ...form, revision: 1, placementKind: "unspecified", placementUrl: null }));
+    }
+    return scopeConfiguration(config, allowedBrandIds);
   }
 
   try {
     const supabase = createSupabaseAdminClient();
     const [brands, treatments, packages, branches, forms] = await Promise.all([
-      supabase.from("brands").select("*").order("name", { ascending: true }),
+      supabase.from("brands").select("*", options.strict ? { count: "exact" } : {}).order("name", { ascending: true }),
       supabase
         .from("treatments")
-        .select("id,brand_id,name,slug,description,status")
+        .select("id,brand_id,name,slug,description,status", options.strict ? { count: "exact" } : {})
         .order("name", { ascending: true }),
       supabase
         .from("packages")
-        .select("*")
+        .select("*", options.strict ? { count: "exact" } : {})
         .order("created_at", { ascending: true }),
       supabase
         .from("branches")
-        .select("id,brand_id,name,slug,address,opening_hours,status")
+        .select("id,brand_id,name,slug,address,opening_hours,status", options.strict ? { count: "exact" } : {})
         .order("name", { ascending: true }),
       supabase
         .from("forms")
-        .select("*")
+        .select("*", options.strict ? { count: "exact" } : {})
         .order("form_name", { ascending: true }),
     ]);
 
@@ -542,6 +567,7 @@ export async function getConfigurationData(
     if (packages.error) throw packages.error;
     if (branches.error) throw branches.error;
     if (forms.error) throw forms.error;
+    for (const result of [brands, treatments, packages, branches, forms]) verifyStrictCatalogueRead(result, options.strict);
 
     const mappedForms: FormSetting[] = ((forms.data ?? []) as unknown[]).map((item) => {
       const row = item as Record<string, unknown>;
@@ -551,6 +577,7 @@ export async function getConfigurationData(
         brandId: String(row.brand_id ?? ""),
         formName: String(row.form_name ?? "Untitled form"),
         status: String(row.status ?? "active"),
+        ...managedFormMetadata(row),
         allowedDomains: asTextArray(row.allowed_domains),
         defaultTreatmentId:
           typeof row.default_treatment_id === "string" ? row.default_treatment_id : null,
@@ -573,9 +600,10 @@ export async function getConfigurationData(
     });
     const formBranches = await supabase
       .from("form_branches")
-      .select("id,form_id,branch_id,is_default,is_active,display_order,created_at")
+      .select("id,form_id,branch_id,is_default,is_active,display_order,created_at", options.strict ? { count: "exact" } : {})
       .order("display_order", { ascending: true })
       .order("created_at", { ascending: true });
+    verifyStrictCatalogueRead(formBranches, options.strict);
     const mappedFormBranches = formBranches.error
       ? fallbackFormBranches(mappedForms)
       : ((formBranches.data ?? []) as unknown[]).map((item) => {
@@ -600,9 +628,10 @@ export async function getConfigurationData(
     }
     const formPackages = await supabase
       .from("form_packages")
-      .select("id,form_id,package_id,is_default,is_active,display_order,created_at")
+      .select("id,form_id,package_id,is_default,is_active,display_order,created_at", options.strict ? { count: "exact" } : {})
       .order("display_order", { ascending: true })
       .order("created_at", { ascending: true });
+    verifyStrictCatalogueRead(formPackages, options.strict);
     const mappedFormPackages = formPackages.error
       ? fallbackFormPackages(mappedForms)
       : ((formPackages.data ?? []) as unknown[]).map((item) => {
@@ -693,6 +722,7 @@ export async function getConfigurationData(
           brandId: String(row.brand_id ?? ""),
           formName: String(row.form_name ?? "未命名表格"),
           status: String(row.status ?? "active"),
+          ...managedFormMetadata(row),
           allowedDomains: asTextArray(row.allowed_domains),
           defaultTreatmentId:
             typeof row.default_treatment_id === "string" ? row.default_treatment_id : null,
@@ -719,6 +749,7 @@ export async function getConfigurationData(
       landingPages: alyssaLandingPages,
     }, allowedBrandIds);
   } catch (error) {
+    if (options.strict) throw new ConfigurationReadError();
     console.error("configuration_data_read_failed", error);
     return scopeConfiguration(localConfiguration(), allowedBrandIds);
   }

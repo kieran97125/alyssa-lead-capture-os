@@ -54,7 +54,9 @@ assert.match(auditService, /aes-256-gcm/);
 assert.match(auditService, /LEAD_AUDIT_ENCRYPTION_KEY/);
 assert.match(auditService, /LEAD_AUDIT_DECRYPTION_KEYS_JSON/);
 assert.match(auditService, /status: "failed"/);
-assert.match(auditService, /risk_code: "sync_failed"/);
+assert.doesNotMatch(auditService, /\.from\("lead_sheet_audit_changes"\)/, "Retired monitoring must never append review alerts");
+assert.match(auditService, /p_changes: \[\]/);
+assert.doesNotMatch(auditService, /buildLeadAuditDiff/);
 
 // Exercise the production reader against a provider that caps every response.
 // The old .limit(50_000) reader returned only the first 1,000 baseline records.
@@ -149,7 +151,7 @@ assert.ok(
     sync.indexOf("reconcileMetrics(source, dataset, metrics)"),
   "audit snapshot must commit before derived reporting metrics"
 );
-assert.match(sync, /LeadAuditQuarantineError/);
+assert.doesNotMatch(sync, /LeadAuditQuarantineError|audit\.quarantined/);
 assert.match(sync, /status:\s*sourceStatus/);
 
 const permissions = files["src/lib/security/workspacePermissions.ts"];
@@ -162,10 +164,10 @@ assert.match(
   files["src/lib/security/routeBoundary.ts"],
   /requiresMasterOrExplicitLeadAuditAccess/
 );
-assert.match(files["src/app/settings/team/page.tsx"], /Lead 變更監察/);
-assert.match(files["src/components/alyssa/AppNavClient.tsx"], /leadAuditAlertCount/);
-assert.match(files["src/app/lead-audit/page.tsx"], /本次更新有咩改動/);
-assert.match(files["src/app/lead-audit/actions.ts"], /review_lead_sheet_audit_change/);
+assert.doesNotMatch(files["src/app/settings/team/page.tsx"], /Lead 變更監察/);
+assert.doesNotMatch(files["src/components/alyssa/AppNavClient.tsx"], /leadAuditAlertCount/);
+assert.match(files["src/app/lead-audit/page.tsx"], /redirect\("\/dashboard"\)/);
+assert.doesNotMatch(files["src/app/lead-audit/actions.ts"], /review_lead_sheet_audit_change|createSupabase/);
 const auditView = files["src/lib/marketing/leadSheetAuditView.ts"];
 assert.match(auditView, /ALYSSA_E2E_FIXTURES === "1"/);
 assert.doesNotMatch(
@@ -184,5 +186,7 @@ assert.deepEqual(cron.crons, [
 assert.match(files[".env.example"], /LEAD_AUDIT_ENCRYPTION_KEY=/);
 
 console.log(
-  "Lead Sheet encrypted version, anomaly, review, explicit-access, and daily cron contracts verified."
+  "Encrypted historical snapshots, private storage access, retired monitor routes and existing daily cron contracts verified."
 );
+
+await import("./test-lead-monitor-retirement.mjs");

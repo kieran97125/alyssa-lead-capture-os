@@ -1,0 +1,96 @@
+name: Acquisition Management Qualification
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/lib/acquisition/**"
+      - "src/lib/data/formManagement.ts"
+      - "src/lib/data/configuration.ts"
+      - "src/lib/data/landingPageStore.ts"
+      - "src/lib/data/publicFormConfig.ts"
+      - "src/lib/data/brandOperations.ts"
+      - "src/lib/marketing/leadSheetAudit*"
+      - "src/app/forms/**"
+      - "src/app/campaigns/**"
+      - "src/app/landing-pages/**"
+      - "src/components/acquisition/**"
+      - "src/components/alyssa/PublicLeadForm.tsx"
+      - "src/components/alyssa/AppNav*"
+      - "src/app/api/public/forms/**"
+      - "src/app/api/public/leads/**"
+      - "src/lib/security/routeBoundary.ts"
+      - "src/lib/security/workspacePermissions.ts"
+      - "public/embed/**"
+      - "supabase/migrations/*managed_form*.sql"
+      - "supabase/migrations/*landing_page_version_integrity.sql"
+      - "scripts/test-acquisition-*.mjs"
+      - "scripts/test-managed-form-management.mjs"
+      - "scripts/test-landing-page-store.mjs"
+      - "scripts/test-public-form-runtime.mjs"
+      - "scripts/test-lead-monitor-retirement.mjs"
+      - "scripts/test-acquisition-concurrency.sh"
+      - "scripts/fixtures/acquisition-db.sql"
+      - "scripts/fixtures/public-capture-db.sql"
+      - "supabase/tests/managed_forms.sql"
+      - "supabase/tests/landing_pages.sql"
+      - "package.json"
+      - "package-lock.json"
+      - ".github/workflows/acquisition-qualification.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  acquisition-contracts:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Verify form management, embed synchronization and monitoring boundaries
+        run: npm run verify:acquisition-management
+  acquisition-database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fixture-only-password
+          POSTGRES_DB: public_capture_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: fixture-only-password
+      PGDATABASE: public_capture_test
+      ACQUISITION_TEST_DATABASE_URL: postgresql://postgres:fixture-only-password@localhost:5432/public_capture_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated schema and deployed capture foundation
+        run: |
+          psql -v ON_ERROR_STOP=1 -f scripts/fixtures/public-capture-db.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261116033221_public_capture_receipts_and_delivery_outbox.sql
+          psql -v ON_ERROR_STOP=1 -f scripts/fixtures/acquisition-db.sql
+      - name: Apply ordered acquisition migrations
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261116053511_managed_form_integrity.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/20261116053718_landing_page_version_integrity.sql
+      - name: Verify form transactions, revisions, roles and lifecycle
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/managed_forms.sql
+      - name: Verify drafts, publication, replay and cross-brand boundaries
+        run: psql -v ON_ERROR_STOP=1 -f supabase/tests/landing_pages.sql
+      - name: Verify concurrent creation and optimistic editing
+        run: bash scripts/test-acquisition-concurrency.sh

@@ -55,7 +55,6 @@ const modules = [
   ["creative_jobs", "設計工作"],
   ["launchhub", "建立 Wix Form"],
   ["leads", "Leads"],
-  ["lead_audit", "Lead 變更監察"],
   ["crm", "CRM"],
   ["performance", "療程成效及同期對比"],
   ["data_sources", "資料來源"],

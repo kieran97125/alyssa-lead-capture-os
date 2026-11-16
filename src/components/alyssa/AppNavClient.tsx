@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { useEffect, useState, type ComponentType } from "react";
+import { useEffect, useState, useSyncExternalStore, type ComponentType } from "react";
 import {
   BarChart3,
   CalendarRange,
@@ -23,7 +23,6 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Settings2,
-  ShieldAlert,
   Table2,
   X,
   Orbit,
@@ -57,6 +56,22 @@ type NavigationGroup = {
 };
 
 const sidebarPreferenceKey = "alyssa-growth-os:sidebar-collapsed";
+const sidebarPreferenceEvent = "alyssa-sidebar-preference";
+let sidebarPreferenceFallback = false;
+
+function readSidebarPreference() {
+  try { return window.localStorage.getItem(sidebarPreferenceKey) === "1"; }
+  catch { return sidebarPreferenceFallback; }
+}
+
+function subscribeSidebarPreference(listener: () => void) {
+  window.addEventListener("storage", listener);
+  window.addEventListener(sidebarPreferenceEvent, listener);
+  return () => {
+    window.removeEventListener("storage", listener);
+    window.removeEventListener(sidebarPreferenceEvent, listener);
+  };
+}
 
 const navigationGroups: NavigationGroup[] = [
   {
@@ -79,12 +94,6 @@ const navigationGroups: NavigationGroup[] = [
     label: "客戶營運",
     items: [
       { href: "/leads", label: "Leads", icon: Inbox, module: "leads" },
-      {
-        href: "/lead-audit",
-        label: "Lead 變更監察",
-        icon: ShieldAlert,
-        module: "lead_audit",
-      },
       { href: "/crm", label: "CRM", icon: MessageCircleMore, module: "crm" },
     ],
   },
@@ -122,8 +131,8 @@ const navigationGroups: NavigationGroup[] = [
     label: "建立與設定",
     items: [
       {
-        href: "/forms",
-        label: "建立 Wix Form",
+        href: "/campaigns",
+        label: "表格及廣告頁",
         icon: FilePlus2,
         module: "launchhub",
         match: [
@@ -197,7 +206,6 @@ function SidebarContent({
   pathname,
   onNavigate,
   access,
-  leadAuditAlertCount,
   workNotificationCount,
   creativeNotificationCount,
   collapsed,
@@ -206,7 +214,6 @@ function SidebarContent({
   pathname: string;
   onNavigate: () => void;
   access: InternalAccessContext;
-  leadAuditAlertCount: number;
   workNotificationCount: number;
   creativeNotificationCount: number;
   collapsed: boolean;
@@ -234,9 +241,6 @@ function SidebarContent({
         .filter((item) => {
           if (item.personalOnly && !workbenchEnabled) return false;
           if (item.masterOnly && !isMaster) return false;
-          if (item.module === "lead_audit" && !isMaster && !isEmailMember) {
-            return false;
-          }
           if (!isEmailMember) return true;
           return hasWorkspaceModulePermission(
             {
@@ -248,9 +252,6 @@ function SidebarContent({
           );
         })
         .map((item) => {
-          if (item.module === "lead_audit" && leadAuditAlertCount > 0) {
-            return { ...item, badge: String(leadAuditAlertCount) };
-          }
           if (item.href === "/tasks" && workNotificationCount > 0) {
             return { ...item, badge: String(workNotificationCount) };
           }
@@ -349,38 +350,30 @@ function SidebarContent({
 
 export function AppNavClient({
   access,
-  leadAuditAlertCount = 0,
   workNotificationCount = 0,
   creativeNotificationCount = 0,
   workbenchEnabled = false,
 }: {
   access: InternalAccessContext;
-  leadAuditAlertCount?: number;
   workNotificationCount?: number;
   creativeNotificationCount?: number;
   workbenchEnabled?: boolean;
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
+  const collapsed = useSyncExternalStore(subscribeSidebarPreference, readSidebarPreference, () => false);
 
   useEffect(() => {
-    const saved = window.localStorage.getItem(sidebarPreferenceKey) === "1";
-    setCollapsed(saved);
-    document.documentElement.dataset.commandSidebar = saved
+    document.documentElement.dataset.commandSidebar = collapsed
       ? "collapsed"
       : "expanded";
-  }, []);
+  }, [collapsed]);
 
   function toggleDesktopSidebar() {
-    setCollapsed((current) => {
-      const next = !current;
-      window.localStorage.setItem(sidebarPreferenceKey, next ? "1" : "0");
-      document.documentElement.dataset.commandSidebar = next
-        ? "collapsed"
-        : "expanded";
-      return next;
-    });
+    const next = !collapsed;
+    sidebarPreferenceFallback = next;
+    try { window.localStorage.setItem(sidebarPreferenceKey, next ? "1" : "0"); } catch { /* Keep the preference for this browser session. */ }
+    window.dispatchEvent(new Event(sidebarPreferenceEvent));
   }
 
   return (
@@ -427,7 +420,6 @@ export function AppNavClient({
           pathname={pathname}
           onNavigate={() => setOpen(false)}
           access={access}
-          leadAuditAlertCount={leadAuditAlertCount}
           workNotificationCount={workNotificationCount}
           creativeNotificationCount={creativeNotificationCount}
           collapsed={collapsed}

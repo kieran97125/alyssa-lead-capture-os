@@ -526,23 +526,10 @@ export async function getLeadAuditView(input: {
 }
 
 export async function getLeadAuditNavigationSummary(
-  access: InternalAccessContext
+  _access: InternalAccessContext
 ) {
-  if (process.env.ALYSSA_E2E_FIXTURES === "1") return 2;
-  if (!hasSupabaseAdminEnv()) {
-    return 0;
-  }
-  try {
-    let query = createSupabaseAdminClient()
-      .from("lead_sheet_audit_changes")
-      .select("id", { count: "exact", head: true })
-      .eq("review_status", "open")
-      .in("severity", ["warning", "critical"]);
-    query = applyBrandScope(query, access);
-    const { count, error } = await query;
-    if (error) return 0;
-    return Math.min(count ?? 0, 99);
-  } catch {
-    return 0;
-  }
+  // Compatibility export only: the retired feature never reads old alerts or
+  // starts an optional database request during navigation.
+  void _access;
+  return 0;
 }

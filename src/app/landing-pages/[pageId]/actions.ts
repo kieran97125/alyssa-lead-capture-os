@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import {
   publishLandingPageFromEditorWithSlug,
   saveLandingPageDraftWithSlug,
+  type LandingPageMutationResult,
 } from "@/lib/data/landingPageStore";
 import { requireModuleAccess } from "@/lib/security/internalAccessServer";
 import type {
@@ -273,6 +274,10 @@ function parseEditorForm(formData: FormData): {
   const formId = readString(formData, "connectedFormId");
   const heroTitle = readString(formData, "heroTitle");
   const ctaText = readString(formData, "ctaText");
+  if (slug && (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(slug) || slug.length > 160)) {
+    return { title, slug, formId, content: {} as LandingPageContent, imageAssets: {} as LandingPageImageAssets,
+      error: "網址只可使用小寫英文字、數字和連字號，最多 160 個字元。" };
+  }
 
   if (!title) {
     return {
@@ -343,6 +348,13 @@ function parseEditorForm(formData: FormData): {
     ) as Array<{ question: string; answer: string }>,
   };
 
+  const suppliedUrls = [...formData.entries()].filter(([key, value]) =>
+    (key.endsWith("ImageUrl") || key.endsWith("ImageUrls") || key.endsWith("CtaUrls")) && String(value).trim());
+  for (const [, value] of suppliedUrls) {
+    try { const url = new URL(String(value).trim()); if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error(); }
+    catch { return { title, slug, formId, content, imageAssets: {} as LandingPageImageAssets, error: "圖片及按鈕連結請使用完整的 https 網址。" }; }
+  }
+
   const imageAssets: LandingPageImageAssets = {
     heroImageUrl: readOptionalUrl(formData, "heroImageUrl"),
     mobileHeroImageUrl: readOptionalUrl(formData, "mobileHeroImageUrl"),
@@ -360,68 +372,59 @@ function parseEditorForm(formData: FormData): {
   return { title, slug, formId, content, imageAssets, error: null };
 }
 
-export async function saveLandingPageDraftAction(formData: FormData) {
-  const pageId = String(formData.get("pageId") ?? "");
+function mutationMeta(formData: FormData, parsed: ReturnType<typeof parseEditorForm>) {
+  return { title: parsed.title, slug: parsed.slug || undefined, formId: parsed.formId || undefined,
+    expectedRevision: Number(readString(formData, "expectedRevision")), requestId: readString(formData, "requestId") };
+}
+
+async function authorizedPageId(formData: FormData) {
+  const pageId = readString(formData, "pageId");
   const access = await requireModuleAccess("landing_pages");
-  if (!access.allowed) {
-    redirect(
-      `/login?next=${encodeURIComponent(`/landing-pages/${pageId}`)}&error=permission_denied`
-    );
-  }
-  const parsed = parseEditorForm(formData);
+  if (!access.allowed) redirect("/login?next=" + encodeURIComponent("/landing-pages/" + pageId) + "&error=permission_denied");
+  return pageId;
+}
 
-  if (parsed.error) resultRedirect(pageId, parsed.error);
-
-  const result = await saveLandingPageDraftWithSlug(pageId, parsed.content, parsed.imageAssets, {
-    title: parsed.title,
-    slug: parsed.slug || undefined,
-    formId: parsed.formId || undefined,
-  });
-
+function refreshLandingPage(result: Awaited<ReturnType<typeof saveLandingPageDraftWithSlug>>, pageId: string, publicChanged: boolean) {
+  revalidatePath("/campaigns");
+  revalidatePath("/forms");
   revalidatePath("/landing-pages");
-  revalidatePath(`/landing-pages/${pageId}`);
-  revalidatePath(`/lp/${pageId}`);
-  if (result.ok && result.page?.slug && result.page.slug !== pageId) {
-    revalidatePath(`/landing-pages/${result.page.slug}`);
-    revalidatePath(`/lp/${result.page.slug}`);
+  revalidatePath("/landing-pages/" + pageId);
+  if (result.pageRecordId) revalidatePath("/landing-pages/" + result.pageRecordId);
+  if (result.ok && publicChanged) {
+    if (result.previousPublishedSlug) revalidatePath("/lp/" + result.previousPublishedSlug);
+    if (result.page?.slug) revalidatePath("/lp/" + result.page.slug);
   }
+}
 
-  resultRedirect(result.page?.slug ?? pageId, result.message);
+async function saveEditor(formData: FormData): Promise<{ pageId: string; result: LandingPageMutationResult }> {
+  const pageId = await authorizedPageId(formData);
+  const parsed = parseEditorForm(formData);
+  if (parsed.error) return { pageId, result: { ok: false as const, source: "supabase" as const, message: parsed.error } };
+  const result = await saveLandingPageDraftWithSlug(pageId, parsed.content, parsed.imageAssets, mutationMeta(formData, parsed));
+  refreshLandingPage(result, pageId, false);
+  return { pageId, result };
+}
+
+export async function saveLandingPageDraftAction(formData: FormData) {
+  const { pageId, result } = await saveEditor(formData);
+  if (!result.ok) return { ok: false as const, message: result.message };
+  resultRedirect(result.pageRecordId ?? pageId, result.message);
+}
+
+export async function saveAndPreviewLandingPageAction(formData: FormData) {
+  const { result } = await saveEditor(formData);
+  if (!result.ok || !result.pageRecordId || !result.versionId || !result.revision) {
+    return { ok: false as const, message: result.message };
+  }
+  redirect("/landing-pages/" + result.pageRecordId + "/preview?version=" + encodeURIComponent(result.versionId) + "&revision=" + result.revision);
 }
 
 export async function publishLandingPageAction(formData: FormData) {
-  const pageId = String(formData.get("pageId") ?? "");
-  const access = await requireModuleAccess("landing_pages");
-  if (!access.allowed) {
-    redirect(
-      `/login?next=${encodeURIComponent(`/landing-pages/${pageId}`)}&error=permission_denied`
-    );
-  }
+  const pageId = await authorizedPageId(formData);
   const parsed = parseEditorForm(formData);
-
-  if (parsed.error) resultRedirect(pageId, parsed.error);
-
-  const result = await publishLandingPageFromEditorWithSlug(
-    pageId,
-    parsed.content,
-    parsed.imageAssets,
-    {
-      title: parsed.title,
-      slug: parsed.slug || undefined,
-      formId: parsed.formId || undefined,
-    }
-  );
-
-  revalidatePath("/landing-pages");
-  revalidatePath(`/landing-pages/${pageId}`);
-
-  if (result.ok) {
-    revalidatePath(`/lp/${pageId}`);
-    if (result.page?.slug && result.page.slug !== pageId) {
-      revalidatePath(`/landing-pages/${result.page.slug}`);
-      revalidatePath(`/lp/${result.page.slug}`);
-    }
-  }
-
-  resultRedirect(result.page?.slug ?? pageId, result.message);
+  if (parsed.error) return { ok: false as const, message: parsed.error };
+  const result = await publishLandingPageFromEditorWithSlug(pageId, parsed.content, parsed.imageAssets, mutationMeta(formData, parsed));
+  refreshLandingPage(result, pageId, true);
+  if (!result.ok) return { ok: false as const, message: result.message };
+  resultRedirect(result.pageRecordId ?? pageId, result.message);
 }

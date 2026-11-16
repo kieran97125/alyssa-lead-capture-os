@@ -14,8 +14,12 @@ test("login survives refresh and navigation across Landing Pages and CRM", async
   await page.reload();
   await expectSessionToRemainAuthenticated(page);
 
+  await page.goto("/campaigns");
+  await expect(page.getByTestId("acquisition-management-screen")).toBeVisible();
+  await expectSessionToRemainAuthenticated(page);
+
   await page.goto("/landing-pages");
-  await expect(page.getByTestId("landing-pages-screen")).toBeVisible();
+  await expect(page.getByTestId("acquisition-management-screen")).toBeVisible();
   await expectSessionToRemainAuthenticated(page);
 
   await page.goto("/crm?tab=leads&range=all");

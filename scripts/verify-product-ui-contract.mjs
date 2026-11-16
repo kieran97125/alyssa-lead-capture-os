@@ -97,6 +97,7 @@ assert.doesNotMatch(
   /editorDebugItems|loadedFrom=|versionId=/
 );
 assert.match(files["src/components/crm/ReplyComposer.tsx"], /情境草稿/);
-assert.match(files["src/app/lead-audit/page.tsx"], /Lead 變更監察/);
+assert.match(files["src/app/lead-audit/page.tsx"], /redirect\("\/dashboard"\)/);
+assert.doesNotMatch(files["src/components/alyssa/AppNavClient.tsx"], /href: "\/lead-audit"|Lead 變更監察/);
 
 console.log("Production UI wording and real-feature contracts verified.");

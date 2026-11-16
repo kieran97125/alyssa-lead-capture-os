@@ -63,8 +63,11 @@ export function requiresMasterAccess(pathname: string) {
   );
 }
 
-export function requiresMasterOrExplicitLeadAuditAccess(pathname: string) {
-  return pathname === "/lead-audit" || pathname.startsWith("/lead-audit/");
+export function requiresMasterOrExplicitLeadAuditAccess(_pathname: string) {
+  // Historical bookmarks contain no audit view now; they redirect through the
+  // ordinary protected dashboard route instead of requiring retired access.
+  void _pathname;
+  return false;
 }
 
 export function getInternalRouteModule(pathname: string): InternalModule | null {
@@ -74,7 +77,7 @@ export function getInternalRouteModule(pathname: string): InternalModule | null 
   if (pathname.startsWith("/calendar")) return "calendar";
   if (pathname.startsWith("/data-sources")) return "data_sources";
   if (pathname.startsWith("/leads")) return "leads";
-  if (pathname.startsWith("/lead-audit")) return "lead_audit";
+  if (pathname.startsWith("/lead-audit")) return "dashboard";
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/performance")) return "performance";
   if (pathname.startsWith("/reports")) return "performance";

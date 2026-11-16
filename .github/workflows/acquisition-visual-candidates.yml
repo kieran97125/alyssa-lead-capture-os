@@ -1,0 +1,149 @@
+name: Acquisition Visual Candidates
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "src/components/acquisition/**"
+      - "src/app/e2e/acquisition-management/**"
+      - "src/components/alyssa/PublicLeadForm.tsx"
+      - "e2e/acquisition-management.spec.ts"
+      - "e2e/acquisition-management.spec.ts-snapshots/**"
+      - "package.json"
+      - ".github/workflows/acquisition-visual-candidates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: acquisition-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  visual-candidates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      CI: "true"
+      ALYSSA_E2E_FIXTURES: "1"
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      E2E_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      PLAYWRIGHT_NO_VIDEO: "1"
+
+    steps:
+      - name: Check out the candidate
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Build the isolated fixture application
+        id: build
+        run: npm run build
+
+      - name: Install the pinned official Chromium runtime
+        run: npx playwright install --with-deps chromium
+
+      - name: Start the local fixture application
+        id: serve
+        shell: bash
+        run: |
+          npm run start -- --hostname 127.0.0.1 > acquisition-server.log 2>&1 &
+          acquisition_server_pid=$!
+          echo "$acquisition_server_pid" > acquisition-server.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent http://127.0.0.1:3000/login > /dev/null; then
+              exit 0
+            fi
+            if ! kill -0 "$acquisition_server_pid" 2>/dev/null; then
+              cat acquisition-server.log
+              exit 1
+            fi
+            sleep 1
+          done
+          cat acquisition-server.log
+          exit 1
+
+      # These are candidates for human review, not automatic approval or commits.
+      # This command can update only the new acquisition fixture directory.
+      - name: Generate only the new acquisition fixture candidates
+        id: candidates
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/acquisition-candidates
+        run: >-
+          npx playwright test e2e/acquisition-management.spec.ts
+          --update-snapshots=all --workers=1 --retries=0
+          --output=test-results/acquisition-candidates
+
+      - name: Verify the candidate command did not rewrite other baselines
+        if: always() && steps.serve.outcome == 'success'
+        shell: bash
+        run: |
+          while IFS= read -r changed_path; do
+            case "$changed_path" in
+              e2e/acquisition-management.spec.ts-snapshots/*) ;;
+              *) echo "Unexpected tracked modification: $changed_path" >&2; exit 1 ;;
+            esac
+          done < <(git diff --name-only)
+          shopt -s nullglob
+          acquisition_candidates=(e2e/acquisition-management.spec.ts-snapshots/*.png)
+          if ((${#acquisition_candidates[@]})); then
+            sha256sum "${acquisition_candidates[@]}" > acquisition-candidate-sha256.txt
+          fi
+
+      - name: Verify new candidates without updating snapshots
+        if: success() && steps.candidates.outcome == 'success'
+        env:
+          PLAYWRIGHT_HTML_OUTPUT_DIR: playwright-report/acquisition-qualified
+        run: >-
+          npx playwright test e2e/acquisition-management.spec.ts
+          --update-snapshots=none --workers=1 --retries=0
+          --output=test-results/acquisition-qualified
+
+      - name: Upload new fixture candidates for human review
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acquisition-visual-candidates
+          path: |
+            e2e/acquisition-management.spec.ts-snapshots/*.png
+            acquisition-candidate-sha256.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Upload all qualification reports and server logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: acquisition-visual-reports
+          path: |
+            playwright-report/
+            test-results/
+            acquisition-server.log
+          if-no-files-found: warn
+          retention-days: 14
+
+      - name: Stop the fixture server
+        if: always()
+        shell: bash
+        run: |
+          if [[ -f acquisition-server.pid ]]; then
+            read -r acquisition_server_pid < acquisition-server.pid
+            kill "$acquisition_server_pid" 2>/dev/null || true
+          fi

@@ -7,12 +7,12 @@ import ts from "typescript";
 
 const require = createRequire(import.meta.url);
 function load(filename, mocks = {}) {
-  const module = { exports: {} };
+  const loaded = { exports: {} };
   const code = ts.transpileModule(readFileSync(new URL(`../${filename}`, import.meta.url), "utf8"), {
     fileName: filename, compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.ReactJSX },
   }).outputText;
-  new Function("require", "module", "exports", code)(name => mocks[name] ?? require(name), module, module.exports);
-  return module.exports;
+  new Function("require", "module", "exports", code)(name => mocks[name] ?? require(name), loaded, loaded.exports);
+  return loaded.exports;
 }
 const copyModule = load("src/lib/landingPages/publicCopy.ts");
 const base = { brandName: "GOS Beauty", treatmentName: "合成測試療程", packageName: "測試優惠", branchName: "測試分店", currency: "HKD" };
@@ -30,13 +30,15 @@ assert.ok(!JSON.stringify(copyModule.getPublicOfferCopy(base)).includes("首次"
 
 let config;
 let page;
+const formRenders = [];
+const trackingRenders = [];
 const mocks = {
   "next/headers": { cookies: async () => ({ get: () => undefined }), headers: async () => new Headers({ host: "public.example.test" }) },
   "next/navigation": { notFound: () => { throw new Error("not_found"); } },
-  "@/components/alyssa/MetaPixelPageView": { MetaPixelPageView: () => null },
-  "@/components/alyssa/PublicLpAttributionCapture": { PublicLpAttributionCapture: () => null },
+  "@/components/alyssa/MetaPixelPageView": { MetaPixelPageView: () => { trackingRenders.push("pixel"); return React.createElement("span", { "data-tracking": "pixel" }); } },
+  "@/components/alyssa/PublicLpAttributionCapture": { PublicLpAttributionCapture: () => { trackingRenders.push("attribution"); return React.createElement("span", { "data-tracking": "attribution" }); } },
   "@/components/alyssa/MotionReveal": { MotionReveal: ({ children }) => React.createElement("div", {}, children), MotionAnchor: ({ children, ...props }) => React.createElement("a", props, children) },
-  "@/components/alyssa/PublicLeadForm": { PublicLeadForm: ({ brandSlug }) => React.createElement("form", { "data-brand": brandSlug }) },
+  "@/components/alyssa/PublicLeadForm": { PublicLeadForm: props => { formRenders.push(props); return React.createElement("form", { "data-brand": props.brandSlug, "data-preview": props.previewMode ? "true" : undefined }); } },
   "@/lib/brandThemes": { publicThemeStyle: () => ({}), resolvePublicBrandTheme: ({ brandSlug }) => ({ key: brandSlug }) },
   "@/lib/data/configuration": { getConfigurationData: async () => config },
   "@/lib/attribution/publicAttributionCookie": {
@@ -47,18 +49,22 @@ const mocks = {
   "@/lib/data/landingPages": { getLandingPageContext: () => ({}), getResolvedLandingPageContentSections: () => [] },
   "@/lib/data/landingPageStore": { getCanonicalLandingPageSlug: value => value, getPublishedLandingPageBySlug: async () => page, isIneffableLandingPageSlug: () => false },
   "@/lib/legal/consent": { IMAGE_REFERENCE_FOOTER_NOTE: "", getBrandLegalProfile: value => value, getLegalFooterLinks: () => [], getLegalFooterText: value => value.brandName },
-  "@/lib/metaPixel/configuration": { resolveBrandPixelId: () => null },
+  "@/lib/metaPixel/configuration": { resolveBrandPixelId: () => "123456789" },
   "@/lib/landingPages/publicCopy": copyModule,
+  "@/lib/acquisition/previewFormConfig": load("src/lib/acquisition/previewFormConfig.ts"),
 };
+const view = load("src/components/acquisition/LandingPageView.tsx", mocks);
+mocks["@/components/acquisition/LandingPageView"] = view;
 const route = load("src/app/lp/[slug]/page.tsx", mocks);
 for (const [slug, name, promoPrice] of [["gos", "GOS Beauty", 888], ["ineffable", "Ineffable Beauty", 588], ["alyssa", "Alyssa Aesthetics", 780], ["am", "Alyssa Medical", 1280]]) {
   for (const image of ["", "/synthetic-offer.png"]) {
     config = {
       brands: [{ id: "b", name, slug }],
-      treatments: [{ id: "t", name: "測試療程", description: "已核實療程介紹" }],
-      packages: [{ id: "p", name: "合成優惠", promoPrice, originalPrice: 2000, currency: "HKD" }],
-      branches: [{ id: "r", name: "測試分店" }],
-      forms: [{ id: "f", brandId: "b", publicFormToken: "synthetic", defaultTreatmentId: "t", defaultPackageId: "p", defaultBranchId: "r" }],
+      treatments: [{ id: "t", brandId: "b", name: "測試療程", description: "已核實療程介紹", status: "active" }],
+      packages: [{ id: "p", treatmentId: "t", name: "合成優惠", promoPrice, originalPrice: 2000, currency: "HKD", status: "active" }],
+      branches: [{ id: "r", brandId: "b", name: "測試分店", status: "active" }],
+      forms: [{ id: "f", brandId: "b", publicFormToken: "synthetic", defaultTreatmentId: "t", defaultPackageId: "p", defaultBranchId: "r", packageSelectionMode: "fixed", allowedDomains: [] }],
+      formPackages: [], formBranches: [],
     };
     page = { id: "lp", slug: "synthetic-page", formId: "f", brandId: "b", treatmentId: "t", packageId: "p", branchId: "r", heroTitle: "", heroSubtitle: "", offerImageUrl: image };
     const element = await route.default({ params: Promise.resolve({ slug: page.slug }), searchParams: Promise.resolve({}) });
@@ -69,8 +75,22 @@ for (const [slug, name, promoPrice] of [["gos", "GOS Beauty", 888], ["ineffable"
     assert.ok(html.includes(`${name} 團隊會透過 WhatsApp 跟進確認。`));
     assert.ok(html.includes(`data-brand="${slug}"`), "Correct connected form keeps selected brand scope");
     assert.ok(html.includes("測試分店 · 測試療程"));
+    assert.ok(html.includes('data-tracking="pixel"') && html.includes('data-tracking="attribution"'), "Published rendering still mounts its configured tracking components");
+    assert.equal(formRenders.at(-1).previewMode, false);
     assert.ok(!html.includes("$388") && !html.includes("銅鑼灣") && !html.includes("首次體驗"));
     if (slug !== "ineffable") assert.ok(!html.includes("Ineffable Beauty"), "No other brand name leaks into the rendered campaign");
+    const trackingCount = trackingRenders.length;
+    const previewHtml = renderToStaticMarkup(React.createElement(view.LandingPageView, { page, config, preview: true,
+      initialQueryString: "?utm_source=preview-test", preservedPageUrl: "https://public.example.test/lp/preview?utm_source=preview-test",
+      initialAttributionCookieValue: "synthetic-cookie", inlineBootstrapAttribution: { utm_source: "preview-test" },
+      serverInitialAttribution: { utm_source: "preview-test" } }));
+    assert.ok(previewHtml.includes('data-testid="landing-page-preview-document"'));
+    assert.ok(previewHtml.includes(`登記 ${expectedPrice} 優惠`) && previewHtml.includes(`data-brand="${slug}"`), "Inert preview uses the real published presentation and connected brand/offer");
+    assert.ok(!previewHtml.includes("<script") && !previewHtml.includes("data-tracking="), "Authorized preview emits neither attribution-cookie bootstrap nor pixel/capture components even with tracking inputs");
+    assert.equal(trackingRenders.length, trackingCount, "Preview must not invoke tracking components");
+    assert.equal(formRenders.at(-1).previewMode, true, "Shared renderer must explicitly make the preview form inert");
+    assert.equal(formRenders.at(-1).initialConfig.brand.id, "b");
+    assert.equal(formRenders.at(-1).initialConfig.packages[0].promoPrice, promoPrice);
   }
 }
 page = { ...page, heroTitle: "由團隊核准嘅標題", heroSubtitle: "核准介紹", offerBadge: "已核准現客優惠", ctaText: "了解更多" };
@@ -78,4 +98,6 @@ const edited = renderToStaticMarkup(await route.default({ params: Promise.resolv
 for (const text of [page.heroTitle, page.heroSubtitle, page.offerBadge, page.ctaText]) assert.ok(edited.includes(text), "Configured copy always takes precedence over neutral defaults");
 page = null;
 assert.equal((await route.generateMetadata({ params: Promise.resolve({ slug: "missing" }) })).description, "療程優惠及登記詳情");
-console.log("PASS: actual SSR landing route derives every CTA, form heading, brand, price and location from four campaign contexts in both layouts; neutral zero/missing price and approved copy preserved.");
+console.log("PASS: actual SSR landing route/shared view derives CTA, form heading, brand, price and location from four campaign contexts in both layouts; approved copy/neutral prices preserved; inert previews render the real offer with no tracking scripts/components.");
+
+await import("./test-acquisition-helpers.mjs");

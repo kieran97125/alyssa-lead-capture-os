@@ -5,7 +5,7 @@ import { AppNavNotifications, ApplyNavigationCounts } from "@/components/alyssa/
 import { DashboardRegionState } from "./DashboardRegionState";
 
 const syntheticAccess = { source: "shared_password" as const, accessLevel: "master" as const };
-const syntheticCounts = { leadAuditAlertCount: 3, workNotificationCount: 2, creativeNotificationCount: 1 };
+const syntheticCounts = { workNotificationCount: 2, creativeNotificationCount: 1 };
 
 function DelayedFixtureBadges() {
   const [ready, setReady] = useState(false);

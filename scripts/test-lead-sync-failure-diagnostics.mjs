@@ -31,7 +31,10 @@ const diagnostic = { reason: "arrival_coverage", phase: "projection_validation",
 await module.exports.recordLeadSheetAuditFailure({ dataSourceId: "synthetic-source", startedAt: "2026-10-01T00:00:00Z", error: new Error("Synthetic safe failure"), diagnostic });
 assert.deepEqual(inserted[0].row.summary_json.syncFailure, diagnostic, "Reason and both attempt timings must survive in persistent audit storage");
 assert.equal(inserted[0].row.status, "failed");
-assert.equal(inserted[1].row.risk_code, "sync_failed");
+assert.equal(inserted.length, 1, "A real failed sync persists diagnostics without a retired row-monitor alert");
+assert.equal(inserted[0].table, "lead_sheet_audit_runs");
 await module.exports.recordLeadSheetAuditFailure({ dataSourceId: "synthetic-source", startedAt: "2026-10-01T00:00:00Z", error: new Error("Synthetic safe failure") });
-assert.deepEqual(inserted[2].row.summary_json, {}, "Legacy failure callers remain supported");
-console.log("PASS: failed sync audit persists classified reason, counts and both attempt timings without a schema change; legacy callers supported");
+assert.deepEqual(inserted[1].row.summary_json, {}, "Legacy failure callers remain supported");
+assert.equal(inserted.length, 2);
+assert.ok(inserted.every(write => write.table === "lead_sheet_audit_runs"));
+console.log("PASS: failed sync audit persists classified reason, counts and both attempt timings without creating retired monitoring alerts; legacy callers supported");

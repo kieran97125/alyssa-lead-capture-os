@@ -105,13 +105,6 @@ export type MarketingSyncResult = {
   failureReason?: LeadSheetSyncReason | "unclassified" | "sync_busy" | "sync_claim_failed" | "paused";
 };
 
-class LeadAuditQuarantineError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "LeadAuditQuarantineError";
-  }
-}
-
 async function getGoogleAccessToken() {
   return getGoogleSheetsOAuthAccessToken();
 }
@@ -655,12 +648,6 @@ export async function syncMarketingDataSource(
       );
       auditSnapshotAttempted = true;
       audit = leadFunnel.audit;
-      if (audit.quarantined) {
-        throw new LeadAuditQuarantineError(
-          audit.quarantineReason ||
-            "Lead Sheet 新版本已隔離，報表未被覆寫。"
-        );
-      }
       metrics = leadFunnel.dailyMetrics;
       treatmentMetrics = leadFunnel.treatmentMetrics;
       diagnostics = leadFunnel.diagnostics;
@@ -675,7 +662,7 @@ export async function syncMarketingDataSource(
     }
 
     const completedAt = new Date().toISOString();
-    const sourceStatus = audit && audit.openAlerts > 0 ? "warning" : "connected";
+    const sourceStatus = "connected";
     trace.phase = "source_completion";
     const { data: updatedSource, error: sourceUpdateError } = await supabase
       .from("marketing_data_sources")
@@ -737,11 +724,7 @@ export async function syncMarketingDataSource(
       auditOpenAlerts: audit?.openAlerts ?? 0,
       message:
         dataset === "lead_funnel"
-          ? `同步完成，共更新 ${metrics.length} 個每日指標及 ${treatmentMetrics.length} 個療程成效組合；Lead Audit 已保存版本${
-              audit?.openAlerts
-                ? `，有 ${audit.openAlerts} 項待核對警報`
-                : "，未發現需警報異常"
-            }。`
+          ? `同步完成，共更新 ${metrics.length} 個每日指標及 ${treatmentMetrics.length} 個療程成效組合。`
           : `同步完成，共更新 ${metrics.length} 個每日指標。`,
     };
   } catch (syncError) {
@@ -762,8 +745,7 @@ export async function syncMarketingDataSource(
     await supabase
       .from("marketing_data_sources")
       .update({
-        status:
-          syncError instanceof LeadAuditQuarantineError ? "warning" : "error",
+        status: "error",
         last_sync_at: failedAt,
         last_error_summary: message,
         updated_at: failedAt,

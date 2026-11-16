@@ -133,7 +133,7 @@ export function getWorkspaceModuleForPath(
   ) return "creative_jobs";
   if (pathname.startsWith("/data-sources")) return "data_sources";
   if (pathname.startsWith("/leads")) return "leads";
-  if (pathname.startsWith("/lead-audit")) return "lead_audit";
+  if (pathname.startsWith("/lead-audit")) return "dashboard";
   if (pathname.startsWith("/crm")) return "crm";
   if (pathname.startsWith("/performance")) return "performance";
   if (pathname.startsWith("/reports")) return "performance";

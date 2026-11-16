@@ -79,8 +79,9 @@ const mocks = {
   "@/lib/marketing/leadSheetAudit": {
     captureLeadSheetAuditSnapshot: async () => {
       events.push("audit");
-      return { runId: "synthetic-run", status: mode === "quarantine" ? "quarantined" : "completed",
-        openAlerts: 0, quarantined: mode === "quarantine", quarantineReason: "Synthetic quarantine" };
+      if (mode === "fail-snapshot") throw new Error("Synthetic snapshot transaction failure");
+      return { runId: "synthetic-run", status: "completed",
+        openAlerts: 0, quarantined: false, quarantineReason: null };
     },
     recordLeadSheetAuditFailure: async (input) => { events.push("audit-failure"); failures.push(input); },
   },
@@ -133,13 +134,13 @@ assert.equal(published[0].parsed.groups[0].bookDate, "2026-10-02");
 assert.equal(published[0].parsed.groups[0].showDate, "2026-10-04");
 assert.equal(published[0].parsed.groups[0].noShowDate, null, "Saved output must use registry authority, not the stale source no-show status");
 assert.equal(published[0].parsed.groups[0].rows[0].csRemark, "Synthetic private remark");
-for (const failure of ["missing-pending", "bad-coverage", "quarantine", "fail-daily", "fail-analysis", "fail-source-completion", "fail-publication"]) {
+for (const failure of ["missing-pending", "bad-coverage", "fail-snapshot", "fail-daily", "fail-analysis", "fail-source-completion", "fail-publication"]) {
   reset(failure);
   assert.equal((await sync.syncMarketingDataSource(source.id)).ok, false, failure);
   assert.equal(lastGood, "previous-good", `${failure}: retain last-good snapshot`);
   assert.equal(published.length, 0);
   if (failure !== "fail-publication") assert.ok(!events.includes("publish"));
-  if (["missing-pending", "bad-coverage", "quarantine"].includes(failure)) assert.ok(!events.includes("daily"));
+  if (["missing-pending", "bad-coverage", "fail-snapshot"].includes(failure)) assert.ok(!events.includes("daily"));
 }
 for (const recovery of ["transient-coverage", "timeout-once"]) {
   reset(recovery);

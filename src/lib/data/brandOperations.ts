@@ -112,18 +112,9 @@ function escapeHtmlAttr(value: string | number | null | undefined) {
     .replace(/>/g, "&gt;");
 }
 
-function resolvePixelEventValue(value: number | string | null | undefined) {
-  return value === null || value === undefined || value === "" ? 388 : value;
-}
-
 export function buildWixEmbedCode({
   form,
   brandSlug,
-  pixelId,
-  eventValue,
-  conversionMode,
-  successRedirectUrl,
-  pageViewOnEmbed = false,
   version = "stable",
 }: {
   form: FormSetting;
@@ -139,67 +130,19 @@ export function buildWixEmbedCode({
   const targetId = `launchhub-${safeBrandSlug}-form-${shortToken(
     form.publicFormToken
   )}`;
-  const isThankYouRedirect =
-    conversionMode === "thank_you_redirect" && Boolean(successRedirectUrl);
   const scriptVersion = version || "stable";
-  const lines = isThankYouRedirect
-    ? [
-        `<div class="ib-launchhub-form-card">`,
-        `  <div id="${escapeHtmlAttr(targetId)}"></div>`,
-        "",
-        `  <script`,
-      ]
-    : [`<div id="${escapeHtmlAttr(targetId)}"></div>`, "", `<script`];
-  const scriptIndent = isThankYouRedirect ? "    " : "  ";
-  const closingScript = isThankYouRedirect ? `  </script>` : `</script>`;
-
-  lines.push(
-    `${scriptIndent}src="${escapeHtmlAttr(
+  // Only the stable identity belongs in installed code. Offer, brand, Pixel and
+  // completion settings are supplied by the verified hosted form at runtime.
+  return [
+    `<div id="${escapeHtmlAttr(targetId)}"></div>`,
+    `<script`,
+    `  src="${escapeHtmlAttr(
       getPublicPathUrl(`/embed/alyssa-form.js?v=${scriptVersion}`)
     )}"`,
-    `${scriptIndent}data-form-token="${escapeHtmlAttr(form.publicFormToken)}"`,
-    `${scriptIndent}data-brand="${escapeHtmlAttr(safeBrandSlug)}"`,
-    `${scriptIndent}data-form-id="${escapeHtmlAttr(form.id)}"`
-  );
-
-  if (pixelId && conversionMode !== "thank_you_redirect") {
-    lines.push(`${scriptIndent}data-pixel-id="${escapeHtmlAttr(pixelId)}"`);
-    lines.push(
-      `${scriptIndent}data-pixel-event-value="${escapeHtmlAttr(
-        resolvePixelEventValue(eventValue)
-      )}"`
-    );
-    lines.push(`${scriptIndent}data-pixel-currency="HKD"`);
-    if (pageViewOnEmbed) {
-      lines.push(`${scriptIndent}data-pixel-pageview="true"`);
-    }
-  }
-
-  if (isThankYouRedirect) {
-    lines.push(
-      `${scriptIndent}data-pixel-event-value="${escapeHtmlAttr(
-        resolvePixelEventValue(eventValue)
-      )}"`
-    );
-    lines.push(`${scriptIndent}data-pixel-currency="HKD"`);
-    lines.push(`${scriptIndent}data-conversion-mode="thank_you_redirect"`);
-    lines.push(
-      `${scriptIndent}data-success-redirect-url="${escapeHtmlAttr(
-        successRedirectUrl
-      )}"`
-    );
-    lines.push(`${scriptIndent}data-lazy-load="true"`);
-    lines.push(`${scriptIndent}data-lazy-root-margin="600px"`);
-  }
-
-  lines.push(`${scriptIndent}data-target="#${escapeHtmlAttr(targetId)}">`);
-  lines.push(closingScript);
-
-  if (isThankYouRedirect) {
-    lines.push("", `</div>`);
-  }
-
-  return lines.join("\n");
+    `  data-form-token="${escapeHtmlAttr(form.publicFormToken)}"`,
+    `  data-target="#${escapeHtmlAttr(targetId)}">`,
+    `</script>`,
+  ].join("\n");
 }
 
 export function buildWixAttributionBridgeCode(
