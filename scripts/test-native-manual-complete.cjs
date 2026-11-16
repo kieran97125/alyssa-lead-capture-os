@@ -13,7 +13,8 @@ function fixture(){
   let serial=0;
   const lock={tryLock:()=>!control.busy,hasLock:()=>!control.busy,releaseLock:()=>{calls.release++;}};
   const ss={getSheetByName:name=>({getName:()=>name}),toast(){}};
-  b.PropertiesService={getDocumentProperties:()=>props,getScriptProperties:()=>({getProperty:key=>key==='OMNI_ARRIVAL_V2_ENABLED'?'1':null})};
+  const scriptProps=new Map([['OMNI_ARRIVAL_V2_ENABLED','1']]);
+  b.PropertiesService={getDocumentProperties:()=>props,getScriptProperties:()=>({getProperty:key=>scriptProps.get(key)??null,setProperty:(key,value)=>scriptProps.set(key,String(value)),deleteProperty:key=>scriptProps.delete(key)})};
   b.LockService={getDocumentLock:()=>lock};
   b.Utilities={getUuid:()=>`00000000-0000-4000-8000-${String(++serial).padStart(12,'0')}`};
   b.SpreadsheetApp={flush:()=>{calls.flush++;if(control.failFlush){control.failFlush=false;throw new Error('PRIVATE_CUSTOMER_10000001 Flush provider exception');}}};
@@ -56,7 +57,7 @@ function fixture(){
   const step=()=>b.continueBookedArrivalsFullSync(job().id);
   const toAccount=()=>{for(let i=0;i<30&&(job().phase==='identity'||!job().accountPrepared);i++)step();assert.equal(job().phase,'account');assert.equal(job().accountPrepared,true);};
   const finish=()=>{for(let i=0;i<100&&job().phase!=='complete';i++)step();assert.equal(job().phase,'complete','Bounded successive RPCs must eventually cover all six Accounts and final projection');return job();};
-  return{b,names,stored,writes,calls,control,logs,job,start,step,toAccount,finish};
+  return{b,names,stored,writes,calls,control,logs,job,start,step,toAccount,finish,scriptProps};
 }
 function test(name,run){try{run();tests.push(name);}catch(error){failures.push({name,error:error.message,stack:error.stack});}}
 function assertPendingProgress(f,before){
@@ -128,6 +129,23 @@ test('busy document lock leaves the pending phase and counts unchanged',()=>{
   const f=fixture();f.start();
   const before=f.stored.get(jobKey),calls=f.calls.identity.length;f.control.busy=true;f.control.staff=true;
   const result=f.step();assert.equal(result.busy,true);assert.equal(f.stored.get(jobKey),before);assert.equal(f.calls.identity.length,calls);assert.equal(f.calls.account.length,0);
+});
+
+test('an active manual client renews a bounded lease before lock admission so the next timer yields without spreadsheet access',()=>{
+  const f=fixture();f.control.busy=true;assert.equal(f.b.startBookedArrivalsFullSync().busy,true);
+  const until=Number(f.scriptProps.get('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL'));assert.ok(until>Date.now()&&until<=Date.now()+120000);
+  f.b.LockService.getDocumentLock=()=>{throw Error('The yielding timer must not acquire a lock');};f.b.oa2Spreadsheet_=()=>{throw Error('The yielding timer must not open a spreadsheet');};
+  const receipt=f.b.omniArrivalV2Timer();assert.equal(receipt.busy,true);assert.equal(receipt.reason,'manual_priority');assert.equal(f.writes.length,0);
+});
+for(const value of [String(Date.now()-1000),'not-a-number',String(Date.now()+86400000)])test('an expired or invalid manual lease cannot suppress background maintenance: '+value,()=>{
+  const f=fixture();f.scriptProps.set('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL',value);f.control.busy=true;const receipt=f.b.omniArrivalV2Timer();assert.equal(receipt.busy,true);assert.notEqual(receipt.reason,'manual_priority');
+});
+test('manual priority is rechecked after the timer obtains its lock and always releases that lock',()=>{
+  const f=fixture();let released=0;f.b.LockService.getDocumentLock=()=>({tryLock:()=>{f.scriptProps.set('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL',String(Date.now()+60000));return true;},releaseLock:()=>released++});
+  f.b.oa2Spreadsheet_=()=>{throw Error('A late manual admission must still stop spreadsheet access');};assert.equal(f.b.omniArrivalV2Timer().reason,'manual_priority');assert.equal(released,1);
+});
+test('verified full completion releases only the temporary manual lease',()=>{
+  const f=fixture();f.scriptProps.set('unrelated_property','preserve');f.start();f.finish();assert.equal(f.scriptProps.has('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL'),false);assert.equal(f.scriptProps.get('unrelated_property'),'preserve');assert.equal(f.scriptProps.get('OMNI_ARRIVAL_V2_ENABLED'),'1');
 });
 
 test('explicit manual sync progresses through identity and Accounts while an idle hint is active',()=>{

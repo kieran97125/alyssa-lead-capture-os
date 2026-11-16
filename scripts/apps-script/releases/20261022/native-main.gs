@@ -1621,6 +1621,12 @@ function omniArrivalTimerMaintenanceActive_() {
   const until=Number(PropertiesService.getScriptProperties().getProperty('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL')||0);
   return Number.isFinite(until)&&until>Date.now()&&until<=Date.now()+30*60*1000;
 }
+function omniArrivalManualLeaseActive_() {
+  const until=Number(PropertiesService.getScriptProperties().getProperty('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL')||0),now=Date.now();
+  return Number.isFinite(until)&&until>now&&until<=now+5*60*1000;
+}
+function omniArrivalRenewManualLease_() {PropertiesService.getScriptProperties().setProperty('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL',String(Date.now()+2*60*1000));}
+function omniArrivalClearManualLease_() {try{PropertiesService.getScriptProperties().deleteProperty('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL');}catch(ignored){console.log(JSON.stringify({handler:'manual_booking_admission',state:'lease_expires_automatically'}));}}
 function pauseOmniArrivalTimerForRecovery20261116() {
   const until=Date.now()+20*60*1000;PropertiesService.getScriptProperties().setProperty('OMNI_ARRIVAL_TIMER_MAINTENANCE_UNTIL',String(until));
   const result={paused:true,expiresAt:new Date(until).toISOString()};console.log(JSON.stringify(result));return result;
@@ -1630,8 +1636,10 @@ function resumeOmniArrivalTimerAfterRecovery20261116() {
 }
 function omniArrivalV2Timer() {
   if(!oa2Enabled_())return{enabled:false};if(omniArrivalTimerMaintenanceActive_())return{paused:true,reason:'maintenance_pause'};
+  if(omniArrivalManualLeaseActive_())return{busy:true,reason:'manual_priority'};
   if(omniStaffPriorityActive_())return omniStaffPriorityTimerSkip_();const lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return{busy:true};try{
     if(omniArrivalTimerMaintenanceActive_())return{paused:true,reason:'maintenance_pause'};
+    if(omniArrivalManualLeaseActive_())return{busy:true,reason:'manual_priority'};
     if(omniStaffPriorityActive_())return omniStaffPriorityTimerSkip_();
     const props=PropertiesService.getScriptProperties(),i=Number(props.getProperty(OA2.CURSOR)||0)%OMNI_ACCOUNT_TABS.length,ss=oa2Spreadsheet_();
     // Identity cannot wait behind another Account's display/sort/maintenance failure.

@@ -546,7 +546,7 @@ function oa3ManualFullSyncSave_(props,state) {
 function startBookedArrivalsFullSync() {
   let lock,locked=false;
   try {
-    const startup=oa3ManualStartup_({});lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return {busy:true,reason:'busy'};locked=true;
+    const startup=oa3ManualStartup_({});omniArrivalRenewManualLease_();lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return {busy:true,reason:'busy'};locked=true;
     if(!oa2Enabled_())return {blocked:true,reason:'disabled'};
     let state=oa3ManualFullSyncState_(startup.props);
     if(state&&state.phase!=='complete')return oa3ManualFullSyncView_(state);
@@ -569,13 +569,13 @@ function continueBookedArrivalsFullSync(jobId) {
   let lock,locked=false,phase='startup',attemptPersisted=false,flushAttempted=false,apiFinalization=false;
   try {
     if(typeof jobId!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(jobId))throw new Error('Invalid job.');
-    const startup=oa3ManualStartup_({}),props=startup.props;
+    const startup=oa3ManualStartup_({}),props=startup.props;omniArrivalRenewManualLease_();
     lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return {busy:true,reason:'busy'};locked=true;
     if(!oa2Enabled_())return {blocked:true,reason:'disabled'};
     const state=oa3ManualFullSyncState_(props);
     if(!state)return {stale:true,restartRequired:true,jobId:null};
     if(state.id!==jobId)return Object.assign({stale:true},oa3ManualFullSyncView_(state));
-    phase=state.phase;if(phase==='complete')return oa3ManualFullSyncView_(state);
+    phase=state.phase;if(phase==='complete'){omniArrivalClearManualLease_();return oa3ManualFullSyncView_(state);}
     const ss=startup.spreadsheet,index=state.accountIndex,account=OMNI_ACCOUNT_TABS[index];
     // A persisted attempt means the prior native call may have committed before
     // its response/checkpoint was lost. Converge safely, but never advertise an
@@ -653,6 +653,7 @@ function continueBookedArrivalsFullSync(jobId) {
     // checkpoint or lost response is retried through the same durable worker.
     flushAttempted=true;if(!apiFinalization)SpreadsheetApp.flush();state.attempt=null;
     const result=oa3ManualFullSyncSave_(props,state);
+    if(state.phase==='complete')omniArrivalClearManualLease_();
     console.log(JSON.stringify({handler:'manual_complete_booking_sync',phase,state:result.nativeState,processedAccounts:result.processedAccounts,needsReview:result.needsReview}));
     return result;
   } catch (ignored) {
