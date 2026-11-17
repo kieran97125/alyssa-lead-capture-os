@@ -5,7 +5,7 @@ import { getPrivateWorkbenchAccess } from "@/lib/workbench/server";
 import styles from "@/components/workbench/Workbench.module.css";
 
 export const dynamic = "force-dynamic";
-export const metadata = { title: "我的工作星圖 · Alyssa Growth OS", robots: { index: false, follow: false } };
+export const metadata = { title: "我的工作星圖 · Marketing OS", robots: { index: false, follow: false } };
 export default async function WorkbenchPage() {
   const { allowed, access, ownerId } = await getPrivateWorkbenchAccess();
   if (!allowed) notFound();

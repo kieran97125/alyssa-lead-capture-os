@@ -92,6 +92,9 @@ async function verifyCurrentInternalAccessUncached(): Promise<
       access: {
         source: result.source,
         accessLevel: result.accessLevel ?? "admin",
+        accountScope: "customer",
+        workspaceName: "Alyssa Group",
+        workspaceSlug: "alyssa",
       },
     };
   }

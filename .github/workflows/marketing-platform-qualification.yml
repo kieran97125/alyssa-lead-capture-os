@@ -1,0 +1,62 @@
+name: Marketing OS Platform Qualification
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/lib/security/**
+      - src/lib/platform/**
+      - src/app/platform/**
+      - src/app/login/**
+      - src/app/api/auth/**
+      - src/proxy.ts
+      - supabase/migrations/*marketing_os_customer_workspaces.sql
+      - supabase/tests/marketing_platform.sql
+      - scripts/fixtures/marketing-platform-db.sql
+      - scripts/test-marketing-platform.mjs
+      - scripts/test-marketing-login-concurrency.sh
+      - .github/workflows/marketing-platform-qualification.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  boundaries:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: node scripts/test-marketing-platform.mjs
+  database:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 8
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: fixture-only-password
+          POSTGRES_DB: marketing_platform_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      PGHOST: localhost
+      PGPORT: "5432"
+      PGUSER: postgres
+      PGPASSWORD: fixture-only-password
+      PGDATABASE: marketing_platform_test
+    steps:
+      - uses: actions/checkout@v4
+      - name: Prepare isolated customer schema
+        run: psql -v ON_ERROR_STOP=1 -f scripts/fixtures/marketing-platform-db.sql
+      - name: Apply and test platform candidate
+        run: |
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/*marketing_os_customer_workspaces.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/marketing_platform.sql
+          bash scripts/test-marketing-login-concurrency.sh

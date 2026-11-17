@@ -29,6 +29,7 @@ import {
   getWorkspaceMemberAccess,
   getWorkspaceModuleForPath,
 } from "@/lib/security/workspaceAuth";
+import { getPlatformOperatorAccess } from "@/lib/security/platformAccess";
 
 function cleanBaseUrl(value: string | undefined) {
   const cleaned = value?.trim().replace(/\/+$/, "");
@@ -208,6 +209,16 @@ export async function proxy(request: NextRequest) {
   if (
     isInternalRoute(request.nextUrl.pathname)
   ) {
+    if (request.nextUrl.pathname === "/platform" || request.nextUrl.pathname.startsWith("/platform/")) {
+      const auth = await refreshSupabaseAuth(request);
+      if (auth.unavailable) return redirectToLogin(request, "auth_unavailable", auth.response);
+      if (!auth.identity) return redirectToLogin(request, "platform_required", auth.response);
+      try {
+        const operator = await getPlatformOperatorAccess(auth.identity);
+        if (!operator) return redirectToLogin(request, "platform_required", auth.response);
+        return auth.response;
+      } catch { return redirectToLogin(request, "auth_unavailable", auth.response); }
+    }
     const emailAuthRequired = isWorkspaceEmailAuthRequired();
     let unavailableAuthResponse: NextResponse | undefined;
     if (emailAuthRequired || hasSupabaseAuthCookie(request)) {
@@ -234,6 +245,16 @@ export async function proxy(request: NextRequest) {
             return redirectToLogin(request, "permission_denied", auth.response);
           }
           return auth.response;
+        }
+        if (!member && !unavailableAuthResponse) {
+          try {
+            if (await getPlatformOperatorAccess(auth.identity)) {
+              const url = request.nextUrl.clone(); url.pathname = "/platform"; url.search = "";
+              const result = NextResponse.redirect(url, request.method === "GET" ? 307 : 303);
+              auth.response.cookies.getAll().forEach(cookie => result.cookies.set(cookie));
+              return result;
+            }
+          } catch { unavailableAuthResponse = auth.response; }
         }
       }
 

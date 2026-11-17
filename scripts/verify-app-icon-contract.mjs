@@ -28,12 +28,12 @@ const icon = await readFile(`${root}src/app/icon.svg`, "utf8");
 const manifest = await readFile(`${root}src/app/manifest.ts`, "utf8");
 const layout = await readFile(`${root}src/app/layout.tsx`, "utf8");
 
-assert.match(icon, />GO<\/text>/, "the browser icon must retain the recognizable GO monogram");
+assert.match(icon, />MO<\/text>/, "the browser icon must retain the Marketing OS monogram");
 assert.match(icon, /#5a2348/, "the icon must use the Growth OS primary color");
-assert.match(manifest, /short_name: "Growth OS"/);
+assert.match(manifest, /short_name: "Marketing OS"/);
 assert.match(manifest, /purpose: "maskable"/);
 assert.match(manifest, /start_url: "\/dashboard"/);
-assert.match(layout, /applicationName: "Alyssa Growth OS"/);
+assert.match(layout, /applicationName: "Marketing OS"/);
 assert.match(layout, /themeColor: "#5a2348"/);
 
 console.log("Growth OS favicon, install icon, and manifest contracts verified.");

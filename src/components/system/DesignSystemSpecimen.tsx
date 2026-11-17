@@ -24,7 +24,7 @@ export function DesignSystemSpecimen() {
               Design Quality Foundation v1
             </Badge>
             <h1 className="text-2xl font-black tracking-[-0.03em] sm:text-3xl">
-              Alyssa Growth OS Design System
+              Marketing OS Design System
             </h1>
             <p className="mt-2 max-w-xl text-sm font-medium leading-6 text-system-muted-foreground">
               共用 tokens、組件、視覺回歸同 accessibility gate，令每次 UI

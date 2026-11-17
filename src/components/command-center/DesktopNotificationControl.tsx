@@ -109,10 +109,10 @@ export function DesktopNotificationControl() {
           await syncSubscription(existing);
           if (!active) return;
           setStatus("enabled");
-          setMessage("桌面通知已開啟；關閉 Growth OS 分頁後仍可收到派 Job、Start Day、Due Day、留言及逾期提醒。");
+          setMessage("桌面通知已開啟；關閉 Marketing OS 分頁後仍可收到派 Job、Start Day、Due Day、留言及逾期提醒。");
         } else {
           setStatus("available");
-          setMessage("開啟後，即使 Growth OS 分頁已關閉，仍可收到真正桌面通知。");
+          setMessage("開啟後，即使 Marketing OS 分頁已關閉，仍可收到真正桌面通知。");
         }
       } catch (error) {
         if (!active) return;
@@ -139,7 +139,7 @@ export function DesktopNotificationControl() {
         setMessage(
           permission === "denied"
             ? "瀏覽器已封鎖通知；請喺網址列網站設定重新允許通知。"
-            : "你未允許通知；Growth OS 唔會再自動彈出權限視窗。"
+            : "你未允許通知；Marketing OS 唔會再自動彈出權限視窗。"
         );
         return;
       }

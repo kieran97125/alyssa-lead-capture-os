@@ -29,6 +29,10 @@ export type WorkspaceMemberAccess = InternalAccessContext & {
   modulePermissions: Record<string, boolean>;
   status: "invited" | "active" | "suspended" | "removed";
   isMaster: boolean;
+  accountScope: "customer";
+  workspaceId: string;
+  workspaceSlug: string;
+  workspaceName: string;
 };
 
 export class WorkspaceAccessUnavailableError extends Error {
@@ -57,7 +61,7 @@ async function lookupWorkspaceMemberAccess(
 ): Promise<WorkspaceMemberAccess | null> {
   const supabase = createSupabaseAdminClient();
   const columns =
-    "id,auth_user_id,email,full_name,workspace_role,status,is_master";
+    "id,auth_user_id,email,full_name,workspace_role,status,is_master,workspace_id";
 
   let { data: member, error } = await supabase
     .from("workspace_members")
@@ -94,6 +98,17 @@ async function lookupWorkspaceMemberAccess(
 
   const status = String(member.status || "invited") as WorkspaceMemberAccess["status"];
   if (status !== "invited" && status !== "active") return null;
+
+  const { data: workspace, error: workspaceError } = await supabase
+    .from("marketing_workspaces")
+    .select("id,slug,display_name,status,is_legacy_customer,isolation_status")
+    .eq("id", member.workspace_id)
+    .abortSignal(signal).retry(false).maybeSingle();
+  if (workspaceError) throw new WorkspaceAccessUnavailableError();
+  if (!workspace || workspace.status !== "active") return null;
+  // Additional customer admission remains closed until complete isolation is
+  // qualified. A control-plane record alone must never expose client data.
+  if (workspace.is_legacy_customer !== true) return null;
 
   const memberId = String(member.id);
   const shouldActivate =
@@ -150,6 +165,10 @@ async function lookupWorkspaceMemberAccess(
 
   return {
     source: "supabase_auth",
+    accountScope: "customer",
+    workspaceId: String(workspace.id),
+    workspaceSlug: String(workspace.slug),
+    workspaceName: String(workspace.display_name),
     accessLevel: isMaster ? "master" : "admin",
     memberId,
     email: identity.email,

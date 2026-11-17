@@ -224,11 +224,11 @@ function SidebarContent({
   const accountName = isEmailMember
     ? access.fullName || access.workspaceRole || "團隊成員"
     : isMaster
-      ? "系統擁有人"
-      : "系統管理員";
+      ? "客戶管理員"
+      : "客戶管理員";
   const accountDetail = isEmailMember
     ? access.email || "已驗證公司電郵"
-    : "安全管理登入";
+    : "SmartVolt · 客戶工作區登入";
   const avatarLabel = isEmailMember
     ? accountName.slice(0, 1).toUpperCase()
     : isMaster
@@ -280,15 +280,15 @@ function SidebarContent({
           href="/dashboard"
           onClick={onNavigate}
           className="command-brand-link"
-          aria-label={collapsed ? "Alyssa Growth OS 營運中心" : undefined}
-          title={collapsed ? "Alyssa Growth OS 營運中心" : undefined}
+          aria-label={collapsed ? "Marketing OS 營運中心" : undefined}
+          title={collapsed ? "Marketing OS 營運中心" : undefined}
         >
           <span className="command-brand-mark" aria-hidden="true">
-            GO
+            MO
           </span>
           <span className="command-brand-copy min-w-0">
-            <span className="command-brand-eyebrow">Alyssa Growth OS</span>
-            <span className="command-brand-title">營運中心</span>
+            <span className="command-brand-eyebrow">Marketing OS</span>
+            <span className="command-brand-title">{access.workspaceName || "客戶工作區"}</span>
           </span>
         </IntentPrefetchLink>
       </div>
@@ -336,7 +336,7 @@ function SidebarContent({
           <a
             href="/logout"
             className="command-logout-button"
-            aria-label="登出 Alyssa Growth OS"
+            aria-label="登出 Marketing OS"
             title="登出"
           >
             <LogOut size={16} />

@@ -298,7 +298,7 @@ function ReportPdfDocument({ snapshot }: { snapshot: ReportSnapshot }) {
   const main = selectedMainPerformance(snapshot);
 
   return (
-    <Document title={snapshot.title} author="Alyssa Growth OS" subject={`${snapshot.current.label} performance report`} keywords="Growth OS, marketing, performance">
+    <Document title={snapshot.title} author="Marketing OS" subject={`${snapshot.current.label} performance report`} keywords="Marketing OS, marketing, performance">
       <Page size={REPORT_PAGE_SIZE} style={[styles.page, { padding: 0, backgroundColor: theme.coverLight ? "#FFF9F4" : theme.dark, color: theme.coverLight ? theme.dark : "#FFFFFF" }]}>
         <View style={{ width: 15, height: 540, backgroundColor: theme.accent, position: "absolute", left: 0, top: 0 }} />
         <View style={{ paddingLeft: 70, paddingRight: 60, paddingTop: 58 }}>

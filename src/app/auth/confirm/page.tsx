@@ -24,7 +24,7 @@ export default async function AuthConfirmPage({
       <section className="mx-auto grid min-h-[calc(100vh-80px)] max-w-xl place-items-center">
         <div className="w-full rounded-[32px] border border-[#ead9cf] bg-white/92 p-8 shadow-[0_30px_90px_rgba(90,35,72,0.14)]">
           <p className="mb-5 text-center text-xs font-bold uppercase tracking-[0.22em] text-[#9a5d76]">
-            Alyssa Growth OS
+            Marketing OS
           </p>
           <AuthConfirmClient
             code={firstParam(query?.code)}

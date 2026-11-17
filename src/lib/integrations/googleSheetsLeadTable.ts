@@ -209,7 +209,7 @@ async function batchGetValues(input: {
         // Google's gzip contract requires both headers. Node fetch transparently
         // decompresses the response before json(), within the same deadline.
         "Accept-Encoding": "gzip",
-        "User-Agent": "alyssa-lead-capture-os (gzip)",
+        "User-Agent": "marketing-os (gzip)",
       },
       cache: "no-store",
       signal: input.signal,

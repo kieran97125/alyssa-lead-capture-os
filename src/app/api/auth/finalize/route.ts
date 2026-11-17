@@ -3,6 +3,7 @@ import { createSupabaseServerAuthClient } from "@/lib/supabase/authServer";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { safeInternalNextPath } from "@/lib/supabase/authConfig";
 import { getWorkspaceMemberAccess } from "@/lib/security/workspaceAuth";
+import { getPlatformOperatorAccess } from "@/lib/security/platformAccess";
 import { isSupabaseUnavailableError, SUPABASE_REQUEST_TIMEOUT_MS } from "@/lib/supabase/requestDeadline";
 
 export async function POST(request: Request) {
@@ -28,6 +29,10 @@ export async function POST(request: Request) {
       { activate: true }
     );
     if (!access) {
+      const operator = await getPlatformOperatorAccess({ userId: user.id, email });
+      if (operator) {
+        return NextResponse.json({ ok: true, redirectTo: "/platform" }, { headers: { "cache-control": "no-store" } });
+      }
       await supabaseAuth.authDeadline.run(() => supabaseAuth.auth.signOut()).catch(() => {});
       return NextResponse.json(
         { ok: false, error: "not_invited" },

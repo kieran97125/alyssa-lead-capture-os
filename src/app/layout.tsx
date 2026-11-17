@@ -2,14 +2,14 @@ import type { Metadata, Viewport } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  applicationName: "Alyssa Growth OS",
-  title: "Alyssa Growth OS",
+  applicationName: "Marketing OS",
+  title: "Marketing OS",
   description:
-    "Alyssa 多品牌營銷、Lead、預約及客戶營運系統。",
+    "Marketing OS 多品牌營銷、Lead、預約及客戶營運系統。",
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
-    title: "Growth OS",
+    title: "Marketing OS",
   },
   formatDetection: {
     telephone: false,
