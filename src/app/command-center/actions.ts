@@ -34,6 +34,7 @@ import {
   canManageMonthlyKpis,
   getWorkspaceRoleDefaultModules,
   normalizeWorkspaceRole,
+  hasCustomerOwnerAuthority,
 } from "@/lib/security/workspacePermissions";
 import { workspaceModuleKeys } from "@/lib/security/workspaceAuth";
 
@@ -126,7 +127,7 @@ async function ensureCommandCenterAction(
     return {
       ok: false as const,
       reason: "master_required" as const,
-      message: "呢項設定只限系統擁有人。",
+      message: "呢項設定只限工作區擁有人。",
     };
   }
   if (!hasSupabaseAdminEnv()) {
@@ -214,7 +215,7 @@ export async function upsertMonthlyPlanAction(formData: FormData) {
   if (!canManageMonthlyKpis(access.access)) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "只有 Master、Admin 或 Manager 可以修改品牌 KPI。",
+      message: "只有工作區擁有人、管理員或經理可以修改品牌 KPI。",
     });
   }
 
@@ -300,7 +301,7 @@ export async function saveDailySpendAction(formData: FormData) {
   ) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "只有 Master、Admin、Manager 或 Marketer 可以修改廣告費。",
+      message: "只有工作區擁有人、管理員、經理或市場營銷同事可以修改廣告費。",
     });
   }
 
@@ -694,7 +695,7 @@ export async function refreshDashboardDataAction(formData: FormData) {
     );
     redirectWithResult(returnPath, {
       ok: false,
-      message: "CS Lead Sheet 同步失敗，請稍後再試或通知 Master 檢查資料來源。",
+      message: "CS Lead Sheet 同步失敗，請稍後再試或通知工作區擁有人檢查資料來源。",
     });
   }
 
@@ -1165,10 +1166,10 @@ export async function updateWorkspaceMemberAccessAction(formData: FormData) {
     .select("id,email,full_name,workspace_role,status,is_master")
     .eq("id", memberId)
     .maybeSingle();
-  if (memberError || !member || member.is_master) {
+  if (memberError || !member || hasCustomerOwnerAuthority(member)) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "系統擁有人帳戶不可更改，或帳戶已不存在。",
+      message: "工作區擁有人帳戶不可更改，或帳戶已不存在。",
     });
   }
 
@@ -1320,13 +1321,13 @@ export async function setWorkspaceMemberStatusAction(formData: FormData) {
   const supabase = createSupabaseAdminClient();
   const { data: member } = await supabase
     .from("workspace_members")
-    .select("id,email,is_master,status")
+    .select("id,email,is_master,workspace_role,status")
     .eq("id", memberId)
     .maybeSingle();
-  if (!member || member.is_master || member.status === "removed") {
+  if (!member || hasCustomerOwnerAuthority(member) || member.status === "removed") {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "系統擁有人帳戶不可暫停，或帳戶已不存在。",
+      message: "工作區擁有人帳戶不可暫停，或帳戶已不存在。",
     });
   }
 
@@ -1378,13 +1379,13 @@ export async function revokeWorkspaceMemberAction(formData: FormData) {
   const supabase = createSupabaseAdminClient();
   const { data: member } = await supabase
     .from("workspace_members")
-    .select("id,email,is_master,status")
+    .select("id,email,is_master,workspace_role,status")
     .eq("id", memberId)
     .maybeSingle();
-  if (!member || member.is_master) {
+  if (!member || hasCustomerOwnerAuthority(member)) {
     redirectWithResult(returnPath, {
       ok: false,
-      message: "系統擁有人帳戶不可移除。",
+      message: "工作區擁有人帳戶不可移除。",
     });
   }
 

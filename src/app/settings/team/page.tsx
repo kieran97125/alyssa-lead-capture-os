@@ -163,7 +163,7 @@ export default async function TeamSettingsPage({
           <MemberSection
             eyebrow="帳戶狀態"
             title="已啟用帳戶"
-            description="包括系統擁有人及已完成首次身份確認嘅帳戶。"
+            description="包括工作區擁有人及已完成首次身份確認嘅帳戶。"
             members={activeMembers}
             snapshot={snapshot}
             emptyMessage="暫時未有已啟用成員帳戶。"
@@ -182,7 +182,7 @@ export default async function TeamSettingsPage({
             <MemberSection
               eyebrow="已停用"
               title="已暫停帳戶"
-              description="帳戶暫時不能登入；系統擁有人可重新啟用。"
+              description="帳戶暫時不能登入；工作區擁有人可重新啟用。"
               members={suspendedMembers}
               snapshot={snapshot}
               emptyMessage=""
@@ -325,14 +325,14 @@ function MemberCard({
           {member.isMaster ? (
             <em>
               <ShieldCheck size={12} />
-              系統擁有人
+              工作區擁有人
             </em>
           ) : null}
         </div>
         <div className="member-card-meta">
           <span>
             <small>角色</small>
-            <strong>{member.isMaster ? "系統擁有人" : roleLabel}</strong>
+            <strong>{member.isMaster ? "工作區擁有人" : roleLabel}</strong>
           </span>
           <span>
             <small>品牌</small>
@@ -471,7 +471,7 @@ function MemberCard({
       ) : (
         <p className="member-master-lock">
           <ShieldCheck size={13} />
-          系統擁有人永久保留全部控制權，不能停用或移除。
+          工作區擁有人保留此客戶工作區嘅管理權，不能停用或移除。
         </p>
       )}
     </article>
@@ -563,7 +563,7 @@ function memberDeliveryLabel(member: WorkspaceMember) {
   }
   if (member.inviteDeliveryStatus === "failed") return "上次寄送未成功";
   if (member.inviteDeliveryStatus === "suppressed") return "寄送已停止";
-  return member.isMaster ? "系統擁有人" : "尚未寄送";
+  return member.isMaster ? "工作區擁有人" : "尚未寄送";
 }
 
 function formatMemberTime(value: string) {

@@ -1,4 +1,5 @@
 import "server-only";
+import { hasCustomerOwnerAuthority } from "@/lib/security/workspacePermissions";
 
 import { getConfiguredBrands, type BrandSetting } from "@/lib/data/configuration";
 import { alyssaBrand } from "@/lib/data/alyssaConfig";
@@ -743,7 +744,7 @@ async function getPlanningRecords(
         fullName: textValue(row.full_name),
         role: String(row.workspace_role ?? "viewer"),
         status: String(row.status ?? "invited"),
-        isMaster: row.is_master === true,
+        isMaster: hasCustomerOwnerAuthority(row),
         inviteSentAt: textValue(row.invite_sent_at),
         inviteAcceptedAt: textValue(row.invite_accepted_at),
         lastSignInAt: textValue(row.last_sign_in_at),

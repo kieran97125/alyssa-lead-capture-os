@@ -15,6 +15,10 @@ assert.equal(bindings,3,'Unbound reserved operators are bound through an atomic 
 providerError=true;await assert.rejects(()=>access.getPlatformOperatorAccess(identity),Unavailable);providerError=false;
 const routes=transpile('src/lib/security/routeBoundary.ts',{});assert.equal(routes.isInternalRoute('/platform'),true);assert.equal(routes.isInternalRoute('/platform/customers'),true);
 const permissions=transpile('src/lib/security/workspacePermissions.ts',{});assert.equal(permissions.normalizeWorkspaceRole('platform_owner'),'viewer');
+assert.equal(permissions.hasCustomerOwnerAuthority({workspace_role:'owner',is_master:false}),true,'Customer owner keeps management protection without a platform flag');
+assert.equal(permissions.hasCustomerOwnerAuthority({workspace_role:'admin',is_master:true}),true,'Legacy compatibility remains customer-only');
+for(const role of ['manager','marketer','platform_owner']) assert.equal(permissions.hasCustomerOwnerAuthority({workspace_role:role,is_master:false}),false);
+
 const proxy=readFileSync(new URL('../src/proxy.ts',import.meta.url),'utf8');assert.ok(proxy.indexOf('getPlatformOperatorAccess(auth.identity)')<proxy.indexOf('verifySignedAdminSession('),'Platform gate runs before customer shared-password compatibility');
 const member=readFileSync(new URL('../src/lib/security/workspaceAuth.ts',import.meta.url),'utf8');assert.ok(member.includes('workspace.is_legacy_customer !== true'),'Unqualified additional customer data plane stays closed');
 let reservedMember=null,reservedOperator=null,workspace={status:'active',is_legacy_customer:true},admitted=true,inviteError=null,invites=0,otps=0;

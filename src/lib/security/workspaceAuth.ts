@@ -8,6 +8,7 @@ import {
   getWorkspaceModuleForPath,
   hasWorkspaceModulePermission,
   normalizeWorkspaceRole,
+  hasCustomerOwnerAuthority,
   workspaceModuleKeys,
   type WorkspaceModuleKey,
   type WorkspaceRole,
@@ -155,7 +156,7 @@ async function lookupWorkspaceMemberAccess(
   }
 
   const workspaceRole = normalizeWorkspaceRole(member.workspace_role);
-  const isMaster = member.is_master === true || workspaceRole === "owner";
+  const isMaster = hasCustomerOwnerAuthority(member);
   const modulePermissions = Object.fromEntries(
     (moduleResult.data ?? []).map((row) => [
       String(row.module_key),

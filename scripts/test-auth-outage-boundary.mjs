@@ -22,7 +22,8 @@ const deadline = load("src/lib/supabase/requestDeadline.ts");
 const permissions = load("src/lib/security/workspacePermissions.ts");
 const authConfig = load("src/lib/supabase/authConfig.ts");
 const identity = { userId: "synthetic-user", email: "synthetic@example.invalid" };
-const member = { id: "synthetic-member", auth_user_id: identity.userId, email: identity.email, workspace_role: "marketer", status: "active", is_master: false };
+const member = { id: "synthetic-member", auth_user_id: identity.userId, email: identity.email, workspace_role: "marketer", status: "active", is_master: false, workspace_id: "synthetic-workspace" };
+const customerWorkspace = { id: member.workspace_id, slug: "fixture-customer", display_name: "Fixture customer", status: "active", is_legacy_customer: true, isolation_status: "pending" };
 
 function workspaceFixture(respond) {
   const requests = [];
@@ -44,6 +45,7 @@ function workspaceFixture(respond) {
 }
 const json = (body, init) => new Response(JSON.stringify(body), init);
 const normalResponse = (request) => json(request.url.pathname.endsWith("/workspace_members") ? [member]
+  : request.url.pathname.endsWith("/marketing_workspaces") ? [customerWorkspace]
   : request.url.pathname.endsWith("/workspace_member_brand_access") ? [{ brand_id: "permitted-brand", status: "active" }]
   : [{ module_key: "dashboard", can_access: true }, { module_key: "settings", can_access: false }]);
 
@@ -54,6 +56,26 @@ test("workspace access retains exact allowed brands and module denials", async (
   assert.equal(workspace.canAccessWorkspaceModule(result, "dashboard"), true);
   assert.equal(workspace.canAccessWorkspaceModule(result, "settings"), false);
   assert.equal(result.isMaster, false);
+  assert.equal(result.accountScope, "customer");
+  assert.equal(result.workspaceId, member.workspace_id);
+});
+
+test("customer owner retains protected management rights without a platform-style master flag", async () => {
+  const { workspace } = workspaceFixture((request) => request.url.pathname.endsWith("/workspace_members")
+    ? json([{ ...member, workspace_role: "owner", is_master: false }]) : normalResponse(request));
+  const result = await workspace.getWorkspaceMemberAccess(identity);
+  assert.equal(result.accountScope, "customer");
+  assert.equal(result.isMaster, true);
+  assert.equal(workspace.canAccessWorkspaceModule(result, "settings"), true);
+});
+
+test("missing, suspended and additional unqualified customer workspaces cannot gain data access", async () => {
+  for (const candidate of [null, { ...customerWorkspace, status: "suspended" }, { ...customerWorkspace, is_legacy_customer: false, isolation_status: "qualified" }]) {
+    const { workspace, requests } = workspaceFixture((request) => request.url.pathname.endsWith("/marketing_workspaces")
+      ? json(candidate ? [candidate] : []) : normalResponse(request));
+    assert.equal(await workspace.getWorkspaceMemberAccess(identity, { activate: true }), null);
+    assert.ok(requests.every(request => request.method === "GET"));
+  }
 });
 
 test("missing, suspended, removed, mismatched members remain genuine denials", async () => {
@@ -78,14 +100,14 @@ test("permission lookup faults fail closed even for a valid member", async () =>
 
 test("invitation activation is awaited, bounded and never automatically retried", async () => {
   const { workspace, requests } = workspaceFixture((request) => request.method === "PATCH"
-    ? new Promise(() => {}) : json([{ ...member, status: "invited" }]));
+    ? new Promise(() => {}) : request.url.pathname.endsWith("/workspace_members") ? json([{ ...member, status: "invited" }]) : normalResponse(request));
   await assert.rejects(workspace.getWorkspaceMemberAccess(identity, { activate: true }), workspace.WorkspaceAccessUnavailableError);
   assert.equal(requests.filter((request) => request.method === "PATCH").length, 1);
   assert.equal(requests.at(-1).signal.aborted, true);
-  assert.equal(requests.length, 2, "never continue to permission reads or return access after activation timeout");
+  assert.equal(requests.length, 3, "never continue to permission reads or return access after activation timeout");
 });
 
-function proxyFixture({ authOutage = false, memberOutage = false, breakGlass = false, validSigned = false, signedLevel = "admin" } = {}) {
+function proxyFixture({ authOutage = false, memberOutage = false, breakGlass = false, validSigned = false, signedLevel = "admin", platformOperator = false } = {}) {
   const rotated = NextResponse.next();
   rotated.cookies.set("sb-synthetic-auth-token", "rotated", { httpOnly: true, sameSite: "lax" });
   const workspace = workspaceFixture(normalResponse).workspace;
@@ -104,6 +126,7 @@ function proxyFixture({ authOutage = false, memberOutage = false, breakGlass = f
       ...workspace,
       getWorkspaceMemberAccess: async () => { if (memberOutage) throw new workspace.WorkspaceAccessUnavailableError(); return null; },
     },
+    "@/lib/security/platformAccess": { getPlatformOperatorAccess: async () => platformOperator ? { scope: "platform", role: "owner" } : null },
   });
   return { proxy: loaded.proxy, rotated };
 }
@@ -131,6 +154,15 @@ test("outage never opens fallback; explicit breakglass still requires signature 
   assert.equal(await permitted.proxy(new NextRequest("https://synthetic.invalid/dashboard")), permitted.rotated);
   const denied = await permitted.proxy(new NextRequest("https://synthetic.invalid/data-sources"));
   assert.equal(new URL(denied.headers.get("location")).searchParams.get("error"), "master_required");
+});
+
+test("platform routing independently rejects customer master sessions and requires verified operator access", async () => {
+  const denied = await proxyFixture({ breakGlass: true, validSigned: true, signedLevel: "master" }).proxy(new NextRequest("https://synthetic.invalid/platform"));
+  assert.equal(new URL(denied.headers.get("location")).searchParams.get("error"), "platform_required");
+  const allowed = proxyFixture({ platformOperator: true });
+  assert.equal(await allowed.proxy(new NextRequest("https://synthetic.invalid/platform")), allowed.rotated);
+  const unavailable = await proxyFixture({ authOutage: true, platformOperator: true }).proxy(new NextRequest("https://synthetic.invalid/platform"));
+  assert.equal(new URL(unavailable.headers.get("location")).searchParams.get("error"), "auth_unavailable");
 });
 
 test("server access does not turn provider errors or configured invalid sessions into open access", async () => {
@@ -173,6 +205,7 @@ function finalizeFixture({ serviceError = false, invalid = false, missingMember 
     "@/lib/supabase/admin": { createSupabaseAdminClient: () => ({ from: () => pendingWrite }) },
     "@/lib/supabase/authConfig": authConfig,
     "@/lib/security/workspaceAuth": { getWorkspaceMemberAccess: async () => { if (memberError) throw new workspace.WorkspaceAccessUnavailableError(); return missingMember ? null : { memberId: member.id, email: identity.email, workspaceRole: "marketer" }; } },
+    "@/lib/security/platformAccess": { getPlatformOperatorAccess: async () => null },
     "@/lib/supabase/requestDeadline": deadline,
   });
   return { run: () => loaded.POST(new Request("https://synthetic.invalid/api/auth/finalize", { method: "POST", body: JSON.stringify({ next: "/dashboard?brandId=permitted-brand" }) })), get signOuts() { return signOuts; }, get writes() { return writes; }, deferred };

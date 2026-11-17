@@ -13,6 +13,7 @@ on:
       - supabase/tests/marketing_platform.sql
       - scripts/fixtures/marketing-platform-db.sql
       - scripts/test-marketing-platform.mjs
+      - scripts/test-auth-outage-boundary.mjs
       - scripts/test-marketing-login-concurrency.sh
       - .github/workflows/marketing-platform-qualification.yml
   workflow_dispatch:
@@ -30,6 +31,7 @@ jobs:
           cache: npm
       - run: npm ci
       - run: node scripts/test-marketing-platform.mjs
+      - run: node scripts/test-auth-outage-boundary.mjs
   database:
     runs-on: ubuntu-24.04
     timeout-minutes: 8
