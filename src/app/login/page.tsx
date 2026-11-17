@@ -86,18 +86,18 @@ export default async function LoginPage({
           )}
 
           {error === "auth_unavailable" && (
-            <a href={next} className="mt-4 inline-flex font-semibold text-primary underline underline-offset-4">
+            <a href={next} className="mt-4 inline-flex font-semibold text-system-primary underline underline-offset-4">
               重試進入工作區
             </a>
           )}
 
           <form action={requestLoginLinkAction} className="mt-6 grid gap-4">
             <input type="hidden" name="next" value={next}/>
-            <label className="grid gap-2 text-sm font-semibold text-foreground">電郵地址
-              <input name="email" type="email" autoComplete="email" maxLength={254} required className="h-11 rounded-[var(--radius-control)] border border-input bg-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-ring" placeholder="name@company.com"/>
+            <label className="grid gap-2 text-sm font-semibold text-system-foreground">電郵地址
+              <input name="email" type="email" autoComplete="email" maxLength={254} required className="h-11 rounded-[var(--radius-control)] border border-system-input bg-system-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-system-ring" placeholder="name@company.com"/>
             </label>
             <SystemSubmitButton density="comfortable" pendingLabel="寄送中…">寄出安全登入連結</SystemSubmitButton>
-            {sent && <p role="status" className="text-sm leading-6 text-muted-foreground">如果呢個電郵已獲授權，登入連結會寄到你嘅收件箱。請同時檢查垃圾郵件。</p>}
+            {sent && <p role="status" className="text-sm leading-6 text-system-muted-foreground">如果呢個電郵已獲授權，登入連結會寄到你嘅收件箱。請同時檢查垃圾郵件。</p>}
           </form>
 
           <div className="mt-6 flex gap-3 rounded-2xl border border-[#ead9cf] bg-[#fff9f3] px-4 py-4 text-[#5a2348]">

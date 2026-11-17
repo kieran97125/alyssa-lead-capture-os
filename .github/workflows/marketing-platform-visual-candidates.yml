@@ -3,6 +3,7 @@ on:
   pull_request:
     branches: [main]
     paths:
+      - src/components/workbench/**
       - src/components/platform/**
       - src/components/system/**
       - src/components/alyssa/AppNavClient.tsx
@@ -56,7 +57,7 @@ jobs:
           done
           exit 1
       - name: Generate candidates for human visual review
-        run: npx playwright test e2e/marketing-platform.spec.ts e2e/design-quality.spec.ts --update-snapshots=all --workers=1 --retries=0
+        run: npx playwright test e2e/marketing-platform.spec.ts e2e/design-quality.spec.ts e2e/workbench.spec.ts --update-snapshots=all --workers=1 --retries=0
       - name: Save candidates and test evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -65,6 +66,7 @@ jobs:
           path: |
             e2e/marketing-platform.spec.ts-snapshots/
             e2e/design-quality.spec.ts-snapshots/
+            e2e/workbench.spec.ts-snapshots/
             playwright-report/
             test-results/
             marketing-os-fixture.log

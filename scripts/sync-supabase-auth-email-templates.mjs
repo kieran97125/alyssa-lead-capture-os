@@ -18,7 +18,7 @@ function resolveProjectRef() {
   return match[1];
 }
 function validateRecipientFacingTemplate(name, html, expectedType) {
-  assert.match(html, /https:\/\/app\.beautytrialhk\.com\/auth\/confirm\?/, `${name} must open on the canonical Growth OS domain.`);
+  assert.match(html, /https:\/\/app\.beautytrialhk\.com\/auth\/confirm\?/, `${name} must open on the canonical Marketing OS domain.`);
   assert.match(html, /token_hash=\{\{ \.TokenHash \}\}/);
   assert.match(html, new RegExp(`type=${expectedType}(?:&|&amp;)`));
   assert.doesNotMatch(html, /\{\{ \.ConfirmationURL \}\}/);

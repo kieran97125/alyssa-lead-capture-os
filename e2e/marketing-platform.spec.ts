@@ -5,7 +5,7 @@ for(const [name,width,height] of [["desktop",1440,1000],["mobile",390,844]] as c
     await page.setViewportSize({width,height});
     await page.goto("/e2e/marketing-platform",{waitUntil:"networkidle"});
     await expect(page.getByRole("heading",{name:"客戶工作區",exact:true})).toBeVisible();
-    await expect(page.getByText("待開通",{exact:true})).toBeVisible();
+    await expect(page.getByText("待開通",{exact:true}).filter({visible:true})).toBeVisible();
     await expect(page.getByText("SmartVolt · 平台管理")).toBeVisible();
     await page.locator("summary").filter({hasText:"建立客戶工作區"}).focus();
     await page.keyboard.press("Enter");

@@ -514,7 +514,7 @@ Public routes remain accessible for campaigns, Wix embeds, and lead capture:
 - `/api/public/events`
 - `/api/public/thank-you`
 
-Internal admin routes are protected by a two-level Growth OS password gate:
+Marketing OS internal routes use invited customer email access with workspace roles. `/platform` independently requires a verified platform operator; a customer owner or shared password cannot grant platform access. The existing two-level customer password fallback is retained where enabled:
 
 - `/`
 - `/dashboard`

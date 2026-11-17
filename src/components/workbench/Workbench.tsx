@@ -138,7 +138,7 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
 
   return <div ref={root} className={styles.workbench} data-testid="private-workbench">
     <header className={styles.pageHeader} inert={focused}>
-      <div><p className={styles.eyebrow}><Orbit size={14} /> MY PRIVATE WORKSPACE <span>ALYSSA GROWTH OS</span></p><h1>我的工作星圖<span>把工作連成一個整體。</span></h1><p className={styles.intro}>品牌、團隊、Creative、CS 同系統，都喺你嘅工作軌道。</p></div>
+      <div><p className={styles.eyebrow}><Orbit size={14} /> MY PRIVATE WORKSPACE <span>MARKETING OS</span></p><h1>我的工作星圖<span>把工作連成一個整體。</span></h1><p className={styles.intro}>品牌、團隊、Creative、CS 同系統，都喺你嘅工作軌道。</p></div>
       <div className={styles.headerActions}><span className={styles.privatePill}><LockKeyhole size={12} /> Master 私人工作枱</span>
         <SystemButton density="compact" variant="outline" onClick={() => { download("Alyssa_Work_Galaxy.url", `[InternetShortcut]\r\nURL=${window.location.origin}/workbench\r\n`, "application/internet-shortcut"); setNotice("捷徑已下載。將檔案放到桌面，雙擊就可以打開。" ); }}><Download size={14} />桌面捷徑</SystemButton>
       </div>

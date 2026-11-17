@@ -302,7 +302,7 @@ function ReportPdfDocument({ snapshot }: { snapshot: ReportSnapshot }) {
       <Page size={REPORT_PAGE_SIZE} style={[styles.page, { padding: 0, backgroundColor: theme.coverLight ? "#FFF9F4" : theme.dark, color: theme.coverLight ? theme.dark : "#FFFFFF" }]}>
         <View style={{ width: 15, height: 540, backgroundColor: theme.accent, position: "absolute", left: 0, top: 0 }} />
         <View style={{ paddingLeft: 70, paddingRight: 60, paddingTop: 58 }}>
-          <Text style={{ fontSize: 9, fontWeight: 700, color: theme.coverLight ? theme.accent : theme.accentSoft, letterSpacing: 2 }}>ALYSSA GROWTH OS · MANAGEMENT REPORT</Text>
+          <Text style={{ fontSize: 9, fontWeight: 700, color: theme.coverLight ? theme.accent : theme.accentSoft, letterSpacing: 2 }}>MARKETING OS · MANAGEMENT REPORT</Text>
           {/* @react-pdf Image does not expose the HTML alt attribute. */}
           {/* eslint-disable-next-line jsx-a11y/alt-text */}
           <Image src={reportLogo(snapshot)} style={{ width: snapshot.selection.brands[0]?.logoKey === "ineffable" ? 190 : 155, height: snapshot.selection.brands[0]?.logoKey === "ineffable" ? 112 : 80, objectFit: "contain", objectPosition: "left", marginTop: 38 }} />

@@ -1441,7 +1441,8 @@ async function sendWorkspaceAccessEmail({
   let authUserId = existingAuthUserId;
   const invitationMetadata = {
     full_name: fullName || undefined,
-    workspace: "alyssa-growth-os",
+    product: "marketing-os",
+    workspace: "alyssa",
     workspace_role: workspaceRole,
   };
 
