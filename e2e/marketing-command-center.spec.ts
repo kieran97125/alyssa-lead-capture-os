@@ -1429,17 +1429,18 @@ test("Master owns invitations and active member permissions from one page", asyn
   ).toBeVisible();
 });
 
-test("login page cannot self-send an account email", async ({ page }) => {
+test("login offers reserved email access with customer and platform authority explained", async ({ page }) => {
   await page.goto("/logout");
 
-  await expect(
-    page.getByRole("heading", { name: "受邀帳戶登入" })
-  ).toBeVisible();
-  await expect(page.getByLabel("Company email")).toHaveCount(0);
-  await expect(
-    page.getByRole("button", { name: "寄出登入連結" })
-  ).toHaveCount(0);
-  await expect(page.getByText(/請聯絡系統管理員重新發送登入連結/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: "登入你的工作區" })).toBeVisible();
+  const email = page.getByLabel("電郵地址", { exact: true });
+  await expect(email).toBeVisible();
+  await expect(email).toHaveAttribute("type", "email");
+  await expect(email).toHaveAttribute("required", "");
+  await expect(page.getByRole("button", { name: "寄出安全登入連結" })).toBeVisible();
+  await expect(page.getByText(/請使用已獲邀請嘅電郵/)).toBeVisible();
+  await expect(page.getByText(/平台管理帳戶由智威特獨立授權/)).toBeVisible();
+  await expect(page.getByRole("link", { name: /註冊|建立帳戶/ })).toHaveCount(0);
 });
 
 test("Treatment Performance is a Lead Sheet projection with explicit metric contracts", async ({

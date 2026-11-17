@@ -1,11 +1,6 @@
 name: Marketing OS Project Identity
 on:
   workflow_dispatch:
-  push:
-    branches: [main, feat/marketing-os-saas-20261117]
-    paths:
-      - scripts/sync-marketing-os-project.mjs
-      - .github/workflows/marketing-os-project.yml
 permissions:
   contents: read
 concurrency:
