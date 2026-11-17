@@ -46,11 +46,11 @@ function workspaceFixture(respond) {
 const json = (body, init) => new Response(JSON.stringify(body), init);
 const normalResponse = (request) => json(request.url.pathname.endsWith("/workspace_members") ? [member]
   : request.url.pathname.endsWith("/marketing_workspaces") ? [customerWorkspace]
-  : request.url.pathname.endsWith("/workspace_member_brand_access") ? [{ brand_id: "permitted-brand", status: "active" }]
+  : request.url.pathname.endsWith("/workspace_member_brand_access") ? [{ brand_id: "permitted-brand", status: "active", workspace_id: member.workspace_id }]
   : [{ module_key: "dashboard", can_access: true }, { module_key: "settings", can_access: false }]);
 
 test("workspace access retains exact allowed brands and module denials", async () => {
-  const { workspace } = workspaceFixture(normalResponse);
+  const { workspace, requests } = workspaceFixture(normalResponse);
   const result = await workspace.getWorkspaceMemberAccess(identity);
   assert.deepEqual(result.brandIds, ["permitted-brand"]);
   assert.equal(workspace.canAccessWorkspaceModule(result, "dashboard"), true);
@@ -58,6 +58,17 @@ test("workspace access retains exact allowed brands and module denials", async (
   assert.equal(result.isMaster, false);
   assert.equal(result.accountScope, "customer");
   assert.equal(result.workspaceId, member.workspace_id);
+  const grantRead = requests.find(request => request.url.pathname.endsWith("/workspace_member_brand_access"));
+  assert.equal(grantRead.url.searchParams.get("workspace_id"), `eq.${member.workspace_id}`);
+  assert.equal(grantRead.url.searchParams.get("member_id"), `eq.${member.id}`);
+});
+
+test("foreign or missing workspace ownership in a returned Brand grant fails closed", async () => {
+  for (const workspace_id of [undefined, null, "foreign-workspace"]) {
+    const { workspace } = workspaceFixture(request => request.url.pathname.endsWith("/workspace_member_brand_access")
+      ? json([{ brand_id: "foreign-brand", status: "active", workspace_id }]) : normalResponse(request));
+    await assert.rejects(workspace.getWorkspaceMemberAccess(identity), workspace.WorkspaceAccessUnavailableError);
+  }
 });
 
 test("customer owner retains protected management rights without a platform-style master flag", async () => {

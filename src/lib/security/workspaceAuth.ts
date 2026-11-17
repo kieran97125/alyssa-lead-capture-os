@@ -138,8 +138,9 @@ async function lookupWorkspaceMemberAccess(
   const [brandResult, moduleResult] = await Promise.all([
     supabase
       .from("workspace_member_brand_access")
-      .select("brand_id,status")
+      .select("brand_id,status,workspace_id")
       .eq("member_id", memberId)
+      .eq("workspace_id", String(workspace.id))
       .eq("status", "active")
       .abortSignal(signal)
       .retry(false),
@@ -152,6 +153,9 @@ async function lookupWorkspaceMemberAccess(
   ]);
 
   if (brandResult.error || moduleResult.error) {
+    throw new WorkspaceAccessUnavailableError();
+  }
+  if ((brandResult.data ?? []).some(row => row.workspace_id !== workspace.id)) {
     throw new WorkspaceAccessUnavailableError();
   }
 

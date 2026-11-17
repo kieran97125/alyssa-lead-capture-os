@@ -11,6 +11,7 @@ on:
       - src/proxy.ts
       - supabase/migrations/*marketing_os_*.sql
       - supabase/tests/marketing_platform.sql
+      - supabase/tests/marketing_tenant_brand_access.sql
       - scripts/fixtures/marketing-platform-db.sql
       - scripts/test-marketing-platform.mjs
       - scripts/test-auth-outage-boundary.mjs
@@ -61,5 +62,7 @@ jobs:
         run: |
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/*marketing_os_customer_workspaces.sql
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/*marketing_os_audit_append_only.sql
+          psql -v ON_ERROR_STOP=1 --single-transaction -f supabase/migrations/*marketing_os_brand_membership_boundary.sql
           psql -v ON_ERROR_STOP=1 -f supabase/tests/marketing_platform.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/tests/marketing_tenant_brand_access.sql
           bash scripts/test-marketing-login-concurrency.sh
