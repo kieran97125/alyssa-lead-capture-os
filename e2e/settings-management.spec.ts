@@ -11,7 +11,7 @@ test("new brands never inherit another brand's global Pixel fallback", () => {
   ).toBe("");
 });
 
-test("Growth OS keeps grouped navigation and settings overview compact", async ({
+test("Marketing OS keeps grouped navigation and settings overview compact", async ({
   page,
 }) => {
   await page.goto("/settings", { waitUntil: "domcontentloaded" });

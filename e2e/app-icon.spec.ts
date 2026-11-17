@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-test("browser and install surfaces expose the Growth OS icon", async ({ page, request }) => {
+test("browser and install surfaces expose the Marketing OS icon", async ({ page, request }) => {
   await page.goto("/login");
 
   const iconHrefs = await page
@@ -18,8 +18,8 @@ test("browser and install surfaces expose the Growth OS icon", async ({ page, re
   expect(manifestResponse.ok()).toBe(true);
   const manifest = await manifestResponse.json();
   expect(manifest).toMatchObject({
-    name: "Alyssa Growth OS",
-    short_name: "Growth OS",
+    name: "Marketing OS",
+    short_name: "Marketing OS",
     start_url: "/dashboard",
     display: "standalone",
     theme_color: "#5a2348",

@@ -32,7 +32,7 @@ const treatmentAliases = [
   },
 ];
 
-test("Meta native Lead Form row is normalized into the Growth OS v3 A:W contract", () => {
+test("Meta native Lead Form row is normalized into the Marketing OS v3 A:W contract", () => {
   const rawRow = [
     "l:1000000000000001",
     "2026-08-21T10:25:49-05:00",

@@ -1688,8 +1688,8 @@ test("password session is labelled as system access rather than a verified Googl
 }) => {
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
-  await expect(page.getByText("系統擁有人")).toBeVisible();
-  await expect(page.getByText("安全管理登入")).toBeVisible();
+  await expect(page.getByText("客戶管理員")).toBeVisible();
+  await expect(page.getByText("SmartVolt · 客戶工作區登入")).toBeVisible();
   await expect(page.getByText("kieran.kwok@alyssa.hk")).toHaveCount(0);
 });
 
@@ -1718,7 +1718,7 @@ test("protected Google Sheets POST uses a safe redirect and Master guidance rend
     /\/login\?next=%2Fdata-sources&error=master_required/
   );
   await expect(
-    page.getByText(/呢個頁面只限系統擁有人使用/)
+    page.getByText(/呢個頁面只限客戶工作區管理員使用/)
   ).toBeVisible();
 });
 
