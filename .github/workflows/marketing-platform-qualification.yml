@@ -9,7 +9,7 @@ on:
       - src/app/login/**
       - src/app/api/auth/**
       - src/proxy.ts
-      - supabase/migrations/*marketing_os_customer_workspaces.sql
+      - supabase/migrations/*marketing_os_*.sql
       - supabase/tests/marketing_platform.sql
       - scripts/fixtures/marketing-platform-db.sql
       - scripts/test-marketing-platform.mjs
@@ -58,5 +58,6 @@ jobs:
       - name: Apply and test platform candidate
         run: |
           psql -v ON_ERROR_STOP=1 -f supabase/migrations/*marketing_os_customer_workspaces.sql
+          psql -v ON_ERROR_STOP=1 -f supabase/migrations/*marketing_os_audit_append_only.sql
           psql -v ON_ERROR_STOP=1 -f supabase/tests/marketing_platform.sql
           bash scripts/test-marketing-login-concurrency.sh

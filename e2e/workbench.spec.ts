@@ -88,7 +88,7 @@ test("create planet, edit relation, complete a job, undo and export desktop shor
   await expect(page.getByRole("checkbox", { name: "標記完成：確認拍攝日期", exact: true })).not.toBeChecked();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "桌面捷徑", exact: true }).click();
-  expect((await download).suggestedFilename()).toBe("Alyssa_Work_Galaxy.url");
+  expect((await download).suggestedFilename()).toBe("Marketing_OS_Work_Galaxy.url");
 });
 
 test("3D positions, optional inspector and full-width focus remain usable", async ({ page }) => {
