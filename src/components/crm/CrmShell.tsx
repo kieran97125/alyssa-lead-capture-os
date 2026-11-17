@@ -40,7 +40,7 @@ export function CrmShell({
       <div className="flex min-h-screen">
         <aside className="hidden w-[218px] shrink-0 border-r border-[var(--command-border)] bg-white text-[var(--command-navy)] lg:flex lg:flex-col">
           <div className="border-b border-[var(--command-border)] px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--command-accent-strong)]">Alyssa LeadOps</p>
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[var(--command-accent-strong)]">Marketing OS CRM</p>
             <h1 className="mt-1 text-[15px] font-black">CRM</h1>
           </div>
           <nav className="flex-1 space-y-0.5 px-2.5 py-3">

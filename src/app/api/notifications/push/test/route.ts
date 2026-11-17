@@ -59,7 +59,7 @@ export async function POST() {
     brand_id: brand.id,
     notification_type: "desktop_test",
     title: "桌面通知測試成功",
-    body: "Alyssa Growth OS Web Push 已經連接呢部裝置。",
+    body: "Marketing OS Web Push 已經連接呢部裝置。",
     dedupe_key: `desktop_test:${verified.access.memberId}:${crypto.randomUUID()}`,
   });
   if (error) {

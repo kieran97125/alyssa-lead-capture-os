@@ -171,7 +171,7 @@ export async function resyncTreatmentMappingAction(formData: FormData) {
   redirectBack(path, {
     ok: sync.ok,
     message: sync.ok
-      ? "Lead Sheet 已按 Growth OS 最新療程分類規則重新同步。"
+      ? "Lead Sheet 已按 Marketing OS 最新療程分類規則重新同步。"
       : `重新同步失敗：${sync.message}`,
   });
 }

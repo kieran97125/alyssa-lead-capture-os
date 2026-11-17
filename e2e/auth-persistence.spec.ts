@@ -29,7 +29,7 @@ test("login survives refresh and navigation across Landing Pages and CRM", async
 
 test("sidebar exposes logout and clears the active session", async ({ page }) => {
   await page.goto("/dashboard");
-  const logout = page.getByRole("link", { name: "登出 Alyssa Growth OS" });
+  const logout = page.getByRole("link", { name: "登出 Marketing OS" });
 
   await expect(logout).toBeVisible();
   await expect(logout).toHaveAttribute("href", "/logout");

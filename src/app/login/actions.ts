@@ -1,6 +1,9 @@
 "use server";
 
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { z } from "zod";
+import { requestReservedLoginLink } from "@/lib/security/loginLink";
 import {
   isAdminPasswordGateEnabled,
 } from "@/lib/security/internalAccess";
@@ -36,4 +39,16 @@ export async function loginAction(formData: FormData) {
   }
 
   redirect(next);
+}
+
+export async function requestLoginLinkAction(formData: FormData) {
+  const next = safeInternalNextPath(String(formData.get("next") ?? ""));
+  const email = z.email().max(254).safeParse(String(formData.get("email") ?? "").trim().toLowerCase());
+  if (!email.success) redirect(`/login?next=${encodeURIComponent(next)}&error=invalid_email`);
+  try {
+    const incoming = await headers();
+    const ip = (incoming.get("x-vercel-forwarded-for") || incoming.get("x-forwarded-for") || "unknown").split(",")[0].trim().slice(0,80);
+    await requestReservedLoginLink(email.data, ip, next);
+  } catch { redirect(`/login?next=${encodeURIComponent(next)}&error=email_send_failed`); }
+  redirect(`/login?next=${encodeURIComponent(next)}&sent=1`);
 }

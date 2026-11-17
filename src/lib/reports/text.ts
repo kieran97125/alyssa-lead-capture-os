@@ -170,7 +170,7 @@ export function renderReportText(snapshot: ReportSnapshot) {
     `Metric Contract：${snapshot.metricContractVersion}`,
     `Snapshot ID：${snapshot.snapshotId}`,
     "",
-    "— Growth OS"
+    "— Marketing OS"
   );
 
   return `${lines.join("\n")}\n`;

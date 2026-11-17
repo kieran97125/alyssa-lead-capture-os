@@ -1,4 +1,4 @@
-name: Alyssa CRM Playwright
+name: Marketing OS Playwright
 
 on:
   pull_request:
@@ -37,7 +37,7 @@ jobs:
       - name: Install Chromium
         run: npx playwright install --with-deps chromium
 
-      - name: Run Alyssa CRM acceptance tests
+      - name: Run Marketing OS acceptance tests
         run: npm run test:e2e
 
       - name: Upload Playwright report

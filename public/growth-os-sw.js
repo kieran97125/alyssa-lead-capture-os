@@ -1,4 +1,4 @@
-/* Alyssa Growth OS Web Push service worker. */
+/* Marketing OS Web Push service worker. */
 
 self.addEventListener("install", () => {
   self.skipWaiting();
@@ -14,12 +14,12 @@ self.addEventListener("push", (event) => {
     payload = event.data ? event.data.json() : {};
   } catch {
     payload = {
-      title: "Alyssa Growth OS",
+      title: "Marketing OS",
       body: event.data ? event.data.text() : "你有一項新工作更新。",
     };
   }
 
-  const title = payload.title || "Alyssa Growth OS";
+  const title = payload.title || "Marketing OS";
   const options = {
     body: payload.body || "你有一項新工作更新。",
     tag: payload.tag || `growth-os-${Date.now()}`,

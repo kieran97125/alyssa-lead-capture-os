@@ -88,7 +88,7 @@ test("create planet, edit relation, complete a job, undo and export desktop shor
   await expect(page.getByRole("checkbox", { name: "標記完成：確認拍攝日期", exact: true })).not.toBeChecked();
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "桌面捷徑", exact: true }).click();
-  expect((await download).suggestedFilename()).toBe("Alyssa_Work_Galaxy.url");
+  expect((await download).suggestedFilename()).toBe("Marketing_OS_Work_Galaxy.url");
 });
 
 test("3D positions, optional inspector and full-width focus remain usable", async ({ page }) => {
@@ -238,7 +238,7 @@ test("anonymous and standard admin cannot reach private document APIs", async ({
     await denied();
     const page = await context.newPage();
     await page.goto("/login?next=/dashboard");
-    if (!await page.getByLabel("Password").isVisible()) await page.getByText(/切換期間管理員登入|緊急管理員登入/).click();
+    if (!await page.getByLabel("Password").isVisible()) await page.getByText(/切換期間管理員登入|緊急管理員登入|現有客戶管理登入/).click();
     await page.getByLabel("Password").fill(process.env.E2E_ADMIN_PASSWORD || "playwright-ci-password");
     await page.getByRole("button", { name: "管理員登入", exact: true }).click();
     await expect(page).toHaveURL(/\/dashboard(?:\?|$)/);

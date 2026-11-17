@@ -391,7 +391,7 @@ export function CalendarItemEditDialog({
                       onChange={(event) =>
                         updateDraft("assigneeEmail", event.target.value)
                       }
-                      placeholder="name@alyssa.hk"
+                      placeholder="name@company.com"
                       maxLength={320}
                     />
                   </label>

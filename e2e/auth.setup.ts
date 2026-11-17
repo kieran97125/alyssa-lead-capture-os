@@ -9,7 +9,7 @@ setup("authenticate once", async ({ page }) => {
   const passwordInput = page.getByLabel("Password");
   if (!(await passwordInput.isVisible())) {
     await page
-      .getByText(/切換期間管理員登入|緊急管理員登入/)
+      .getByText(/切換期間管理員登入|緊急管理員登入|現有客戶管理登入/)
       .click();
   }
   if (await passwordInput.isVisible()) {

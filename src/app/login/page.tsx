@@ -1,5 +1,6 @@
 import { MailCheck, ShieldCheck } from "lucide-react";
-import { loginAction } from "@/app/login/actions";
+import { loginAction, requestLoginLinkAction } from "@/app/login/actions";
+import { SystemSubmitButton } from "@/components/system/SystemSubmitButton";
 import { SubmitButton } from "@/components/alyssa/SubmitButton";
 import {
   getAdminPasswordGateWarning,
@@ -23,11 +24,13 @@ export default async function LoginPage({
   searchParams?: Promise<{
     next?: string | string[];
     error?: string | string[];
+    sent?: string | string[];
   }>;
 }) {
   const query = await searchParams;
   const next = safeNextPath(query?.next);
   const error = Array.isArray(query?.error) ? query?.error[0] : query?.error;
+  const sent = query?.sent === "1";
   const warning = getAdminPasswordGateWarning();
   const gateEnabled = isAdminPasswordGateEnabled();
   const showPasswordFallback =
@@ -42,13 +45,13 @@ export default async function LoginPage({
         <div className="w-full max-w-xl rounded-[32px] border border-[#ead9cf] bg-white/90 p-8 shadow-[0_30px_90px_rgba(90,35,72,0.14)]">
           <div className="text-center">
             <p className="text-sm font-bold uppercase tracking-[0.22em] text-[#9a5d76]">
-              Alyssa Growth OS
+              Marketing OS
             </p>
             <h1 className="mt-3 text-3xl font-bold text-[#321428]">
-              受邀帳戶登入
+              登入你的工作區
             </h1>
             <p className="mt-4 text-sm font-semibold leading-6 text-[#6d4a5c]">
-              請使用電郵內嘅安全登入連結進入系統。
+              SmartVolt 智威特 · 請使用安全電郵連結進入你的工作區。
             </p>
           </div>
 
@@ -65,7 +68,11 @@ export default async function LoginPage({
                 : error === "invalid_password"
                 ? "Password 不正確，請再試一次。"
                 : error === "master_required"
-                  ? "呢個頁面只限系統擁有人使用。"
+                  ? "呢個頁面只限客戶工作區管理員使用。"
+                  : error === "platform_required"
+                    ? "呢個頁面需要智威特平台管理帳戶。"
+                    : error === "invalid_email"
+                      ? "請輸入有效電郵地址。"
                   : error === "permission_denied"
                     ? "你目前角色未獲授權使用呢個模組。"
                     : error === "not_invited"
@@ -79,17 +86,26 @@ export default async function LoginPage({
           )}
 
           {error === "auth_unavailable" && (
-            <a href={next} className="mt-4 inline-flex font-semibold text-primary underline underline-offset-4">
+            <a href={next} className="mt-4 inline-flex font-semibold text-system-primary underline underline-offset-4">
               重試進入工作區
             </a>
           )}
 
+          <form action={requestLoginLinkAction} className="mt-6 grid gap-4">
+            <input type="hidden" name="next" value={next}/>
+            <label className="grid gap-2 text-sm font-semibold text-system-foreground">電郵地址
+              <input name="email" type="email" autoComplete="email" maxLength={254} required className="h-11 rounded-[var(--radius-control)] border border-system-input bg-system-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-system-ring" placeholder="name@company.com"/>
+            </label>
+            <SystemSubmitButton density="comfortable" pendingLabel="寄送中…">寄出安全登入連結</SystemSubmitButton>
+            {sent && <p role="status" className="text-sm leading-6 text-system-muted-foreground">如果呢個電郵已獲授權，登入連結會寄到你嘅收件箱。請同時檢查垃圾郵件。</p>}
+          </form>
+
           <div className="mt-6 flex gap-3 rounded-2xl border border-[#ead9cf] bg-[#fff9f3] px-4 py-4 text-[#5a2348]">
             <MailCheck className="mt-0.5 shrink-0" size={19} />
             <div>
-              <strong className="text-sm">未收到或者需要新連結？</strong>
+              <strong className="text-sm">每個帳戶都有自己嘅工作區權限</strong>
               <p className="mt-1 text-xs font-semibold leading-5 text-[#7a596a]">
-                請聯絡系統管理員重新發送登入連結。
+                請使用已獲邀請嘅電郵。客戶管理員可管理自己團隊；平台管理帳戶由智威特獨立授權。
               </p>
             </div>
           </div>
@@ -98,7 +114,7 @@ export default async function LoginPage({
             <details className="mt-6 rounded-2xl border border-[#ead9cf] bg-[#fff9f3]">
               <summary className="flex cursor-pointer items-center gap-2 px-4 py-3 text-sm font-bold text-[#5a2348]">
                 <ShieldCheck size={16} />
-                緊急管理員登入
+                現有客戶管理登入
               </summary>
               <form
                 action={loginAction}

@@ -1,4 +1,4 @@
-# Alyssa Growth OS Design Quality Layer
+# Marketing OS Design Quality Layer
 
 ## Purpose
 
@@ -8,8 +8,8 @@ This layer reduces subjective UI drift by making design decisions reusable, test
 
 1. **Base UI** supplies accessible interaction primitives.
 2. **shadcn/ui base-nova** places owned component source in this repository.
-3. **Alyssa semantic tokens** define brand, density, radius, elevation and control hierarchy.
-4. **System components** wrap primitives with Alyssa product rules.
+3. **Marketing OS semantic tokens** define brand, density, radius, elevation and control hierarchy.
+4. **System components** wrap primitives with Marketing OS product rules.
 5. **Storybook** exposes approved states in isolation.
 6. **Playwright screenshots** detect visual drift in a fixed Linux environment.
 7. **axe-core** blocks automatically detectable WCAG A/AA regressions.

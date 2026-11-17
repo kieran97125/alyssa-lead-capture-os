@@ -1,3 +1,7 @@
+## 2026-11-17 — Marketing OS and customer/platform authority
+
+Product labels, email/install assets and workspace identity now separate Marketing OS/SmartVolt from customer brands. Added verified platform access, guarded customer provisioning and shared pending submit behavior. See decisions/2026-11-17-marketing-os-platform.md for states, qualification and rollback.
+
 # Design System Change Log
 
 ## 2026-11-11 — Account-scoped Main segments and KOL reports

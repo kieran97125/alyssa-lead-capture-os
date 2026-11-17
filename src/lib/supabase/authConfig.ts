@@ -74,7 +74,7 @@ export function getAuthConfirmUrl(next = "/dashboard") {
 }
 
 /**
- * Recipient-facing invite and magic-link URLs must open on the Growth OS
+ * Recipient-facing invite and magic-link URLs must open on the Marketing OS
  * system domain. Supabase remains the verifier behind /auth/confirm, but its
  * project hostname must never be the first URL shown to a recipient.
  */
@@ -86,7 +86,7 @@ export function assertSystemDomainAuthLink(value: string) {
     url.hostname.endsWith(".supabase.co") ||
     url.pathname !== "/auth/confirm"
   ) {
-    throw new Error("Auth email link must use the canonical Growth OS domain.");
+    throw new Error("Auth email link must use the canonical Marketing OS domain.");
   }
   return url.toString();
 }

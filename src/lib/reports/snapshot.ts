@@ -644,7 +644,7 @@ async function loadProductionFacts(
 function titleForScope(scope: string, brands: BrandSetting[]) {
   if (isAlyssaAllScope(scope)) return `${ALYSSA_ALL_BRAND_LABEL} Growth Report`;
   if (brands.length === 1) return `${brands[0].name} Growth Report`;
-  return "Growth OS 跨品牌成效報告";
+  return "Marketing OS 跨品牌成效報告";
 }
 
 function validUuid(value: string | undefined | null) {

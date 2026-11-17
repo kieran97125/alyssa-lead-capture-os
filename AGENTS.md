@@ -1,3 +1,7 @@
+# Marketing OS product direction
+
+Marketing OS is the SmartVolt product direction. Alyssa is the existing customer workspace. Preserve customer/staff data, reporting authority and live source ownership; customer owner/master compatibility never grants platform authority. Additional customers must remain closed until complete tenant isolation and end-to-end acceptance are qualified.
+
 # Alyssa Enterprise Pilot Agent Rules
 
 ## Standing authorization for Alyssa OS maintenance

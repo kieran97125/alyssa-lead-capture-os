@@ -1,0 +1,74 @@
+name: Marketing OS Visual Candidates
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - src/components/workbench/**
+      - src/components/platform/**
+      - src/components/system/**
+      - src/components/alyssa/AppNavClient.tsx
+      - src/app/login/**
+      - e2e/auth.setup.ts
+      - e2e/marketing-platform.spec.ts
+      - .github/workflows/marketing-platform-visual-candidates.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: marketing-os-visual-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  candidates:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      CI: "true"
+      NEXT_TELEMETRY_DISABLED: "1"
+      STORYBOOK_DISABLE_TELEMETRY: "1"
+      DO_NOT_TRACK: "1"
+      ALYSSA_E2E_FIXTURES: "1"
+      NEXT_PUBLIC_SUPABASE_URL: ""
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ""
+      SUPABASE_SERVICE_ROLE_KEY: ""
+      E2E_ADMIN_PASSWORD: playwright-ci-password
+      E2E_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_PASSWORD: playwright-ci-password
+      LAUNCHHUB_MASTER_PASSWORD: playwright-ci-master-password
+      LAUNCHHUB_ADMIN_SESSION_SECRET: playwright-ci-session-secret-at-least-32-characters
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      PLAYWRIGHT_NO_VIDEO: "1"
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - name: Start credential-free fixture server
+        run: |
+          npm run start -- --hostname 127.0.0.1 > marketing-os-fixture.log 2>&1 &
+          for attempt in $(seq 1 60); do
+            if curl --silent --fail http://127.0.0.1:3000/login > /dev/null; then exit 0; fi
+            sleep 1
+          done
+          exit 1
+      - name: Generate candidates for human visual review
+        run: npx playwright test e2e/marketing-platform.spec.ts e2e/design-quality.spec.ts e2e/workbench.spec.ts e2e/workbench-resources.spec.ts --update-snapshots=all --workers=1 --retries=0
+      - name: Save candidates and test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: marketing-os-visual-candidates
+          path: |
+            e2e/marketing-platform.spec.ts-snapshots/
+            e2e/design-quality.spec.ts-snapshots/
+            e2e/workbench.spec.ts-snapshots/
+            e2e/workbench-resources.spec.ts-snapshots/
+            playwright-report/
+            test-results/
+            marketing-os-fixture.log
+          retention-days: 14

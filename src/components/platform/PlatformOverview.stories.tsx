@@ -1,0 +1,11 @@
+import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { PlatformOverview } from "./PlatformOverview";
+import { marketingPlatformFixture } from "@/lib/platform/fixture";
+const meta = { title:"Platform/Customer workspaces", component:PlatformOverview, parameters:{layout:"fullscreen"}, args:{data:marketingPlatformFixture,email:"operator@example.test",canProvision:true} } satisfies Meta<typeof PlatformOverview>;
+export default meta;
+type Story=StoryObj<typeof meta>;
+export const Overview:Story={};
+export const ReadOnly:Story={args:{canProvision:false}};
+export const Empty:Story={args:{data:{workspaces:[],cards:marketingPlatformFixture.cards}}};
+export const Created:Story={args:{status:"created"}};
+export const Unavailable:Story={args:{status:"unavailable"}};

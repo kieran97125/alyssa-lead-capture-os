@@ -11,9 +11,9 @@ const preview: Preview = {
       },
     },
     backgrounds: {
-      default: "Alyssa Page",
+      default: "Marketing OS Page",
       values: [
-        { name: "Alyssa Page", value: "#fbf7f5" },
+        { name: "Marketing OS Page", value: "#fbf7f5" },
         { name: "White", value: "#ffffff" },
       ],
     },

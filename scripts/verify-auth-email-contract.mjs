@@ -20,7 +20,7 @@ for (const [fileName, expectedType] of templates) {
   assert.doesNotMatch(html, /localhost/i);
   assert.doesNotMatch(html, /(?:https?:\/\/)?[a-z0-9-]+\.supabase\.co/i);
   assert.doesNotMatch(html, /\{\{ \.ConfirmationURL \}\}/);
-  assert.match(html, /Alyssa Growth OS/);
+  assert.match(html, /Marketing OS/);
   assert.match(html, /role="presentation"/);
 }
 

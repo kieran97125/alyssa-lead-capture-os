@@ -18,7 +18,7 @@ function resolveProjectRef() {
   return match[1];
 }
 function validateRecipientFacingTemplate(name, html, expectedType) {
-  assert.match(html, /https:\/\/app\.beautytrialhk\.com\/auth\/confirm\?/, `${name} must open on the canonical Growth OS domain.`);
+  assert.match(html, /https:\/\/app\.beautytrialhk\.com\/auth\/confirm\?/, `${name} must open on the canonical Marketing OS domain.`);
   assert.match(html, /token_hash=\{\{ \.TokenHash \}\}/);
   assert.match(html, new RegExp(`type=${expectedType}(?:&|&amp;)`));
   assert.doesNotMatch(html, /\{\{ \.ConfirmationURL \}\}/);
@@ -45,9 +45,9 @@ validateRecipientFacingTemplate("Magic Link", magicLinkHtml, "magiclink");
 // Deliberately scoped PATCH: no account, password, session, SMTP, redirect,
 // signup, MFA or authorization settings are rewritten by this operation.
 const expected = {
-  mailer_subjects_invite: "你已獲邀加入 Alyssa Growth OS",
+  mailer_subjects_invite: "你已獲邀加入 Marketing OS",
   mailer_templates_invite_content: inviteHtml,
-  mailer_subjects_magic_link: "你的 Alyssa Growth OS 安全登入連結",
+  mailer_subjects_magic_link: "你的 Marketing OS 安全登入連結",
   mailer_templates_magic_link_content: magicLinkHtml,
   password_hibp_enabled: true,
 };

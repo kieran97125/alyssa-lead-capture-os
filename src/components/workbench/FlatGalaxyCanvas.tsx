@@ -66,7 +66,7 @@ export default function FlatGalaxyCanvas({ document, selectedId, relatedOnly, on
       onNodeDragStop={(_, n) => onMove(n.id, n.position.x, n.position.y)} onConnect={onConnect}
       onEdgeClick={(_, e) => onEdge(e.id)} onPaneContextMenu={event => { event.preventDefault(); onAdd(instance.current?.screenToFlowPosition({ x: event.clientX, y: event.clientY })); }}
       fitView fitViewOptions={{ padding: .18 }} minZoom={.25} maxZoom={1.7} nodesConnectable deleteKeyCode={null}
-      proOptions={{ hideAttribution: false }} aria-label="可編輯 Alyssa 工作星球網絡" colorMode="dark">
+      proOptions={{ hideAttribution: false }} aria-label="可編輯私人工作星球網絡" colorMode="dark">
       <Background color="var(--wb-grid)" gap={28} size={.8} />
       <Controls position="bottom-left" showInteractive={false} />
       <MiniMap position="bottom-right" nodeColor="var(--wb-edge)" maskColor="var(--wb-map-mask)" pannable zoomable ariaLabel="星圖縮圖" />

@@ -2,7 +2,7 @@
 
 ## Product character
 
-Alyssa Growth OS should feel calm, precise and premium rather than decorative. It is an operational system: scan speed, hierarchy and confidence come before visual novelty.
+Marketing OS should feel calm, precise and premium rather than decorative. It is an operational system: scan speed, hierarchy and confidence come before visual novelty.
 
 ## Density
 

@@ -42,6 +42,11 @@ export type InternalAccessContext = {
   workspaceRole?: string;
   brandIds?: string[];
   modulePermissions?: Record<string, boolean>;
+  /** Customer management never grants SmartVolt platform authority. */
+  accountScope?: "customer";
+  workspaceId?: string;
+  workspaceSlug?: string;
+  workspaceName?: string;
 };
 
 export type AdminAccessLevel = "admin" | "master";

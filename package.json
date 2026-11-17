@@ -1,10 +1,10 @@
 {
-  "name": "alyssa-lead-capture-os",
+  "name": "marketing-os",
   "version": "0.1.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:lead-sheet-book-date-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && npm run verify:work-ops-contract && npm run verify:design-system-contract && npm run verify:creative-production-contract && npm run verify:calendar-edit-contract && npm run verify:lead-sync-recovery-contract && npm run verify:lead-book-dimensions-contract && npm run verify:system-foundation && npm run verify:acquisition-management && next build",
+    "build": "npm run verify:public-lead-contract && npm run verify:auth-email-contract && npm run verify:reporting-trend-contract && npm run verify:report-export-contract && npm run verify:treatment-mapping-contract && npm run verify:brand-scope-contract && npm run verify:lead-audit-contract && npm run verify:lead-sheet-book-date-contract && npm run verify:product-ui-contract && npm run verify:app-icon-contract && npm run verify:work-ops-contract && npm run verify:design-system-contract && npm run verify:creative-production-contract && npm run verify:calendar-edit-contract && npm run verify:lead-sync-recovery-contract && npm run verify:lead-book-dimensions-contract && npm run verify:system-foundation && npm run verify:acquisition-management && npm run verify:marketing-platform && next build",
     "start": "next start",
     "lint": "eslint",
     "verify:public-lead-contract": "node scripts/verify-public-lead-contract.mjs",
@@ -36,7 +36,8 @@
     "verify:private-workbench": "node scripts/test-private-workbench.mjs",
     "verify:report-kol-contract": "node scripts/test-report-kol-performance.mjs",
     "verify:system-foundation": "node scripts/test-crm-operations.mjs && node scripts/test-complete-lead-reads.mjs && node scripts/test-public-landing-copy.mjs && node scripts/test-public-events-boundary.mjs && node scripts/test-lead-delivery-summary.mjs && node scripts/test-public-capture.mjs && node scripts/test-lead-delivery-recheck.mjs && node scripts/test-lead-delivery-auth.mjs",
-    "verify:acquisition-management": "node scripts/test-managed-form-management.mjs && node scripts/test-acquisition-embed.mjs && node scripts/test-lead-monitor-retirement.mjs && node scripts/test-acquisition-helpers.mjs && node scripts/test-landing-page-store.mjs && node scripts/test-public-form-runtime.mjs && node scripts/test-dashboard-streaming.mjs"
+    "verify:acquisition-management": "node scripts/test-managed-form-management.mjs && node scripts/test-acquisition-embed.mjs && node scripts/test-lead-monitor-retirement.mjs && node scripts/test-acquisition-helpers.mjs && node scripts/test-landing-page-store.mjs && node scripts/test-public-form-runtime.mjs && node scripts/test-dashboard-streaming.mjs",
+    "verify:marketing-platform": "node scripts/test-marketing-platform.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

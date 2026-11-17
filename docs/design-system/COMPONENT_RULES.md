@@ -3,7 +3,7 @@
 ## Ownership layers
 
 - src/components/ui: generated or reviewed primitives. Avoid product-specific copy and business logic.
-- src/components/system: Alyssa defaults, density, status language and composition.
+- src/components/system: Marketing OS defaults, density, status language and composition.
 - feature folders: business behavior assembled from System components.
 
 ## Mandatory rules
@@ -17,4 +17,4 @@
 7. Every meaningful UI change requires visual evidence at desktop and mobile where relevant.
 8. Accessibility automation must pass; manual keyboard and focus review remains required.
 9. Loading, empty, error, disabled and permission-denied states are part of the component contract.
-10. Product direction must stay Alyssa-specific; avoid generic dashboard blocks and chatbot-wrapper layouts.
+10. Product direction must stay Marketing OS-specific; avoid generic dashboard blocks and chatbot-wrapper layouts.

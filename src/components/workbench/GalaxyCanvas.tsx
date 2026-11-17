@@ -41,7 +41,7 @@ export default function GalaxyCanvas(props: GalaxyCanvasProps) {
       <SpatialCanvas document={props.document} selectedId={props.selectedId} relatedOnly={props.relatedOnly} allLines={allLines}
         onSelect={props.onSelect} onMove={props.onMoveSpatial} onEdge={props.onEdge} onReady={() => setReady(true)} cameraRequest={cameraRequest} />
     </SceneBoundary> : <FlatCanvas {...props} fitRequest={cameraRequest.serial} />}
-    <div className={styles.sceneIdentity}><span className={styles.sceneEyebrow}><i /> ALYSSA WORK GALAXY <span>／ PRIVATE ORBIT</span></span>
+    <div className={styles.sceneIdentity}><span className={styles.sceneEyebrow}><i /> MARKETING OS · WORK GALAXY <span>／ PRIVATE ORBIT</span></span>
       <strong>每一件工作，都有佢嘅軌道。</strong><span>{active.length} 個星球 · {props.document.edges.filter(e => !e.archived).length} 條工作關係</span></div>
     <div className={styles.sceneActions}>
       <SystemButton density="compact" variant="outline" aria-label="顯示整個網絡" title="顯示整個網絡" onClick={() => command("fit")}><Maximize2 size={15} /></SystemButton>

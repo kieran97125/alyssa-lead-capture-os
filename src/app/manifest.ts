@@ -3,8 +3,8 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "Alyssa Growth OS",
-    short_name: "Growth OS",
+    name: "Marketing OS",
+    short_name: "Marketing OS",
     description: "多品牌營銷、Lead、預約及客戶營運系統。",
     start_url: "/dashboard",
     scope: "/",

@@ -24,6 +24,11 @@ export type WorkspaceRole =
   | "designer"
   | "viewer";
 
+/** Legacy customer management compatibility; never grants platform authority. */
+export function hasCustomerOwnerAuthority(member: { workspace_role?: unknown; is_master?: unknown }) {
+  return member.workspace_role === "owner" || member.is_master === true;
+}
+
 const roleDefaultModules: Record<WorkspaceRole, WorkspaceModuleKey[]> = {
   owner: [...workspaceModuleKeys],
   admin: [

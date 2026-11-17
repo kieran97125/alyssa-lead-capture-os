@@ -13,6 +13,7 @@ export const publicRoutePrefixes = [
 ] as const;
 
 export const internalRoutePrefixes = [
+  "/platform",
   "/workbench",
   "/dashboard",
   "/kpis",

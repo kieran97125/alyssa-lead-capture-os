@@ -1,4 +1,12 @@
-# LaunchHub
+# Marketing OS — SmartVolt
+
+Marketing OS is SmartVolt’s marketing operations product. Alyssa is the existing customer workspace; its brand, customer records, attribution and provider connections remain customer-scoped. Product identity and customer identity are separate.
+
+See `docs/product/2026-11-17-marketing-os-saas.md` for the tenant model, rollout boundaries and open system cards.
+
+## Existing acquisition module documentation
+
+# LaunchHub module
 
 LaunchHub is an attribution-ready registration form and lead source layer adapted from the `leadhub-source-os` foundation.
 
@@ -506,7 +514,7 @@ Public routes remain accessible for campaigns, Wix embeds, and lead capture:
 - `/api/public/events`
 - `/api/public/thank-you`
 
-Internal admin routes are protected by a two-level Growth OS password gate:
+Marketing OS internal routes use invited customer email access with workspace roles. `/platform` independently requires a verified platform operator; a customer owner or shared password cannot grant platform access. The existing two-level customer password fallback is retained where enabled:
 
 - `/`
 - `/dashboard`

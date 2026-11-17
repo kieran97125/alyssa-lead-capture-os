@@ -124,7 +124,7 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
     }, type === "planet" ? `儲存星球：${(next as Planet).label}` : type === "job" ? `儲存 Job：${(next as Job).title}` : `更新關係：${(next as Connection).label}`);
     if (saved) { if (type === "planet") { setSelectedId(next.id); setDetailOpen(true); } setEditor(null); }
   };
-  const exportDocument = () => { if (d) download(`Alyssa_Work_Galaxy_${today}.json`, JSON.stringify({ format: "alyssa-private-workbench", revision: wb.revision, exportedAt: new Date().toISOString(), document: d }, null, 2)); };
+  const exportDocument = () => { if (d) download(`Marketing_OS_Work_Galaxy_${today}.json`, JSON.stringify({ format: "alyssa-private-workbench", revision: wb.revision, exportedAt: new Date().toISOString(), document: d }, null, 2)); };
   const importDocument = async (file: File) => {
     try {
       if (file.size > 1200000) throw new Error("匯入檔案過大。");
@@ -138,9 +138,9 @@ export function Workbench({ initialRecord, fixtureMode = false, fixtureToday, ow
 
   return <div ref={root} className={styles.workbench} data-testid="private-workbench">
     <header className={styles.pageHeader} inert={focused}>
-      <div><p className={styles.eyebrow}><Orbit size={14} /> MY PRIVATE WORKSPACE <span>ALYSSA GROWTH OS</span></p><h1>我的工作星圖<span>把工作連成一個整體。</span></h1><p className={styles.intro}>品牌、團隊、Creative、CS 同系統，都喺你嘅工作軌道。</p></div>
-      <div className={styles.headerActions}><span className={styles.privatePill}><LockKeyhole size={12} /> Master 私人工作枱</span>
-        <SystemButton density="compact" variant="outline" onClick={() => { download("Alyssa_Work_Galaxy.url", `[InternetShortcut]\r\nURL=${window.location.origin}/workbench\r\n`, "application/internet-shortcut"); setNotice("捷徑已下載。將檔案放到桌面，雙擊就可以打開。" ); }}><Download size={14} />桌面捷徑</SystemButton>
+      <div><p className={styles.eyebrow}><Orbit size={14} /> MY PRIVATE WORKSPACE <span>MARKETING OS</span></p><h1>我的工作星圖<span>把工作連成一個整體。</span></h1><p className={styles.intro}>品牌、團隊、Creative、CS 同系統，都喺你嘅工作軌道。</p></div>
+      <div className={styles.headerActions}><span className={styles.privatePill}><LockKeyhole size={12} /> 私人工作枱</span>
+        <SystemButton density="compact" variant="outline" onClick={() => { download("Marketing_OS_Work_Galaxy.url", `[InternetShortcut]\r\nURL=${window.location.origin}/workbench\r\n`, "application/internet-shortcut"); setNotice("捷徑已下載。將檔案放到桌面，雙擊就可以打開。" ); }}><Download size={14} />桌面捷徑</SystemButton>
       </div>
     </header>
     <section className={styles.summary} aria-label="工作總覽" inert={focused}>
