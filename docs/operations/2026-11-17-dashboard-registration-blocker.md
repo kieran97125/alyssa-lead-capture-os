@@ -1,6 +1,14 @@
-# Dashboard registration recovery — not accepted
+# Dashboard registration incident — current publication recovered, sustained acceptance open
 
-## Current boundary
+## Latest verification — 2026-11-17 12:44 HKT
+
+The earlier missing-registration observation below is historical. A fresh source read now contains stable Lead and Appointment identities for the questioned booking. Its bridge has verified ownership, exact master equality, eligible payload and unique source identity. Independent registry and queue reads each find exactly one matching appointment with the same Lead ID, queue entry, scheduled day and time. The registry is active and the queue is waiting for arrival. Blank legacy booking-registration time is accepted by the existing contract and is not evidence that this source row is invalid. No business cell or ownership metadata was changed in this follow-up.
+
+The ordinary authenticated Dashboard button completed twice. The first source success advanced to 12:42:08.798 HKT with completed audit `3570cbbc-692e-4838-82d5-f5ddfdb75077`; the normal repeat advanced to 12:44:55.096 HKT with completed audit `6a4b59aa-5992-4cdd-b931-74381dbefc52`. Both accepted 9,657 source rows and persisted a new dashboard snapshot. Both normal controls reported 1/1 source success. The identities and exact registry/queue ownership were unchanged on readback.
+
+This establishes current Lead/Book/Show publication recovery. It does not attribute identity convergence to the canceled helper, demonstrate a new code fix, or establish sustained native/provider latency. The second result separately reported that the `mkt_dashboard` advertising-spend mirror had not updated; that warning does not negate its successfully persisted lead snapshot. The incident stays open for sustained native/provider acceptance and the separate spend-mirror warning. Draft PR #163 remains prepared diagnostics, not a claimed production remediation.
+
+## Initial boundary — before the successful normal updates
 
 Source baseline: production release `393792263724681ee22d82766bba460eb79ce205` / PR #160. That release accepted the native manual controller and its then-current repeat. It did not qualify a later website refresh or every newly imported row.
 
@@ -26,9 +34,9 @@ The actual first recovery invocation returned before canonical work. A subsequen
 
 The supplemental source was saved and normalized readback was verified through the editor. That installation is not operational acceptance. Local complete native regression and the recovery admission tests passed. Customer-source recovery and application publication remain unverified.
 
-## Open system card: OPS-SOURCE-REGISTRATION-20261117
+## Initial acceptance list: OPS-SOURCE-REGISTRATION-20261117
 
-State: **Blocked / not fixed**.
+Initial state: **Blocked / not fixed**. The dated latest-verification section above supersedes the source-ownership and current-publication state; sustained native/provider behavior remains open.
 
 1. Obtain a successful provider/container read while preserving the established writer and lock protocol. Do not run competing retry loops while the provider is stalled.
 2. Recover newly booked missing ownership through the canonical writer. Verify exact source, registry and queue binding, staff fields and retained outcomes; inspect accepted prefixes before retrying an unknown mutation.
