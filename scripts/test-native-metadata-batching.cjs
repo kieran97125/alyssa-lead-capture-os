@@ -36,6 +36,56 @@ test('account completion compares against accepted anchors rather than the origi
   const completed=f.items.map(item=>({row:item.row,values:[...item.values.slice(0,5),'']}));f.box.oa2WriteSourceMetadata_(f.snap,completed,anchored);
   assert.equal(f.sh.state.writes.length,1);assert.ok(completed.every(item=>f.sh.state.matrix[item.row-1][f.meta+4]===''));
 });
+function pendingClearFixture(){
+  const f=fixture(8192),rows=[2,3,8193],letter=f.box.columnLetter_(f.meta+5),rangeCalls=[];
+  for(const row of rows){f.sh.state.matrix[row-1][f.meta+4]='accepted_'+row;f.snap.values[row-2][f.meta+4]='accepted_'+row;}
+  f.sh.state.matrix[12][f.meta+4]='="keep intervening formula"';f.snap.values[11][f.meta+4]=f.sh.state.matrix[12][f.meta+4];
+  const items=rows.map(row=>({row,values:[...f.snap.values[row-2].slice(f.meta-1,f.meta+4),'']}));
+  f.sh.getRangeList=ranges=>({clearContent(){
+    rangeCalls.push(Array.from(ranges));
+    for(const range of ranges){
+      const match=new RegExp('^'+letter+'(\\d+):'+letter+'(\\d+)$').exec(range);assert.ok(match);
+      f.sh.getRange(Number(match[1]),f.meta+5,Number(match[2])-Number(match[1])+1,1).clearContent();
+    }
+  }});
+  return {...f,rows,letter,rangeCalls,items};
+}
+test('sparse final recovery clears three actual cells in one native request across 8192 rows',()=>{
+  const f=pendingClearFixture();f.box.oa2WriteSourceMetadata_(f.snap,f.items,null,true);
+  assert.deepEqual(f.rangeCalls,[[f.letter+'2:'+f.letter+'3',f.letter+'8193:'+f.letter+'8193']]);
+  assert.equal(f.sh.state.writes.reduce((sum,w)=>sum+w.height*w.width,0),3);
+  assert.ok(f.sh.state.writes.every(w=>w.column===f.meta+5));assert.equal(f.sh.state.matrix[12][f.meta+4],'="keep intervening formula"');
+  for(const row of f.rows){assert.equal(f.sh.state.matrix[row-1][f.meta+4],'');assert.equal(f.sh.state.matrix[row-1][f.meta-1],f.snap.values[row-2][f.meta-1]);}
+});
+test('sparse final recovery retains its full business and metadata before-image guard',()=>{
+  const f=pendingClearFixture();f.sh.state.matrix[4095][1]='concurrent business edit';
+  assert.throws(()=>f.box.oa2WriteSourceMetadata_(f.snap,f.items,null,true),/Account rows changed/);
+  assert.equal(f.rangeCalls.length,0);assert.equal(f.sh.state.writes.length,0);assert.equal(f.sh.state.matrix[1][f.meta+4],'accepted_2');
+});
+test('adjacent final writes omit unchanged identity columns and preserve numeric zero and unrelated formulas',()=>{
+  const f=fixture();const items=[3,4].map(row=>{
+    const values=f.snap.values[row-2].slice(f.meta-1,f.meta+5);values[3]='取消';values[4]=0;return{row,values};
+  });
+  f.box.oa2WriteSourceMetadata_(f.snap,items,null,true);
+  assert.equal(f.sh.state.writes.length,1);const write=f.sh.state.writes[0];assert.equal(write.column,f.meta+3);assert.equal(write.width,2);
+  assert.deepEqual(write.values,[['取消',0],['取消',0]]);
+});
+test('widely spaced non-clear updates touch only selected rows after full-span verification',()=>{
+  const f=fixture(400),items=[2,401].map(row=>{
+    const values=f.snap.values[row-2].slice(f.meta-1,f.meta+5);values[3]='取消';return{row,values};
+  });
+  f.box.oa2WriteSourceMetadata_(f.snap,items,null,true);
+  assert.deepEqual(f.sh.state.writes.map(w=>[w.row,w.height,w.width]),[[2,1,1],[401,1,1]]);
+});
+for(const formula of [true,false])test('a mixed final row preserves an unchanged '+(formula?'formula':'equals-prefixed literal')+' between changed fields',()=>{
+  const f=fixture(),row=3,column=f.meta+2;
+  f.sh.state.matrix[row-1][column-1]='=keep';f.snap.values[row-2][column-1]='=keep';
+  if(!formula){const range=f.sh.getRange;f.sh.getRange=(r,c,h=1,w=1)=>({...range(r,c,h,w),getFormulas:()=>Array.from({length:h},()=>Array(w).fill(''))});}
+  const values=f.snap.values[row-2].slice(f.meta-1,f.meta+5);values[1]='new_appointment';values[3]='取消';values[5]='';
+  f.box.oa2WriteSourceMetadata_(f.snap,[{row,values}],null,true);
+  assert.deepEqual(f.sh.state.writes.map(w=>[w.column,w.width]),[[f.meta+1,1],[f.meta+3,1]]);
+  assert.equal(f.sh.state.matrix[row-1][column-1],'=keep');
+});
 test('a lost native acknowledgement retains the entire accepted anchor span for canonical recovery',()=>{
   const f=fixture();f.sh.state.afterWrite=()=>{throw Error('Synthetic lost reply');};
   assert.throws(()=>f.box.oa2WriteSourceMetadata_(f.snap,f.items,null),/lost reply/);

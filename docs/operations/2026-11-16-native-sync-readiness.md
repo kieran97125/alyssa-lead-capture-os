@@ -149,3 +149,13 @@ Exact qualified software head `7e92f170a27ca4b671bf27508c1be5c2d21ebbbc` / tree 
 | PROVIDER-NATIVE-CACHE | Bounded manual work and recovery qualified; sustained latency remains observation work | A single blocking provider call cannot be interrupted by a JavaScript clock check. Retain checkpoints, source CAS, shared locking and the expiring foreground lease. |
 
 The temporary maintenance pause had already been explicitly removed. Verified full completion clears only the manual priority lease; an interrupted client lease expires automatically. No staff-edit handler or background trigger was deleted or disabled.
+
+## November 18 manual booking sync recovery
+
+The normal spreadsheet menu took about two seconds to open during the reported slowdown. A continuation returned after 578.567 seconds. Its execution trace recorded 238.252 seconds in final source metadata processing, 15.797 seconds in history and 16.778 seconds in queue payload. These measurements include provider waits and any implicit flush. They do not identify the cost of an individual Google operation.
+
+The menu now checks the retained checkpoint when a callback disappears. The status read briefly tries the shared lock without opening the spreadsheet or renewing the foreground lease. Each new sidebar sends the observed step revision before attempting another write. A late start can recover the job completed since that menu opened. The old sidebar and existing checkpoints remain compatible.
+
+Account preparation can record coverage immediately when the canonical queue, journal, registry and source metadata all certify that there are no writes. The recovery-anchor planner indexes changed appointments once per snapshot. Metadata finalization narrows its write footprint and retains fresh full-row comparisons. The initial identity and recovery reservation stays atomic. Final display and sorting remain part of the ordinary terminal receipt.
+
+Rollback uses the previous bound main and controller together, retaining the installed probe, helper files, triggers, accepted appointments and saved progress. A native execution currently holding the lock must finish before another writer enters.

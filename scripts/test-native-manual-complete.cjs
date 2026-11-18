@@ -97,6 +97,25 @@ test('prepared source intent does not advance Account coverage or business count
   f.step();assert.deepEqual(f.job().processedAccounts,[0]);assert.equal(f.job().accountPrepared,false);assert.equal(f.calls.account.length,1);
 });
 
+test('six unchanged Accounts go straight from preparation to accepted coverage and retain review counts',()=>{
+  const f=fixture();let scans=0;f.start();
+  f.b.oa2ProcessAccount_=(_ss,sheet,_mode,_edit,_dry,_trace,policy)=>{
+    assert.equal(policy.prepareOnly,true);scans++;
+    return {account:sheet.getName(),errors:[],verifiedNoChanges:true,remainingQueueOps:0,appliedQueueOps:0,newQueue:0,changes:0,deferredQueueConflicts:0,deferredSourceRecords:0,manualReviewCount:scans===2?1:0};
+  };
+  for(let i=0;i<6;i++){f.step();const receipt=f.step();assert.equal(receipt.processedAccounts,i+1);}
+  assert.equal(scans,6);assert.equal(f.job().phase,'projection');assert.equal(f.job().reviewCount,1);
+  f.finish();assert.equal(f.job().registered,0);assert.equal(f.job().added,0);assert.equal(f.job().changed,0);
+});
+
+test('a contradictory no-change receipt never advances Account coverage',()=>{
+  for(const invalid of [{newQueue:1},{changes:1},{appliedQueueOps:1},{remainingQueueOps:1},{staged:true}]){
+    const f=fixture();f.start();f.step();
+    f.b.oa2ProcessAccount_=(_ss,sheet)=>({account:sheet.getName(),errors:[],verifiedNoChanges:true,remainingQueueOps:0,appliedQueueOps:0,newQueue:0,changes:0,deferredQueueConflicts:0,deferredSourceRecords:0,...invalid});
+    assert.throws(()=>f.step());assert.equal(f.job().accountIndex,0);assert.equal(f.job().attempt.operation,'prepare');
+  }
+});
+
 test('accepted partial queue groups retain the same Account and advance coverage only after the final group',()=>{
   const f=fixture();f.start();f.toAccount();const original=f.b.oa2ProcessAccount_;let remaining=3;
   f.b.oa2ProcessAccount_=(...args)=>({...original(...args),remainingQueueOps:--remaining});
@@ -297,11 +316,19 @@ function sidebarFixture(options={}){
   f.b.SpreadsheetApp.getUi=()=>({showSidebar(){}});f.b.syncAllBookedArrivals();
   const script=/<script>([\s\S]*?)<\/script>/.exec(content)?.[1];assert.ok(script,'Real sidebar must provide its continuation UI');
   const nodes=Object.fromEntries(['status','detail','progress','retry'].map(id=>[id,{textContent:'',hidden:false,value:0,max:7,focused:false,removeAttribute(){},focus(){this.focused=true;}}]));
-  const callbacks={},timers=[],requests=[],events={},calls={start:0,continue:[]};
-  const rpc={withSuccessHandler:handler=>{callbacks.success=handler;return rpc;},withFailureHandler:handler=>{callbacks.failure=handler;return rpc;},startBookedArrivalsFullSync:()=>{calls.start++;requests.push({...callbacks});},continueBookedArrivalsFullSync:id=>{calls.continue.push(id);requests.push({...callbacks,id});}};
-  const context={document:{getElementById:id=>nodes[id]},google:{script:{run:rpc}},navigator:{onLine:options.online!==false},window:{addEventListener:(name,handler)=>{events[name]=handler;}},setTimeout:(action,delay)=>{timers.push({action,delay,cleared:false});return timers.length;},clearTimeout:id=>{if(timers[id-1])timers[id-1].cleared=true;}};
+  const callbacks={},timers=[],watchdogs=[],requests=[],events={},calls={start:0,continue:[],status:[]};
+  const rpc={
+    withSuccessHandler(handler){callbacks.success=handler;return rpc;},
+    withFailureHandler(handler){callbacks.failure=handler;return rpc;},
+    startBookedArrivalsFullSync(openedAt){calls.start++;requests.push({...callbacks,openedAt});},
+    continueBookedArrivalsFullSync(id,revision){calls.continue.push(id);requests.push({...callbacks,id,revision});},
+    getBookedArrivalsFullSyncStatus(id,openedAt){calls.status.push(id);requests.push({...callbacks,id,openedAt});}
+  };
+  const context={document:{getElementById:id=>nodes[id]},google:{script:{run:rpc}},navigator:{onLine:options.online!==false},window:{addEventListener:(name,handler)=>{events[name]=handler;}},setTimeout:(action,delay)=>{
+    const timer={action,delay,cleared:false};(delay>=12000?watchdogs:timers).push(timer);return timer;
+  },clearTimeout:timer=>{timer.cleared=true;}};
   vm.createContext(context);vm.runInContext(script,context);
-  return{nodes,callbacks,timers,requests,events,calls,context,content};
+  return{nodes,callbacks,timers,watchdogs,requests,events,calls,context,content};
 }
 const uiReceipt=overrides=>({jobId:'job-current',totalAccounts:6,processedAccounts:0,phase:'identity',finished:false,projectionComplete:false,needsReview:false,reviewAccounts:0,countsVerified:true,added:0,...overrides});
 
@@ -338,7 +365,7 @@ test('transport failures rejoin the same durable job with bounded backoff rather
   const f=sidebarFixture();f.callbacks.success(uiReceipt({jobId:'retained-job'}));f.timers[0].action();
   for(const delay of [2000,5000,10000]){f.callbacks.failure({message:'PRIVATE_TRANSPORT_ERROR'});const timer=f.timers.at(-1);assert.equal(timer.delay,delay);timer.action();}
   const count=f.timers.length;f.callbacks.failure({message:'PRIVATE_TRANSPORT_ERROR'});
-  assert.equal(f.timers.length,count);assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job','retained-job','retained-job','retained-job']);
+  assert.equal(f.timers.length,count);assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job']);assert.deepEqual(f.calls.status,Array(3).fill('retained-job'));
   assert.equal(f.nodes.retry.hidden,false);assert.ok(f.nodes.status.textContent.includes('多次連線'));
   f.events.online();assert.equal(f.timers.length,count,'Repeated reconnects cannot bypass exhausted recovery admission');
 });
@@ -353,13 +380,14 @@ test('offline transport failure pauses timers and reconnect continues the retain
   const f=sidebarFixture();f.callbacks.success(uiReceipt({jobId:'retained-job'}));f.timers[0].action();
   f.context.navigator.onLine=false;f.events.offline();f.callbacks.failure({message:'PRIVATE_OFFLINE'});
   assert.equal(f.timers.length,1);assert.ok(f.nodes.status.textContent.includes('離線'));
-  f.context.navigator.onLine=true;f.events.online();assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job','retained-job']);
+  f.context.navigator.onLine=true;f.events.online();assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job']);assert.deepEqual(f.calls.status,['retained-job']);
+  f.callbacks.success(uiReceipt({jobId:'retained-job',stepRevision:7}));f.timers.at(-1).action();assert.equal(f.requests.at(-1).revision,7);
 });
 
 test('manual retry cancels the scheduled retry and resets only client recovery admission',()=>{
   const f=sidebarFixture();f.callbacks.success(uiReceipt({jobId:'retained-job'}));f.timers[0].action();f.callbacks.failure();
   const timer=f.timers.at(-1);vm.runInContext('resume()',f.context);assert.equal(timer.cleared,true);
-  assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job','retained-job']);
+  assert.equal(f.calls.start,1);assert.deepEqual(f.calls.continue,['retained-job']);assert.deepEqual(f.calls.status,['retained-job']);
   f.callbacks.failure();assert.equal(f.timers.at(-1).delay,2000);
 });
 
@@ -393,6 +421,80 @@ test('real sidebar announces verified completion and returns keyboard focus to a
   const done=sidebarFixture();done.callbacks.success(uiReceipt({finished:true,phase:'complete',processedAccounts:6,projectionComplete:true,countsVerified:true,added:5,startedAt:'2026-11-16T10:00:00.000Z'}));
   assert.equal(done.nodes.progress.value,14);assert.ok(done.nodes.detail.textContent.includes('新增／補回 5 筆預約記錄'));assert.equal(done.timers.length,0);
   const retry=sidebarFixture();retry.callbacks.failure({message:'PRIVATE_ERROR'});assert.equal(retry.nodes.retry.focused,true);
+});
+
+test('status is read-only for an active, locked or missing job and never opens a sheet or extends the manual lease',()=>{
+  const f=fixture(),openedAt=new Date().toISOString();
+  assert.equal(f.b.getBookedArrivalsFullSyncStatus('',openedAt).restartRequired,true);
+  const job=f.start(),before=f.stored.get(jobKey),writes=f.writes.length;
+  f.scriptProps.set('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL','123');
+  f.b.oa3ManualStartup_=()=>{throw Error('Unexpected workbook or startup access');};
+  for(const busy of [true,false]){
+    f.control.busy=busy;
+    const receipt=f.b.getBookedArrivalsFullSyncStatus(job.id,openedAt);
+    if(busy)assert.equal(receipt.busy,true);
+    else {assert.equal(receipt.jobId,job.id);assert.equal(receipt.stepRevision,0);assert.equal(receipt.attemptPending,false);}
+  }
+  assert.equal(f.writes.length,writes);assert.equal(f.stored.get(jobKey),before);
+  assert.equal(f.scriptProps.get('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL'),'123');assert.equal(f.calls.flush,0);
+});
+
+test('a delayed start or retry of the same click rejoins the completed job; a later menu click can start a fresh run',()=>{
+  const f=fixture(),openedAt='2026-01-01T00:00:00.000Z',job=f.b.startBookedArrivalsFullSync(openedAt);
+  f.finish();const before=f.writes.length;
+  assert.equal(f.b.getBookedArrivalsFullSyncStatus('',openedAt).jobId,job.jobId);
+  const late=f.b.startBookedArrivalsFullSync(openedAt);
+  assert.equal(late.finished,true);assert.equal(late.jobId,job.jobId);assert.equal(f.writes.length,before);
+  assert.equal(f.scriptProps.has('OMNI_ARRIVAL_MANUAL_LEASE_UNTIL'),false);
+  const nextClick=new Date(Date.parse(late.updatedAt)+1).toISOString();
+  assert.equal(f.b.getBookedArrivalsFullSyncStatus('',nextClick).restartRequired,true);
+  assert.notEqual(f.b.startBookedArrivalsFullSync(nextClick).jobId,job.jobId);
+});
+
+test('two callbacks or clients carrying the same checkpoint revision can admit only one native step',()=>{
+  const f=fixture(),job=f.start();f.control.identityRemaining=2;
+  const first=f.b.continueBookedArrivalsFullSync(job.id,0),writes=f.writes.length;
+  const late=f.b.continueBookedArrivalsFullSync(job.id,0);
+  assert.equal(first.stepRevision,1);assert.equal(late.stepRevision,1);assert.equal(f.calls.identity.length,1);assert.equal(f.writes.length,writes);
+  assert.equal(f.b.continueBookedArrivalsFullSync(job.id,1).stepRevision,2);assert.equal(f.calls.identity.length,2);
+});
+
+test('an unknown worker exposes its pending attempt only after lock release and stale RPCs never replay it',()=>{
+  const f=fixture(),job=f.start();f.toAccount();const revision=f.job().stepRevision;
+  f.control.accountFailure=true;assert.throws(()=>f.b.continueBookedArrivalsFullSync(job.id,revision));
+  const before=f.calls.account.length,observed=f.b.getBookedArrivalsFullSyncStatus(job.id,'');
+  assert.equal(observed.attemptPending,true);assert.equal(observed.stepRevision,revision+1);
+  f.control.accountFailure=false;f.b.continueBookedArrivalsFullSync(job.id,revision);assert.equal(f.calls.account.length,before);
+  const recovery=f.b.continueBookedArrivalsFullSync(job.id,observed.stepRevision);
+  assert.equal(recovery.countsVerified,false);assert.equal(f.calls.account.length,before,'Retained uncertain application first checks allocations');
+});
+
+test('lost callback makes only status reads while locked and resumes the confirmed revision after release',()=>{
+  const ui=sidebarFixture();ui.callbacks.success(uiReceipt({stepRevision:7}));ui.timers.at(-1).action();
+  const lost=ui.requests.at(-1);assert.equal(lost.revision,7);
+  ui.watchdogs.at(-1).action();assert.deepEqual(ui.calls.status,['job-current']);assert.equal(ui.calls.continue.length,1);
+  for(let i=0;i<3;i++){ui.callbacks.success({busy:true});ui.timers.at(-1).action();}
+  assert.equal(ui.calls.start,1);assert.equal(ui.calls.continue.length,1);assert.equal(ui.calls.status.length,4);
+  lost.success(uiReceipt({finished:true,added:999}));assert.ok(!ui.nodes.detail.textContent.includes('999'));
+  ui.callbacks.success(uiReceipt({stepRevision:8,attemptPending:false}));ui.timers.at(-1).action();
+  assert.deepEqual(ui.calls.continue,['job-current','job-current']);assert.equal(ui.requests.at(-1).revision,8);
+});
+
+test('a busy start polls the shared checkpoint and can accept a finished run without issuing another start',()=>{
+  const ui=sidebarFixture(),openedAt=ui.requests[0].openedAt;
+  ui.callbacks.success({busy:true});ui.timers.at(-1).action();
+  assert.equal(ui.calls.start,1);assert.equal(ui.requests.at(-1).openedAt,openedAt);assert.deepEqual(ui.calls.status,['']);
+  ui.callbacks.success(uiReceipt({finished:true,startedAt:openedAt,added:3}));
+  assert.ok(ui.nodes.detail.textContent.includes('3 筆'));assert.equal(ui.calls.continue.length,0);
+});
+
+test('a hung probe also expires; repeated unobserved callbacks stop before admitting a writer',()=>{
+  const ui=sidebarFixture();ui.watchdogs.at(-1).action();
+  for(let i=0;i<2;i++){ui.watchdogs.at(-1).action();ui.timers.at(-1).action();}
+  ui.watchdogs.at(-1).action();assert.ok(ui.nodes.status.textContent.includes('多次'));assert.equal(ui.nodes.retry.hidden,false);
+  assert.equal(ui.calls.start,1);assert.deepEqual(ui.calls.continue,[]);
+  const probes=ui.calls.status.length;ui.events.online();assert.equal(ui.calls.status.length,probes);
+  vm.runInContext('resume()',ui.context);assert.equal(ui.calls.status.length,probes+1);assert.equal(ui.calls.start,1);
 });
 
 console.log(JSON.stringify({passed:tests.length,failed:failures.length,tests,failures},null,2));
