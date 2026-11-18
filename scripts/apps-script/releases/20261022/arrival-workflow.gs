@@ -536,6 +536,7 @@ function oa3ManualFullSyncState_(props) {
   // Existing v1 jobs can resume without resetting accepted Account coverage.
   if(state.stepRevision===undefined)state.stepRevision=0;
   if(!Number.isSafeInteger(state.stepRevision)||state.stepRevision<0)throw new Error('同步步驟版本未能核實。');
+  if(state.attempt&&state.attempt.retryReader!==undefined&&(state.attempt.phase!=='identity'||state.attempt.retryReader!=='grid'))throw new Error('同步身份核對進度未能核實。');
   if(state.projectionStep===undefined)state.projectionStep=state.phase==='complete'?8:0;
   if(state.accountPrepared===undefined)state.accountPrepared=false;
   if(state.pendingQueueOps===undefined)state.pendingQueueOps=0;
@@ -630,6 +631,11 @@ function continueBookedArrivalsFullSync(jobId,expectedRevision) {
     // consume the observed revision under the document lock. Older clients
     // without a revision continue using the established recovery protocol.
     if(typeof expectedRevision==='number'&&expectedRevision!==state.stepRevision)return oa3ManualFullSyncView_(state);
+    // A service timeout can prevent Apps Script from returning any error. Only
+    // an old unfinished identity attempt on this exact revision qualifies. An
+    // interrupted alternate read gets a full native execution on the next retry.
+    const retryIdentityDiscovery=Number.isSafeInteger(expectedRevision)&&phase==='identity'&&state.attempt!==null&&
+      state.attempt.retryReader===undefined&&Date.now()-Date.parse(state.attempt.startedAt)>=5*60*1000;
     state.stepRevision++;
     const ss=startup.spreadsheet,index=state.accountIndex,account=OMNI_ACCOUNT_TABS[index];
     // A persisted attempt means the prior native call may have committed before
@@ -642,10 +648,11 @@ function continueBookedArrivalsFullSync(jobId,expectedRevision) {
       if(phase==='account'&&state.attempt.operation!=='prepare'){state.phase='identity';phase='identity';}
     }
     state.blockedReason=null;state.attempt={phase,accountIndex:index,startedAt:new Date().toISOString()};
+    if(retryIdentityDiscovery)state.attempt.retryReader='grid';
     if(phase==='account')state.attempt.operation=state.accountPrepared?'apply':'prepare';
     oa3ManualFullSyncSave_(props,state);attemptPersisted=true;
     if(phase==='identity') {
-      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,maxIdentityBatch:1,manualRequested:true,recoverPendingAllocations:true,deferDisplay:true});
+      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,maxIdentityBatch:1,manualRequested:true,recoverPendingAllocations:true,deferDisplay:true,retryIdentityDiscovery});
       if(!result)throw new Error('Identity completion was not verified.');
       if(['registered','recovered','bookedAdded','review'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0)||!Array.isArray(result.accountFailures))throw new Error('Identity completion was not verified.');
       if(result.skipped){if(result.registered||result.recovered||result.bookedAdded)throw new Error('Identity result remains pending.');state.attempt=null;return Object.assign(oa3ManualFullSyncSave_(props,state),{busy:true,reason:'staff_priority'});}
@@ -1075,7 +1082,123 @@ function oa3ManualStartup_(timings) {
     });
     return nativeSpreadsheet;
   };
-  return {props,spreadsheet:{getId:()=>binding.spreadsheetId,getSheetByName:name=>real().getSheetByName(name),toast:(...args)=>real().toast(...args)}};
+  return {props,spreadsheet:{verifiedManualSpreadsheetId:binding.spreadsheetId,getId:()=>binding.spreadsheetId,getSheetByName:name=>real().getSheetByName(name),toast:(...args)=>real().toast(...args)}};
+}
+
+/** Read-only evidence for the manual identity phase. Both calls are bound to
+ * the same spreadsheet. The data read repeats the entire header so remapping,
+ * renaming or resizing a sheet between requests invalidates the proof.
+ */
+function oa3ReadManualDiscovery_(id,account) {
+  const requireProof=condition=>{if(!condition)throw new Error('Manual identity grid evidence is incomplete.');};
+  const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+  requireProof(typeof id==='string'&&/^[A-Za-z0-9_-]+$/.test(id)&&OMNI_ACCOUNT_TABS.includes(account));
+  requireProof(typeof Sheets!=='undefined'&&Sheets&&Sheets.Spreadsheets&&typeof Sheets.Spreadsheets.get==='function');
+  const names=OMNI_ACCOUNT_TABS;
+  const headerRange=name=>oa3ManualApiRange_(name,'1:1');
+  const fields='spreadsheetId,sheets(properties(sheetId,title,sheetType,gridProperties(rowCount,columnCount)),data(startRow,startColumn,rowMetadata(pixelSize),rowData(values(userEnteredValue,effectiveValue,formattedValue))))';
+  const fetchSheets=ranges=>{
+    const response=Sheets.Spreadsheets.get(id,{ranges,fields,includeGridData:true}),sheets=new Map(),ids=new Set();
+    requireProof(response&&response.spreadsheetId===id&&Array.isArray(response.sheets)&&response.sheets.length===names.length);
+    for(const sheet of response.sheets){
+      const p=sheet&&sheet.properties,g=p&&p.gridProperties;
+      requireProof(p&&names.includes(p.title)&&!sheets.has(p.title)&&Number.isSafeInteger(p.sheetId)&&p.sheetId>=0&&!ids.has(p.sheetId)&&p.sheetType==='GRID');
+      requireProof(g&&Number.isSafeInteger(g.rowCount)&&g.rowCount>=1&&Number.isSafeInteger(g.columnCount)&&g.columnCount>0&&g.columnCount<=4096);
+      requireProof(Array.isArray(sheet.data));
+      sheets.set(p.title,sheet);ids.add(p.sheetId);
+    }
+    return sheets;
+  };
+  const readBlock=(sheet,row,column,height,width)=>{
+    const at=(v,offset)=>v===undefined?offset===0:Number.isSafeInteger(v)&&v===offset;
+    const blocks=sheet.data.filter(block=>object(block)&&at(block.startRow,row)&&at(block.startColumn,column));
+    requireProof(blocks.length===1);
+    const block=blocks[0],data=block.rowData===undefined?[]:block.rowData;
+    requireProof(Array.isArray(data)&&data.length<=height);
+    // Sheets can omit blank trailing RowData. For a trimmed block require an
+    // independent dimension witness for every requested row, including blanks.
+    if(block.rowMetadata!==undefined){
+      requireProof(Array.isArray(block.rowMetadata)&&block.rowMetadata.length<=height);
+    }
+    if(data.length<height){
+      requireProof(block.rowMetadata&&block.rowMetadata.length===height);
+      // A default-sized dimension may serialize as {}. Its position still
+      // witnesses one requested row. Reject holes and invalid explicit sizes.
+      for(const dimension of block.rowMetadata)requireProof(object(dimension)&&
+        (dimension.pixelSize===undefined||(Number.isSafeInteger(dimension.pixelSize)&&dimension.pixelSize>=0)));
+    }
+    const rows=[];
+    for(const entry of data){
+      requireProof(object(entry));
+      const cells=entry.values===undefined?[]:entry.values;
+      requireProof(Array.isArray(cells)&&cells.length<=width);
+      for(const cell of cells)requireProof(object(cell));
+      rows.push(cells);
+    }
+    return rows;
+  };
+  // Discovery consumes native display strings. A calculated spill or pivot
+  // result may have no entered value. Its effective and displayed values
+  // still describe the cell; a calculation error cannot prove clean scope.
+  const valueKind=(value,allowFormula)=>{
+    requireProof(object(value)&&Object.keys(value).length===1);
+    const kind=Object.keys(value)[0],raw=value[kind];
+    requireProof((kind==='stringValue'&&typeof raw==='string')||
+      (kind==='boolValue'&&typeof raw==='boolean')||
+      (kind==='numberValue'&&Number.isFinite(raw))||
+      (allowFormula&&kind==='formulaValue'&&typeof raw==='string'&&raw.startsWith('=')));
+    return kind;
+  };
+  const readDisplay=cell=>{
+    const entered=cell.userEnteredValue,effective=cell.effectiveValue,display=cell.formattedValue;
+    const input=entered===undefined?null:valueKind(entered,true);
+    if(effective===undefined){
+      requireProof((input===null||(input==='stringValue'&&entered.stringValue===''))&&
+        (display===undefined||display===''));
+      return '';
+    }
+    const result=valueKind(effective,false);
+    if(input!==null&&input!=='formulaValue')requireProof(input===result&&entered[input]===effective[result]);
+    if(result==='stringValue'&&effective.stringValue===''&&display===undefined)return '';
+    requireProof(typeof display==='string'&&(result!=='stringValue'||effective.stringValue===display));
+    return display;
+  };
+  const readHeader=(cells,width)=>{
+    requireProof(cells&&cells.length>0);
+    return Array.from({length:width},(_,i)=>i<cells.length?readDisplay(cells[i]):'');
+  };
+  const initial=fetchSheets(names.map(headerRange)),plans=[],ranges=[];
+  let cellsRequested=0;
+  for(const name of names){
+    const sheet=initial.get(name),p=sheet.properties,g=p.gridProperties;
+    requireProof(sheet.data.length===1);
+    const header=readHeader(readBlock(sheet,0,0,1,g.columnCount)[0],g.columnCount);
+    const memory=oa3ManualMemorySheet_([header],name),full=name===account;
+    getOmniColumns_(memory);
+    const meta=oa2Meta_(memory,false),offset=full?0:meta-1,width=full?g.columnCount:OA2.ACCOUNT_HEADERS.length;
+    requireProof(offset>=0&&offset+width<=g.columnCount);
+    cellsRequested+=g.columnCount+(g.rowCount-1)*width;
+    requireProof(Number.isSafeInteger(cellsRequested)&&cellsRequested<=1200000);
+    if(full)ranges.push(oa3ManualApiRange_(name,'A1:'+columnLetter_(width)+g.rowCount));
+    else{
+      ranges.push(headerRange(name));
+      if(g.rowCount>1)ranges.push(oa3ManualApiRange_(name,columnLetter_(offset+1)+'2:'+columnLetter_(offset+width)+g.rowCount));
+    }
+    plans.push({name,sheetId:p.sheetId,height:g.rowCount,columns:g.columnCount,header,meta,offset,width,full});
+  }
+  const loaded=fetchSheets(ranges),sources=[];
+  for(const plan of plans){
+    const {name,sheetId,height,columns,header,meta,offset,width,full}=plan;
+    const sheet=loaded.get(name),p=sheet.properties,g=p.gridProperties;
+    requireProof(p.sheetId===sheetId&&g.rowCount===height&&g.columnCount===columns);
+    requireProof(sheet.data.length===(!full&&height>1?2:1));
+    const top=readBlock(sheet,0,0,full?height:1,columns);
+    requireProof(JSON.stringify(readHeader(top[0],columns))===JSON.stringify(header));
+    const body=full?top.slice(1):height>1?readBlock(sheet,1,offset,height-1,width):[];
+    const rows=body.map(cells=>cells.map(readDisplay));
+    sources.push({account:name,header,rows,meta,offset,full});
+  }
+  return {sources};
 }
 
 /** Read-only rejection only: API raw identities can defer a gap, never authorize a write. */

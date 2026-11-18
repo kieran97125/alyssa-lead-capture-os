@@ -1960,7 +1960,7 @@ function oa2ResolveMissingLeadIdentity_(r,evidence,allocate) {
 /** One display-only batch discovers all Accounts; header faults stay local.
  * Metadata ownership is counted even when an unrelated business header is bad.
  */
-function oa2IdentityDiscovery_(ss,manualAccount) {
+function oa2IdentityDiscovery_(ss,manualAccount,retrySources) {
   const scopedNative=OMNI_ACCOUNT_TABS.includes(manualAccount)&&OA3_MANUAL_USE_NATIVE_DISPLAY_READS===true;
   const display=scopedNative?ss:oa3IdentityDisplayContext_(ss),accounts=[],owners={},sources=[],knownLeadIds=new Set(),failures=[];let identityComplete=true;
   let formattedCells=0,rangeReads=0;
@@ -1968,8 +1968,16 @@ function oa2IdentityDiscovery_(ss,manualAccount) {
     const claimsOnly=scopedNative&&account!==manualAccount;
     let memory,data,claims,offset;
     try{
-      const sh=display.getSheetByName(account);if(!sh)throw new Error('Missing Account.');
-      if(claimsOnly){
+      const external=retrySources&&retrySources.get(account);
+      const sh=external?null:display.getSheetByName(account);
+      if(external){
+        // Same displayed strings and header contracts as the native path.
+        // These rows are only discovery inputs: all subsequent adjudication,
+        // native reads, before-images, lock checks and writers are unchanged.
+        memory=oa3ManualMemorySheet_([external.header],account);
+        offset=oa2Meta_(memory,false)-1-external.offset;claims=external.rows;
+      }else if(!sh)throw new Error('Missing Account.');
+      else if(claimsOnly){
         const header=sh.getRange(1,1,1,Math.max(1,sh.getLastColumn())).getDisplayValues();
         rangeReads++;formattedCells+=header[0].length;
         memory=oa3ManualMemorySheet_(header,account);
@@ -2000,8 +2008,32 @@ function oa2IdentityDiscovery_(ss,manualAccount) {
       accounts.push({account,accountIndex,missing});
     }catch(ignored){failures.push({accountIndex,reason:'account_contract'});}
   });
-  if(scopedNative)console.log(JSON.stringify({handler:'manual_identity_discovery',rangeReads,formattedCells,identityComplete,accountFailures:failures.length}));
+  if(scopedNative)console.log(JSON.stringify(Object.assign({handler:'manual_identity_discovery',reader:retrySources?'grid':'native',identityComplete,accountFailures:failures.length},
+    retrySources?{verifiedScopes:retrySources.size,sourceRows:sources.length}:{rangeReads,formattedCells})));
   return {accounts,owners,sources,knownLeadIds,identityComplete,failures};
+}
+
+/** Read-only input adapter for a previously interrupted, revision-fenced manual
+ * identity step. A rejected response supplies no rows to the canonical worker. */
+function oa2RetryIdentitySources_(ss,account,documentLock) {
+  const id=ss&&ss.verifiedManualSpreadsheetId;
+  if(typeof id!=='string'||!/^[A-Za-z0-9_-]+$/.test(id)||typeof ss.getId!=='function'||
+    !documentLock||typeof documentLock.hasLock!=='function'||!documentLock.hasLock()||typeof oa3ReadManualDiscovery_!=='function')return null;
+  const started=Date.now();let verified=false;
+  try{
+    if(ss.getId()!==id)return null;
+    const response=oa3ReadManualDiscovery_(id,account),grids=new Map();
+    if(!response||!Array.isArray(response.sources)||response.sources.length!==OMNI_ACCOUNT_TABS.length)return null;
+    for(const grid of response.sources){
+      if(!grid||!OMNI_ACCOUNT_TABS.includes(grid.account)||grids.has(grid.account)||grid.full!==(grid.account===account)||
+        !Array.isArray(grid.header)||!Array.isArray(grid.rows))return null;
+      const meta=oa2Meta_(oa3ManualMemorySheet_([grid.header],grid.account),false);
+      if(grid.meta!==meta||grid.offset!==(grid.full?0:meta-1))return null;
+      grids.set(grid.account,grid);
+    }
+    verified=true;return grids;
+  }catch(ignored){return null;}
+  finally{console.log(JSON.stringify({handler:'manual_identity_retry_reader',verified,durationMs:Date.now()-started}));}
 }
 
 function oa2IdentityCandidate_(r){return r.meaningful&&(!r.leadId||!!r.pendingSnapshot||oa2Status_(r.status)==='booked'&&!r.appointmentId);}
@@ -2100,7 +2132,13 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
   const identityLimit=Number.isInteger(options.maxIdentityBatch)&&options.maxIdentityBatch>=1&&options.maxIdentityBatch<=50?options.maxIdentityBatch:50;
   if(!options.staffEdit&&!admittedManual&&omniStaffPriorityActive_())return Object.assign(result,{skipped:true,reason:'staff_priority'});
   const manualAccount=admittedManual&&!options.staffEdit&&Array.isArray(options.accountNames)&&options.accountNames.length===1?options.accountNames[0]:undefined;
-  const discovery=oa3ManualPhase_(timings,'discoveryMs',()=>oa2IdentityDiscovery_(ss,manualAccount));result.accountFailures=discovery.failures.slice();
+  const retryReader=manualAccount&&OMNI_ACCOUNT_TABS[options.startAccountIndex]===manualAccount&&identityLimit===1&&
+    options.retryIdentityDiscovery===true&&options.recoverPendingAllocations===true&&options.deferDisplay===true&&OA3_MANUAL_USE_NATIVE_DISPLAY_READS===true;
+  const discovery=oa3ManualPhase_(timings,'discoveryMs',()=>{
+    const grids=retryReader?oa2RetryIdentitySources_(ss,manualAccount,documentLock):null;
+    return oa2IdentityDiscovery_(ss,manualAccount,grids);
+  });
+  result.accountFailures=discovery.failures.slice();
   if(!discovery.identityComplete){result.review++;result.reviewReasons.push('identity_metadata_contract');result.blocked=true;return result;}
   const duplicates=Object.keys(discovery.owners).filter(id=>discovery.owners[id].length>1);
   if(duplicates.length){result.review+=duplicates.length;result.reviewReasons.push('duplicate_source_identity');result.blocked=true;result.accountFailures.push({accountIndex:-1,reason:'duplicate_source_identity'});return result;}
