@@ -1061,7 +1061,18 @@ function oa3ManualStartup_(timings) {
   const metrics=timings||{},props=oa3ManualPhase_(metrics,'startupPropertiesMs',()=>PropertiesService.getDocumentProperties()),scriptId=oa3ManualPhase_(metrics,'startupScriptIdMs',()=>ScriptApp.getScriptId());
   const binding=oa3ManualPhase_(metrics,'startupBindingMs',()=>oa3ManualBinding_(props.getProperty('ARRIVAL_MANUAL_CONTAINER_BINDING_V1'),scriptId));let nativeSpreadsheet;
   const real=()=>{
-    if(!nativeSpreadsheet)nativeSpreadsheet=oa3ManualPhase_(metrics,'nativeContainerOpenMs',()=>{const spreadsheet=SpreadsheetApp.openById(binding.spreadsheetId);if(!spreadsheet||spreadsheet.getId()!==binding.spreadsheetId)throw new Error('Native manual sync container identity does not match its verified binding.');return spreadsheet;});
+    if(!nativeSpreadsheet)nativeSpreadsheet=oa3ManualPhase_(metrics,'nativeContainerOpenMs',()=>{
+      let spreadsheet;
+      if(typeof SpreadsheetApp.getActiveSpreadsheet==='function'){
+        try{spreadsheet=oa3ManualPhase_(metrics,'nativeActiveContainerMs',()=>SpreadsheetApp.getActiveSpreadsheet());}
+        catch(unavailable){/* Some execution contexts have no active container. */}
+      }
+      if(spreadsheet==null)spreadsheet=oa3ManualPhase_(metrics,'nativeOpenByIdMs',()=>SpreadsheetApp.openById(binding.spreadsheetId));
+      // An existing active container with an unreadable or foreign ID must
+      // never be substituted. Cache only the successfully verified object.
+      if(!spreadsheet||spreadsheet.getId()!==binding.spreadsheetId)throw new Error('Native manual sync container identity does not match its verified binding.');
+      return spreadsheet;
+    });
     return nativeSpreadsheet;
   };
   return {props,spreadsheet:{getId:()=>binding.spreadsheetId,getSheetByName:name=>real().getSheetByName(name),toast:(...args)=>real().toast(...args)}};
