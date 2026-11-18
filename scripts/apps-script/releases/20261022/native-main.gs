@@ -1960,20 +1960,47 @@ function oa2ResolveMissingLeadIdentity_(r,evidence,allocate) {
 /** One display-only batch discovers all Accounts; header faults stay local.
  * Metadata ownership is counted even when an unrelated business header is bad.
  */
-function oa2IdentityDiscovery_(ss) {
-  const display=oa3IdentityDisplayContext_(ss),accounts=[],owners={},sources=[],knownLeadIds=new Set(),failures=[];let identityComplete=true;
+function oa2IdentityDiscovery_(ss,manualAccount) {
+  const scopedNative=OMNI_ACCOUNT_TABS.includes(manualAccount)&&OA3_MANUAL_USE_NATIVE_DISPLAY_READS===true;
+  const display=scopedNative?ss:oa3IdentityDisplayContext_(ss),accounts=[],owners={},sources=[],knownLeadIds=new Set(),failures=[];let identityComplete=true;
+  let formattedCells=0,rangeReads=0;
   OMNI_ACCOUNT_TABS.forEach((account,accountIndex)=>{
-    let memory,data,meta;
+    const claimsOnly=scopedNative&&account!==manualAccount;
+    let memory,data,claims,offset;
     try{
       const sh=display.getSheetByName(account);if(!sh)throw new Error('Missing Account.');
-      data=sh.getDataRange().getDisplayValues();memory=oa3ManualMemorySheet_(data,account);meta=oa2Meta_(memory,false);
-      data.slice(1).forEach((row,i)=>{const id=oa2Text_(row[meta-1]);sources.push({account,row:i+2,leadId:id,appointmentId:oa2Text_(row[meta]),pendingSnapshot:oa2Text_(row[meta+4])});if(!id)return;knownLeadIds.add(id);(owners[id]||(owners[id]=[])).push({account,row:i+2});});
+      if(claimsOnly){
+        const header=sh.getRange(1,1,1,Math.max(1,sh.getLastColumn())).getDisplayValues();
+        rangeReads++;formattedCells+=header[0].length;
+        memory=oa3ManualMemorySheet_(header,account);
+        const meta=oa2Meta_(memory,false),height=sh.getLastRow();
+        claims=[];
+        if(height>1){
+          // Include the governed header in the same read as its claims. A
+          // moved column between header discovery and this read fails closed.
+          const columns=sh.getRange(1,meta,height,OA2.ACCOUNT_HEADERS.length).getDisplayValues();
+          rangeReads++;formattedCells+=columns.length*OA2.ACCOUNT_HEADERS.length;
+          if(columns.length!==height||columns.some(values=>values.length!==OA2.ACCOUNT_HEADERS.length)||
+            !OA2.ACCOUNT_HEADERS.every((h,i)=>oa2Text_(columns[0][i])===h))throw new Error('Source identity layout changed during discovery.');
+          claims=columns.slice(1);
+        }
+        offset=0;
+      }else{
+        data=sh.getDataRange().getDisplayValues();memory=oa3ManualMemorySheet_(data,account);
+        if(scopedNative){rangeReads++;formattedCells+=data.length*(data[0]||[]).length;}
+        offset=oa2Meta_(memory,false)-1;claims=data.slice(1);
+      }
+      claims.forEach((row,i)=>{const id=oa2Text_(row[offset]);sources.push({account,row:i+2,leadId:id,appointmentId:oa2Text_(row[offset+1]),pendingSnapshot:oa2Text_(row[offset+5])});if(!id)return;knownLeadIds.add(id);(owners[id]||(owners[id]=[])).push({account,row:i+2});});
     }catch(ignored){identityComplete=false;failures.push({accountIndex,reason:'identity_metadata_contract'});return;}
     try{
-      const c=getOmniColumns_(memory),missing=data.slice(1).some((row,i)=>oa2IdentityCandidate_(oa2Record_(row,i+2,memory,c,meta,account)));
+      // A manual single-Account step may admit ordinary candidates only from
+      // that Account. Foreign allocations retain priority through their global
+      // pointers and take their own fresh full-row snapshot before recovery.
+      const c=getOmniColumns_(memory),missing=claimsOnly?null:claims.some((row,i)=>oa2IdentityCandidate_(oa2Record_(row,i+2,memory,c,offset+1,account)));
       accounts.push({account,accountIndex,missing});
     }catch(ignored){failures.push({accountIndex,reason:'account_contract'});}
   });
+  if(scopedNative)console.log(JSON.stringify({handler:'manual_identity_discovery',rangeReads,formattedCells,identityComplete,accountFailures:failures.length}));
   return {accounts,owners,sources,knownLeadIds,identityComplete,failures};
 }
 
@@ -2072,7 +2099,8 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
   const admittedManual=options.manualRequested===true;
   const identityLimit=Number.isInteger(options.maxIdentityBatch)&&options.maxIdentityBatch>=1&&options.maxIdentityBatch<=50?options.maxIdentityBatch:50;
   if(!options.staffEdit&&!admittedManual&&omniStaffPriorityActive_())return Object.assign(result,{skipped:true,reason:'staff_priority'});
-  const discovery=oa3ManualPhase_(timings,'discoveryMs',()=>oa2IdentityDiscovery_(ss));result.accountFailures=discovery.failures.slice();
+  const manualAccount=admittedManual&&!options.staffEdit&&Array.isArray(options.accountNames)&&options.accountNames.length===1?options.accountNames[0]:undefined;
+  const discovery=oa3ManualPhase_(timings,'discoveryMs',()=>oa2IdentityDiscovery_(ss,manualAccount));result.accountFailures=discovery.failures.slice();
   if(!discovery.identityComplete){result.review++;result.reviewReasons.push('identity_metadata_contract');result.blocked=true;return result;}
   const duplicates=Object.keys(discovery.owners).filter(id=>discovery.owners[id].length>1);
   if(duplicates.length){result.review+=duplicates.length;result.reviewReasons.push('duplicate_source_identity');result.blocked=true;result.accountFailures.push({accountIndex:-1,reason:'duplicate_source_identity'});return result;}
