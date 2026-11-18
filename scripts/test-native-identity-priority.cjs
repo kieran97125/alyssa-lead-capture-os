@@ -754,6 +754,83 @@ function interruptedAllocationFixture() {
   f.queue.state.matrix[7][arrivalHeaders.indexOf('試做價')]=0;
   return f;
 }
+function settledDiscoveryFixture(count=100) {
+  const f=nativeFixture(),reads=[];
+  f.box.OA3_MANUAL_USE_NATIVE_DISPLAY_READS=true;
+  f.box.Sheets=new Proxy({},{get(){throw Error('Native discovery cannot dispatch an API request');}});
+  for(const [account,source] of f.sources){
+    source.state.matrix.length=1;
+    for(let i=0;i<count;i++)source.state.matrix.push(valuesRow(f.headers,{
+      '跟進狀態':'待跟進','客人姓名':'Synthetic enquiry','Omni Lead ID':account+'_lead_'+i,
+      'Appointment ID':account+'_appointment_'+i
+    }));
+    const getRange=source.getRange;
+    source.getRange=(row,column,height=1,width=1)=>{
+      const range=getRange(row,column,height,width);
+      for(const method of ['getDisplayValues','getValues']){
+        const read=range[method];
+        range[method]=()=>{reads.push({account,row,column,height,width,method});return read();};
+      }
+      return range;
+    };
+  }
+  return {...f,reads};
+}
+test('one explicit manual Account reads its full display and only the verified identity columns on all other Accounts',()=>{
+  const f=settledDiscoveryFixture(),target='GOS Beauty',names=f.accountNames(),count=100,width=f.headers.length,meta=f.headers.indexOf('Omni Lead ID')+1;
+  f.sources.get('Alyssa Main').state.matrix[1][f.headers.indexOf('Pending Appointment Snapshot')]='synthetic pending snapshot';
+  const full=f.box.oa2IdentityDiscovery_(f.ss),cells=()=>f.reads.reduce((n,r)=>n+r.width*r.height,0);
+  assert.equal(cells(),names.length*(count+1)*width);
+  f.reads.length=0;
+  const scoped=f.box.oa2IdentityDiscovery_(f.ss,target);
+  assert.equal(scoped.identityComplete,true);assert.deepEqual(clone(scoped.failures),[]);
+  assert.deepEqual(clone(scoped.owners),clone(full.owners));assert.deepEqual([...scoped.knownLeadIds].sort(),[...full.knownLeadIds].sort());
+  assert.deepEqual(clone(scoped.sources),clone(full.sources));
+  assert.ok(f.reads.every(r=>r.method==='getDisplayValues'));
+  for(const account of names){
+    const shapes=f.reads.filter(r=>r.account===account).map(r=>[r.row,r.column,r.height,r.width]);
+    assert.deepEqual(shapes,account===target?[[1,1,count+1,width]]:[[1,1,1,width],[1,meta,count+1,6]]);
+  }
+  assert.equal(cells(),(count+1)*width+(names.length-1)*(width+(count+1)*6));
+});
+test('concurrent outside identity-column movement between the header and claims reads blocks a manual identity write',()=>{
+  const f=settledDiscoveryFixture(2),main=f.sources.get('Alyssa Main'),meta=f.headers.indexOf('Omni Lead ID')+1;
+  main.state.beforeRead=(_n,r)=>{if(r.row===1&&r.column===meta&&r.width===6)main.state.matrix[0][meta-1]='moved';};
+  const before=f.writes().length,result=f.run({manualRequested:true,accountNames:['GOS Beauty']});
+  assert.equal(result.blocked,true);assert.ok(result.reviewReasons.includes('identity_metadata_contract'));assert.equal(f.writes().length,before);
+});
+test('only a single explicitly admitted manual Account scopes provider reads through the real priority worker',()=>{
+  const target='GOS Beauty';
+  for(const [options,scoped] of [[{manualRequested:true,accountNames:[target]},true],[{accountNames:[target]},false],[{staffEdit:true,accountNames:[target]},false],[{manualRequested:'true',accountNames:[target]},false],[{manualRequested:true,accountNames:[target,'Alyssa Main']},false]]){
+    const f=settledDiscoveryFixture(2),before=f.writes().length,r=f.run(options);
+    assert.equal(r.recovered,0);assert.equal(r.bookedAdded,0);assert.equal(f.writes().length,before);
+    const fullReads=f.reads.filter(read=>read.height===3&&read.width===f.headers.length);
+    assert.deepEqual(fullReads.map(read=>read.account).sort(),scoped?[target]:f.accountNames().sort());
+    assert.ok(f.reads.every(read=>read.method==='getDisplayValues'));
+  }
+});
+test('scoped manual discovery sees duplicate outside Lead IDs even in metadata-only rows',()=>{
+  const f=settledDiscoveryFixture(1),outside=f.accountNames().filter(name=>name!=='GOS Beauty').slice(0,2),id=f.headers.indexOf('Omni Lead ID');
+  for(const account of outside){const row=Array(f.headers.length).fill('');row[id]='lead_duplicate_outside';f.sources.get(account).state.matrix[1]=row;}
+  const before=f.writes().length,r=f.run({manualRequested:true,accountNames:['GOS Beauty']});
+  assert.equal(r.blocked,true);assert.ok(r.reviewReasons.includes('duplicate_source_identity'));assert.equal(f.writes().length,before);
+});
+for(const [header,reason] of [['Appointment ID','identity_metadata_contract'],['跟進狀態','account_contract']])
+  test('scoped manual discovery retains outside '+reason+' failures',()=>{
+    const f=nativeFixture(),other=f.sources.get('Alyssa Main');
+    other.state.matrix[0][f.headers.indexOf(header)]='Malformed synthetic header';
+    const before=f.writes().length,r=f.run({manualRequested:true,accountNames:['GOS Beauty']});
+    assert.ok(r.accountFailures.some(e=>e.accountIndex===f.accountNames().indexOf('Alyssa Main')&&e.reason===reason));
+    if(reason==='identity_metadata_contract'){assert.equal(r.blocked,true);assert.equal(f.writes().length,before);}
+    else{assert.equal(r.bookedAdded,1);assert.equal(other.state.writes.length,0);}
+  });
+test('an allocating row with no matching source pointer cannot be recovered by the next manual Account',()=>{
+  const f=interruptedAllocationFixture();f.queue.state.matrix[7][arrivalHeaders.indexOf('Appointment ID')]='appt_unknown';
+  const before=f.writes().length,q=clone(f.queue.state.matrix),source=clone(f.source.state.matrix);
+  const r=f.run({manualRequested:true,recoverPendingAllocations:true,accountNames:['Alyssa Main']});
+  assert.equal(r.recovered,0);assert.equal(r.bookedAdded,0);assert.equal(f.writes().length,before);
+  assert.deepEqual(clone(f.queue.state.matrix),q);assert.deepEqual(clone(f.source.state.matrix),source);
+});
 for(const deferDisplay of [false,true])test('full-job identity recovery defers only display and retains native readback: '+deferDisplay,()=>{
   const f=interruptedAllocationFixture();let display=0;f.box.oa3RefreshDisplay_=()=>{display++;return {};};
   const receipt=f.run({manualRequested:true,recoverPendingAllocations:true,deferDisplay});
