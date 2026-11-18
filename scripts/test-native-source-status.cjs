@@ -51,6 +51,35 @@ function spacedWithdrawalFixture(){
   f.source.state.matrix.slice(1).forEach(row=>row[f.headers.indexOf('跟進狀態')]='待跟進');return f;
 }
 
+test('an unchanged manual Account completes one checked scan without a second application or sheet writes',()=>{
+  const f=fixture(),policy={prepareOnly:true,singleQueueGroup:true};
+  f.run(); // Settle any generated fixture metadata using the canonical apply.
+  const writes=()=>[f.source,f.queue,f.registry,f.history].map(s=>s.state.writes.length);
+  const before=writes(),result=f.run(policy);
+  assert.equal(result.verifiedNoChanges,true);assert.notEqual(result.staged,true);
+  assert.equal(result.remainingQueueOps,0);assert.equal(result.newQueue,0);assert.equal(result.changes,0);assert.deepEqual(writes(),before);
+  f.set('跟進狀態','待跟進');
+  assert.equal(f.run(policy).staged,true);assert.ok(f.get('Pending Appointment Snapshot'));
+});
+
+test('metadata-only repairs still stage even when queue and lifecycle counts are zero',()=>{
+  const f=fixture();f.run();f.set('Booking Registered At','2026-01-02T01:02:03Z');
+  const prepared=f.run({prepareOnly:true,singleQueueGroup:true});
+  assert.equal(prepared.changes,0);assert.equal(prepared.newQueue,0);assert.equal(prepared.staged,true);assert.equal(prepared.verifiedNoChanges,undefined);
+  f.run({singleQueueGroup:true});assert.equal(f.get('Booking Registered At'),'');
+});
+
+test('unchanged source rows share one registry pass while checking recovery anchors',()=>{
+  const f=fixture(),count=250,appointments={},original={},values=[],records=[];let registryPasses=0;
+  for(let i=0;i<count;i++){
+    const a={id:'appointment_'+i,leadId:'lead_'+i};appointments[a.id]=a;original[a.id]=JSON.stringify(a);
+    values.push([a.leadId,a.id,'','','','']);records.push({meaningful:true,row:i+2,leadId:a.leadId,appointmentId:a.id});
+  }
+  const tracked=new Proxy(appointments,{ownKeys(target){registryPasses++;return Reflect.ownKeys(target);}});
+  f.box.oa2WriteSourceAnchors_({values,meta:1,records},{appointments:tracked,original,events:[]});
+  assert.equal(registryPasses,1);
+});
+
 test('bounded native queue groups retain unapplied before-images and converge without rewriting intervening staff records',()=>{
   const f=spacedWithdrawalFixture(),separator=[clone(f.queue.state.matrix[8]),clone(f.queue.state.matrix[10])],staff=[7,9,11].map(row=>stableQueueFields(f,row));
   f.run({prepareOnly:true,singleQueueGroup:true});

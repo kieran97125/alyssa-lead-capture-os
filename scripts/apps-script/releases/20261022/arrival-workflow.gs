@@ -534,6 +534,8 @@ function oa3ManualFullSyncState_(props) {
     (state.phase==='complete'&&(state.projectionComplete!==true||state.attempt!==null))||
     (state.blockedReason&&(state.phase!=='identity'||state.reviewCount===0)))throw new Error('同步進度未能核實；已保留原有記錄，請聯絡系統管理員。');
   // Existing v1 jobs can resume without resetting accepted Account coverage.
+  if(state.stepRevision===undefined)state.stepRevision=0;
+  if(!Number.isSafeInteger(state.stepRevision)||state.stepRevision<0)throw new Error('同步步驟版本未能核實。');
   if(state.projectionStep===undefined)state.projectionStep=state.phase==='complete'?8:0;
   if(state.accountPrepared===undefined)state.accountPrepared=false;
   if(state.pendingQueueOps===undefined)state.pendingQueueOps=0;
@@ -552,7 +554,7 @@ function oa3ManualFullSyncState_(props) {
 }
 function oa3ManualFullSyncView_(state) {
   const finished=state.phase==='complete',needsReview=state.reviewCount>0,coverageComplete=state.processedAccounts.length===OMNI_ACCOUNT_TABS.length;
-  return {jobId:state.id,phase:state.phase,finished,completed:finished&&!needsReview,needsReview,
+  return {jobId:state.id,stepRevision:state.stepRevision||0,phase:state.phase,finished,completed:finished&&!needsReview,needsReview,
     blocked:!!state.blockedReason,reason:state.blockedReason||undefined,
     nativeState:state.blockedReason?'blocked':finished?(needsReview?'review':'complete'):'pending',coverageComplete,
     reconciliationComplete:finished&&!needsReview&&state.projectionComplete,projectionComplete:state.projectionComplete,projectionStep:state.projectionStep||0,
@@ -569,14 +571,35 @@ function oa3ManualFullSyncSave_(props,state) {
   props.setProperty(OA3_MANUAL_COMPLETE_SYNC_KEY,JSON.stringify(state));
   return oa3ManualFullSyncView_(state);
 }
+// A sidebar waiting on an unknown start may observe a previous terminal job.
+// Use the server's menu-open time to distinguish that job from one completed
+// while this click was in flight, including work accepted from another sidebar.
+function oa3ManualSyncRequestedJob_(state,openedAt) {
+  return state&&(state.phase!=='complete'||(oa3ManualSyncTimestamp_(openedAt)&&state.updatedAt>=openedAt));
+}
+/** A lost client callback can check whether the canonical writer still holds
+ * the lock. Polling does not open the workbook, renew a timer lease or write. */
+function getBookedArrivalsFullSyncStatus(jobId,openedAt) {
+  const lock=LockService.getDocumentLock();
+  if(!lock.tryLock(100))return {busy:true};
+  try {
+    if(!oa2Enabled_())return {blocked:true,reason:'disabled'};
+    const state=oa3ManualFullSyncState_(PropertiesService.getDocumentProperties());
+    if(!state||(!jobId&&!oa3ManualSyncRequestedJob_(state,openedAt)))return {restartRequired:true};
+    return Object.assign(oa3ManualFullSyncView_(state),{attemptPending:state.attempt!==null});
+  }finally{lock.releaseLock();}
+}
 /** Shared checkpoint only. Starting/resuming never invokes the booking writer. */
-function startBookedArrivalsFullSync() {
+function startBookedArrivalsFullSync(openedAt) {
   let lock,locked=false;
   try {
     const startup=oa3ManualStartup_({});omniArrivalRenewManualLease_();lock=LockService.getDocumentLock();if(!lock.tryLock(1000))return {busy:true,reason:'busy'};locked=true;
     if(!oa2Enabled_())return {blocked:true,reason:'disabled'};
     let state=oa3ManualFullSyncState_(startup.props);
-    if(state&&state.phase!=='complete')return oa3ManualFullSyncView_(state);
+    if(oa3ManualSyncRequestedJob_(state,openedAt)){
+      if(state.phase==='complete')omniArrivalClearManualLease_();
+      return oa3ManualFullSyncView_(state);
+    }
     const now=new Date().toISOString();state={version:1,id:Utilities.getUuid(),phase:'identity',accountIndex:0,
       processedAccounts:[],processedAt:[],reviewByAccount:OMNI_ACCOUNT_TABS.map(()=>0),reviewCount:0,
       registered:0,recovered:0,added:0,changed:0,countsVerified:true,unknownCountSteps:0,attempt:null,blockedReason:null,
@@ -592,7 +615,7 @@ function startBookedArrivalsFullSync() {
  * A failed/unknown step retains its checkpoint; retry never assumes nothing changed.
  * Explicit manual requests bypass only the idle hint, never the document lock or CAS.
  */
-function continueBookedArrivalsFullSync(jobId) {
+function continueBookedArrivalsFullSync(jobId,expectedRevision) {
   let lock,locked=false,phase='startup',attemptPersisted=false,flushAttempted=false,apiFinalization=false;
   try {
     if(typeof jobId!=='string'||!/^[A-Za-z0-9_-]{1,100}$/.test(jobId))throw new Error('Invalid job.');
@@ -603,6 +626,11 @@ function continueBookedArrivalsFullSync(jobId) {
     if(!state)return {stale:true,restartRequired:true,jobId:null};
     if(state.id!==jobId)return Object.assign({stale:true},oa3ManualFullSyncView_(state));
     phase=state.phase;if(phase==='complete'){omniArrivalClearManualLease_();return oa3ManualFullSyncView_(state);}
+    // A retry and a delayed first RPC may arrive in either order. Only one can
+    // consume the observed revision under the document lock. Older clients
+    // without a revision continue using the established recovery protocol.
+    if(typeof expectedRevision==='number'&&expectedRevision!==state.stepRevision)return oa3ManualFullSyncView_(state);
+    state.stepRevision++;
     const ss=startup.spreadsheet,index=state.accountIndex,account=OMNI_ACCOUNT_TABS[index];
     // A persisted attempt means the prior native call may have committed before
     // its response/checkpoint was lost. Converge safely, but never advertise an
@@ -637,7 +665,9 @@ function continueBookedArrivalsFullSync(jobId) {
       if(!result||result.account!==account||!Array.isArray(result.errors)||result.errors.length||result.dryRun)throw new Error('Account completion was not verified.');
       if(['newQueue','changes','deferredQueueConflicts','deferredSourceRecords'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0))throw new Error('Account counts were not verified.');
       if(result.manualReviewCount!==undefined&&(!Number.isSafeInteger(result.manualReviewCount)||result.manualReviewCount<0))throw new Error('Account review was not verified.');
-      if(!state.accountPrepared){
+      const verifiedNoChanges=result.verifiedNoChanges===true;
+      if(verifiedNoChanges&&(state.accountPrepared||result.staged===true||result.remainingQueueOps!==0||result.appliedQueueOps!==0||result.newQueue!==0||result.changes!==0))throw new Error('Empty Account completion was not verified.');
+      if(!state.accountPrepared&&!verifiedNoChanges){
         if(result.staged!==true)throw new Error('Source preparation was not verified.');
         state.accountPrepared=true;
       }else{
@@ -722,7 +752,8 @@ function syncAllBookedArrivals() {
   </section>
   <script>
     let jobId='',busy=0,running=false,finished=false,manualOnly=false;
-    let retryAttempt=0,retryTimer=0,requestSequence=0;
+    let checking=false,stepRevision=0,retryAttempt=0,retryTimer=0,requestSequence=0;
+    const openedAt=${JSON.stringify(new Date().toISOString())};
     const retryDelays=[2000,5000,10000];
     const status=document.getElementById('status');
     const detail=document.getElementById('detail');
@@ -752,7 +783,7 @@ function syncAllBookedArrivals() {
     }
 
     function failure() {
-      running=false;
+      running=false;checking=true;
       if(finished)return;
       if(navigator.onLine===false) {
         showRetry('網絡暫時離線，進度已保留。恢復連線後會接續同步。');
@@ -767,19 +798,22 @@ function syncAllBookedArrivals() {
       showRetry('多次連線仍未成功，進度已保留。請稍後按「繼續同步」；原有記錄會先核對，再處理。');
     }
 
-    function receive(result) {
+    function receive(result,wasCheck) {
       running=false;
       if(!result){failure();return;}
-      retryAttempt=0;
-      if(result.restartRequired){jobId='';scheduleRun(150);return;}
       if(result.busy) {
+        checking=true;
         status.textContent='目前同步步驟仍在處理，完成後會自動繼續。';
-        if(++busy<60)scheduleRun(3000);
+        if(++busy<90)scheduleRun(wasCheck?5000:3000);
         else {manualOnly=true;showRetry('目前仍有其他更新進行，請稍後繼續同步。');}
         return;
       }
-      busy=0;
+      checking=false;busy=0;
+      const advanced=result.jobId&&result.jobId!==jobId||Number.isSafeInteger(result.stepRevision)&&result.stepRevision!==stepRevision;
+      if(!wasCheck||(advanced&&result.attemptPending===false))retryAttempt=0;
+      if(result.restartRequired){jobId='';stepRevision=0;scheduleRun(150);return;}
       jobId=result.jobId||jobId;
+      if(Number.isSafeInteger(result.stepRevision))stepRevision=result.stepRevision;
       if(result.blocked) {
         manualOnly=true;
         showRetry(result.reason==='identity_review'
@@ -822,12 +856,28 @@ function syncAllBookedArrivals() {
       }
       running=true;
       retry.hidden=true;
-      const sequence=++requestSequence;
+      const sequence=++requestSequence,wasCheck=checking;
+      // A callback can disappear even after its write succeeded. Invalidate it
+      // and inspect the shared checkpoint before attempting any continuation.
+      const watchdog=setTimeout(function(){
+        if(sequence!==requestSequence)return;
+        ++requestSequence;running=false;
+        if(!wasCheck&&retryAttempt===0&&navigator.onLine!==false){
+          checking=true;retryAttempt++;
+          status.textContent='仍在等候 Google 試算表，正在核對已保存的進度…';
+          run();
+        }else failure();
+      },wasCheck||!jobId?12000:25000);
+      function settle(action){
+        if(sequence!==requestSequence)return;
+        ++requestSequence;clearTimeout(watchdog);action();
+      }
       const rpc=google.script.run
-        .withSuccessHandler(function(result){if(sequence===requestSequence)receive(result);})
-        .withFailureHandler(function(){if(sequence===requestSequence)failure();});
-      if(jobId)rpc.continueBookedArrivalsFullSync(jobId);
-      else rpc.startBookedArrivalsFullSync();
+        .withSuccessHandler(function(result){settle(function(){receive(result,wasCheck);});})
+        .withFailureHandler(function(){settle(failure);});
+      if(wasCheck)rpc.getBookedArrivalsFullSyncStatus(jobId,openedAt);
+      else if(jobId)rpc.continueBookedArrivalsFullSync(jobId,stepRevision);
+      else rpc.startBookedArrivalsFullSync(openedAt);
     }
     window.addEventListener('offline',function(){
       cancelRetry();
