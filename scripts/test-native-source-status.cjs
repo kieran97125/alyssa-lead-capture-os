@@ -51,6 +51,74 @@ function spacedWithdrawalFixture(){
   f.source.state.matrix.slice(1).forEach(row=>row[f.headers.indexOf('跟進狀態')]='待跟進');return f;
 }
 
+function retainedWithdrawalFixture() {
+  const f=fixture(),other=f.ss.getSheetByName('Alyssa Main');
+  f.set('跟進狀態','待跟進');
+  assert.equal(f.run({prepareOnly:true,singleQueueGroup:true}).staged,true);
+  const intent=f.get('Pending Appointment Snapshot'),event=JSON.parse(intent).events.find(row=>row[4]==='canceled');
+  assert.ok(event);
+  const runOther=(prepareOnly=false)=>f.box.oa2ProcessAccount_(f.ss,other,'scan',null,false,undefined,{manualComplete:true,singleQueueGroup:true,prepareOnly});
+  const writes=()=>[f.history,f.registry,f.queue,f.source,other].map(s=>s.state.writes.length);
+  return {...f,other,runOther,writes,intent,event};
+}
+
+test('another Account applies a retained cancellation once and accepts subsequent scans without writes',()=>{
+  const f=retainedWithdrawalFixture();
+  assert.equal(f.runOther().changes,1);
+  const journal=clone(f.history.state.matrix),writes=f.writes();
+  assert.equal(journal.filter(row=>row[0]===f.event[0]).length,1);
+  for(const prepareOnly of [true,false,true]){
+    const result=f.runOther(prepareOnly);
+    assert.equal(result.changes,0);if(prepareOnly)assert.equal(result.verifiedNoChanges,true);
+  }
+  assert.deepEqual(f.writes(),writes);assert.deepEqual(clone(f.history.state.matrix),journal);
+  assert.equal(f.get('Pending Appointment Snapshot'),f.intent);
+  assert.equal(f.appointments()[f.a.id].state,'canceled');assert.equal(f.queueRows()[0].outcome,'取消');
+});
+
+test('historically duplicated identical receipts stay untouched including native Date and ISO timestamp forms',()=>{
+  const f=retainedWithdrawalFixture();f.runOther();
+  const native=f.event.slice();native[1]=new Date(native[1]);f.appendEvent(native);
+  f.appendEvent(f.event.slice());f.script.set('OA2_HISTORY_REPLAY_FROM',String(f.history.getLastRow()+1));
+  const previous=f.history.state.matrix.map(row=>row.slice()),writes=f.writes();
+  assert.equal(f.runOther(true).verifiedNoChanges,true);assert.equal(f.runOther().changes,0);
+  assert.deepEqual(f.history.state.matrix,previous);assert.deepEqual(f.writes(),writes);
+});
+
+for(const [label,index,value] of [['lead owner',3,'different_lead'],['transition payload',6,'{}']]){
+  test('one disagreeing historical '+label+' fails closed even with another matching receipt',()=>{
+    const f=retainedWithdrawalFixture();f.runOther();
+    const disputed=f.event.slice();disputed[index]=value;f.appendEvent(disputed);f.appendEvent(f.event.slice());
+    f.script.set('OA2_HISTORY_REPLAY_FROM',String(f.history.getLastRow()+1));
+    const writes=f.writes(),cursor=f.script.get('OA2_HISTORY_REPLAY_FROM');
+    assert.throws(()=>f.runOther(),/conflict|mismatch|disagree/i);
+    assert.deepEqual(f.writes(),writes);assert.equal(f.get('Pending Appointment Snapshot'),f.intent);
+    assert.equal(f.script.get('OA2_HISTORY_REPLAY_FROM'),cursor);
+  });
+}
+
+test('a lost journal acknowledgement recovers the old withdrawal while accepting an unrelated new one exactly once',()=>{
+  const f=retainedWithdrawalFixture();let lost=false;
+  f.history.state.afterWrite=()=>{if(!lost){lost=true;throw Error('Synthetic lost journal acknowledgement');}};
+  assert.throws(()=>f.runOther(),/lost journal acknowledgement/);
+  assert.equal(f.history.state.matrix.filter(row=>row[0]===f.event[0]).length,1);
+  const second=fixture({appointment:{id:'appt_second',leadId:'lead_second',queueId:'queue_second',account:'Alyssa Main',customerKey:'Alyssa Main|p:10000002',phone:'10000002'},fields:{'跟進狀態':'待跟進'}});
+  f.other.appendRow(second.source.state.matrix[1]);f.registry.appendRow(second.registry.state.matrix[1]);f.queue.appendRow(second.queue.state.matrix[7]);
+  const retry=f.runOther();assert.equal(retry.changes,1);f.runOther();
+  const lifecycle=f.history.state.matrix.filter(row=>row[4]==='canceled');
+  assert.deepEqual(lifecycle.map(row=>row[2]).sort(),[f.a.id,second.a.id].sort());
+  assert.equal(f.get('Pending Appointment Snapshot'),f.intent);
+  assert.equal(f.appointments()[second.a.id].state,'canceled');
+});
+
+test('an accepted journal event does not clear a colleague outcome which still needs review',()=>{
+  const f=retainedWithdrawalFixture();f.runOther();f.setQueue('結果','已到店');f.setQueue('到店日期',f.a.date);
+  const journal=clone(f.history.state.matrix),result=f.run({singleQueueGroup:true});
+  assert.ok(result.deferredQueueConflicts>0);assert.equal(result.changes,0);
+  assert.deepEqual(clone(f.history.state.matrix),journal);assert.equal(f.get('Pending Appointment Snapshot'),f.intent);
+  assert.equal(f.queueRows()[0].outcome,'已到店');assert.equal(f.appointments()[f.a.id].state,'canceled');
+});
+
 test('an unchanged manual Account completes one checked scan without a second application or sheet writes',()=>{
   const f=fixture(),policy={prepareOnly:true,singleQueueGroup:true};
   f.run(); // Settle any generated fixture metadata using the canonical apply.
