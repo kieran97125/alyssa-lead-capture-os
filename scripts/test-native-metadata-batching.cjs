@@ -100,6 +100,55 @@ test('large spans stay below 49152 written cells and never write a business colu
 test('unchanged metadata produces no provider reads or writes',()=>{
   const f=fixture();f.box.oa2WriteSourceMetadata_(f.snap,[],null);assert.equal(f.sh.state.reads,0);assert.equal(f.sh.state.writes.length,0);
 });
+function anchorFixture(mixed){
+  const f=fixture(2),appointments={},original={};
+  f.snap.records=f.snap.values.map((row,i)=>{
+    const leadId=row[f.meta-1],appointmentId=row[f.meta],a={id:appointmentId,leadId,account:'GOS Beauty',revision:2};
+    appointments[a.id]=a;original[a.id]=JSON.stringify({...a,revision:1});
+    if(mixed&&i===1){row[f.meta-1]='';f.sh.state.matrix[i+1][f.meta-1]='';}
+    return {meaningful:true,row:i+2,account:a.account,leadId,appointmentId};
+  });
+  return {...f,ctx:{appointments,original,events:[]}};
+}
+for(const mixed of [false,true])test(mixed?'a mixed Lead ID allocation retains its single six-column reservation':'a stable Lead ID reservation writes only the changed recovery column',()=>{
+  const f=anchorFixture(mixed);f.box.oa2WriteSourceAnchors_(f.snap,f.ctx);
+  assert.deepEqual(f.sh.state.writes.map(w=>[w.column,w.width,w.height]),[[f.meta+(mixed?0:5),mixed?6:1,2]]);
+  for(const r of f.snap.records){
+    assert.equal(f.sh.state.matrix[r.row-1][f.meta-1],r.leadId);
+    assert.equal(JSON.parse(f.sh.state.matrix[r.row-1][f.meta+4]).currentAppointmentId,r.appointmentId);
+  }
+});
+test('narrow recovery reservations still reject a changed source before writing any cell',()=>{
+  const f=anchorFixture(false);let reads=0;
+  f.sh.state.beforeRead=(_count,range)=>{if(range.column===1&&++reads===2)f.sh.state.matrix[1][f.meta-1]='replacement_id';};
+  assert.throws(()=>f.box.oa2WriteSourceAnchors_(f.snap,f.ctx),/Account rows changed/);
+  assert.equal(f.sh.state.writes.length,0);
+});
+function traceFixture(manual){
+  const f=fixture(4);f.box.OA3_MANUAL_RUN_ACTIVE=manual;
+  f.snap.records=f.snap.values.map((row,i)=>({row:i+2,meaningful:true,leadId:row[f.meta-1],appointmentId:row[f.meta],outcome:i===1?'':'No Show'}));
+  return {...f,receipts:()=>f.logs.map(value=>JSON.parse(value)).filter(r=>r.handler==='manual_source_metadata')};
+}
+test('manual finalization emits timed formula, fresh-read, compare and write receipts with counts only',()=>{
+  const f=traceFixture(true);
+  f.sh.state.beforeWrite=()=>{assert.equal(f.receipts().at(-1).stage,'write_metadata');assert.equal(f.receipts().at(-1).state,'start');};
+  f.box.oa2WriteAccountMeta_(f.snap);
+  const receipts=f.receipts();
+  assert.deepEqual(receipts.filter(r=>r.state==='start').map(r=>r.stage),['plan_changes','read_formulas','read_before_image','check_before_image','write_metadata']);
+  assert.deepEqual(receipts.filter(r=>r.state==='complete').map(r=>r.stage),receipts.filter(r=>r.state==='start').map(r=>r.stage));
+  for(const r of receipts){
+    assert.ok(r.rowCount>0&&r.cellCount>=r.rowCount);
+    assert.deepEqual(Object.keys(r).sort(),['handler','stage','state','rowCount','cellCount',...(r.state==='start'?[]:['durationMs'])].sort());
+    if(r.state==='complete')assert.ok(r.durationMs>=0);
+  }
+});
+test('nonmanual finalization stays quiet and a failed manual provider call emits no data or raw exception',()=>{
+  const quiet=traceFixture(false);quiet.box.oa2WriteAccountMeta_(quiet.snap);assert.deepEqual(quiet.receipts(),[]);
+  const f=traceFixture(true);f.sh.state.beforeWrite=()=>{throw Error('private_provider_payload');};
+  assert.throws(()=>f.box.oa2WriteAccountMeta_(f.snap),/private_provider_payload/);
+  const failed=f.receipts().at(-1);assert.equal(failed.stage,'write_metadata');assert.equal(failed.state,'failed');assert.ok(failed.durationMs>=0);
+  assert.ok(!JSON.stringify(f.receipts()).includes('private_provider_payload'));
+});
 function queueBudgetFixture(rows){const f=fixture(),appt={account:'GOS Beauty',customerKey:'GOS Beauty|p:10000001'},ops=rows.map(row=>({row,kind:'refresh',appt})),queue=rows.map(row=>({row,...appt}));return{...f,ops,queue};}
 test('a native queue RPC accepts at most 25 contiguous operations of the same kind',()=>{
   const f=queueBudgetFixture(Array.from({length:40},(_,i)=>i+8)),selected=f.box.oa2BoundQueueCommit_(f.ops,f.queue,{singleQueueGroup:true});assert.equal(selected.length,25);assert.equal(selected[0].row,8);assert.equal(selected.at(-1).row,32);

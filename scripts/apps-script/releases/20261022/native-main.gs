@@ -1013,9 +1013,61 @@ function oa2CheckpointChanges_(ctx) {
     ctx.events.push(['cp_'+oa2Hash_(id+'|'+after),ctx.now,id,a.leadId,'state_checkpoint',ctx.original[id]||'{}',after,'commit_recovery']);
   });
 }
+function oa2JournalEventSignature_(event) {
+  // The same provider cell can return an ISO string or a native Date. Compare
+  // the instant while retaining the exact owner, event, payload and provenance.
+  const value=event[1];
+  let instant=value;
+  if(value instanceof Date||typeof value==='string'&&/^\d{4}-\d\d-\d\dT.*(?:Z|[+-]\d\d:\d\d)$/.test(value)){
+    const time=new Date(value).getTime();
+    if(Number.isFinite(time))instant=new Date(time).toISOString();
+  }
+  return JSON.stringify([event[0],instant,...event.slice(2)]);
+}
+function oa2VerifyAnchorJournal_(ss,ctx) {
+  if(!ctx.anchorJournalReceipts)return;
+  const unchecked=new Map();
+  ctx.anchorJournalReceipts.forEach((receipt,id)=>{if(!receipt.checked)unchecked.set(id,receipt);});
+  if(!unchecked.size)return;
+  const history=ss.getSheetByName(OA2.HISTORY);
+  if(!history)throw new Error('Recovery journal is unavailable; preserve the pending source intent.');
+  oa2ExactHeaders_(history,1,1,OA2.HISTORY_HEADERS);
+  // The cursor proves registry replay progress, not absence of an earlier
+  // event. Read only when retained intents contain event IDs, including every
+  // matching historic copy so a conflicting receipt cannot be hidden.
+  const last=history.getLastRow(),pageSize=2048;
+  for(let row=2;row<=last;row+=pageSize){
+    const ids=history.getRange(row,1,Math.min(pageSize,last-row+1),1).getValues(),matches=[];
+    ids.forEach(([id],i)=>{if(unchecked.has(id))matches.push(i);});
+    if(!matches.length)continue;
+    // Fetch a single bounded payload range per matching page, even when one
+    // historical event occurs hundreds of times in non-adjacent rows.
+    const first=matches[0],end=matches[matches.length-1];
+    const rows=history.getRange(row+first,1,end-first+1,OA2.HISTORY_HEADERS.length).getValues();
+    for(const i of matches){
+      const event=rows[i-first],id=ids[i][0],receipt=unchecked.get(id);
+      if(event[0]!==id)throw new Error('Recovery journal changed during verification; retry safely.');
+      if(receipt.signature!==oa2JournalEventSignature_(event))throw new Error('Recovery event conflicts with its journal receipt; preserve the pending source intent.');
+      receipt.accepted=true;
+    }
+  }
+  unchecked.forEach(receipt=>{receipt.checked=true;});
+}
+function oa2UnjournaledEvents_(ctx) {
+  if(!ctx.anchorJournalReceipts)return ctx.events;
+  return ctx.events.filter(event=>{
+    const receipt=ctx.anchorJournalReceipts.get(event[0]);
+    if(!receipt)return true;
+    if(receipt.signature!==oa2JournalEventSignature_(event))throw new Error('Recovery event has conflicting payloads; preserve the pending source intent.');
+    return !receipt.accepted;
+  });
+}
 function oa2Context_(ss,dryRun,trace,identityOverrides,sourceAnchorScope) {
   const registry=omniEditStage_(trace,'registry_read',()=>oa2ReadRegistry_(ss)),historyNextRow=omniEditStage_(trace,'history_replay',()=>oa2ReplayCheckpoints_(ss,registry)); let seq=0; const now=new Date().toISOString();
-  const ctx=Object.assign(registry,{historyNextRow,now,today:oa2Date_(new Date(now)),events:[],errors:[],id:kind=>dryRun?'preview_'+kind+'_'+(++seq):kind+'_'+Utilities.getUuid(),dryRun});omniEditStage_(trace,'source_anchor_replay',()=>oa2ReplayAllSourceAnchors_(ss,ctx,identityOverrides,sourceAnchorScope));ctx.retiredQueueAppointmentIds=oa4RetiredAppointmentIds_();return ctx;
+  const ctx=Object.assign(registry,{historyNextRow,now,today:oa2Date_(new Date(now)),events:[],errors:[],id:kind=>dryRun?'preview_'+kind+'_'+(++seq):kind+'_'+Utilities.getUuid(),dryRun});
+  ctx.verifyAnchorJournal=()=>oa2VerifyAnchorJournal_(ss,ctx);
+  omniEditStage_(trace,'source_anchor_replay',()=>{oa2ReplayAllSourceAnchors_(ss,ctx,identityOverrides,sourceAnchorScope);ctx.verifyAnchorJournal();});
+  ctx.retiredQueueAppointmentIds=oa4RetiredAppointmentIds_();return ctx;
 }
 function oa2CustomerKey_(row,c,account) {
   const phone=last8_(row[c.PHONE-1]),email=clean_(row[c.EMAIL-1]).toLowerCase(),social=clean_(row[c.SOCIAL_USERNAME-1]).toLowerCase();
@@ -1056,8 +1108,15 @@ function oa2WriteRegistry_(ss,ctx) {
   if(appended.length){const start=sh.getLastRow()+1;oa2EnsureRows_(sh,start+appended.length-1);sh.getRange(start,1,appended.length,OA2_FIELDS.length).setValues(appended.map(x=>x.values));appended.forEach((x,i)=>{ctx.rows[x.id]=start+i;ctx.original[x.id]=JSON.stringify(ctx.appointments[x.id]);});}
 }
 function oa2WriteHistory_(ss,ctx) {
-  const appliedNext=Math.max(2,Number(ctx.historyNextRow)||2);if(!ctx.events.length)return appliedNext; if(ctx.dryRun)throw new Error('Dry run cannot write history.');
-  const sh=ss.getSheetByName(OA2.HISTORY),start=oa2HistoryStart_(sh),last=sh.getLastRow(),existing=new Set(last>=start?sh.getRange(start,1,last-start+1,1).getValues().map(r=>r[0]):[]),seen=new Set(),rows=ctx.events.filter(e=>{if(existing.has(e[0])||seen.has(e[0]))return false;seen.add(e[0]);return true;});
+  const appliedNext=Math.max(2,Number(ctx.historyNextRow)||2),pending=oa2UnjournaledEvents_(ctx);if(!pending.length)return appliedNext; if(ctx.dryRun)throw new Error('Dry run cannot write history.');
+  const sh=ss.getSheetByName(OA2.HISTORY),start=oa2HistoryStart_(sh),last=sh.getLastRow();
+  const replayPending=pending.some(e=>ctx.anchorJournalReceipts&&ctx.anchorJournalReceipts.has(e[0]));
+  const tail=last>=start?sh.getRange(start,1,last-start+1,replayPending?OA2.HISTORY_HEADERS.length:1).getValues():[];
+  if(replayPending)for(const row of tail){
+    const receipt=ctx.anchorJournalReceipts.get(row[0]);
+    if(receipt&&receipt.signature!==oa2JournalEventSignature_(row))throw new Error('Recovery event conflicts with a new journal receipt; preserve the pending source intent.');
+  }
+  const existing=new Set(tail.map(row=>row[0])),seen=new Set(),rows=pending.filter(e=>{if(existing.has(e[0])||seen.has(e[0]))return false;seen.add(e[0]);return true;});
   if(rows.length){oa2EnsureRows_(sh,last+rows.length);sh.getRange(last+1,1,rows.length,OA2.HISTORY_HEADERS.length).setValues(rows);}
   // Advance only through the replayed snapshot and our contiguous applied append; unseen journal growth stays replayable.
   return last+1===appliedNext?last+rows.length+1:appliedNext;
@@ -1082,7 +1141,18 @@ function oa2ReplayAnchor_(ctx,anchor,leadId,account) {
   const owner=id=>{const a=ctx.appointments[id];return a&&a.leadId===leadId&&a.account===account;};
   if(!owner(anchor.currentAppointmentId))throw new Error('Source recovery current appointment is not owned.');
   (anchor.events||[]).forEach(e=>{if(!owner(e[2]))throw new Error('Source recovery event appointment is not owned.');if(e[4]==='state_checkpoint'){const a=JSON.parse(e[6]);if(!a||a.id!==e[2]||a.leadId!==leadId||a.account!==account)throw new Error('Invalid source recovery checkpoint identity.');}});
-  const seen=new Set(ctx.events.map(e=>e[0]));(anchor.events||[]).forEach(e=>{if(!seen.has(e[0])){ctx.events.push(e);seen.add(e[0]);}});
+  const seen=new Map(ctx.events.map(e=>[e[0],e]));
+  (anchor.events||[]).forEach(e=>{
+    if(e.length!==OA2.HISTORY_HEADERS.length)throw new Error('Invalid recovery event receipt width.');
+    if(!ctx.anchorJournalReceipts)ctx.anchorJournalReceipts=new Map();
+    const signature=oa2JournalEventSignature_(e),receipt=ctx.anchorJournalReceipts.get(e[0]);
+    const previous=seen.get(e[0]);
+    if(receipt&&receipt.signature!==signature||previous&&oa2JournalEventSignature_(previous)!==signature)throw new Error('Recovery event has conflicting source intents.');
+    if(!receipt)ctx.anchorJournalReceipts.set(e[0],{signature,checked:false,accepted:false});
+    // Preserve the original transition evidence for provenance and recovery.
+    // Acceptance only excludes it from new work, counters and journal writes.
+    if(!previous){ctx.events.push(e);seen.set(e[0],e);}
+  });
 }
 function oa2ReplayAllSourceAnchors_(ss,ctx,identityOverrides,sourceAnchorScope) {
   // Only the one sparse pending column is scanned across Accounts, before ANY queue outcome processing.
@@ -1104,6 +1174,7 @@ function oa2ReplayAllSourceAnchors_(ss,ctx,identityOverrides,sourceAnchorScope) 
 }
 function oa2ReplaySourceAnchors_(ctx,snap) {
   snap.records.forEach(r=>{if(!r.pendingSnapshot)return;const anchor=JSON.parse(r.pendingSnapshot);oa2ReplayAnchor_(ctx,anchor,r.leadId,r.account);r.appointmentId=anchor.currentAppointmentId;const current=ctx.appointments[r.appointmentId];if(current)r.bookedAt=current.bookedAt;});
+  if(ctx.verifyAnchorJournal)ctx.verifyAnchorJournal();
 }
 /** Batch only the six governed metadata columns. Alternating sparse writes and
  * reads flushes SpreadsheetApp after every row and repeatedly recalculates the
@@ -1111,7 +1182,20 @@ function oa2ReplaySourceAnchors_(ctx,snap) {
  * Business cells are never written; formulas in an intervening metadata row
  * keep the original sparse path rather than being replaced by their values.
  */
-function oa2WriteSourceMetadata_(snap,items,anchored,finalize) {
+function oa2ManualMetadataStage_(trace,stage,rows,cells,action) {
+  if(!trace)return action();
+  const started=Date.now(),dimensions={handler:'manual_source_metadata',stage,rowCount:rows,cellCount:cells};
+  console.log(JSON.stringify(Object.assign({state:'start'},dimensions)));
+  try{
+    const result=action();
+    console.log(JSON.stringify(Object.assign({state:'complete',durationMs:Date.now()-started},dimensions)));
+    return result;
+  }catch(error){
+    console.log(JSON.stringify(Object.assign({state:'failed',durationMs:Date.now()-started},dimensions)));
+    throw error;
+  }
+}
+function oa2WriteSourceMetadata_(snap,items,anchored,narrow,trace) {
   if(!items.length)return;
   const sorted=items.slice().sort((a,b)=>a.row-b.row),windows=[];
   sorted.forEach(item=>{let group=windows[windows.length-1];if(!group||item.row-group[0].row>=8192){group=[];windows.push(group);}group.push(item);});
@@ -1122,7 +1206,7 @@ function oa2WriteSourceMetadata_(snap,items,anchored,finalize) {
     // Initial identity + recovery intent stay one six-column reservation.
     // Finalization frequently changes only the last column. Rewriting stable
     // ID columns invalidates sheet formulas which depend on those columns.
-    if(finalize===true){
+    if(narrow===true){
       left=6;right=-1;
       for(const item of group){
         const before=anchored?anchored[item.row-2]:snap.values[item.row-2].slice(snap.meta-1,snap.meta+5);
@@ -1130,25 +1214,33 @@ function oa2WriteSourceMetadata_(snap,items,anchored,finalize) {
       }
       if(right<left)return;
     }
-    const column=snap.meta+left,width=right-left+1,block=snap.sheet.getRange(first,column,n,width);
+    const column=snap.meta+left,width=right-left+1;
+    let block;const target=()=>block||(block=snap.sheet.getRange(first,column,n,width));
     const clearPendingOnly=sparse&&left===5&&right===5&&group.every(item=>item.values[5]==='')&&typeof snap.sheet.getRangeList==='function';
-    if(!finalize&&sparse){
-      if(typeof block.getFormulas!=='function'||block.getFormulas().some(row=>row.some(Boolean))){oa2RowGroups_(group).forEach(write);return;}
+    if(!narrow&&sparse){
+      if(typeof target().getFormulas!=='function'||target().getFormulas().some(row=>row.some(Boolean))){oa2RowGroups_(group).forEach(write);return;}
     }
-    const widelySpaced=finalize&&sparse&&n>Math.max(32,group.length*8);
-    const hasHoles=finalize&&!clearPendingOnly&&!widelySpaced&&(sparse||group.some(item=>{
+    const widelySpaced=narrow&&sparse&&n>Math.max(32,group.length*8);
+    const hasHoles=narrow&&!clearPendingOnly&&!widelySpaced&&(sparse||group.some(item=>{
       const before=anchored?anchored[item.row-2]:snap.values[item.row-2].slice(snap.meta-1,snap.meta+5);
       return item.values.slice(left,right+1).some((value,j)=>JSON.stringify(value)===JSON.stringify(before[left+j]));
     }));
-    const formulas=hasHoles?block.getFormulas():null;
-    const current=snap.sheet.getRange(first,1,n,snap.width).getValues();
-    current.forEach((row,i)=>{if(JSON.stringify(row)!==JSON.stringify(expected(first+i)))throw new Error('Account rows changed or sorted during processing; preserving them for stable-ID retry.');});
+    const formulas=hasHoles?oa2ManualMetadataStage_(trace,'read_formulas',n,n*width,()=>target().getFormulas()):null;
+    const guard=(row,height,before)=>{
+      const cells=height*snap.width;
+      const values=oa2ManualMetadataStage_(trace,'read_before_image',height,cells,()=>snap.sheet.getRange(row,1,height,snap.width).getValues());
+      oa2ManualMetadataStage_(trace,'check_before_image',height,cells,()=>values.forEach((value,i)=>{
+        if(JSON.stringify(value)!==JSON.stringify(before(row+i)))throw new Error('Account rows changed or sorted during processing; preserving them for stable-ID retry.');
+      }));
+      return values;
+    };
+    const current=guard(first,n,expected);
     if(clearPendingOnly){
       // Only selected accepted intents are cleared. Intervening records,
       // formulas, IDs and staff inputs are outside the write set.
       const letter=columnLetter_(column);
       const ranges=oa2RowGroups_(group).map(rows=>letter+rows[0].row+':'+letter+rows[rows.length-1].row);
-      snap.sheet.getRangeList(ranges).clearContent();
+      oa2ManualMetadataStage_(trace,'clear_pending',group.length,group.length,()=>snap.sheet.getRangeList(ranges).clearContent());
       return;
     }
     if(widelySpaced){
@@ -1172,10 +1264,9 @@ function oa2WriteSourceMetadata_(snap,items,anchored,finalize) {
               if(JSON.stringify(before[cell])===JSON.stringify(item.values[j])){j++;continue;}
               const start=j++;
               while(j<=right&&JSON.stringify(before[snap.meta-1+j])!==JSON.stringify(item.values[j]))j++;
-              const fresh=snap.sheet.getRange(item.row,1,1,snap.width).getValues()[0];
-              if(JSON.stringify(fresh)!==JSON.stringify(before))throw new Error('Account rows changed or sorted during processing; preserving them for stable-ID retry.');
+              guard(item.row,1,()=>before);
               const values=item.values.slice(start,j);
-              snap.sheet.getRange(item.row,snap.meta+start,1,values.length).setValues([values]);
+              oa2ManualMetadataStage_(trace,'write_metadata',1,values.length,()=>snap.sheet.getRange(item.row,snap.meta+start,1,values.length).setValues([values]));
               values.forEach((value,k)=>before[cell+k]=value);
             }
           }
@@ -1183,7 +1274,7 @@ function oa2WriteSourceMetadata_(snap,items,anchored,finalize) {
         }
     }
     const values=current.map(row=>row.slice(column-1,column-1+width));group.forEach(item=>values[item.row-first]=item.values.slice(left,right+1));
-    block.setValues(values);
+    oa2ManualMetadataStage_(trace,'write_metadata',n,n*width,()=>target().setValues(values));
   };
   windows.forEach(write);
 }
@@ -1205,9 +1296,14 @@ function oa2WriteSourceAnchors_(snap,ctx) {
   const changedRows=values.map((row,i)=>({row:i+2,values:row})).filter(x=>JSON.stringify(x.values)!==JSON.stringify(snap.values[x.row-2].slice(snap.meta-1,snap.meta+5)));
   if(!changedRows.length)return;
   oa2AssertSourceUnchanged_(snap);
-  // Each ID and complete recovery intent remain in the same six-column write.
-  // All accepted anchors precede history/registry, including a lost reply.
-  oa2WriteSourceMetadata_(snap,changedRows,null);
+  // Reuse an existing verified Lead ID when only the recovery intent changes.
+  // A mixed batch or a newly allocated ID retains the full atomic reservation.
+  const stableIdsOnly=changedRows.every(item=>{
+    const before=snap.values[item.row-2].slice(snap.meta-1,snap.meta+4),id=before[0];
+    return typeof id==='string'&&id.length>0&&id===id.trim()&&!/^[=#]/.test(id)&&
+      !!item.values[5]&&JSON.stringify(before)===JSON.stringify(item.values.slice(0,5));
+  });
+  oa2WriteSourceMetadata_(snap,changedRows,null,stableIdsOnly);
   snap.anchoredValues=values;
 }
 function oa2AccountMetaChanges_(snap) {
@@ -1215,7 +1311,9 @@ function oa2AccountMetaChanges_(snap) {
   return snap.records.filter(r=>r.meaningful&&!(snap.deferredRows&&snap.deferredRows.has(r.row))).map(r=>({row:r.row,values:[r.leadId,r.appointmentId,r.bookedAt?new Date(r.bookedAt):'',r.outcome==='Show'?'已到店':r.outcome,r.outcomeAt?new Date(r.outcomeAt):'','']})).filter(x=>JSON.stringify(x.values)!==JSON.stringify((snap.anchoredValues?snap.anchoredValues[x.row-2]:snap.values[x.row-2].slice(snap.meta-1,snap.meta+5))));
 }
 function oa2WriteAccountMeta_(snap) {
-  oa2WriteSourceMetadata_(snap,oa2AccountMetaChanges_(snap),snap.anchoredValues,true);
+  const trace=typeof OA3_MANUAL_RUN_ACTIVE!=='undefined'&&OA3_MANUAL_RUN_ACTIVE===true;
+  const changes=oa2ManualMetadataStage_(trace,'plan_changes',snap.records.length,snap.records.length*6,()=>oa2AccountMetaChanges_(snap));
+  oa2WriteSourceMetadata_(snap,changes,snap.anchoredValues,true,trace);
 }
 function oa2QueueLabel_(a,record) {
   const bound=record&&record.account===a.account&&record.leadId===a.leadId;
@@ -1408,7 +1506,7 @@ function oa2Commit_(ss,ctx,queue,ops,snaps,projectionRecords,options) {
   if(options&&options.prepareOnly===true){
     // The ordinary apply has no sheet writes only if every writer agrees.
     // Keep the live source CAS, queue ownership and journal replay above.
-    if(options.singleQueueGroup===true&&!ops.length&&!ctx.events.length&&
+    if(options.singleQueueGroup===true&&!ops.length&&!oa2UnjournaledEvents_(ctx).length&&
       Object.values(ctx.appointments).every(a=>ctx.original[a.id]===JSON.stringify(a))&&
       (snaps||[]).every(s=>!s.anchoredValues&&!oa2AccountMetaChanges_(s).length)){
       oa2AdvanceHistoryCursor_(ss,ctx.historyNextRow);
@@ -1629,7 +1727,7 @@ function oa2ProcessAccount_(ss,sheet,mode,edit,dryRun,trace,policy) {
   // Re-read all governed metadata claims immediately before this scoped commit;
   // manual cross-Account copies are not serialized by the document lock.
   if(manual&&manual.rebookClaims.length)oa2AssertIdentityClaimsFresh_(ss,manual.rebookClaims,ctx.appointments);
-  const result={dryRun,account:sheet.getName(),records:snap.records.filter(r=>r.meaningful).length,appointments:Object.keys(ctx.appointments).length,newQueue:ops.filter(o=>o.kind==='append').length,changes:ctx.events.length,deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size,manualReviewCount:manual?manual.reviewRows.size:0,manualRebookedCount:manual?manual.rebooked:0,errors:ctx.errors};
+  const result={dryRun,account:sheet.getName(),records:snap.records.filter(r=>r.meaningful).length,appointments:Object.keys(ctx.appointments).length,newQueue:ops.filter(o=>o.kind==='append').length,changes:oa2UnjournaledEvents_(ctx).length,deferredQueueConflicts,deferredSourceRecords:snap.deferredRows.size,manualReviewCount:manual?manual.reviewRows.size:0,manualRebookedCount:manual?manual.rebooked:0,errors:ctx.errors};
   const prepareOnly=!!(policy&&policy.manualComplete===true&&policy.prepareOnly===true);
   if(!dryRun){
     const bounded=!!(policy&&policy.manualComplete===true&&policy.singleQueueGroup===true);
