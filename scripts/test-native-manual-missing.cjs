@@ -1,8 +1,52 @@
 const assert=require('node:assert/strict'),fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto');
 const root=__dirname,mainPath=process.argv[2]||root+'/apps-script/releases/20261021/native-main.gs',workflowPath=process.argv[3]||root+'/apps-script/releases/20261021/arrival-workflow.gs';
 const clone=x=>JSON.parse(JSON.stringify(x)),tests=[],failures=[];
-function load(){const b={console:{log(){}},Date,Utilities:{formatDate:(d,tz,p)=>{const s=new Date(d.getTime()+8*3600000).toISOString();return p==='HH:mm'?s.slice(11,16):s.slice(0,10);},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()],DigestAlgorithm:{SHA_256:'SHA_256'},Charset:{UTF_8:'UTF_8'}}};vm.createContext(b);vm.runInContext(fs.readFileSync(mainPath,'utf8'),b);vm.runInContext(fs.readFileSync(workflowPath,'utf8'),b);b.oa3ManualStartup_=()=>({spreadsheet:b.oa2Spreadsheet_(),props:b.PropertiesService.getDocumentProperties()});return b;}
+function load(useRealStartup=false){const b={console:{log(){}},Date,Utilities:{formatDate:(d,tz,p)=>{const s=new Date(d.getTime()+8*3600000).toISOString();return p==='HH:mm'?s.slice(11,16):s.slice(0,10);},computeDigest:(_,s)=>[...crypto.createHash('sha256').update(s).digest()],DigestAlgorithm:{SHA_256:'SHA_256'},Charset:{UTF_8:'UTF_8'}}};vm.createContext(b);vm.runInContext(fs.readFileSync(mainPath,'utf8'),b);vm.runInContext(fs.readFileSync(workflowPath,'utf8'),b);if(!useRealStartup)b.oa3ManualStartup_=()=>({spreadsheet:b.oa2Spreadsheet_(),props:b.PropertiesService.getDocumentProperties()});return b;}
 function test(name,fn){try{fn();tests.push(name);}catch(e){failures.push({name,error:e.message,stack:e.stack});}}
+function boundStartupFixture(active){
+  const b=load(true),calls={active:0,open:0,sheet:0},binding={version:1,scriptId:'bound-script',spreadsheetId:'bound-sheet'};
+  const stored=new Map([['ARRIVAL_MANUAL_CONTAINER_BINDING_V1',JSON.stringify(binding)]]);
+  const props={getProperty:key=>stored.get(key)??null,setProperty:(key,value)=>stored.set(key,value)};
+  const spreadsheet={getId:()=>binding.spreadsheetId,getSheetByName:name=>{calls.sheet++;return name;},toast(){}};
+  b.PropertiesService={getDocumentProperties:()=>props,getScriptProperties:()=>({getProperty:()=>'1',setProperty(){}})};
+  b.ScriptApp={getScriptId:()=>binding.scriptId};b.LockService={getDocumentLock:()=>({tryLock:()=>true,releaseLock(){}})};
+  b.Utilities.getUuid=()=>'job-uuid';
+  b.SpreadsheetApp={getActiveSpreadsheet:()=>{calls.active++;return active(spreadsheet);},openById:id=>{assert.equal(id,binding.spreadsheetId);calls.open++;return spreadsheet;}};
+  return {b,calls,spreadsheet,stored};
+}
+if(fs.readFileSync(workflowPath,'utf8').includes("'nativeActiveContainerMs'")){
+  test('manual checkpoint start, status and bound API ID require no native workbook access',()=>{
+    const f=boundStartupFixture(sheet=>sheet),runtime=f.b.oa3ManualStartup_({});
+    assert.equal(runtime.spreadsheet.getId(),'bound-sheet');
+    const receipt=f.b.startBookedArrivalsFullSync(new Date().toISOString());
+    assert.equal(f.b.getBookedArrivalsFullSyncStatus(receipt.jobId,'').jobId,receipt.jobId);
+    assert.deepEqual(f.calls,{active:0,open:0,sheet:0});
+  });
+  test('native lookup reuses the verified active bound container once per RPC',()=>{
+    const f=boundStartupFixture(sheet=>sheet),metrics={},ss=f.b.oa3ManualStartup_(metrics).spreadsheet;
+    assert.equal(ss.getSheetByName('first'),'first');assert.equal(ss.getSheetByName('second'),'second');ss.toast('done');
+    assert.deepEqual(f.calls,{active:1,open:0,sheet:2});assert.ok('nativeActiveContainerMs' in metrics);assert.ok(!('nativeOpenByIdMs' in metrics));
+  });
+  for(const mode of ['null','unavailable','missing API'])test('missing active container uses the exact saved binding once: '+mode,()=>{
+    const f=boundStartupFixture(()=>{if(mode==='unavailable')throw Error('No active context');return null;});
+    if(mode==='missing API')delete f.b.SpreadsheetApp.getActiveSpreadsheet;
+    const ss=f.b.oa3ManualStartup_({}).spreadsheet;ss.getSheetByName('first');ss.getSheetByName('second');
+    assert.deepEqual(f.calls,{active:mode==='missing API'?0:1,open:1,sheet:2});
+  });
+  for(const mode of ['foreign','unreadable'])test('active workbook identity '+mode+' rejects access without substituting another file',()=>{
+    const f=boundStartupFixture(()=>({getId:()=>{if(mode==='unreadable')throw Error('Unavailable ID');return 'foreign-id';}}));
+    assert.throws(()=>f.b.oa3ManualStartup_({}).spreadsheet.getSheetByName('first'));
+    assert.deepEqual(f.calls,{active:1,open:0,sheet:0});
+  });
+  test('explicit open verifies the provider-returned identity before accessing any sheet',()=>{
+    const f=boundStartupFixture(()=>null);f.b.SpreadsheetApp.openById=()=>({getId:()=>'foreign-id'});
+    assert.throws(()=>f.b.oa3ManualStartup_({}).spreadsheet.getSheetByName('first'),/identity/);assert.equal(f.calls.sheet,0);
+  });
+  test('invalid script binding stops before active or explicit workbook discovery',()=>{
+    const f=boundStartupFixture(sheet=>sheet);f.b.ScriptApp.getScriptId=()=>'foreign-script';
+    assert.throws(()=>f.b.oa3ManualStartup_({}),/binding/);assert.deepEqual(f.calls,{active:0,open:0,sheet:0});
+  });
+}
 function appointment(id='a'){return{id,leadId:'lead_'+id,queueId:'queue_'+id,account:'GOS Beauty',customerKey:'GOS Beauty|p:10000001',phone:'10000001',name:'Synthetic',brand:'Synthetic Brand',treatment:'Synthetic Treatment',branch:'Synthetic Branch',createdAt:'2026-10-01',date:'2026-10-18',time:'15:00',state:'active',provenance:'legacy_registration_unknown',outcome:'',arrivalDate:'',outcomeAt:'',bookedAt:'',revision:1,pendingArrivalOverride:'scheduled',lastStatus:'booked',lastSchedule:'2026-10-18|15:00',firstSeenAt:'2026-10-01T00:00:00Z',updatedAt:'2026-10-01T00:00:00Z'};}
 function source(a){return{row:2,meaningful:true,leadId:a.leadId,appointmentId:a.id,account:a.account,customerKey:a.customerKey,phone:a.phone,fullPhone:a.phone,name:a.name,brand:a.brand,treatment:a.treatment,branch:a.branch,createdAt:'2026-10-01',date:'2026-10-18',time:'15:00',status:'已預約',isCurrent:true,pendingSnapshot:'',bookedAt:'',outcome:'',outcomeAt:''};}
 function queue(a){const q={row:8,appointmentId:a.id,entryId:a.queueId,origin:'managed',account:a.account,customerKey:a.customerKey,date:a.date,time:a.time,outcome:'待到店',arrivalDate:a.date,remark:'Preserve notes',raw:Array(26).fill(''),blank:false};syncRaw(q,a);return q;}
