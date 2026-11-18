@@ -459,6 +459,37 @@ test('two callbacks or clients carrying the same checkpoint revision can admit o
   assert.equal(f.b.continueBookedArrivalsFullSync(job.id,1).stepRevision,2);assert.equal(f.calls.identity.length,2);
 });
 
+function retainedIdentityAttempt(f,ageMs,priorGrid=false){
+  const state=f.start(),stamp=new Date(Date.now()-ageMs).toISOString();state.startedAt=stamp;
+  state.stepRevision=7;state.attempt={phase:'identity',accountIndex:0,startedAt:stamp};
+  if(priorGrid)state.attempt.retryReader='grid';
+  f.stored.set(jobKey,JSON.stringify(state));return state;
+}
+test('only a long retained native identity attempt on the current revision can request alternate discovery',()=>{
+  for(const [age,priorGrid,revision,expected] of [[360000,false,7,true],[1000,false,7,false],[360000,true,7,false],[360000,false,undefined,false]]){
+    const f=fixture(),state=retainedIdentityAttempt(f,age,priorGrid);
+    const original=f.b.oa2PrioritizeSourceIdentities_;
+    f.b.oa2PrioritizeSourceIdentities_=(...args)=>{
+      assert.equal(f.job().attempt.retryReader,expected?'grid':undefined);
+      return original(...args);
+    };
+    const receipt=f.b.continueBookedArrivalsFullSync(state.id,revision);
+    assert.equal(f.calls.identity[0].retryIdentityDiscovery,expected);
+    assert.equal(receipt.phase,'account');assert.equal(receipt.countsVerified,false);assert.equal(f.job().attempt,null);
+  }
+});
+test('a lost alternate discovery attempt cannot cause repeated alternate reads or duplicate admissions',()=>{
+  const f=fixture(),state=retainedIdentityAttempt(f,360000),original=f.b.oa2PrioritizeSourceIdentities_;
+  f.b.oa2PrioritizeSourceIdentities_=()=>{throw new Error('Synthetic unknown provider result');};
+  assert.throws(()=>f.b.continueBookedArrivalsFullSync(state.id,7));
+  const pending=f.job();assert.equal(pending.attempt.retryReader,'grid');assert.equal(pending.stepRevision,8);
+  pending.attempt.startedAt=new Date(Date.now()-360000).toISOString();f.stored.set(jobKey,JSON.stringify(pending));
+  f.b.oa2PrioritizeSourceIdentities_=original;
+  assert.equal(f.b.continueBookedArrivalsFullSync(state.id,7).phase,'identity');assert.equal(f.calls.identity.length,0);
+  const receipt=f.b.continueBookedArrivalsFullSync(state.id,8);assert.equal(f.calls.identity[0].retryIdentityDiscovery,false);
+  assert.equal(receipt.phase,'account');assert.equal(f.job().attempt,null);
+});
+
 test('an unknown worker exposes its pending attempt only after lock release and stale RPCs never replay it',()=>{
   const f=fixture(),job=f.start();f.toAccount();const revision=f.job().stepRevision;
   f.control.accountFailure=true;assert.throws(()=>f.b.continueBookedArrivalsFullSync(job.id,revision));

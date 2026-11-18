@@ -754,6 +754,121 @@ function interruptedAllocationFixture() {
   f.queue.state.matrix[7][arrivalHeaders.indexOf('試做價')]=0;
   return f;
 }
+
+function retryDiscoveryFixture(f=nativeFixture(),target='GOS Beauty'){
+  const id=f.ss.getId(),tabs=new Map(),gets=[],overrides=new Map(),control={apiWrites:0,nativeDisplay:0};
+  for(const name of f.accountNames()){
+    const source=f.sources.get(name),getRange=source.getRange;
+    tabs.set(name,{source,id:tabs.size+1,rows:40,cols:38});
+    source.getRange=(row,column,height=1,width=1)=>{
+      const range=getRange(row,column,height,width),read=range.getDisplayValues;
+      range.getDisplayValues=()=>{if(name===target&&row===1&&column===1&&height>1&&width>=f.headers.length)control.nativeDisplay++;return read();};
+      return range;
+    };
+  }
+  function literal(value){
+    if(value===undefined||value===null||value==='')return {};
+    const key=typeof value==='string'?'stringValue':typeof value==='number'?'numberValue':'boolValue';
+    return {userEnteredValue:{[key]:value},effectiveValue:{[key]:value},formattedValue:String(value)};
+  }
+  const col=letters=>[...letters].reduce((n,c)=>n*26+c.charCodeAt(0)-64,0);
+  function get(book,opts){
+    gets.push(opts);assert.equal(book,id);
+    const groups=new Map();
+    for(const range of opts.ranges){
+      const match=/^'([^']+)'!(?:(\d+):(\d+)|([A-Z]+)(\d+):([A-Z]+)(\d+))$/.exec(range);
+      assert.ok(match,range);
+      const [,name,r1,r2,c1,a1,c2,a2]=match,tab=tabs.get(name);assert.ok(tab,'Only Account sources are used for API discovery');
+      const top=+(r1||a1)-1,bottom=+(r2||a2),left=c1?col(c1)-1:0,right=c2?col(c2):tab.cols;
+      assert.ok(top>=0&&bottom<=tab.rows&&left>=0&&right<=tab.cols);
+      if(!groups.has(name))groups.set(name,{properties:{sheetId:tab.id,title:name,sheetType:'GRID',gridProperties:{rowCount:tab.rows,columnCount:tab.cols}},data:[]});
+      const rowData=[];
+      for(let r=top;r<bottom;r++){
+        const values=[];
+        for(let c=left;c<right;c++)values.push(clone(overrides.get(name+'|'+r+'|'+c)||literal(tab.source.state.matrix[r]?.[c])));
+        while(values.length&&!Object.keys(values.at(-1)).length)values.pop();
+        rowData.push(values.length?{values}:{});
+      }
+      while(rowData.length&&!rowData.at(-1).values)rowData.pop();
+      groups.get(name).data.push({...(top?{startRow:top}:{}),...(left?{startColumn:left}:{}),rowData,rowMetadata:Array.from({length:bottom-top},()=>({pixelSize:21}))});
+    }
+    const reply={spreadsheetId:id,sheets:[...groups.values()].reverse().map(s=>({...s,data:s.data.reverse()}))};
+    if(control.afterGet)control.afterGet(reply,gets.length);
+    return reply;
+  }
+  f.box.Sheets={Spreadsheets:{get,batchUpdate:()=>{control.apiWrites++;throw Error('Unexpected API writer');}}};
+  const bound={...f.ss,verifiedManualSpreadsheetId:id};
+  const options={manualRequested:true,retryIdentityDiscovery:true,recoverPendingAllocations:true,maxIdentityBatch:1,maxAccounts:1,deferDisplay:true,accountNames:[target],startAccountIndex:f.accountNames().indexOf(target)};
+  const run=(extra={})=>f.box.oa2PrioritizeSourceIdentities_(bound,f.lock,{...options,...extra});
+  const raw=(name,row,label,value)=>overrides.set(name+'|'+(row-1)+'|'+f.headers.indexOf(label),value);
+  return {...f,target,control,tabs,gets,bound,options,raw,run};
+}
+
+test('a timed-out manual identity step discovers a genuine booking through Sheets.get and hands it to the canonical native writer',()=>{
+  const base=retryDiscoveryFixture(),native=base.run({retryIdentityDiscovery:false});assert.equal(base.gets.length,0);assert.ok(base.control.nativeDisplay>0);
+  const f=retryDiscoveryFixture(),raw=f.run();
+  assert.equal(f.gets.length,2);assert.equal(f.control.nativeDisplay,0);assert.equal(f.control.apiWrites,0);
+  for(const key of ['registered','recovered','bookedAdded','review'])assert.equal(raw[key],native[key]);
+  assert.equal(raw.bookedAdded,1);assert.equal(raw.accountFailures.length,0);
+  const pointer=f.cell('Appointment ID'),booking=f.box.oa2ReadRegistry_(f.ss).appointments[pointer],q=f.box.oa2ReadQueue_(f.ss,false);
+  assert.equal(f.cell('Omni Lead ID'),base.cell('Omni Lead ID'));assert.equal(pointer,base.cell('Appointment ID'));
+  assert.equal(q.length,1);assert.equal(q[0].appointmentId,pointer);assert.equal(q[0].entryId,booking.queueId);assert.equal(booking.bookedAt,'');
+});
+for(const cell of [
+  {userEnteredValue:{formulaValue:'="已預約"'},effectiveValue:{stringValue:'已預約'},formattedValue:'已預約'},
+  {effectiveValue:{stringValue:'已預約'},formattedValue:'已預約'}
+])test('a complete '+(cell.userEnteredValue?'formula':'spill')+' display result preserves native booking discovery',()=>{
+  const f=retryDiscoveryFixture();f.raw(f.target,2,'跟進狀態',cell);
+  const r=f.run();assert.equal(f.gets.length,2);assert.equal(r.bookedAdded,1);assert.equal(f.control.nativeDisplay,0);assert.equal(f.control.apiWrites,0);
+});
+for(const [reason,damage] of [
+  ['wrong workbook',r=>{r.spreadsheetId='foreign_workbook';}],
+  ['missing sheet',r=>{r.sheets.pop();}],
+  ['duplicate block',r=>{r.sheets[0].data.push(r.sheets[0].data[0]);}],
+  ['omitted header',r=>{const s=r.sheets.find(s=>s.properties.title==='Alyssa Main');s.data=s.data.filter(b=>b.startRow);}],
+  ['moved header',r=>{const s=r.sheets.find(s=>s.properties.title==='Alyssa Main');s.data.find(b=>!b.startRow).rowData[0].values[25].formattedValue='Moved ID';}],
+  ['overlong grid',r=>{const s=r.sheets[0];s.data[0].rowData=Array.from({length:s.properties.gridProperties.rowCount+1},()=>({}));}],
+  ['grid size changed',r=>{r.sheets[0].properties.gridProperties.columnCount++;}],
+  ['truncated body without extent',r=>{const s=r.sheets.find(s=>s.properties.title==='Alyssa Main'),b=s.data.find(b=>b.startRow);delete b.rowMetadata;delete b.rowData;}]
+])test('an unverified API retry uses the native reader and completes a genuine candidate: '+reason,()=>{
+  const f=retryDiscoveryFixture();f.control.afterGet=(r,n)=>{if(n===2)damage(r);};
+  const result=f.run();assert.equal(f.gets.length,2);assert.ok(f.control.nativeDisplay>0);assert.equal(result.bookedAdded,1);assert.equal(f.control.apiWrites,0);
+});
+test('formula errors and missing nonempty display values fall back to the ordinary source',()=>{
+  for(const cell of [{userEnteredValue:{formulaValue:'=NA()'},effectiveValue:{errorValue:{type:'N_A'}}},{effectiveValue:{stringValue:'已預約'}}]){
+    const f=retryDiscoveryFixture();f.raw(f.target,2,'跟進狀態',cell);
+    assert.equal(f.run().bookedAdded,1);assert.ok(f.control.nativeDisplay>0);assert.equal(f.control.apiWrites,0);
+  }
+});
+test('duplicate claims across two outside Accounts block the genuine candidate found through the API',()=>{
+  const f=retryDiscoveryFixture();
+  for(const name of ['Alyssa Main','Alyssa Medical'])f.sources.get(name).appendRow(valuesRow(f.headers,{'Omni Lead ID':'lead_duplicate_outside'}));
+  const before=f.writes().length,result=f.run();assert.equal(f.gets.length,2);assert.equal(f.control.nativeDisplay,0);
+  assert.equal(result.blocked,true);assert.ok(result.reviewReasons.includes('duplicate_source_identity'));assert.equal(f.writes().length,before);
+});
+test('a post-timeout retry recovers the exact accepted outside allocation through native queue readback',()=>{
+  const f=retryDiscoveryFixture(interruptedAllocationFixture(),'Alyssa Main'),lead=f.cell('Omni Lead ID'),pointer=f.cell('Appointment ID'),uuids=f.uuidCount();
+  const result=f.run();assert.equal(f.gets.length,2);assert.equal(result.recovered,1);assert.equal(result.bookedAdded,0);assert.equal(result.accountFailures.length,0);
+  assert.equal(f.uuidCount(),uuids);assert.equal(f.cell('Omni Lead ID'),lead);assert.equal(f.cell('Appointment ID'),pointer);
+  const queue=f.box.oa2ReadQueue_(f.ss,false);assert.equal(queue.length,1);assert.equal(queue[0].appointmentId,pointer);assert.equal(queue[0].origin,'managed');assert.equal(f.control.apiWrites,0);
+});
+test('fresh native ownership validation rejects a competing claim created after API discovery',()=>{
+  const f=retryDiscoveryFixture(),guard=f.box.oa2AssertIdentityClaimsFresh_;
+  let inserted=false;f.box.oa2AssertIdentityClaimsFresh_=(ss,items,...args)=>{
+    if(!inserted){inserted=true;f.sources.get('Alyssa Main').appendRow(valuesRow(f.headers,{'Omni Lead ID':items[0].record.leadId}));}
+    return guard(ss,items,...args);
+  };
+  const r=f.run();assert.equal(f.gets.length,2);assert.equal(inserted,true);assert.equal(r.bookedAdded,0);assert.ok(r.accountFailures.length||r.review);
+  assert.equal(f.cell('Omni Lead ID'),'');assert.equal(f.queue.state.writes.length,0);assert.equal(f.registry.state.writes.length,0);assert.equal(f.control.apiWrites,0);
+});
+test('first attempts, generic identity callers and mismatched bindings cannot activate the timeout API reader',()=>{
+  for(const extra of [{retryIdentityDiscovery:false},{retryIdentityDiscovery:'true'},{manualRequested:false},{maxIdentityBatch:2},{deferDisplay:false},{recoverPendingAllocations:false},{startAccountIndex:0},{accountNames:['GOS Beauty','Alyssa Main']}]){
+    const f=retryDiscoveryFixture();f.run(extra);assert.equal(f.gets.length,0);
+  }
+  for(const marker of [undefined,'different_workbook']){const f=retryDiscoveryFixture();f.bound.verifiedManualSpreadsheetId=marker;f.run();assert.equal(f.gets.length,0);}
+  const f=retryDiscoveryFixture();assert.throws(()=>f.box.oa2PrioritizeSourceIdentities_(f.bound,{hasLock:()=>false},f.options),/lock/i);
+  assert.equal(f.gets.length,0);assert.equal(f.writes().length,0);
+});
 function settledDiscoveryFixture(count=100) {
   const f=nativeFixture(),reads=[];
   f.box.OA3_MANUAL_USE_NATIVE_DISPLAY_READS=true;
