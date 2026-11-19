@@ -54,7 +54,7 @@ function oaSelectedArrival_(ss, r) {
 function applyOmniIdentityAction(action, tag) {
   if (!['lead', 'appointment', 'arrival'].includes(action)) throw new Error('請重新選擇功能。');
   const ss = oa2Spreadsheet_(), lock = LockService.getDocumentLock();
-  if (!lock.tryLock(1000)) throw new Error('試算表正在處理其他編輯，請稍後再撳。');
+  if (!lock.tryLock(30000)) return {busy: true, error: '試算表正在處理其他編輯，請稍後再撳。'};
   let where = '';
   try {
     const selected = oaIdentitySelection_(ss), r = selected.record, v = selected.view;
@@ -128,8 +128,8 @@ function oaIdentityPanelHtml_() {
     el('lead').disabled=false;el('appointment').disabled=!v.booked&&!v.appointment;el('arrival').disabled=!v.lead||!v.appointment;}
   function fail(e){busy();view=null;el('refresh').disabled=false;el('status').textContent=e.message||e;}
   function refresh(){busy();el('status').textContent='讀取中…';google.script.run.withFailureHandler(fail).withSuccessHandler(v=>{render(v);el('status').textContent='';}).getOmniIdentitySelection();}
-  function apply(action){if(!view)return;busy();el('status').textContent='正在核對 '+view.account+' 第 '+view.row+' 行…';
-    google.script.run.withFailureHandler(fail).withSuccessHandler(r=>{if(r.error){fail(r.error);return;}render(r.view);el('status').textContent=r.message;if(action==='arrival')google.script.host.close();}).applyOmniIdentityAction(action,view.tag);}
+  function apply(action,retry=true){if(!view)return;busy();el('status').textContent='正在核對 '+view.account+' 第 '+view.row+' 行…';
+    google.script.run.withFailureHandler(fail).withSuccessHandler(r=>{if(r.busy){if(retry){el('status').textContent='等候其他編輯完成…';setTimeout(()=>apply(action,false),1500);}else{render(view);el('status').textContent=r.error;}return;}if(r.error){fail(r.error);return;}render(r.view);el('status').textContent=r.message;if(action==='arrival')google.script.host.close();}).applyOmniIdentityAction(action,view.tag);}
   el('refresh').onclick=refresh;['lead','appointment','arrival'].forEach(id=>el(id).onclick=()=>apply(id));refresh();
   </script></body></html>`;
 }

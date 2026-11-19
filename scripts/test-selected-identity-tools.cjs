@@ -41,7 +41,7 @@ assert.equal(registrations,0);
 env.oaIdentitySelection_ = () => ({record:{...r,appointmentId:''},view:{...view,appointment:false,booked:false}});
 assert.match(env.applyOmniIdentityAction('appointment','selected').error,/已預約/);
 env.LockService = {getDocumentLock: () => ({tryLock: () => false})};
-assert.throws(()=>env.applyOmniIdentityAction('lead','selected'),/其他編輯/);
+assert.equal(env.applyOmniIdentityAction('lead','selected').busy,true);
 const html=env.oaIdentityPanelHtml_();
 for (const label of ['補回 Omni Lead ID','補回 Appointment ID','開啟到店紀錄']) assert.ok(html.includes(label));
 new vm.Script(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
