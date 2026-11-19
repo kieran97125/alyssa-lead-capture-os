@@ -1324,6 +1324,18 @@ function oa2QueueLabel_(a,record) {
   return a.account+' · '+(fullPhone?'電話 '+fullPhone:verifiedPhone?'電話尾8 '+phone:email?'Email '+email:social?'IG/FB '+social:name?'客人 '+name:'未填聯絡資料');
 }
 
+function oa2AllocatedQueueLabelMatches_(stored, appointment, record) {
+  const expected = oa2QueueLabel_(appointment, record), actual = oa2Text_(stored);
+  if (actual === expected) return true;
+  const prefix = appointment.account + ' · 電話 ';
+  if (!record || record.leadId !== appointment.leadId || record.appointmentId !== appointment.id ||
+      record.account !== appointment.account || !expected.startsWith(prefix) || !actual.startsWith(prefix)) return false;
+  const numbers = expected.slice(prefix.length), observed = actual.slice(prefix.length);
+  // Sheets can remove spaces around the slash separating two complete numbers.
+  const phoneList = /^\+?\d+(?:[ \t]*\/[ \t]*\+?\d+)+$/;
+  return phoneList.test(numbers) && phoneList.test(observed) &&
+    numbers.replace(/[ \t]*\/[ \t]*/g, '/') === observed.replace(/[ \t]*\/[ \t]*/g, '/');
+}
 function oa2QueueMetadata_(a,origin,ctx) {return[a.id,a.revision,oa2QueueState_(a,ctx.today),a.outcomeAt?new Date(a.outcomeAt):'',a.leadId,a.bookedAt?new Date(a.bookedAt):'',origin||'managed'];}
 function oa2QueueStatus_(a) {return a.outcome==='Show'?'已到店':a.outcome || (a.state==='canceled'?'取消':a.state==='reschedule_requested'?'改期':'待到店');}
 function oa2QueueInputState_(q){return JSON.stringify([oa2Date_(q.date),oa2Time_(q.time),oa2Text_(q.outcome),oa2Date_(q.arrivalDate)]);}
@@ -1419,7 +1431,7 @@ function oa2WriteQueue_(ss,ctx,queue,operations,records) {
       const owned=oa2Text_(current[19])===a.id&&oa2Text_(current[25])==='allocating';
       if(!owned && oa2QueueRowHasManualData_(sh,op.row))throw new Error('Arrival slot contains staff-entered source or money; preserving it.');
       if(!owned&&[0,1,2,3,4,5,15,16,19].some(j=>oa2Text_(current[j])))throw new Error('Arrival slot was edited concurrently; preserving staff input.');
-      const r=recordById[a.leadId];if(owned && oa2Text_(current[0]) && oa2Text_(current[0])!==oa2QueueLabel_(a,r))throw new Error('Partially allocated arrival identity changed; preserving it for review.');payload.push({row:op.row,values:[oa2QueueLabel_(a,r),oa2NativeDate_(a.date),oa2NativeTime_(a.time),oa2QueueStatus_(a),oa2NativeDate_(oa2QueueArrivalDate_(a)),owned?current[5]:'']});
+      const r=recordById[a.leadId];if(owned && oa2Text_(current[0]) && !oa2AllocatedQueueLabelMatches_(current[0],a,r))throw new Error('Partially allocated arrival identity changed; preserving it for review.');payload.push({row:op.row,values:[oa2QueueLabel_(a,r),oa2NativeDate_(a.date),oa2NativeTime_(a.time),oa2QueueStatus_(a),oa2NativeDate_(oa2QueueArrivalDate_(a)),owned?current[5]:'']});
       descriptions.push({row:op.row,values:[a.account,a.name,oa2Text_(a.phone).slice(-4),a.treatment,a.branch,oa2NativeDate_(a.date),a.bookedAt?oa2NativeDate_(a.bookedAt):'',a.bookedAt?'正式登記時間（自動）':'舊預約：登記日期待核對']});
       identities.push({row:op.row,values:[a.customerKey,a.queueId]});
       associations.push({row:op.row,values:['=IF('+oa2QueueCell_(layout,1,op.row)+'="","",'+oa2QueueCell_(layout,17,op.row)+'&"|"&IF('+oa2QueueCell_(layout,2,op.row)+'="","待填日期",TEXT('+oa2QueueCell_(layout,2,op.row)+',"yyyy-mm-dd"))&"|"&IF('+oa2QueueCell_(layout,3,op.row)+'="","未填時間",TEXT('+oa2QueueCell_(layout,3,op.row)+',"hh:mm")))']});
@@ -2049,7 +2061,7 @@ function oa2PendingQueueRecoverySafe_(r,q,a) {
     Number(raw[20])!==Number(a.revision)||(q.entryId!==a.queueId&&!(blank&&!q.entryId))||
     (oa2Text_(raw[17])!==a.queueId&&!(blank&&!oa2Text_(raw[17])))||
     q.account&&q.account!==a.account||q.customerKey&&q.customerKey!==a.customerKey||
-    oa2Text_(raw[0])&&oa2Text_(raw[0])!==oa2QueueLabel_(a,r))return false;
+    oa2Text_(raw[0])&&!oa2AllocatedQueueLabelMatches_(raw[0],a,r))return false;
   let before;
   try{before=a.pendingQueueBefore==='new'?['','','','']:JSON.parse(a.pendingQueueBefore);}catch(ignored){return false;}
   if(!Array.isArray(before)||before.length!==4||before.some(v=>typeof v!=='string')||

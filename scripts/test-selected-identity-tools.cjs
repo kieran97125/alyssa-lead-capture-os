@@ -58,3 +58,13 @@ const html=env.oaIdentityPanelHtml_();
 for (const label of ['補回 Omni Lead ID','補回 Appointment ID','開啟到店紀錄']) assert.ok(html.includes(label));
 new vm.Script(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
 console.log('Selected-row identity actions passed.');
+const native = {};
+vm.createContext(native);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'apps-script/releases/20261022/native-main.gs'), 'utf8'), native);
+const sourcePhone = {...r, fullPhone: '12345678 / +85298765432'};
+const prefix = r.account + ' · 電話 ';
+assert.equal(native.oa2AllocatedQueueLabelMatches_(prefix+'12345678/+85298765432',a,sourcePhone),true);
+for (const text of ['12345678/+85398765432','+85298765432/12345678','12345678+85298765432','12345678/98765432']) {
+  assert.equal(native.oa2AllocatedQueueLabelMatches_(prefix+text,a,sourcePhone),false);
+}
+assert.equal(native.oa2AllocatedQueueLabelMatches_(prefix+'12345678/+85298765432',a,{...sourcePhone,appointmentId:'another'}),false);

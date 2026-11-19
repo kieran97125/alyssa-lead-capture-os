@@ -229,7 +229,7 @@ function oa2WriteQueueAppendApi_(ss,ctx,queue,operations,records) {
           if(scalar(23)!==a.leadId||scalar(17)&&scalar(17)!==a.queueId||scalar(16)&&scalar(16)!==a.customerKey||scalar(7)&&scalar(7)!==a.account)throw new Error('Allocating queue owner changed.');
           const actual=oa2AppendApiInput_(raw.slice(1,5)),blank=JSON.stringify(['','','','']);
           if(actual!==desired&&actual!==blank&&actual!==a.pendingQueueBefore)throw new Error('Staff changed an allocating outcome or schedule.');
-          if(scalar(0)&&scalar(0)!==oa2QueueLabel_(a,r))throw new Error('Allocating display identity changed.');
+          if(scalar(0)&&!oa2AllocatedQueueLabelMatches_(scalar(0),a,r))throw new Error('Allocating display identity changed.');
         } else {
           if(raw.some((value,index)=>![6,17,18].includes(index)&&Object.keys(value).length))throw new Error('Queue append slot contains colleague or identity input.');
           if(Object.keys(raw[6]).length&&raw[6].formulaValue!==oa2QueueCheckFormula_(context.layout,op.row)||Object.keys(raw[18]).length&&raw[18].formulaValue!==oa2AppendApiAssociation_(context.layout,op.row))throw new Error('Queue system formula before-image changed.');
