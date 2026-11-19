@@ -1,4 +1,5 @@
 import "server-only";
+import { BookingRegistrationError, bookingRegistrationMessage, type BookingRegistrationLocation } from "@/lib/marketing/bookingRegistrationLocations";
 import { arrivalOutcomeAuthorityError } from "@/lib/marketing/leadArrivalOutcomeAuthority";
 import { leadSheetFailureDiagnostic, readValidatedLeadSnapshot, type LeadSheetReadAttempt, type LeadSheetSyncReason } from "@/lib/marketing/leadSheetSyncDiagnostics";
 
@@ -8,6 +9,8 @@ import { getGoogleSheetsOAuthAccessToken } from "@/lib/integrations/googleSheets
 import {
   normalizeMetaLeadRowsInLiveTable,
   readLiveLeadTable,
+  locatePendingBookingRows,
+  type LiveLeadTable,
 } from "@/lib/integrations/googleSheetsLeadTable";
 import {
   captureLeadSheetAuditSnapshot,
@@ -102,6 +105,7 @@ export type MarketingSyncResult = {
   auditStatus?: string | null;
   auditOpenAlerts?: number;
   message: string;
+  bookingRegistration?: { total: number; locations: BookingRegistrationLocation[] };
   failureReason?: LeadSheetSyncReason | "unclassified" | "sync_busy" | "sync_claim_failed" | "paused";
 };
 
@@ -342,12 +346,14 @@ async function collectLeadFunnelMetrics(
   const leadBrandAliases = stringRecord(configuration.brandAliases);
   const leadTreatmentAliases = treatmentAliases(configuration.treatmentAliases);
   const month = getHkMonthContext();
+  let finalTable: LiveLeadTable | undefined;
   const { normalizedLiveTable, parsed, existingAudit } = await readValidatedLeadSnapshot({
     managed: configuration.sourceProfile === "alyssa_workspace_lead_funnel",
     attempts: options.trace.readAttempts,
     read: async () => {
       options.trace.phase = "google_read";
       const rawLiveTable = await readLiveLeadTable(configuration);
+      finalTable = rawLiveTable;
       options.trace.phase = "source_normalization";
       const normalizedLiveTable = await normalizeMetaLeadRowsInLiveTable({
         configuration, liveTable: rawLiveTable, brands,
@@ -376,6 +382,16 @@ async function collectLeadFunnelMetrics(
       });
       return { normalizedLiveTable, parsed, existingAudit };
     },
+  }).catch(async (error: unknown) => {
+    if (error instanceof BookingRegistrationError && finalTable) {
+      try {
+        await locatePendingBookingRows(configuration, finalTable, error);
+      } catch {
+        // Exact master rows remain available if the physical lookup times out.
+      }
+      error.message = bookingRegistrationMessage(error.counts.pendingSourceIds, error.locations);
+    }
+    throw error;
   });
   const { headers, rows, headerRow } = normalizedLiveTable;
   if (normalizedLiveTable.normalizedMetaLeadRows > 0) {
@@ -765,6 +781,7 @@ export async function syncMarketingDataSource(
       auditOpenAlerts: audit?.openAlerts ?? 0,
       message,
       failureReason: diagnostic.reason,
+      ...(syncError instanceof BookingRegistrationError ? { bookingRegistration: { total: syncError.counts.pendingSourceIds, locations: syncError.locations } } : {}),
     };
   }
 }

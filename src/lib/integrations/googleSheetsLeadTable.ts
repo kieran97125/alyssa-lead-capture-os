@@ -1,5 +1,6 @@
 import { parseLeadPendingAppointmentAuthority, type LeadPendingAppointmentAuthority } from "@/lib/marketing/leadPendingAppointmentAuthority";
 import "server-only";
+import { locateBookingSources, registrationSourceTabs, type BookingRegistrationError } from "@/lib/marketing/bookingRegistrationLocations";
 import { LeadSheetSyncError } from "@/lib/marketing/leadSheetSyncDiagnostics";
 import { ARRIVAL_REVENUE_HEADERS, type ArrivalRevenueTable } from "@/lib/reports/arrivalRevenue";
 import { REPORT_TREATMENT_HEADERS, type ReportTreatmentTable } from "@/lib/reports/treatmentCategories";
@@ -232,6 +233,24 @@ async function batchGetValues(input: {
   }
 
   return (await response.json()) as { valueRanges?: GoogleValueRange[] };
+}
+
+// Optional read after final validation failure only. A failed diagnostic read
+// must never mask the original failure or affect the published snapshot.
+export async function locatePendingBookingRows(configuration: LeadTableSourceConfiguration, original: LiveLeadTable, error: BookingRegistrationError) {
+  if (configuration.sourceProfile !== MANAGED_PROFILE || !error.locations.length) return;
+  await boundedManagedRead(async signal => {
+    const accessToken = await getGoogleSheetsOAuthAccessToken({ signal, recordHealth: false });
+    const ranges = [
+      ...error.locations.map(({ masterRow }) => "'lead'!A" + masterRow + ":Y" + masterRow),
+      ...registrationSourceTabs.map(tab => quoteSheetName(tab) + "!A1:AD"),
+    ];
+    const response = await batchGetValues({ accessToken, spreadsheetId: spreadsheetId(configuration), ranges, signal });
+    const values = response.valueRanges?.map(range => range.values ?? []);
+    if (values?.length === ranges.length) {
+      locateBookingSources(error.locations, original, values.slice(0, error.locations.length), values.slice(error.locations.length));
+    }
+  }, undefined, MANAGED_READ_TIMEOUT_MS);
 }
 
 export async function rewriteMetaLeadFormRows(
