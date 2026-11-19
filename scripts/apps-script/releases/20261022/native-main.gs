@@ -99,6 +99,7 @@ function onOpen() {
     .addItem('搜尋電話移到底部', 'searchOmniPhoneToBottom')
     .addItem('新建另一次預約（保留歷史）', 'createAnotherOmniAppointmentV2')
     .addItem('到店流程檢查（唯讀）', 'showOmniArrivalCheck')
+    .addItem('補回 Lead ID／Appointment ID', 'openOmniIdentityTools')
     .addItem('手動同步已預約', 'syncAllBookedArrivals')
     .addToUi();
 }
@@ -2156,6 +2157,7 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
       snap=oa3ManualPhase_(timings,'rawSourceMs',()=>oa3ManualAccountSnapshot_(ss.getSheetByName(account.account),account.account,new Map()));
       const missing=snap.records.filter(r=>(recoveryAccount?allocations.has(r.appointmentId):oa2IdentityCandidate_(r))&&(!options.firstRow||r.row>=options.firstRow)&&(!options.lastRow||r.row<=options.lastRow));
       if(!missing.length)return;
+      if(options.expectedSource && !missing.every(r=>options.expectedSource(snap,r))){result.blocked=true;result.reviewReasons.push('selection_changed');return;}
       evidence=oa3ManualPhase_(timings,'evidenceMs',()=>oa2IdentityEvidence_(discovery,oa2ReadRegistry_(ss).appointments));
       // Review decisions are cheap in-memory; warning writes are independently
       // bounded. Existing same-reason notes do not consume the next batch.
