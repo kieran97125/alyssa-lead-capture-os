@@ -123,3 +123,34 @@ for(const change of [b=>{b[1][5]=false;},b=>{b[1][1]='GOS Beauty|p:10000901';},b
  assert.throws(()=>parser.buildLeadSheetGroups({...newInput,pendingAppointmentAuthority:p.parseLeadPendingAppointmentAuthority(corrupt,[p.PENDING_REGISTRY_HEADERS])}));
 }
 console.log('PASS: new unscheduled enquiry syncs before ID registration; metrics stable after registration; appointment evidence, Account mismatch, inconsistent flags and master drift still rejected.');
+
+const loc = load('src/lib/marketing/bookingRegistrationLocations.ts');
+const indices = [2, 4];
+const unregistered = structuredClone(bridge);
+for (const n of indices) Object.assign(unregistered[n-1], {0:'', 3:false, 4:'', 7:false});
+assert.throws(() => build(unregistered), error => error instanceof loc.BookingRegistrationError &&
+  JSON.stringify(error.locations) === JSON.stringify(indices.map(masterRow => ({masterRow}))) && error.counts.pendingSourceIds === 2);
+const cols = Array.from({length:25}, (_,i) => 'col' + i);
+cols[2] = '跟進狀態'; cols[20] = 'Account';
+const columns = [...cols,'Omni Lead ID','Appointment ID'];
+const accountRow = Array(25).fill('');
+Object.assign(accountRow, {0:46000.5, 1:45998.3, 2:'已預約', 9:'PRIVATE_FIXTURE'});
+const masterRow = [...accountRow];
+Object.assign(masterRow,{0:46000,1:45998,20:'Alyssa Main'});
+const original = {headers:cols, rows:[masterRow]};
+function resolve(sources, current = masterRow) {
+  const locations = [{masterRow:2}];
+  loc.locateBookingSources(locations, original, [[current]], sources);
+  return loc.bookingRegistrationMessage(1, locations);
+}
+const sources = loc.registrationSourceTabs.map(() => [columns]);
+sources[0].push([],accountRow);
+assert.match(resolve(sources), /Alyssa Main!C3/);
+assert.doesNotMatch(resolve(sources), /PRIVATE/);
+assert.match(resolve(sources, accountRow), /lead!C2/);
+sources[0].push(accountRow);
+assert.match(resolve(sources), /lead!C2/);
+sources[0].pop(); sources[0][2] = [...accountRow,'already-registered'];
+assert.match(resolve(sources), /lead!C2/);
+assert.doesNotMatch(loc.bookingRegistrationMessage(1,[{masterRow:2,source:{tab:'PRIVATE',row:3}}]), /PRIVATE/);
+console.log('PASS: all pending bookings counted; exact physical row, ambiguous/changed data fallback and fixed-label privacy');

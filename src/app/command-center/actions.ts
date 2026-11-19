@@ -1,5 +1,6 @@
 "use server";
 
+import { bookingRegistrationMessage } from "@/lib/marketing/bookingRegistrationLocations";
 import { createClient } from "@supabase/supabase-js";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -652,13 +653,36 @@ export async function deleteDataSourceAction(formData: FormData) {
   });
 }
 
-function refreshFailureDescription(result: Pick<MarketingSyncResult, "sourceName" | "failureReason">) {
+function refreshFailureDescription(result: Pick<MarketingSyncResult, "sourceName" | "failureReason" | "bookingRegistration">) {
   // Only fixed, classified descriptions reach the shared banner. Provider
   // exceptions and customer-containing cell values are never rendered here.
+  if (result.failureReason === "bridge_registration_pending" && result.bookingRegistration) {
+    return result.sourceName + "：" + bookingRegistrationMessage(result.bookingRegistration.total, result.bookingRegistration.locations);
+  }
   const descriptions: Partial<Record<NonNullable<MarketingSyncResult["failureReason"]>, string>> = {
     managed_read_timeout: "Google Sheet 回應逾時，未發布新數據。",
     provider_transient: "Google Sheet 暫時未能回應，未發布新數據。",
     bridge_registration_pending: "預約身份登記未完成，未發布新數據。",
+    source_headers: "lead 總表嘅標題列未能核對，請檢查第 1 行嘅 Account 欄。",
+    source_normalization: "lead 總表來源欄位同報表投影未能核對。",
+    arrival_headers: "_funnel_metrics!A1:L1 嘅標題未能核對。",
+    arrival_row: "_funnel_metrics!A:L 嘅到店報表行格式有誤。",
+    arrival_cells: "_funnel_metrics!A:L 有儲存格未能讀取或核對。",
+    arrival_identity: "_funnel_metrics!A:B 嘅到店身份同 Account 未能核對。",
+    arrival_duplicate: "_funnel_metrics!A:A 出現重複嘅到店報表身份。",
+    arrival_date: "_funnel_metrics!E:H 嘅日期未能核對。",
+    arrival_coverage: "lead 總表同 _funnel_metrics 嘅到店記錄未能逐組對應。",
+    bridge_headers: "_metric_identity_bridge!A1:H1 嘅身份對照標題有誤。",
+    bridge_row: "_metric_identity_bridge!A:H 嘅來源身份欄位未能核對。",
+    bridge_master_mismatch: "_metric_identity_bridge!F:F 顯示來源同 lead 總表唔一致。",
+    bridge_source_duplicate: "_metric_identity_bridge!A:A 嘅來源 ID 缺失或重複。",
+    bridge_coverage: "lead 總表同 _metric_identity_bridge 嘅來源行未能逐行對應。",
+    registry_headers: "_appointment_registry!A1:AA1 嘅預約登記標題未能核對。",
+    registry_cells: "_appointment_registry 嘅身份或狀態欄位未能核對。",
+    registry_row: "_appointment_registry 有預約登記缺少必要資料、重複或狀態有誤。",
+    registry_date: "_appointment_registry!K:K 嘅預約日期未能核對。",
+    registry_pointer: "_metric_identity_bridge!E:E 嘅預約指向同 _appointment_registry!A:C 未能對應。",
+    registry_dimensions: "lead 總表嘅品牌或療程同預約報表未能對應。",
     sync_busy: "另一輪更新進行中，今次未另開同步。",
     sync_claim_failed: "暫時未能啟動更新，未發布新數據。",
     paused: "資料來源已暫停。",

@@ -1,3 +1,4 @@
+import { BookingRegistrationError } from "@/lib/marketing/bookingRegistrationLocations";
 import { arrivalOutcomeAuthorityError } from "@/lib/marketing/leadArrivalOutcomeAuthority";
 import { leadAccountById } from "@/lib/marketing/leadAccountScope";
 import type { LeadSheetLeadGroup, LeadPendingAppointment } from "@/lib/marketing/googleSheetsMetricParser";
@@ -45,6 +46,7 @@ export function parseLeadPendingAppointmentAuthority(bridgeValues: unknown, regi
 export function applyLeadPendingAppointmentAuthority(groups: LeadSheetLeadGroup[], authority: LeadPendingAppointmentAuthority, dimensions: ReadonlyMap<number, Pick<LeadPendingAppointment,"brandId"|"brandLabel"|"treatmentLabel">>): LeadSheetLeadGroup[] {
   const data=authority?.[validated]; if (!data) throw arrivalOutcomeAuthorityError("projection_missing");
   const accepted = new Set<number>();
+  const pendingRows: number[] = [];
   for (const g of groups) for (const row of g.rows) {
     const b=data.bridge.get(row.rowNumber), identity=g.accountLabel+"|"+g.key.slice(g.accountId.length+1).replace(/^phone:/,"p:").replace(/^row:/,"r:");
     if (!b?.eligible || b.identity !== identity || accepted.has(row.rowNumber)) throw arrivalOutcomeAuthorityError("bridge_coverage");
@@ -52,12 +54,13 @@ export function applyLeadPendingAppointmentAuthority(groups: LeadSheetLeadGroup[
     // Count their Account/phone identity while the external ingest worker adds
     // its durable row ID. Every booking/outcome still requires that ownership.
     if (b.registrationPending && (row.status !== "lead" || row.appointmentDate || row.confirmationDate)) {
-      throw arrivalOutcomeAuthorityError("bridge_registration_pending", { pendingSourceIds: 1 });
+      pendingRows.push(row.rowNumber);
     }
     accepted.add(row.rowNumber);
   }
   const missingRows = [...data.bridge].filter(([n,b]) => b.eligible && !accepted.has(n)).length;
   if (missingRows > 0) throw arrivalOutcomeAuthorityError("bridge_coverage", { acceptedRows: accepted.size, missingRows });
+  if (pendingRows.length) throw new BookingRegistrationError(pendingRows.sort((a, b) => a - b));
   return groups.map(g => {
     // Match the Sheet's current row: whole updated/created day, then later source row.
     const row=[...g.rows].sort((a,b)=>(b.lastUpdatedDate??b.createdDate??"9999-12-31").localeCompare(a.lastUpdatedDate??a.createdDate??"9999-12-31") || b.rowNumber-a.rowNumber)[0];
