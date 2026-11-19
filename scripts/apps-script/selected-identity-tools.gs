@@ -37,18 +37,41 @@ function oaSelectedIdentityReview_(r, registry, queue) {
 
 function oaSelectedArrival_(ss, r) {
   if (!r.leadId || !r.appointmentId || r.pendingSnapshot) return 0;
-  const claims = oa2IdentityDiscovery_(ss, r.account);
-  if (!claims.identityComplete) return 0;
-  const owners = claims.sources.filter(s => s.leadId === r.leadId || s.appointmentId === r.appointmentId);
-  if (owners.length !== 1 || owners[0].row !== r.row || owners[0].account !== r.account) return 0;
-  const a = oa2ReadRegistry_(ss).appointments[r.appointmentId];
-  if (!a || a.leadId !== r.leadId || a.account !== r.account || a.customerKey !== r.customerKey || !a.queueId) return 0;
-  const rows = oa3ManualQueueSnapshot_(ss.getSheetByName(OA2.ARRIVAL)).filter(q =>
-    q.appointmentId === a.id || q.entryId === a.queueId);
-  if (rows.length !== 1) return 0;
-  const q = rows[0];
-  return q.appointmentId === a.id && q.entryId === a.queueId && q.raw[23] === a.leadId &&
-    q.origin === 'managed' && q.account === r.account && q.customerKey === r.customerKey ? q.row : 0;
+  const names = OMNI_ACCOUNT_TABS.concat([OA2.LEDGER, OA2.ARRIVAL]);
+  const ranges = names.map((name, i) => "'" + name + "'!" + (i === names.length - 1 ? '7:7' : '1:1'));
+  const read = ranges => Sheets.Spreadsheets.Values.batchGet(ss.getId(), {
+    ranges, valueRenderOption: 'UNFORMATTED_VALUE', dateTimeRenderOption: 'SERIAL_NUMBER'
+  }).valueRanges.map(v => v.values || []);
+  const headers = read(ranges);
+  const fields = names.map((name, i) => i < OMNI_ACCOUNT_TABS.length ? ['Omni Lead ID', 'Appointment ID'] :
+    name === OA2.LEDGER ? ['Appointment ID','Lead ID','Account','Customer Key','Queue Entry ID'] :
+    ['Appointment ID','Omni Lead ID','Account','穩定客戶識別（內部）','到店紀錄ID（內部）','Record Origin']);
+  const indices = fields.map((labels, i) => labels.map(label => {
+    const header = headers[i][0] || [], index = header.indexOf(label);
+    if (index < 0 || index !== header.lastIndexOf(label)) throw new Error('Identity lookup header mismatch');
+    return index;
+  }));
+  const starts = indices.map(cols => Math.min(...cols));
+  const data = read(names.map((name, i) => "'" + name + "'!" + columnLetter_(starts[i] + 1) +
+    (name === OA2.ARRIVAL ? OA2.FIRST_ROW : 2) + ':' + columnLetter_(Math.max(...indices[i]) + 1)));
+  const rows = data.map((values, i) => values.map(row => indices[i].map(col => row[col - starts[i]])));
+  const owners = [];
+  OMNI_ACCOUNT_TABS.forEach((account, index) => rows[index].forEach(([lead, appt], j) => {
+    if (lead === r.leadId || appt === r.appointmentId) owners.push({account, row:j+2, lead, appt});
+  }));
+  if (owners.length !== 1 || owners[0].account !== r.account || owners[0].row !== r.row ||
+      owners[0].lead !== r.leadId || owners[0].appt !== r.appointmentId) return 0;
+  const registry = rows[OMNI_ACCOUNT_TABS.length].filter(a => a[0] === r.appointmentId);
+  if (registry.length !== 1) return 0;
+  const [,lead,account,key,entry] = registry[0];
+  if (lead !== r.leadId || account !== r.account || key !== r.customerKey || !entry) return 0;
+  const queue = rows[names.length - 1].map((v, i) => ({v, row: OA2.FIRST_ROW + i}))
+    .filter(q => q.v[0] === r.appointmentId || q.v[4] === entry);
+  if (queue.length !== 1) return 0;
+  const q = queue[0], [appt, owner, source, customer, queueId, origin] = q.v;
+  if (appt === r.appointmentId && owner === lead && origin === 'allocating' && (!queueId || queueId === entry)) return -1;
+  return appt === r.appointmentId && owner === lead && source === account && customer === key &&
+    queueId === entry && origin === 'managed' ? q.row : 0;
 }
 
 function applyOmniIdentityAction(action, tag) {
@@ -62,7 +85,10 @@ function applyOmniIdentityAction(action, tag) {
     if (tag !== v.tag) return {error: where + ' 選取位置或資料已變，請重新讀取所選行。'};
     if (action === 'appointment' && !v.booked && !r.appointmentId)
       return {error: where + ' 請先核對 C 欄跟進狀態；標記「已預約」後先可以登記預約。'};
-    const needsRepair = action !== 'arrival' && (action === 'lead' ? !v.lead || (v.booked && !v.appointment) || !!r.pendingSnapshot : !v.appointment || !v.lead || !!r.pendingSnapshot);
+    // A timed-out allocation can leave both source IDs before the queue payload is committed.
+    const existingArrival = oaSelectedArrival_(ss, r);
+    const needsRepair = action !== 'arrival' && (existingArrival === -1 || !!r.pendingSnapshot || !v.lead ||
+      (!v.appointment && (action === 'appointment' || v.booked)));
     if (needsRepair) {
       oa2HistoryStart_(ss.getSheetByName(OA2.HISTORY));
       const queue = oa3ManualQueueSnapshot_(ss.getSheetByName(OA2.ARRIVAL));
@@ -86,9 +112,9 @@ function applyOmniIdentityAction(action, tag) {
     const after = oaIdentitySelection_(ss);
     if (after.view.tag !== tag) return {error: where + ' 選取位置或資料已變，請重新讀取所選行。'};
     const ready = after.view.lead && (!after.view.booked || after.view.appointment);
-    const arrivalRow = after.view.appointment ? oaSelectedArrival_(ss, after.record) : 0;
+    const arrivalRow = needsRepair ? oaSelectedArrival_(ss, after.record) : existingArrival;
     if (action === 'arrival' || after.view.appointment || after.view.booked) {
-      if (!arrivalRow) return {error: where + ' 未能唯一配對來源、預約登記同到店紀錄，請核對 Z、AA 及原有到店紀錄。'};
+      if (arrivalRow <= 0) return {error: where + ' 未能唯一配對來源、預約登記同到店紀錄，請核對 Z、AA 及原有到店紀錄。'};
     }
     if (!ready) return {error: where + ' 身份登記未完成，請核對來源行。'};
     if (action === 'arrival') {
