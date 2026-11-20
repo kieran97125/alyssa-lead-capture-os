@@ -1,8 +1,19 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const root = fileURLToPath(new URL("../", import.meta.url));
+// Scan the source used to generate screens, notifications, authentication mail and report exports.
+const publisherAttribution = /智威特|smart[\s._-]*volt/i;
+for (const directory of ["src", "public", "supabase/templates"]) {
+  const entries = await readdir(root + directory, { recursive: true });
+  for (const entry of entries.filter(name => /\.(?:[cm]?[jt]sx?|html?|json|webmanifest|svg|css|md)$/i.test(name))) {
+    const path = directory + "/" + entry;
+    const source = await readFile(root + path, "utf8");
+    assert.ok(!publisherAttribution.test(source), `Unexpected publisher attribution in ${path}`);
+  }
+}
+
 const templates = [
   ["invite", "invite"],
   ["magic-link", "magiclink"],

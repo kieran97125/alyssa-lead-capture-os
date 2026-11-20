@@ -1,6 +1,6 @@
-# Marketing OS — SmartVolt
+# Marketing OS
 
-Marketing OS is SmartVolt’s marketing operations product. Alyssa is the existing customer workspace; its brand, customer records, attribution and provider connections remain customer-scoped. Product identity and customer identity are separate.
+Marketing OS is a marketing operations platform. Alyssa is the existing customer workspace; its brand, customer records, attribution and provider connections remain customer-scoped. Product identity and customer identity are separate.
 
 See `docs/product/2026-11-17-marketing-os-saas.md` for the tenant model, rollout boundaries and open system cards.
 

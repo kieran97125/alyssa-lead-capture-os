@@ -1439,7 +1439,7 @@ test("login offers reserved email access with customer and platform authority ex
   await expect(email).toHaveAttribute("required", "");
   await expect(page.getByRole("button", { name: "寄出安全登入連結" })).toBeVisible();
   await expect(page.getByText(/請使用已獲邀請嘅電郵/)).toBeVisible();
-  await expect(page.getByText(/平台管理帳戶由智威特獨立授權/)).toBeVisible();
+  await expect(page.getByText(/平台管理權限需要另行授權/)).toBeVisible();
   await expect(page.getByRole("link", { name: /註冊|建立帳戶/ })).toHaveCount(0);
 });
 
@@ -1690,7 +1690,7 @@ test("password session is labelled as system access rather than a verified Googl
   await page.goto("/dashboard", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByText("客戶管理員")).toBeVisible();
-  await expect(page.getByText("SmartVolt · 客戶工作區登入")).toBeVisible();
+  await expect(page.getByText("客戶工作區登入")).toBeVisible();
   await expect(page.getByText("kieran.kwok@alyssa.hk")).toHaveCount(0);
 });
 

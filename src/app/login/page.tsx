@@ -51,7 +51,7 @@ export default async function LoginPage({
               登入你的工作區
             </h1>
             <p className="mt-4 text-sm font-semibold leading-6 text-[#6d4a5c]">
-              SmartVolt 智威特 · 請使用安全電郵連結進入你的工作區。
+              請使用安全電郵連結進入你的工作區。
             </p>
           </div>
 
@@ -70,7 +70,7 @@ export default async function LoginPage({
                 : error === "master_required"
                   ? "呢個頁面只限客戶工作區管理員使用。"
                   : error === "platform_required"
-                    ? "呢個頁面需要智威特平台管理帳戶。"
+                    ? "呢個頁面只限平台管理員使用。"
                     : error === "invalid_email"
                       ? "請輸入有效電郵地址。"
                   : error === "permission_denied"
@@ -105,7 +105,7 @@ export default async function LoginPage({
             <div>
               <strong className="text-sm">每個帳戶都有自己嘅工作區權限</strong>
               <p className="mt-1 text-xs font-semibold leading-5 text-[#7a596a]">
-                請使用已獲邀請嘅電郵。客戶管理員可管理自己團隊；平台管理帳戶由智威特獨立授權。
+                請使用已獲邀請嘅電郵。客戶管理員可以管理自己團隊。平台管理權限需要另行授權。
               </p>
             </div>
           </div>

@@ -16,7 +16,7 @@ export function PlatformOverview({ data, canProvision = false, createAction, sta
     <main className="min-h-screen bg-system-background text-system-foreground" data-testid="marketing-platform">
       <header className="border-b border-system-border bg-system-card">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-4 px-6 py-5">
-          <div className="flex items-center gap-3"><span className="command-brand-mark" aria-hidden="true">MO</span><div><p className="font-bold">{PRODUCT.name}</p><p className="text-xs text-system-muted-foreground">{PRODUCT.publisher} · 平台管理</p></div></div>
+          <div className="flex items-center gap-3"><span className="command-brand-mark" aria-hidden="true">MO</span><div><p className="font-bold">{PRODUCT.name}</p><p className="text-xs text-system-muted-foreground">平台管理</p></div></div>
           <div className="flex items-center gap-4 text-sm"><span className="text-system-muted-foreground">{email}</span><a className="font-semibold text-system-primary hover:underline" href="/logout">登出</a></div>
         </div>
       </header>
@@ -41,7 +41,7 @@ export function PlatformOverview({ data, canProvision = false, createAction, sta
         </section>
         {canProvision && <SystemDetails title="建立客戶工作區"><form action={createAction} className="grid gap-4 md:grid-cols-[1.3fr_1fr_auto]"><label className="grid gap-2 text-sm font-semibold">客戶名稱<input name="name" required maxLength={120} autoComplete="organization" className="h-10 rounded-[var(--radius-control)] border border-system-input bg-system-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-system-ring" placeholder="公司或團隊名稱" /></label><label className="grid gap-2 text-sm font-semibold">工作區代號<input name="slug" required pattern="[a-z0-9][a-z0-9-]{1,62}" maxLength={63} className="h-10 rounded-[var(--radius-control)] border border-system-input bg-system-background px-3 font-normal outline-none focus-visible:ring-2 focus-visible:ring-system-ring" placeholder="company-name" /></label><SystemSubmitButton className="self-end" disabled={!createAction} pendingLabel="建立中…">建立工作區</SystemSubmitButton></form><p className="mt-3 flex items-center gap-2 text-xs text-system-muted-foreground"><LockKeyhole size={14}/>完成開通驗收前，新工作區唔會開放客戶登入。</p></SystemDetails>}
         <section aria-labelledby="platform-readiness"><div className="mb-4 flex items-center gap-2"><ShieldCheck size={18} className="text-system-primary"/><h2 id="platform-readiness" className="text-lg font-bold">開通與接駁進度</h2></div><div className="grid gap-3 md:grid-cols-2">{data.cards.map(card => <article key={card.key} className="rounded-[var(--radius-card)] border border-system-border bg-system-card p-5"><div className="flex items-center justify-between gap-3"><h3 className="font-semibold">{card.title}</h3><span className="whitespace-nowrap text-xs font-semibold text-system-muted-foreground">{states[card.state] ?? card.state}</span></div><p className="mt-2 text-sm leading-6 text-system-muted-foreground">{card.acceptance}</p></article>)}</div></section>
-        <footer className="border-t border-system-border pt-5 text-xs text-system-muted-foreground">{PRODUCT.name} · {PRODUCT.publisherNameZh}</footer>
+        <footer className="border-t border-system-border pt-5 text-xs text-system-muted-foreground">{PRODUCT.name}</footer>
       </div>
     </main>
   );
