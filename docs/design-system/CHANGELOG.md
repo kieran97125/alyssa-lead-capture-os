@@ -1,6 +1,10 @@
+## 2026-11-20 — Workspace wording
+
+Login, account navigation, platform administration and authentication emails use product or role labels. The authentication template check also covers application and export source copy. Revert this copy change independently of access controls if a correction is required.
+
 ## 2026-11-17 — Marketing OS and customer/platform authority
 
-Product labels, email/install assets and workspace identity now separate Marketing OS/SmartVolt from customer brands. Added verified platform access, guarded customer provisioning and shared pending submit behavior. See decisions/2026-11-17-marketing-os-platform.md for states, qualification and rollback.
+Product labels, email/install assets and workspace identity now separate Marketing OS from customer brands. Added verified platform access, guarded customer provisioning and shared pending submit behavior. See decisions/2026-11-17-marketing-os-platform.md for states, qualification and rollback.
 
 # Design System Change Log
 

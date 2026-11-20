@@ -112,7 +112,7 @@ insert into public.marketing_system_cards(key,title,state,acceptance) values
  ('MKT-TENANCY','完整客戶資料隔離','in_progress','所有客戶資料、RPC、公開表格、背景工作、快取及連線均有明確工作區；跨客戶讀寫測試通過後才可啟用新客戶。'),
  ('MKT-ONBOARDING','新客戶開通與成員管理','in_progress','平台與客戶權限分離；工作區開通、邀請、角色、停用及審計均有實際驗收。'),
  ('MKT-OMNICHAT','Omnichat 自動收集 Lead','blocked','核實帳戶開放方案、事件與簽署格式；通過去重、重試、亂序、來源歸因及真實預約驗收。'),
- ('MKT-DOMAIN','SmartVolt 平台網址與登入電郵','planned','中性平台網址、DNS、憑證、登入與 OAuth 回調通過；現有客戶表格及廣告連結持續可用。');
+ ('MKT-DOMAIN','平台網址與登入電郵','planned','中性平台網址、DNS、憑證、登入與 OAuth 回調通過；現有客戶表格及廣告連結持續可用。');
 
 alter table public.marketing_workspaces enable row level security;
 alter table public.marketing_platform_operators enable row level security;

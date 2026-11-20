@@ -228,7 +228,7 @@ function SidebarContent({
       : "客戶管理員";
   const accountDetail = isEmailMember
     ? access.email || "已驗證公司電郵"
-    : "SmartVolt · 客戶工作區登入";
+    : "客戶工作區登入";
   const avatarLabel = isEmailMember
     ? accountName.slice(0, 1).toUpperCase()
     : isMaster

@@ -1,10 +1,10 @@
-# Marketing OS — SmartVolt product transition
+# Marketing OS product transition
 
 ## Product and authority
 
-Marketing OS is the product name and SmartVolt is its publisher direction. Alyssa is the existing customer workspace. Product identity, platform administration, client membership, customer brands and external-source ownership are distinct concepts. Renaming a deployment or database project does not change customer data ownership or perform a legal company transfer.
+Marketing OS is the product name. Alyssa is the existing customer workspace. Product identity, platform administration, client membership, customer brands and external-source ownership are distinct concepts. Renaming a deployment or database project does not change customer data ownership or perform a legal company transfer.
 
-Kieran's existing company-email membership remains the customer owner; Winnie remains its manager. Existing staff membership states, brand access, operational roles, source IDs, reporting authority and customer rows are preserved. Legacy owner/master compatibility applies only to customer administration. It cannot pass the platform route or operator gate. The separate SmartVolt operator registry uses verified Supabase identity and an atomic subject-binding receipt; personal identity details are configured privately, not seeded into shared source.
+Kieran's existing company-email membership remains the customer owner; Winnie remains its manager. Existing staff membership states, brand access, operational roles, source IDs, reporting authority and customer rows are preserved. Legacy owner/master compatibility applies only to customer administration. It cannot pass the platform route or operator gate. The separate platform operator registry uses verified Supabase identity and an atomic subject-binding receipt; personal identity details are configured privately, not seeded into shared source.
 
 The neutral product appears on navigation, login/confirmation, email templates, reports, browser/PWA assets and package/project metadata. Customer campaign brands remain their real brands. Existing domains and campaign URLs remain functional during a separately verified neutral-domain transition.
 

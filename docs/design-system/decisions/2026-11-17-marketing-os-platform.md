@@ -1,6 +1,6 @@
 # Marketing OS product and customer identity
 
-The product is Marketing OS, with SmartVolt publisher identity. Customer names remain workspace/brand dimensions. The existing operational surface keeps its established premium plum tokens and compact density; this release changes product labels, customer-account language, login and the platform control plane, not the campaign brands.
+Use Marketing OS as the product label. Customer names remain workspace/brand dimensions. The existing operational surface keeps its established premium plum tokens and compact density; this release changes product labels, customer-account language, login and the platform control plane, not the campaign brands.
 
 Platform pages reuse SystemButton/SystemSubmitButton, SystemDetails and semantic tokens. The shared submit control retains form-status pending feedback, disabled admission and keyboard behavior. Customer workspace owners retain their existing operational management rights; their account cards no longer call them system owners. Platform operators use a separate verified-email registry and route gate.
 
