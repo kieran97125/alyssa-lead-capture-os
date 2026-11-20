@@ -760,6 +760,7 @@ function retryDiscoveryFixture(f=nativeFixture(),target='GOS Beauty'){
   for(const name of f.accountNames()){
     const source=f.sources.get(name),getRange=source.getRange;
     tabs.set(name,{source,id:tabs.size+1,rows:40,cols:38});
+    source.getSheetId=()=>tabs.get(name).id;
     source.getRange=(row,column,height=1,width=1)=>{
       const range=getRange(row,column,height,width),read=range.getDisplayValues;
       range.getDisplayValues=()=>{if(name===target&&row===1&&column===1&&height>1&&width>=f.headers.length)control.nativeDisplay++;return read();};
@@ -803,6 +804,90 @@ function retryDiscoveryFixture(f=nativeFixture(),target='GOS Beauty'){
   const raw=(name,row,label,value)=>overrides.set(name+'|'+(row-1)+'|'+f.headers.indexOf(label),value);
   return {...f,target,control,tabs,gets,bound,options,raw,run};
 }
+
+function settledManualFixture(){
+  const f=nativeFixture();f.run(); // A real accepted booking with native registry and queue ownership.
+  f.source.appendRow(valuesRow(f.headers,{'跟進狀態':'待跟進','客人姓名':'Synthetic follow-up','Omni Lead ID':'lead_follow_up'}));
+  return retryDiscoveryFixture(f);
+}
+const freshManual={retryIdentityDiscovery:false,proveSettledIdentity:true};
+test('a fresh revisioned manual step verifies complete contiguous identities without reading the full target display',()=>{
+  const f=settledManualFixture(),before=f.writes().length,uuids=f.uuidCount(),lastRow=f.source.getLastRow;let sampled=0;
+  f.source.getLastRow=()=>{sampled++;return lastRow();};
+  const r=f.run(freshManual);
+  assert.equal(f.gets.length,2);assert.ok(sampled>=2);assert.equal(f.control.nativeDisplay,0);assert.equal(f.control.apiWrites,0);
+  const reads=f.gets[1].ranges.filter(range=>range.startsWith("'GOS Beauty'!"));
+  assert.ok(reads.includes("'GOS Beauty'!1:1"));assert.ok(reads.includes("'GOS Beauty'!Z2:AE40"));assert.ok(reads.includes("'GOS Beauty'!C2:C40"));assert.equal(reads.length,3);
+  assert.equal(r.registered,0);assert.equal(r.recovered,0);assert.equal(r.bookedAdded,0);assert.equal(r.review,0);assert.equal(r.accountFailures.length,0);
+  assert.equal(f.writes().length,before);assert.equal(f.uuidCount(),uuids);
+});
+for(const cell of [
+  {userEnteredValue:{formulaValue:'="已預約"'},effectiveValue:{stringValue:'已預約'},formattedValue:'已預約'},
+  {effectiveValue:{stringValue:'已預約'},formattedValue:'已預約'}
+])test('fresh discovery of booked '+(cell.userEnteredValue?'formula':'spill')+' status with no pointer returns to native booking',()=>{
+  const f=retryDiscoveryFixture(nativeFixture({fields:{'Omni Lead ID':'lead_real_candidate'}}));f.raw(f.target,2,'跟進狀態',cell);
+  const r=f.run(freshManual);assert.equal(f.gets.length,2);assert.ok(f.control.nativeDisplay>0);assert.equal(r.bookedAdded,1);assert.equal(f.control.apiWrites,0);
+  const p=f.cell('Appointment ID');assert.equal(f.box.oa2ReadQueue_(f.ss,false)[0].appointmentId,p);assert.equal(f.box.oa2ReadRegistry_(f.ss).appointments[p].leadId,'lead_real_candidate');
+});
+test('a hole between settled identities forces a full scan that can find a later unregistered source row',()=>{
+  const f=settledManualFixture(),empty=Array(f.headers.length).fill('');
+  f.source.state.matrix.splice(2,0,empty);
+  f.source.appendRow(valuesRow(f.headers,{'跟進狀態':'待跟進','客人姓名':'Unregistered after gap'}));
+  const r=f.run(freshManual);assert.equal(f.gets.length,2);assert.ok(f.control.nativeDisplay>0);assert.equal(r.registered,1);
+  assert.ok(f.source.state.matrix.at(-1)[f.headers.indexOf('Omni Lead ID')]);assert.deepEqual(f.source.state.matrix[2],empty);assert.equal(f.control.apiWrites,0);
+});
+test('a single blank interior identity forces fallback even when the surrounding rows are fully settled',()=>{
+  const f=settledManualFixture();f.source.state.matrix.splice(2,0,Array(f.headers.length).fill(''));
+  const before=f.writes().length;f.run(freshManual);assert.equal(f.gets.length,2);assert.ok(f.control.nativeDisplay>0);assert.equal(f.writes().length,before);
+});
+test('target growth after the API snapshot invalidates an otherwise clean manual identity proof',()=>{
+  const f=settledManualFixture();f.control.afterGet=(_reply,n)=>{
+    if(n===2)f.source.appendRow(valuesRow(f.headers,{'跟進狀態':'待跟進','客人姓名':'Concurrent appended source'}));
+  };
+  const r=f.run(freshManual);assert.equal(f.gets.length,2);assert.ok(f.control.nativeDisplay>0);assert.equal(r.registered,1);
+  assert.ok(f.source.state.matrix.at(-1)[f.headers.indexOf('Omni Lead ID')]);assert.equal(f.control.apiWrites,0);
+});
+test('replacement of a source tab under the same title invalidates the manual identity proof',()=>{
+  const f=settledManualFixture(),original=f.bound.getSheetByName;
+  f.control.afterGet=(_reply,n)=>{if(n===2)f.bound.getSheetByName=name=>name===f.target?{...f.source,getSheetId:()=>166}:original(name);};
+  const before=f.writes().length;f.run(freshManual);
+  assert.equal(f.gets.length,2);assert.ok(f.control.nativeDisplay>0);assert.equal(f.writes().length,before);
+});
+for(const [reason,damage] of [
+  ['changed sheet dimensions',reply=>{reply.sheets[0].properties.gridProperties.rowCount++;}],
+  ['moved target header',reply=>{reply.sheets.find(s=>s.properties.title==='GOS Beauty').data.find(b=>!b.startRow).rowData[0].values[2].formattedValue='Moved status';}],
+  ['missing status range',reply=>{const tab=reply.sheets.find(s=>s.properties.title==='GOS Beauty');tab.data=tab.data.filter(b=>b.startColumn!==2);}],
+  ['truncated metadata without row coverage',reply=>{const tab=reply.sheets.find(s=>s.properties.title==='GOS Beauty'),b=tab.data.find(b=>b.startColumn===25);delete b.rowData;delete b.rowMetadata;}]
+])test('malformed narrow identity proof falls back safely: '+reason,()=>{
+  const f=settledManualFixture(),before=f.writes().length;f.control.afterGet=(reply,n)=>{if(n===2)damage(reply);};
+  const r=f.run(freshManual);assert.equal(f.gets.length,2);assert.ok(f.control.nativeDisplay>0);assert.equal(r.bookedAdded,0);assert.equal(f.writes().length,before);assert.equal(f.control.apiWrites,0);
+});
+for(const column of ['Omni Lead ID','Appointment ID','Pending Appointment Snapshot','跟進狀態'])
+  test('target '+column+' beyond the sampled native last row invalidates the narrow proof',()=>{
+    const f=settledManualFixture(),v={stringValue:'outside_extent'};
+    f.raw(f.target,40,column,{userEnteredValue:v,effectiveValue:v,formattedValue:v.stringValue});
+    const before=f.writes().length;f.run(freshManual);
+    assert.equal(f.gets.length,2);assert.ok(f.control.nativeDisplay>0);assert.equal(f.writes().length,before);
+  });
+test('a settled target cannot mask a duplicate identity wholly outside its Account',()=>{
+  const f=settledManualFixture();for(const name of ['Alyssa Main','Alyssa Medical'])f.sources.get(name).appendRow(valuesRow(f.headers,{'Omni Lead ID':'lead_copied_outside'}));
+  const before=f.writes().length,r=f.run(freshManual);assert.equal(f.gets.length,2);assert.equal(r.blocked,true);assert.ok(r.reviewReasons.includes('duplicate_source_identity'));assert.equal(f.writes().length,before);
+});
+test('a settled target still resumes an accepted allocation belonging to another Account',()=>{
+  const n=interruptedAllocationFixture(),main=n.sources.get('Alyssa Main');
+  main.appendRow(valuesRow(n.headers,{'跟進狀態':'待跟進','客人姓名':'Settled target','Omni Lead ID':'lead_complete_target'}));
+  const f=retryDiscoveryFixture(n,'Alyssa Main'),pointer=f.cell('Appointment ID'),uuids=f.uuidCount();
+  const r=f.run(freshManual);assert.equal(f.gets.length,2);assert.equal(r.recovered,1);assert.equal(r.bookedAdded,0);assert.equal(f.uuidCount(),uuids);
+  const queue=f.box.oa2ReadQueue_(f.ss,false);assert.equal(queue.length,1);assert.equal(queue[0].appointmentId,pointer);assert.equal(queue[0].origin,'managed');assert.equal(f.control.apiWrites,0);
+});
+test('fresh manual proof requires a verified binding and strict single-Account admission',()=>{
+  for(const extra of [{proveSettledIdentity:false},{proveSettledIdentity:'true'},{manualRequested:false},{maxIdentityBatch:2},{startAccountIndex:0},{recoverPendingAllocations:false}]){
+    const f=settledManualFixture();f.run({...freshManual,...extra});assert.equal(f.gets.length,0);assert.ok(f.control.nativeDisplay>0);
+  }
+  for(const marker of [undefined,'foreign_workbook']){
+    const f=settledManualFixture();f.bound.verifiedManualSpreadsheetId=marker;f.run(freshManual);assert.equal(f.gets.length,0);assert.ok(f.control.nativeDisplay>0);
+  }
+});
 
 test('a timed-out manual identity step discovers a genuine booking through Sheets.get and hands it to the canonical native writer',()=>{
   const base=retryDiscoveryFixture(),native=base.run({retryIdentityDiscovery:false});assert.equal(base.gets.length,0);assert.ok(base.control.nativeDisplay>0);

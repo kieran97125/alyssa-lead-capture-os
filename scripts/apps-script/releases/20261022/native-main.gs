@@ -1966,7 +1966,7 @@ function oa2IdentityDiscovery_(ss,manualAccount,retrySources) {
   let formattedCells=0,rangeReads=0;
   OMNI_ACCOUNT_TABS.forEach((account,accountIndex)=>{
     const claimsOnly=scopedNative&&account!==manualAccount;
-    let memory,data,claims,offset;
+    let memory,data,claims,offset,settled=false;
     try{
       const external=retrySources&&retrySources.get(account);
       const sh=external?null:display.getSheetByName(account);
@@ -1976,6 +1976,7 @@ function oa2IdentityDiscovery_(ss,manualAccount,retrySources) {
         // native reads, before-images, lock checks and writers are unchanged.
         memory=oa3ManualMemorySheet_([external.header],account);
         offset=oa2Meta_(memory,false)-1-external.offset;claims=external.rows;
+        settled=external.noOrdinaryCandidates===true;
       }else if(!sh)throw new Error('Missing Account.');
       else if(claimsOnly){
         const header=sh.getRange(1,1,1,Math.max(1,sh.getLastColumn())).getDisplayValues();
@@ -2004,36 +2005,47 @@ function oa2IdentityDiscovery_(ss,manualAccount,retrySources) {
       // A manual single-Account step may admit ordinary candidates only from
       // that Account. Foreign allocations retain priority through their global
       // pointers and take their own fresh full-row snapshot before recovery.
-      const c=getOmniColumns_(memory),missing=claimsOnly?null:claims.some((row,i)=>oa2IdentityCandidate_(oa2Record_(row,i+2,memory,c,offset+1,account)));
+      const c=getOmniColumns_(memory),missing=claimsOnly?null:!settled&&claims.some((row,i)=>oa2IdentityCandidate_(oa2Record_(row,i+2,memory,c,offset+1,account)));
       accounts.push({account,accountIndex,missing});
     }catch(ignored){failures.push({accountIndex,reason:'account_contract'});}
   });
-  if(scopedNative)console.log(JSON.stringify(Object.assign({handler:'manual_identity_discovery',reader:retrySources?'grid':'native',identityComplete,accountFailures:failures.length},
+  if(scopedNative)console.log(JSON.stringify(Object.assign({handler:'manual_identity_discovery',reader:retrySources?(retrySources.get(manualAccount).noOrdinaryCandidates?'settled':'grid'):'native',identityComplete,accountFailures:failures.length},
     retrySources?{verifiedScopes:retrySources.size,sourceRows:sources.length}:{rangeReads,formattedCells})));
   return {accounts,owners,sources,knownLeadIds,identityComplete,failures};
 }
 
-/** Read-only input adapter for a previously interrupted, revision-fenced manual
- * identity step. A rejected response supplies no rows to the canonical worker. */
-function oa2RetryIdentitySources_(ss,account,documentLock) {
+/** Revision-fenced manual discovery only. A rejected response supplies no
+ * rows to the canonical worker or any write path. */
+function oa2RetryIdentitySources_(ss,account,documentLock,settled=false) {
   const id=ss&&ss.verifiedManualSpreadsheetId;
   if(typeof id!=='string'||!/^[A-Za-z0-9_-]+$/.test(id)||typeof ss.getId!=='function'||
     !documentLock||typeof documentLock.hasLock!=='function'||!documentLock.hasLock()||typeof oa3ReadManualDiscovery_!=='function')return null;
   const started=Date.now();let verified=false;
   try{
     if(ss.getId()!==id)return null;
-    const response=oa3ReadManualDiscovery_(id,account),grids=new Map();
+    // Native getDataRange uses this same getLastRow bound. Acquire and
+    // resample the named sheet so tab replacement or growth invalidates proof.
+    const target=settled?ss.getSheetByName(account):null;
+    const lastRow=settled?target.getLastRow():undefined,sheetId=settled?target.getSheetId():undefined;
+    if(settled&&(!Number.isSafeInteger(lastRow)||lastRow<1||!Number.isSafeInteger(sheetId)||sheetId<0))return null;
+    const response=oa3ReadManualDiscovery_(id,account,settled?{settledLastRow:lastRow}:undefined),grids=new Map();
     if(!response||!Array.isArray(response.sources)||response.sources.length!==OMNI_ACCOUNT_TABS.length)return null;
     for(const grid of response.sources){
-      if(!grid||!OMNI_ACCOUNT_TABS.includes(grid.account)||grids.has(grid.account)||grid.full!==(grid.account===account)||
+      if(!grid||!OMNI_ACCOUNT_TABS.includes(grid.account)||grids.has(grid.account)||grid.full!==(!settled&&grid.account===account)||
         !Array.isArray(grid.header)||!Array.isArray(grid.rows))return null;
+      const proved=settled&&grid.account===account;
+      if((grid.noOrdinaryCandidates===true)!==proved||proved&&(grid.sheetId!==sheetId||grid.settledLastRow!==lastRow))return null;
       const meta=oa2Meta_(oa3ManualMemorySheet_([grid.header],grid.account),false);
       if(grid.meta!==meta||grid.offset!==(grid.full?0:meta-1))return null;
       grids.set(grid.account,grid);
     }
+    if(settled){
+      const current=ss.getSheetByName(account);
+      if(!current||current.getSheetId()!==sheetId||current.getLastRow()!==lastRow)return null;
+    }
     verified=true;return grids;
   }catch(ignored){return null;}
-  finally{console.log(JSON.stringify({handler:'manual_identity_retry_reader',verified,durationMs:Date.now()-started}));}
+  finally{console.log(JSON.stringify({handler:settled?'manual_identity_settled_reader':'manual_identity_retry_reader',verified,durationMs:Date.now()-started}));}
 }
 
 function oa2IdentityCandidate_(r){return r.meaningful&&(!r.leadId||!!r.pendingSnapshot||oa2Status_(r.status)==='booked'&&!r.appointmentId);}
@@ -2132,10 +2144,11 @@ function oa2PrioritizeSourceIdentities_(ss,documentLock,options) {
   const identityLimit=Number.isInteger(options.maxIdentityBatch)&&options.maxIdentityBatch>=1&&options.maxIdentityBatch<=50?options.maxIdentityBatch:50;
   if(!options.staffEdit&&!admittedManual&&omniStaffPriorityActive_())return Object.assign(result,{skipped:true,reason:'staff_priority'});
   const manualAccount=admittedManual&&!options.staffEdit&&Array.isArray(options.accountNames)&&options.accountNames.length===1?options.accountNames[0]:undefined;
-  const retryReader=manualAccount&&OMNI_ACCOUNT_TABS[options.startAccountIndex]===manualAccount&&identityLimit===1&&
-    options.retryIdentityDiscovery===true&&options.recoverPendingAllocations===true&&options.deferDisplay===true&&OA3_MANUAL_USE_NATIVE_DISPLAY_READS===true;
+  const scopedReader=manualAccount&&OMNI_ACCOUNT_TABS[options.startAccountIndex]===manualAccount&&identityLimit===1&&
+    options.recoverPendingAllocations===true&&options.deferDisplay===true&&OA3_MANUAL_USE_NATIVE_DISPLAY_READS===true;
   const discovery=oa3ManualPhase_(timings,'discoveryMs',()=>{
-    const grids=retryReader?oa2RetryIdentitySources_(ss,manualAccount,documentLock):null;
+    const retry=options.retryIdentityDiscovery===true,settled=options.proveSettledIdentity===true&&!retry;
+    const grids=scopedReader&&(retry||settled)?oa2RetryIdentitySources_(ss,manualAccount,documentLock,settled):null;
     return oa2IdentityDiscovery_(ss,manualAccount,grids);
   });
   result.accountFailures=discovery.failures.slice();
