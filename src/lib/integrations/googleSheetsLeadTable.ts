@@ -22,6 +22,8 @@ import {
 const MANAGED_PROFILE = "alyssa_workspace_lead_funnel";
 const MANAGED_READ_TIMEOUT_MS = 15_000;
 const SYNC_MANAGED_READ_TIMEOUT_MS = 60_000;
+const SEGMENTED_SYNC_TIMEOUT_MS = 80_000;
+const SEGMENT_TIMEOUT_MS = 30_000;
 const REPORT_READ_TIMEOUT_MS = 60_000;
 const GOOGLE_SHEETS_API_BASE = "https://sheets.googleapis.com/v4/spreadsheets";
 const DEFAULT_MAX_ROWS = 5_000;
@@ -409,9 +411,74 @@ async function boundedManagedRead<T>(read: (signal: AbortSignal) => Promise<T>, 
   }
 }
 
+async function readFileVersion(id: string, token: string, signal: AbortSignal) {
+  const url = new URL("https://www.googleapis.com/drive/v3/files/" + encodeURIComponent(id));
+  url.search = new URLSearchParams({ fields: "version", supportsAllDrives: "true" }).toString();
+  const response = await fetch(url, {
+    headers: { Authorization: "Bearer " + token }, cache: "no-store", signal,
+  });
+  // Existing Sheets-only connections can still use the single-request reader.
+  if (response.status === 403 || response.status === 404) return null;
+  if (!response.ok) throw arrivalOutcomeAuthorityError("provider_transient", { httpStatus: response.status });
+  const version: unknown = (await response.json())?.version;
+  if (typeof version !== "string" || !/^\d+$/.test(version)) throw arrivalOutcomeAuthorityError("managed_response");
+  return version;
+}
+
+// Keep segments only within this invocation. A concurrent edit invalidates every
+// segment. The existing full validation then checks identity and outcome coverage.
+async function readVersionedSegments(accessToken: string, id: string, ranges: string[], signal: AbortSignal) {
+  const readVersion = () => boundedManagedRead(s => readFileVersion(id, accessToken, s), signal, 5_000);
+  const version = await readVersion();
+  const read = (group: string[], s: AbortSignal) => batchGetValues({ accessToken, spreadsheetId: id, ranges: group, signal: s });
+  if (version === null) return boundedManagedRead(s => read(ranges, s), signal, SYNC_MANAGED_READ_TIMEOUT_MS);
+
+  // Keep the lead header and its data together. Limit Sheets traffic to two
+  // concurrent requests, with only the affected tab retried after a transient error.
+  const groups = [ranges.slice(0, 2), ...ranges.slice(2).map(range => [range])];
+  const completed: GoogleValueRange[][] = [];
+  const stop = new AbortController();
+  const active = AbortSignal.any([signal, stop.signal]);
+  let nextGroup = 0;
+  async function worker() {
+    while (nextGroup < groups.length) {
+      active.throwIfAborted();
+      const index = nextGroup++;
+      const group = groups[index];
+      for (let attempt = 1; attempt <= 2; attempt++) {
+        try {
+          const result = await boundedManagedRead(s => read(group, s), active, SEGMENT_TIMEOUT_MS);
+          if (result.valueRanges?.length !== group.length ||
+              !result.valueRanges.every(range => Array.isArray(range?.values) && range.values.every(Array.isArray))) {
+            throw arrivalOutcomeAuthorityError("managed_response");
+          }
+          completed[index] = result.valueRanges;
+          break;
+        } catch (error) {
+          if (active.aborted || attempt === 2) throw error;
+          if (!(error instanceof TypeError || error instanceof SyntaxError ||
+                (error instanceof LeadSheetSyncError && ["provider_transient", "managed_read_timeout"].includes(error.reason)))) throw error;
+          console.warn("lead_sheet_segment_retry", { segment: index + 1 });
+          await new Promise<void>(resolve => setTimeout(resolve, 1_000));
+          active.throwIfAborted();
+        }
+      }
+    }
+  }
+  try {
+    await Promise.all([worker(), worker()]);
+    if (await readVersion() !== version) {
+      throw new LeadSheetSyncError("managed_response", { versionChanged: 1 }, "讀取期間 Lead Sheet 有更新，今次分段資料已捨棄。");
+    }
+    return { valueRanges: completed.flat() };
+  } finally {
+    stop.abort();
+  }
+}
+
 export async function readLiveLeadTable(
   configuration: LeadTableSourceConfiguration,
-  options: { readOnly?: boolean; signal?: AbortSignal } = {}
+  options: { readOnly?: boolean; signal?: AbortSignal; versionedSegments?: boolean } = {}
 ): Promise<LiveLeadTable> {
   // The dashboard's deadline covers the whole provider read, including token
   // refresh. Explicit sync callers retain their existing health/write policy.
@@ -459,8 +526,12 @@ export async function readLiveLeadTable(
       // Manual and scheduled syncs must finish a full, growing Sheet instead of racing
       // a report-widget budget. Read-only dashboard calls retain their outer
       // 12 s deadline; explicit report sources use their own shared 60 s budget.
-      response = managed ? await boundedManagedRead(read, signal,
+      if (managed && options.versionedSegments && !options.readOnly) {
+        response = await boundedManagedRead(s => readVersionedSegments(accessToken, sourceSpreadsheetId, ranges, s), signal, SEGMENTED_SYNC_TIMEOUT_MS);
+      } else {
+        response = managed ? await boundedManagedRead(read, signal,
         options.readOnly ? MANAGED_READ_TIMEOUT_MS : SYNC_MANAGED_READ_TIMEOUT_MS) : await read(signal);
+      }
     } catch (error) {
       if (managed && !signal?.aborted && (error instanceof TypeError || error instanceof SyntaxError)) {
         throw arrivalOutcomeAuthorityError("provider_transient");
@@ -543,4 +614,3 @@ export async function readLeadFunnelEventLedger(
     rows: values.slice(1),
   };
 }
-

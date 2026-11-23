@@ -126,6 +126,59 @@ try {
   assert.equal(report.error.reason, "managed_read_timeout");
   assert.deepEqual(report.error.counts, { timeoutMs: 60_000 }, "Explicit report reads share the complete-source budget");
 
+  async function segmented({ revisions = ["11", "11"], failGroup, status = 503, denyVersion = false, stall = false } = {}) {
+    reset("segmented");
+    const counts = new Map();
+    let versionReads = 0;
+    globalThis.fetch = async (url, init) => {
+      const request = new URL(url);
+      assert.equal(init.cache, "no-store");
+      if (request.hostname === "www.googleapis.com") {
+        assert.equal(request.searchParams.get("fields"), "version");
+        const version = revisions[versionReads++];
+        return { ok: !denyVersion, status: denyVersion ? 403 : 200, json: async () => ({ version }) };
+      }
+      const ranges = request.searchParams.getAll("ranges");
+      const key = ranges.join("|");
+      counts.set(key, (counts.get(key) || 0) + 1);
+      if (ranges.includes(failGroup) && counts.get(key) === 1) {
+        if (stall) return new Promise(() => {});
+        return { ok: false, status };
+      }
+      return { ok: true, json: async () => ({ valueRanges: ranges.map(range => {
+        const index = expectedRanges.indexOf(range);
+        assert.notEqual(index, -1, "Original range coverage must be exact");
+        return structuredClone(fixture.valueRanges[index]);
+      }) }) };
+    };
+    const run = observed(table.readLiveLeadTable(config, { versionedSegments: true }));
+    await flush();
+    if (stall) await advance(30_000);
+    if (failGroup && (status === 503 || stall)) await advance(1_000);
+    await run.done;
+    return { run, counts, versionReads };
+  }
+  for (const stall of [false, true]) {
+    const recovered = await segmented({ failGroup: expectedRanges[2], stall });
+    assert.equal(recovered.run.state, "resolved");
+    assert.deepEqual(recovered.run.value, slow.value);
+    assert.equal(recovered.versionReads, 2);
+    assert.deepEqual([...recovered.counts.values()].sort(), [1, 1, 1, 2]);
+    assert.equal(recovered.counts.get(expectedRanges[2]), 2);
+  }
+  const changed = await segmented({ revisions: ["11", "12"] });
+  assert.equal(changed.run.error.reason, "managed_response");
+  assert.equal(changed.run.error.counts.versionChanged, 1);
+  const malformed = await segmented({ revisions: ["11", undefined] });
+  assert.equal(malformed.run.error.reason, "managed_response");
+  const legacy = await segmented({ denyVersion: true });
+  assert.deepEqual(legacy.run.value, slow.value);
+  assert.equal(legacy.counts.get(expectedRanges.join("|")), 1);
+  const forbidden = await segmented({ failGroup: expectedRanges[2], status: 403 });
+  assert.equal(forbidden.run.state, "rejected");
+  assert.equal(forbidden.counts.get(expectedRanges[2]), 1);
+  assert.equal(forbidden.versionReads, 1);
+
   // Synthetic size evidence only: compressed compact JSON has identical data.
   const repeated = { valueRanges: [{ values: Array.from({ length: 1000 }, () => rows[0]) }] };
   const compact = JSON.stringify(repeated), pretty = JSON.stringify(repeated, null, 2);
@@ -138,4 +191,3 @@ try {
   globalThis.clearTimeout = original.clearTimeout; AbortSignal.timeout = original.abortTimeout;
 }
 console.log("PASS: compact gzip complete single-batch transport, unchanged cells/ranges, >15 s explicit success, 60 s fetch/body abort, 12 s dashboard and 60 s reports; virtual clock only");
-

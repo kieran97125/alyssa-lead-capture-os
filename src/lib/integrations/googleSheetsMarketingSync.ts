@@ -352,7 +352,11 @@ async function collectLeadFunnelMetrics(
     attempts: options.trace.readAttempts,
     read: async () => {
       options.trace.phase = "google_read";
-      const rawLiveTable = await readLiveLeadTable(configuration);
+      // A second attempt takes one complete snapshot if the source kept changing
+      // or the versioned read failed. No partial values survive that boundary.
+      const rawLiveTable = await readLiveLeadTable(configuration, {
+        versionedSegments: options.trace.readAttempts.length === 0,
+      });
       finalTable = rawLiveTable;
       options.trace.phase = "source_normalization";
       const normalizedLiveTable = await normalizeMetaLeadRowsInLiveTable({
