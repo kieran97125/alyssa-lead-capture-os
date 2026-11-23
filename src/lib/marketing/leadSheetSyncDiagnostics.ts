@@ -17,7 +17,9 @@ export class LeadSheetSyncError extends Error {
     readonly counts: Readonly<Record<string, number>> = {},
     message = "到店報表資料未完整或格式未能核對，暫時未能確認 Show／No Show；請稍後重試。"
   ) {
-    super(reason === "bridge_registration_pending"
+    super(reason === "managed_read_timeout"
+      ? "Google Sheet 讀取逾時，今次更新未完成，報表保留上次成功匯入嘅數據。"
+      : reason === "bridge_registration_pending"
       ? "有預約記錄仍待登記穩定 Lead ID；系統會再讀取核對，現有數字會保留。"
       : message);
     this.name = "LeadSheetSyncError";
