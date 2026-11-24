@@ -2791,13 +2791,20 @@ function GosTimeField({
   times: string[];
   onChange: (value: string) => void;
 }) {
+  const hintId = useId();
+  const displayedTimes = [...new Set(["11:00", "11:30", ...times])].sort();
+
   return (
     <div
       role="radiogroup"
       aria-label="預約時間"
+      aria-describedby={hintId}
       className="mt-1.5 grid grid-cols-4 gap-1.5 rounded-[13px] border border-[var(--public-border)] bg-white p-2"
     >
-      {times.map((time) => {
+      <p id={hintId} className="col-span-full text-xs font-medium text-[var(--public-muted)]">
+        星期六、日及香港公眾假期可選 11:00 或 11:30，請先揀預約日期。
+      </p>
+      {displayedTimes.map((time) => {
         const isSelected = time === value;
         return (
           <button
@@ -2805,7 +2812,8 @@ function GosTimeField({
             type="button"
             role="radio"
             aria-checked={isSelected}
-            className={`min-h-10 rounded-[10px] border px-1.5 py-2 text-sm font-bold outline-none transition focus-visible:ring-3 focus-visible:ring-[var(--public-accent-soft)] ${
+            disabled={!times.includes(time)}
+            className={`disabled:cursor-not-allowed disabled:opacity-50 min-h-10 rounded-[10px] border px-1.5 py-2 text-sm font-bold outline-none transition focus-visible:ring-3 focus-visible:ring-[var(--public-accent-soft)] ${
               isSelected
                 ? "border-[var(--public-cta)] bg-[var(--public-cta)] text-[var(--public-cta-text)] shadow-sm"
                 : "border-[var(--public-border)] bg-[var(--public-soft-bg)] text-[var(--public-heading)] hover:border-[var(--public-accent)]"
