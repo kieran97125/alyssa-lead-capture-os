@@ -1,3 +1,7 @@
+## 2026-11-24 — GOS early appointment times
+
+The GOS time picker shows 11:00 and 11:30 before a date is chosen. Its inline hint describes weekend and Hong Kong general holiday availability. The existing date-specific slot calculation controls both selection and invalidation. The compact form regression covers Saturdays, Sundays, a weekday holiday and switching back to a weekday. Revert the picker and its test together to restore the former presentation.
+
 ## 2026-11-20 — Workspace wording
 
 Login, account navigation, platform administration and authentication emails use product or role labels. The authentication template check also covers application and export source copy. Revert this copy change independently of access controls if a correction is required.

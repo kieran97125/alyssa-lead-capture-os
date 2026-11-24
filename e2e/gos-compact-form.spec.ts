@@ -207,7 +207,8 @@ test("GOS compact form shows the configured item and submits the short booking f
   await expect(page.getByLabel("聯絡電話")).toBeVisible();
   await expect(page.getByLabel("預約日期")).toBeVisible();
   await expect(page.getByLabel("預約時間")).toBeVisible();
-  await expect(page.getByRole("radio")).toHaveCount(18);
+  await expect(page.getByRole("radio")).toHaveCount(20);
+  await expect(page.getByRole("radio", { name: "11:00" })).toBeDisabled();
   await expect(page.getByRole("radio", { name: "12:00" })).toBeVisible();
   await expect(page.getByLabel("Email")).toHaveCount(0);
   await expect(page.getByLabel("療程")).toHaveCount(0);
@@ -258,6 +259,36 @@ test("GOS compact form shows the configured item and submits the short booking f
     branch_id: branchId,
     legalConsentAccepted: true,
   });
+});
+
+test("GOS early slots follow the selected day and clear an invalidated choice", async ({ page }) => {
+  await page.clock.setFixedTime(new Date("2026-12-01T12:00:00+08:00"));
+  await page.route(`**/api/public/forms/${formToken}`, route =>
+    route.fulfill({ json: publicFormConfig() })
+  );
+  await page.route("**/api/public/events", route => route.fulfill({ json: { ok: true } }));
+  await page.goto(`/embed/${formToken}?brand=gos-beauty&form_id=${formId}`);
+  const hours = page.getByRole("radiogroup", { name: "預約時間" });
+  const eleven = hours.getByRole("radio", { name: "11:00", exact: true });
+  const halfPast = hours.getByRole("radio", { name: "11:30", exact: true });
+  await expect(hours).toHaveAccessibleDescription(/星期六、日及香港公眾假期可選 11:00 或 11:30/);
+  await expect(eleven).toBeDisabled();
+  for (const day of ["05", "06", "25"]) {
+    await page.getByRole("button", { name: "預約日期" }).click();
+    await page.locator(`[data-day="2026-12-${day}"] button`).click();
+    await expect(halfPast).toBeEnabled();
+    await eleven.click();
+    await expect(eleven).toBeChecked();
+    await expect(hours.getByRole("radio", { name: "18:30" })).toBeEnabled();
+    await expect(hours.getByRole("radio", { name: "19:00" })).toHaveCount(0);
+  }
+  await page.getByRole("button", { name: "預約日期" }).click();
+  await page.locator('[data-day="2026-12-07"] button').click();
+  await expect(eleven).toBeDisabled();
+  await expect(eleven).not.toBeChecked();
+  await expect(halfPast).toBeDisabled();
+  await expect(hours.getByRole("radio", { name: "12:00" })).toBeEnabled();
+  await expect(hours.getByRole("radio", { name: "20:30" })).toBeEnabled();
 });
 
 test("GOS compact form stacks the four fields on mobile without overflow", async ({
