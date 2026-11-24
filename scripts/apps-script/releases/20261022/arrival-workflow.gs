@@ -537,6 +537,8 @@ function oa3ManualFullSyncState_(props) {
   if(state.stepRevision===undefined)state.stepRevision=0;
   if(!Number.isSafeInteger(state.stepRevision)||state.stepRevision<0)throw new Error('同步步驟版本未能核實。');
   if(state.attempt&&state.attempt.retryReader!==undefined&&(state.attempt.phase!=='identity'||state.attempt.retryReader!=='grid'))throw new Error('同步身份核對進度未能核實。');
+  if(state.settledProofAccount!==undefined&&(!Number.isInteger(state.settledProofAccount)||state.settledProofAccount<0||
+    state.settledProofAccount>=OMNI_ACCOUNT_TABS.length||state.settledProofAccount>state.accountIndex))throw new Error('同步身份核對分頁未能核實。');
   if(state.projectionStep===undefined)state.projectionStep=state.phase==='complete'?8:0;
   if(state.accountPrepared===undefined)state.accountPrepared=false;
   if(state.pendingQueueOps===undefined)state.pendingQueueOps=0;
@@ -636,6 +638,11 @@ function continueBookedArrivalsFullSync(jobId,expectedRevision) {
     // interrupted alternate read gets a full native execution on the next retry.
     const retryIdentityDiscovery=Number.isSafeInteger(expectedRevision)&&phase==='identity'&&state.attempt!==null&&
       state.attempt.retryReader===undefined&&Date.now()-Date.parse(state.attempt.startedAt)>=5*60*1000;
+    // Once per admitted Account. Positive, blocked and uncertain continuations
+    // keep their established recovery path and never repeat the negative proof.
+    const proveSettledIdentity=Number.isSafeInteger(expectedRevision)&&phase==='identity'&&state.attempt===null&&
+      !state.blockedReason&&state.settledProofAccount!==state.accountIndex;
+    if(proveSettledIdentity)state.settledProofAccount=state.accountIndex;
     state.stepRevision++;
     const ss=startup.spreadsheet,index=state.accountIndex,account=OMNI_ACCOUNT_TABS[index];
     // A persisted attempt means the prior native call may have committed before
@@ -652,7 +659,7 @@ function continueBookedArrivalsFullSync(jobId,expectedRevision) {
     if(phase==='account')state.attempt.operation=state.accountPrepared?'apply':'prepare';
     oa3ManualFullSyncSave_(props,state);attemptPersisted=true;
     if(phase==='identity') {
-      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,maxIdentityBatch:1,manualRequested:true,recoverPendingAllocations:true,deferDisplay:true,retryIdentityDiscovery});
+      const result=oa2PrioritizeSourceIdentities_(ss,lock,{accountNames:[account],startAccountIndex:index,maxAccounts:1,maxIdentityBatch:1,manualRequested:true,recoverPendingAllocations:true,deferDisplay:true,retryIdentityDiscovery,proveSettledIdentity});
       if(!result)throw new Error('Identity completion was not verified.');
       if(['registered','recovered','bookedAdded','review'].some(key=>!Number.isSafeInteger(result[key])||result[key]<0)||!Array.isArray(result.accountFailures))throw new Error('Identity completion was not verified.');
       if(result.skipped){if(result.registered||result.recovered||result.bookedAdded)throw new Error('Identity result remains pending.');state.attempt=null;return Object.assign(oa3ManualFullSyncSave_(props,state),{busy:true,reason:'staff_priority'});}
@@ -1089,9 +1096,11 @@ function oa3ManualStartup_(timings) {
  * the same spreadsheet. The data read repeats the entire header so remapping,
  * renaming or resizing a sheet between requests invalidates the proof.
  */
-function oa3ReadManualDiscovery_(id,account) {
+function oa3ReadManualDiscovery_(id,account,options) {
   const requireProof=condition=>{if(!condition)throw new Error('Manual identity grid evidence is incomplete.');};
   const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
+  const narrow=options!==undefined;
+  if(narrow)requireProof(object(options)&&Number.isSafeInteger(options.settledLastRow)&&options.settledLastRow>=1);
   requireProof(typeof id==='string'&&/^[A-Za-z0-9_-]+$/.test(id)&&OMNI_ACCOUNT_TABS.includes(account));
   requireProof(typeof Sheets!=='undefined'&&Sheets&&Sheets.Spreadsheets&&typeof Sheets.Spreadsheets.get==='function');
   const names=OMNI_ACCOUNT_TABS;
@@ -1167,36 +1176,67 @@ function oa3ReadManualDiscovery_(id,account) {
     requireProof(cells&&cells.length>0);
     return Array.from({length:width},(_,i)=>i<cells.length?readDisplay(cells[i]):'');
   };
+  // Claims and status must be actual text (including calculated or spilled
+  // text), never a number or boolean merely formatted to look like a claim.
+  const settledText=cell=>{
+    if(!cell)return '';
+    const displayed=readDisplay(cell);
+    requireProof(!cell.effectiveValue||cell.effectiveValue.stringValue===displayed);
+    return displayed;
+  };
   const initial=fetchSheets(names.map(headerRange)),plans=[],ranges=[];
   let cellsRequested=0;
   for(const name of names){
     const sheet=initial.get(name),p=sheet.properties,g=p.gridProperties;
     requireProof(sheet.data.length===1);
     const header=readHeader(readBlock(sheet,0,0,1,g.columnCount)[0],g.columnCount);
-    const memory=oa3ManualMemorySheet_([header],name),full=name===account;
-    getOmniColumns_(memory);
+    const memory=oa3ManualMemorySheet_([header],name);
+    const columns=getOmniColumns_(memory),settled=narrow&&name===account,full=!narrow&&name===account;
     const meta=oa2Meta_(memory,false),offset=full?0:meta-1,width=full?g.columnCount:OA2.ACCOUNT_HEADERS.length;
     requireProof(offset>=0&&offset+width<=g.columnCount);
-    cellsRequested+=g.columnCount+(g.rowCount-1)*width;
+    const statusOffset=columns.STATUS-1;
+    if(settled)requireProof(options.settledLastRow<=g.rowCount&&statusOffset>=0&&statusOffset<g.columnCount&&
+      (statusOffset<offset||statusOffset>=offset+width));
+    cellsRequested+=g.columnCount+(g.rowCount-1)*(width+(settled?1:0));
     requireProof(Number.isSafeInteger(cellsRequested)&&cellsRequested<=1200000);
     if(full)ranges.push(oa3ManualApiRange_(name,'A1:'+columnLetter_(width)+g.rowCount));
     else{
       ranges.push(headerRange(name));
       if(g.rowCount>1)ranges.push(oa3ManualApiRange_(name,columnLetter_(offset+1)+'2:'+columnLetter_(offset+width)+g.rowCount));
+      if(settled&&g.rowCount>1){
+        const status=columnLetter_(statusOffset+1);
+        ranges.push(oa3ManualApiRange_(name,status+'2:'+status+g.rowCount));
+      }
     }
-    plans.push({name,sheetId:p.sheetId,height:g.rowCount,columns:g.columnCount,header,meta,offset,width,full});
+    plans.push({name,sheetId:p.sheetId,height:g.rowCount,columns:g.columnCount,header,meta,offset,width,full,settled,statusOffset});
   }
   const loaded=fetchSheets(ranges),sources=[];
   for(const plan of plans){
-    const {name,sheetId,height,columns,header,meta,offset,width,full}=plan;
+    const {name,sheetId,height,columns,header,meta,offset,width,full,settled,statusOffset}=plan;
     const sheet=loaded.get(name),p=sheet.properties,g=p.gridProperties;
     requireProof(p.sheetId===sheetId&&g.rowCount===height&&g.columnCount===columns);
-    requireProof(sheet.data.length===(!full&&height>1?2:1));
+    requireProof(sheet.data.length===(1+(!full&&height>1?1:0)+(settled&&height>1?1:0)));
     const top=readBlock(sheet,0,0,full?height:1,columns);
     requireProof(JSON.stringify(readHeader(top[0],columns))===JSON.stringify(header));
     const body=full?top.slice(1):height>1?readBlock(sheet,1,offset,height-1,width):[];
     const rows=body.map(cells=>cells.map(readDisplay));
-    sources.push({account:name,header,rows,meta,offset,full});
+    const source={account:name,header,rows,meta,offset,full};
+    if(settled){
+      const last=options.settledLastRow,statusRows=height>1?readBlock(sheet,1,statusOffset,height-1,1):[];
+      // Ignore no row within the independently sampled native extent, even
+      // when a whole metadata row was omitted or no business payload is known.
+      const length=Math.max(last-1,body.length,statusRows.length);
+      for(let i=0;i<length;i++){
+        const claims=body[i]||[],lead=settledText(claims[0]),appointment=settledText(claims[1]);
+        const pending=settledText(claims[5]),status=settledText((statusRows[i]||[])[0]);
+        if(i<last-1){
+          requireProof(lead.length>0&&lead===oa2Text_(lead)&&!pending&&
+            appointment===oa2Text_(appointment)&&(appointment!==''||oa2Status_(status)!=='booked'));
+        }else requireProof(!lead&&!appointment&&!pending&&!status);
+      }
+      source.noOrdinaryCandidates=true;source.settledLastRow=last;source.sheetId=sheetId;
+    }
+    sources.push(source);
   }
   return {sources};
 }

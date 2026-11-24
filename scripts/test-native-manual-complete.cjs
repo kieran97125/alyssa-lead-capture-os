@@ -465,6 +465,24 @@ function retainedIdentityAttempt(f,ageMs,priorGrid=false){
   if(priorGrid)state.attempt.retryReader='grid';
   f.stored.set(jobKey,JSON.stringify(state));return state;
 }
+test('settled proof is requested only on the first current revision of each Account',()=>{
+  const f=fixture(),start=f.start();f.control.identityRemaining=1;
+  const current=()=>f.b.continueBookedArrivalsFullSync(start.id,f.job().stepRevision??0);
+  current();assert.equal(f.calls.identity.at(-1).proveSettledIdentity,true);
+  assert.equal(f.job().settledProofAccount,0);assert.equal(f.job().phase,'identity');
+  f.b.continueBookedArrivalsFullSync(start.id,0);assert.equal(f.calls.identity.length,1);
+  current();assert.equal(f.calls.identity.at(-1).proveSettledIdentity,false);
+  current();current();assert.equal(f.job().accountIndex,1);
+  current();assert.equal(f.calls.identity.at(-1).proveSettledIdentity,true);assert.equal(f.job().settledProofAccount,1);
+});
+test('legacy, blocked or unmatched retained identity states cannot request a settled proof',()=>{
+  const legacy=fixture(),first=legacy.start();legacy.b.continueBookedArrivalsFullSync(first.id);
+  assert.equal(legacy.calls.identity[0].proveSettledIdentity,false);
+  const f=fixture(),start=f.start();f.control.identityBlocked=true;
+  const current=()=>f.b.continueBookedArrivalsFullSync(start.id,f.job().stepRevision??0);
+  current();current();assert.equal(f.calls.identity.at(-1).proveSettledIdentity,false);
+  const bad=f.job();bad.settledProofAccount=5;f.stored.set(jobKey,JSON.stringify(bad));assert.throws(current);
+});
 test('only a long retained native identity attempt on the current revision can request alternate discovery',()=>{
   for(const [age,priorGrid,revision,expected] of [[360000,false,7,true],[1000,false,7,false],[360000,true,7,false],[360000,false,undefined,false]]){
     const f=fixture(),state=retainedIdentityAttempt(f,age,priorGrid);
@@ -474,6 +492,7 @@ test('only a long retained native identity attempt on the current revision can r
       return original(...args);
     };
     const receipt=f.b.continueBookedArrivalsFullSync(state.id,revision);
+    assert.equal(f.calls.identity[0].proveSettledIdentity,false);
     assert.equal(f.calls.identity[0].retryIdentityDiscovery,expected);
     assert.equal(receipt.phase,'account');assert.equal(receipt.countsVerified,false);assert.equal(f.job().attempt,null);
   }
