@@ -82,9 +82,9 @@ async function nativeScenario(options={}) {
     calls.push({url:decodeURIComponent(url),init});assert.ok(init.signal,"all strict Google reads/writes have a deadline");
     if(init.method==="POST") {
       if(options.appendThrows)throw Error("Synthetic lost response");
-      return{ok:(options.appendStatus??200)<300,status:options.appendStatus??200,json:async()=>({updates:{updatedRows:1,updatedRange:"'GOS Beauty'!A12:Z12"}})};
+      return {ok:(options.appendStatus??200)<300,status:options.appendStatus??200,json:async()=>({updatedSpreadsheet:{sheets:[{properties:{sheetId:75},data:[{startRow:1,rowData:options.missingReceipt?[]:[...Array(10).fill({}),{values:[{userEnteredValue:{stringValue:`lead_${leadId}`}}]}]}]}]}})};
     }
-    if(url.includes("?fields="))return{ok:true,json:async()=>({sheets:[{properties:{title:"GOS Beauty",gridProperties:{rowCount:options.rowCount??5000}}}]})};
+    if(url.includes("?fields="))return{ok:true,json:async()=>({sheets:[{properties:{sheetId:75,title:"GOS Beauty",gridProperties:{rowCount:options.rowCount??5000}}}]})};
     const decoded=decodeURIComponent(url);
     if(decoded.includes("!1:1"))return{ok:true,json:async()=>({values:[headers]})};
     if(decoded.includes("!Z2:Z5000"))return{ok:true,json:async()=>({values:options.existing??[]})};
@@ -96,8 +96,8 @@ async function nativeScenario(options={}) {
   return {result,calls,intents,posts:calls.filter(c=>c.init.method==="POST")};
 }
 await test("native delivery persists intent before one routed atomic append",async()=>{
-  const run=await nativeScenario();assert.equal(run.result.status,"delivered",JSON.stringify(run));assert.equal(run.posts.length,1);assert.equal(run.intents.length,1);
-  const row=JSON.parse(run.posts[0].init.body).values[0];assert.equal(row[25],`lead_${leadId}`);assert.equal(row[20],"GOS Beauty");
+  const run=await nativeScenario();assert.equal(run.result.status,"delivered",JSON.stringify(run));assert.equal(run.posts.length,1);assert.equal(run.intents.length,1);assert.equal(run.result.updatedRange,"'GOS Beauty'!A12:Z12");
+  const row=JSON.parse(run.posts[0].init.body).requests[0].appendCells.rows[0].values.map(c=>c.userEnteredValue?.stringValue);assert.equal(row[25],`lead_${leadId}`);assert.equal(row[20],"GOS Beauty");
 });
 await test("existing matching ID reconciles without issuing append",async()=>{
   const run=await nativeScenario({existing:[[""],[`lead_${leadId}`]],reconcileOnly:true});assert.equal(run.result.status,"delivered");assert.equal(run.posts.length,0);assert.equal(run.intents.length,0);
@@ -107,6 +107,7 @@ await test("ambiguous prior write with no found ID never appends",async()=>{
 });
 await test("duplicate IDs or ID/phone mismatch block without overwriting staff data",async()=>{
   assert.equal((await nativeScenario({existing:[[leadId]],phone:"+852 1000 0001"})).result.status,"delivered","equivalent Hong Kong phone formatting reconciles safely");
+  assert.equal((await nativeScenario({existing:[[leadId]],phone:"85210000001"})).result.status,"delivered","digits-only country code matches the inbound number");
   assert.equal((await nativeScenario({existing:[[leadId],[`lead_${leadId}`]]})).result.code,"destination_duplicate_identity");
   const run=await nativeScenario({existing:[[leadId]],phone:"10000002"});assert.equal(run.result.code,"destination_identity_phone_mismatch");assert.equal(run.posts.length,0);
 });
@@ -114,13 +115,14 @@ await test("missing stable header, incomplete lookup and lost lease block append
   for(const input of [{missingIdentity:true},{rowCount:50001},{lostLease:true}]) {const run=await nativeScenario(input);assert.equal(run.result.status,"blocked");assert.equal(run.posts.length,0);}
 });
 await test("lost append response and HTTP5xx quarantine; HTTP429 is safe retry",async()=>{
+  assert.equal((await nativeScenario({missingReceipt:true})).result.status,"uncertain");
   assert.equal((await nativeScenario({appendThrows:true})).result.status,"uncertain");
   assert.equal((await nativeScenario({appendStatus:503})).result.status,"uncertain");
   const run=await nativeScenario({appendStatus:429});assert.equal(run.result.status,"retry");assert.equal(run.result.safeToRetry,true);
 });
 await test("pinned retry preserves original target routing",async()=>{
   const pinned={sourceId:uuid("a"),spreadsheetId:"synthetic_spreadsheet_delivery_123456789",tabName:"GOS Beauty",headerRow:1,sheetBrand:"Pinned brand",account:"Pinned Account"};
-  const run=await nativeScenario({pinnedTarget:pinned});assert.equal(run.result.status,"delivered");const row=JSON.parse(run.posts[0].init.body).values[0];assert.equal(row[4],"Pinned brand");assert.equal(row[20],"Pinned Account");
+  const run=await nativeScenario({pinnedTarget:pinned});assert.equal(run.result.status,"delivered");const row=JSON.parse(run.posts[0].init.body).requests[0].appendCells.rows[0].values.map(c=>c.userEnteredValue?.stringValue);assert.equal(row[4],"Pinned brand");assert.equal(row[20],"Pinned Account");
 });
 
 async function workerScenario({mode="delivered", priorIntent=null, attempt=1, loseLease=false, finalWriteError=false}={}) {

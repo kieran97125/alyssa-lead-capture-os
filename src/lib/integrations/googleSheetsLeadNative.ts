@@ -322,6 +322,7 @@ type GosAppendInput = {
   values: string[];
   identityIndex: number;
   sheetId: number;
+  cells: ReturnType<typeof gosLeadSheetCells>;
 };
 
 // Request only the identity column back in the same atomic append. The row address
@@ -338,7 +339,7 @@ async function appendGosTypedRow(input: GosAppendInput) {
       body: JSON.stringify({
         requests: [{ appendCells: {
           sheetId: input.sheetId,
-          rows: [{ values: gosLeadSheetCells(input.headers, input.values) }],
+          rows: [{ values: input.cells }],
           fields: "userEnteredValue,userEnteredFormat.numberFormat",
         } }],
         includeSpreadsheetInResponse: true,
@@ -383,7 +384,7 @@ async function appendRow(input: {
     const body = await metadata.json() as { sheets: Array<{properties: {title: string; sheetId: number}}> };
     const sheet = body.sheets.find(entry => entry.properties.title === input.tabName);
     if (!sheet) throw new Error("Google Sheets destination tab missing");
-    const written = await appendGosTypedRow({ ...input, identityIndex, sheetId: sheet.properties.sheetId });
+    const written = await appendGosTypedRow({ ...input, identityIndex, sheetId: sheet.properties.sheetId, cells: gosLeadSheetCells(input.headers, input.values) });
     if (!written.ok) throw new Error(`Google Sheets append failed (HTTP ${written.status})`);
     const receipt = await written.json() as {updates?: {updatedRows?: number; updatedRange?: string}};
     if (receipt.updates?.updatedRows !== 1) throw new Error("Google Sheets append receipt incomplete");
@@ -631,18 +632,23 @@ export async function deliverCapturedLeadToNativeSheet(input: {
       return { status: "delivered", code: "sheet_delivery_reconciled", target, updatedRange: `${quoteSheetName(target.tabName)}!A${row}:${columnFromIndex(headers.length - 1)}${row}` };
     }
     if (input.reconcileOnly) return { status: "uncertain", code: "sheet_append_not_confirmed", target };
+    const gosIndex = gosIdentityColumn(target.tabName, headers);
+    const sheetId = sheet?.properties?.sheetId;
+    if (gosIndex >= 0 && typeof sheetId !== "number") return { status: "blocked", code: "destination_header_invalid", target, safeToRetry: true };
+    let typedCells: ReturnType<typeof gosLeadSheetCells> | undefined;
+    if (gosIndex >= 0) {
+      try { typedCells = gosLeadSheetCells(headers, values); }
+      catch { return { status: "blocked", code: "destination_cell_value_invalid", target, safeToRetry: true }; }
+    }
     // Persist target + append intent with the current lease before issuing a write.
     // A failure here is ambiguous from the journal's perspective; recovery reads only.
     if (!await input.beforeAppend(target)) return { status: "blocked", code: "delivery_lease_lost", target };
     const accessToken = await getGoogleSheetsOAuthAccessToken({ requireWrite: true });
     const range = `${quoteSheetName(target.tabName)}!A${target.headerRow}:${columnFromIndex(values.length - 1)}`;
     const query = new URLSearchParams({ valueInputOption: "RAW", insertDataOption: "INSERT_ROWS", includeValuesInResponse: "false" });
-    const gosIndex = gosIdentityColumn(target.tabName, headers);
-    const sheetId = sheet?.properties?.sheetId;
-    if (gosIndex >= 0 && typeof sheetId !== "number") return { status: "blocked", code: "destination_header_invalid", target, safeToRetry: true };
     appendIssued = true;
-    const response = gosIndex >= 0 && typeof sheetId === "number"
-      ? await appendGosTypedRow({ spreadsheetId: target.spreadsheetId, tabName: target.tabName, headerRow: target.headerRow, accessToken, headers, values, identityIndex: gosIndex, sheetId })
+    const response = typedCells && typeof sheetId === "number"
+      ? await appendGosTypedRow({ spreadsheetId: target.spreadsheetId, tabName: target.tabName, headerRow: target.headerRow, accessToken, headers, values, identityIndex: gosIndex, sheetId, cells: typedCells })
       : await fetch(`${base}/values/${encodeURIComponent(range)}:append?${query.toString()}`, {
       method: "POST", headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify({ majorDimension: "ROWS", values: [values] }), cache: "no-store", signal: AbortSignal.timeout(timeoutMs),
