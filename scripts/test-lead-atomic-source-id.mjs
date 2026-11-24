@@ -36,9 +36,13 @@ new Function('require','module','exports','fetch',ts.transpileModule(src,{compil
  if(name==='server-only')return{};
  if(name==='@/lib/integrations/googleSheetsOAuth')return{getGoogleSheetsOAuthStatus:async()=>({writeEnabled:true}),getGoogleSheetsOAuthAccessToken:async()=> 'synthetic-token'};
  if(name==='@/lib/integrations/googleSheetsLeadSync')return p;
+ if(name==='@/lib/integrations/gosLeadSheetCells')return load('src/lib/integrations/gosLeadSheetCells.ts');
  if(name==='@/lib/supabase/admin')return{createSupabaseAdminClient:()=>writerDb,hasSupabaseAdminEnv:()=>true};
  throw Error('Unexpected writer dependency');
-},writerModule,writerModule.exports,async(url,options={})=>{http.push({url,options});return{ok:true,json:async()=>options.method==='POST'?{updates:{updatedRows:1,updatedRange:'synthetic'}}:{values:[headers]}};});
+},writerModule,writerModule.exports,async(url,options={})=>{http.push({url,options});
+  if (url.includes('?fields=sheets(properties(sheetId,title))')) return Response.json({sheets:[{properties:{sheetId:42,title:'GOS Beauty'}}]});
+  if (url.includes(':batchUpdate?')) return Response.json({updatedSpreadsheet:{sheets:[{properties:{sheetId:42},data:[{startRow:1,rowData:[{values:[{userEnteredValue:{stringValue:'lead_synthetic-source'}}]}]}]}]}});
+  return{ok:true,json:async()=>options.method==='POST'?{updates:{updatedRows:1,updatedRange:'synthetic'}}:{values:[headers]}};});
 const writeResult=await writerModule.exports.appendLeadViaNativeGoogleSheets({brandId:'synthetic-brand',payload:{...payload,brand:'Alyssa',treatmentOffer:'Synthetic treatment',treatmentItem:'Synthetic treatment'}});
 assert.equal(writeResult.attempted,true);assert.equal(http.length,2);
 const posted=JSON.parse(http[1].options.body).values[0];
@@ -48,3 +52,23 @@ assert.equal(writerHealth.length,1);
 assert.equal(writerHealth[0].last_success_at,undefined,'The actual append path must leave report freshness untouched');
 assert.equal(writerHealth[0].last_sync_at,undefined);
 console.log('PASS: actual native append sends routed business fields and source ID in one HTTP write; no background edit event required.');
+
+http.length = 0;
+const formValues = [...payload.rowValues];
+for (const [field,value] of Object.entries({"電話":"+85200001124","預約日期":"2026-12-02","預約時間":"11:00"})) {
+  formValues[p.GOOGLE_SHEETS_LEAD_HEADERS.indexOf(field)] = value;
+}
+const gosWrite = await writerModule.exports.appendLeadViaNativeGoogleSheets({
+  brandId:"synthetic-brand", payload:{...payload, brand:"GOS Beauty", rowValues:formValues, treatmentItem:"Synthetic", treatmentOffer:"Synthetic"}
+});
+const writes = http.filter(request => request.options.method === "POST");
+assert.equal(writes.length,1);
+const batch = JSON.parse(writes[0].options.body);
+const applied = batch.requests[0].appendCells;
+assert.equal(applied.sheetId,42);
+assert.equal(applied.rows[0].values[5].userEnteredFormat.numberFormat.pattern,"dd/mm/yyyy");
+assert.equal(applied.rows[0].values[5].userEnteredValue.numberValue,46358);
+assert.equal(applied.rows[0].values[9].userEnteredValue.stringValue,"85200001124");
+assert.equal(applied.rows[0].values[25].userEnteredValue.stringValue,"lead_synthetic-source");
+assert.equal(gosWrite.updatedRange,"'GOS Beauty'!A2:AE2");
+console.log("PASS: GOS delivery commits typed cells and identity in one write with a verified row receipt.");

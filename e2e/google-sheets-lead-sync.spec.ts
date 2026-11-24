@@ -293,3 +293,16 @@ test("external Apps Script fallback retains its existing v5 wire order during na
   expect(legacy.rowValues[13]).toBe("2026-10-02");
   expect(JSON.stringify(payload)).toBe(original);
 });
+
+test("GOS sheet cells keep calendar values, phone digits and text distinct across reordered columns", async () => {
+  const { gosLeadSheetCells } = await import("../src/lib/integrations/gosLeadSheetCells");
+  const cells = gosLeadSheetCells(["電話","預約時間","預約日期","Created At","客人姓名","確認到店日期"], ["+85200001124","11:00","2026-12-02","2026-11-24","=literal",""]);
+  expect(cells[0]).toEqual({ userEnteredValue: {stringValue: "85200001124"}, userEnteredFormat: {numberFormat: {type:"TEXT",pattern:"@"}} });
+  expect(cells[1].userEnteredValue?.numberValue).toBe(11 / 24);
+  expect(cells[2]).toEqual({userEnteredValue: {numberValue: 46358}, userEnteredFormat: {numberFormat: {type:"DATE",pattern:"dd/mm/yyyy"}}});
+  expect(cells[3].userEnteredFormat?.numberFormat.pattern).toBe("yyyy-mm-dd");
+  expect(cells[4].userEnteredValue).toEqual({stringValue:"=literal"});
+  expect(cells[5].userEnteredValue).toBeUndefined();
+  expect(gosLeadSheetCells(["電話"],["00123456"])[0].userEnteredValue?.stringValue).toBe("00123456");
+  expect(() => gosLeadSheetCells(["預約日期"],["2026-02-30"])).toThrow();
+});
