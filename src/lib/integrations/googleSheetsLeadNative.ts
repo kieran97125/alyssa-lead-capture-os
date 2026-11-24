@@ -1,5 +1,7 @@
 import "server-only";
 
+import { gosLeadSheetCells } from "@/lib/integrations/gosLeadSheetCells";
+
 import {
   getGoogleSheetsOAuthAccessToken,
   getGoogleSheetsOAuthStatus,
@@ -311,13 +313,82 @@ async function readHeaderRow(input: {
   return headers;
 }
 
+type GosAppendInput = {
+  spreadsheetId: string;
+  tabName: string;
+  headerRow: number;
+  accessToken: string;
+  headers: string[];
+  values: string[];
+  identityIndex: number;
+  sheetId: number;
+};
+
+// Request only the identity column back in the same atomic append. The row address
+// comes from Sheets even when other registrations are appended concurrently.
+async function appendGosTypedRow(input: GosAppendInput) {
+  const idColumn = columnFromIndex(input.identityIndex);
+  const tab = quoteSheetName(input.tabName);
+  const fields = "updatedSpreadsheet(sheets(properties(sheetId),data(startRow,rowData(values(userEnteredValue(stringValue))))))";
+  const response = await fetch(
+    `${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(input.spreadsheetId)}:batchUpdate?fields=${encodeURIComponent(fields)}`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${input.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        requests: [{ appendCells: {
+          sheetId: input.sheetId,
+          rows: [{ values: gosLeadSheetCells(input.headers, input.values) }],
+          fields: "userEnteredValue,userEnteredFormat.numberFormat",
+        } }],
+        includeSpreadsheetInResponse: true,
+        responseIncludeGridData: true,
+        responseRanges: [`${tab}!${idColumn}${input.headerRow + 1}:${idColumn}`],
+      }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(10000),
+    }
+  );
+  if (!response.ok) return response;
+  type GridBlock = { startRow?: number; rowData?: Array<{values?: Array<{ userEnteredValue?: { stringValue?: string } }>}> };
+  const body = await response.json() as { updatedSpreadsheet?: { sheets?: Array<{ properties?: { sheetId?: number }; data?: GridBlock[] }> } };
+  const block = body.updatedSpreadsheet?.sheets?.find(entry => (entry.properties?.sheetId ?? 0) === input.sheetId)?.data?.[0];
+  const key = input.values[input.identityIndex];
+  const matches = (block?.rowData ?? []).flatMap((row, index) =>
+    row.values?.[0]?.userEnteredValue?.stringValue === key ? [(block?.startRow ?? 0) + index + 1] : []
+  );
+  if (matches.length !== 1) return Response.json({ updates: {} });
+  const row = matches[0];
+  return Response.json({ updates: { updatedRows: 1, updatedRange: `${tab}!A${row}:${columnFromIndex(input.values.length - 1)}${row}` } });
+}
+
+function gosIdentityColumn(tab: string, headers: string[]) {
+  return tab === "GOS Beauty" ? headers.findIndex(header => header.trim().toLowerCase() === "omni lead id") : -1;
+}
+
 async function appendRow(input: {
   accessToken: string;
   spreadsheetId: string;
   tabName: string;
   headerRow: number;
   values: string[];
+  headers: string[];
 }) {
+  const identityIndex = gosIdentityColumn(input.tabName, input.headers);
+  if (identityIndex >= 0) {
+    const metadata = await fetch(`${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(input.spreadsheetId)}?fields=sheets(properties(sheetId,title))`, {
+      headers: { Authorization: `Bearer ${input.accessToken}` }, cache: "no-store", signal: AbortSignal.timeout(10000),
+    });
+    if (!metadata.ok) throw new Error(`Google Sheets metadata read failed (HTTP ${metadata.status})`);
+    const body = await metadata.json() as { sheets: Array<{properties: {title: string; sheetId: number}}> };
+    const sheet = body.sheets.find(entry => entry.properties.title === input.tabName);
+    if (!sheet) throw new Error("Google Sheets destination tab missing");
+    const written = await appendGosTypedRow({ ...input, identityIndex, sheetId: sheet.properties.sheetId });
+    if (!written.ok) throw new Error(`Google Sheets append failed (HTTP ${written.status})`);
+    const receipt = await written.json() as {updates?: {updatedRows?: number; updatedRange?: string}};
+    if (receipt.updates?.updatedRows !== 1) throw new Error("Google Sheets append receipt incomplete");
+    return receipt;
+  }
   const lastColumn = columnFromIndex(input.values.length - 1);
   const range = `${quoteSheetName(input.tabName)}!A${input.headerRow}:${lastColumn}`;
   const query = new URLSearchParams({
@@ -456,7 +527,7 @@ export async function appendLeadViaNativeGoogleSheets(input: {
       spreadsheetId: destinationSpreadsheetId,
       tabName: destinationTabName,
       headerRow: destinationHeaderRow,
-      values,
+      headers, values,
     });
     await updateDestinationHealth(destination.id, {
       status: "connected",
@@ -528,10 +599,10 @@ export async function deliverCapturedLeadToNativeSheet(input: {
     const base = `${GOOGLE_SHEETS_API_BASE}/${encodeURIComponent(target.spreadsheetId)}`;
     const headerRange = `${quoteSheetName(target.tabName)}!${target.headerRow}:${target.headerRow}`;
     const [metadata, headerBody] = await Promise.all([
-      googleJson(`${base}?fields=${encodeURIComponent("sheets(properties(title,gridProperties(rowCount)))")}`),
+      googleJson(`${base}?fields=${encodeURIComponent("sheets(properties(sheetId,title,gridProperties(rowCount)))")}`),
       googleJson(`${base}/values/${encodeURIComponent(headerRange)}?valueRenderOption=FORMATTED_VALUE`),
     ]);
-    const sheets = Array.isArray(metadata.sheets) ? metadata.sheets as Array<{properties?: {title?: string;gridProperties?: {rowCount?: number}}}> : [];
+    const sheets = Array.isArray(metadata.sheets) ? metadata.sheets as Array<{properties?: {sheetId?: number;title?: string;gridProperties?: {rowCount?: number}}}> : [];
     const sheet = sheets.find((entry) => entry.properties?.title === target!.tabName);
     const rowCount = sheet?.properties?.gridProperties?.rowCount;
     if (!Number.isInteger(rowCount) || !rowCount || rowCount > maxLookupRows) return { status: "blocked", code: "destination_lookup_incomplete", target, safeToRetry: true };
@@ -556,7 +627,7 @@ export async function deliverCapturedLeadToNativeSheet(input: {
       const phoneColumn = columnFromIndex(phoneColumns[0]);
       const phoneBody = await googleJson(`${base}/values/${encodeURIComponent(`${quoteSheetName(target.tabName)}!${phoneColumn}${row}:${phoneColumn}${row}`)}?valueRenderOption=UNFORMATTED_VALUE`);
       const foundPhone = String((phoneBody.values as unknown[][] | undefined)?.[0]?.[0] ?? "");
-      if (normalizePhone(foundPhone) !== normalizePhone(payload.phone)) return { status: "blocked", code: "destination_identity_phone_mismatch", target };
+      if (normalizePhone(foundPhone).replace(/^\+/, "") !== normalizePhone(payload.phone).replace(/^\+/, "")) return { status: "blocked", code: "destination_identity_phone_mismatch", target };
       return { status: "delivered", code: "sheet_delivery_reconciled", target, updatedRange: `${quoteSheetName(target.tabName)}!A${row}:${columnFromIndex(headers.length - 1)}${row}` };
     }
     if (input.reconcileOnly) return { status: "uncertain", code: "sheet_append_not_confirmed", target };
@@ -566,8 +637,13 @@ export async function deliverCapturedLeadToNativeSheet(input: {
     const accessToken = await getGoogleSheetsOAuthAccessToken({ requireWrite: true });
     const range = `${quoteSheetName(target.tabName)}!A${target.headerRow}:${columnFromIndex(values.length - 1)}`;
     const query = new URLSearchParams({ valueInputOption: "RAW", insertDataOption: "INSERT_ROWS", includeValuesInResponse: "false" });
+    const gosIndex = gosIdentityColumn(target.tabName, headers);
+    const sheetId = sheet?.properties?.sheetId;
+    if (gosIndex >= 0 && typeof sheetId !== "number") return { status: "blocked", code: "destination_header_invalid", target, safeToRetry: true };
     appendIssued = true;
-    const response = await fetch(`${base}/values/${encodeURIComponent(range)}:append?${query.toString()}`, {
+    const response = gosIndex >= 0 && typeof sheetId === "number"
+      ? await appendGosTypedRow({ spreadsheetId: target.spreadsheetId, tabName: target.tabName, headerRow: target.headerRow, accessToken, headers, values, identityIndex: gosIndex, sheetId })
+      : await fetch(`${base}/values/${encodeURIComponent(range)}:append?${query.toString()}`, {
       method: "POST", headers: { Authorization: `Bearer ${accessToken}`, Accept: "application/json", "Content-Type": "application/json" },
       body: JSON.stringify({ majorDimension: "ROWS", values: [values] }), cache: "no-store", signal: AbortSignal.timeout(timeoutMs),
     });
