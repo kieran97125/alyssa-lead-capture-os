@@ -339,6 +339,22 @@ test("GOS compact form stacks the four fields on mobile without overflow", async
 
   expect(mobileLayout.stacked).toBe(true);
   expect(mobileLayout.noOverflow).toBe(true);
+
+  // The host website can give a phone form a narrower iframe than the screen.
+  for (const width of [245, 264, 301, 390, 708]) {
+    await page.setViewportSize({ width, height: 825 });
+    await page.getByRole("button", { name: "預約日期", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "選擇預約日期" });
+    const grid = dialog.getByRole("grid");
+    await expect(grid).toBeVisible();
+    const dialogBox = (await dialog.boundingBox())!;
+    const gridBox = (await grid.boundingBox())!;
+    expect(gridBox.x).toBeGreaterThanOrEqual(dialogBox.x);
+    expect(gridBox.x + gridBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width + 1);
+    const sunday = grid.locator("tr td:last-child button:enabled").first();
+    await sunday.click();
+    await expect(dialog).toBeHidden();
+  }
 });
 
 test("GOS compact form lets customers choose one of eight configured pricing items", async ({

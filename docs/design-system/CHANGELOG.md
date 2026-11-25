@@ -1,3 +1,7 @@
+## 2026-11-25 — GOS booking calendar in narrow embeds
+
+The seven calendar columns now share the width of their container. Day buttons retain their desktop maximum width. On a 320 CSS-pixel phone, the previous grid extended beyond the form boundary on the treatment pages. The compact form regression opens the calendar at five embed widths, checks both grid edges and selects the last weekday column. Reverting the calendar component restores the previous sizing.
+
 ## 2026-11-24 — GOS early appointment times
 
 The GOS time picker shows 11:00 and 11:30 before a date is chosen. Its inline hint describes weekend and Hong Kong general holiday availability. The existing date-specific slot calculation controls both selection and invalidation. The compact form regression covers Saturdays, Sundays, a weekday holiday and switching back to a weekday. Revert the picker and its test together to restore the former presentation.
