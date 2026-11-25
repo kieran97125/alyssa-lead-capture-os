@@ -53,14 +53,22 @@ export function GosBookingCalendar({
       navLayout="around"
       showOutsideDays
       className="mx-auto text-sm"
+      styles={{
+        months: { width: "100%", maxWidth: "100%" },
+        month: { width: "100%", minWidth: 0 },
+        month_grid: { width: "100%", tableLayout: "fixed" },
+        day_button: { maxWidth: "34px", marginInline: "auto" },
+      }}
       style={
         {
+          width: "100%",
+          maxWidth: "252px",
           "--rdp-accent-color": "var(--public-cta)",
           "--rdp-accent-background-color": "var(--public-accent-soft)",
           "--rdp-day-height": "36px",
-          "--rdp-day-width": "36px",
+          "--rdp-day-width": "calc(100% / 7)",
           "--rdp-day_button-height": "34px",
-          "--rdp-day_button-width": "34px",
+          "--rdp-day_button-width": "100%",
           "--rdp-nav_button-height": "34px",
           "--rdp-nav_button-width": "34px",
         } as CSSProperties
