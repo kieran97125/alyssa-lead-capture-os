@@ -351,7 +351,9 @@ test("GOS compact form stacks the four fields on mobile without overflow", async
     const gridBox = (await grid.boundingBox())!;
     expect(gridBox.x).toBeGreaterThanOrEqual(dialogBox.x);
     expect(gridBox.x + gridBox.width).toBeLessThanOrEqual(dialogBox.x + dialogBox.width + 1);
-    const sunday = grid.locator("tr td:last-child button:enabled").first();
+    const sunday = grid.locator(
+      "tr td:last-child:not([data-selected]):not([aria-selected=true]) button:enabled"
+    ).first();
     await sunday.click();
     await expect(dialog).toBeHidden();
   }
