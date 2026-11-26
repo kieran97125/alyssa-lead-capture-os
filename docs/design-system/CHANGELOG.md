@@ -1,3 +1,7 @@
+## 2026-11-26 — General enquiry on GOS registration
+
+The general enquiry accepts a name, phone and consent without an appointment slot. Optional fields and the submit button use enquiry wording. The compact-form regression covers an empty booking date and time. Revert this change to restore appointment validation for this enquiry.
+
 ## 2026-11-25 — GOS booking calendar in narrow embeds
 
 The seven calendar columns now share the width of their container. Day buttons retain their desktop maximum width. On a 320 CSS-pixel phone, the previous grid extended beyond the form boundary on the treatment pages. The compact form regression opens the calendar at five embed widths, checks both grid edges and selects the last weekday column. Reverting the calendar component restores the previous sizing.
