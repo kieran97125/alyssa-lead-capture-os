@@ -45,3 +45,7 @@ For any shared UI, UX, layout or interaction change:
 8. Record the change, evidence and rollback path under docs/design-system.
 9. Preserve Alyssa product direction; do not turn the system into a generic dashboard, generic task app or chatbot wrapper.
 10. Treat automated accessibility as a floor. Keyboard, focus, hierarchy, density and human visual review remain mandatory.
+
+## GOS campaign destinations
+
+For GOS advertisements, organic feed posts and promotional images, point the caption, button, printed URL and QR code to the treatment page featured in the creative. Keep campaign tracking parameters on that URL. Reserve `/register` for general website navigation and existing links.

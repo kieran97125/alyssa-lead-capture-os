@@ -149,7 +149,7 @@ async function loadPublicFormConfig(
         .single(),
       supabase
         .from("treatments")
-        .select("id,name,description")
+        .select("id,name,slug,description")
         .eq("brand_id", form.brand_id)
         .eq("status", "active")
         .order("created_at", { ascending: true }),
