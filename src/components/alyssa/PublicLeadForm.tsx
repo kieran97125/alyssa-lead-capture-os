@@ -142,6 +142,7 @@ type FormOption = {
 };
 
 type TreatmentOption = FormOption & {
+  slug?: string;
   description: string;
 };
 
@@ -875,6 +876,7 @@ function normalizeTreatment(raw: Record<string, unknown>): TreatmentOption {
   return {
     id: getString(raw.id),
     name: getString(raw.name),
+    slug: getString(raw.slug),
     description: getString(raw.description),
   };
 }
@@ -1295,6 +1297,7 @@ export function PublicLeadForm({
     [publicTheme]
   );
   const isCompactPublicForm = publicTheme.formLayout === "compact";
+  const isGeneralEnquiry = brand.slug === "gos-beauty" && selectedTreatment?.slug === "general-treatment-enquiry";
   const allowsPackageChoice =
     publicForm.packageSelectionMode === "customer_choice" &&
     availablePackages.length > 1;
@@ -1850,7 +1853,7 @@ export function PublicLeadForm({
       return;
     }
 
-    if (!formData.appointment_date) {
+    if (!isGeneralEnquiry && !formData.appointment_date) {
       setState("error");
       setMessage("請選擇預約日期。");
       await logPublicEvent(
@@ -1861,7 +1864,7 @@ export function PublicLeadForm({
       return;
     }
 
-    if (!formData.appointment_time) {
+    if (!isGeneralEnquiry && !formData.appointment_time) {
       setState("error");
       setMessage("請選擇預約時間。");
       await logPublicEvent(
@@ -2081,10 +2084,10 @@ export function PublicLeadForm({
                   {brand.name} · New client
                 </p>
                 <h2 className="mt-2 text-[26px] font-semibold leading-tight tracking-[-0.025em] text-[var(--public-heading)] sm:mt-3 sm:text-[34px]">
-                  輕鬆預約你的護理
+                  {isGeneralEnquiry ? "想先了解療程？" : "輕鬆預約你的護理"}
                 </h2>
                 <p className="mt-2 text-sm leading-6 text-[var(--public-muted)] sm:text-[15px]">
-                  只需填寫基本資料，我哋會盡快為你確認時段。
+                  {isGeneralEnquiry ? "留下稱呼同聯絡電話，GOS 客服會同你了解需要。" : "只需填寫基本資料，我哋會盡快為你確認時段。"}
                 </p>
               </header>
 
@@ -2181,7 +2184,7 @@ export function PublicLeadForm({
                   </Field>
 
                   <div className="block min-w-0 text-[13px] font-semibold text-[var(--public-heading)] sm:text-[13px] sm:font-bold">
-                    <span>預約日期</span>
+                    <span>{isGeneralEnquiry ? "心水日期（選填）" : "預約日期"}</span>
                     <GosDateField
                       value={formData.appointment_date}
                       onChange={(value) =>
@@ -2191,7 +2194,7 @@ export function PublicLeadForm({
                   </div>
 
                   <div className="block min-w-0 text-[13px] font-semibold text-[var(--public-heading)] sm:text-[13px] sm:font-bold">
-                    <span>預約時間</span>
+                    <span>{isGeneralEnquiry ? "心水時間（選填）" : "預約時間"}</span>
                     <GosTimeField
                       value={formData.appointment_time}
                       times={standardBookingTimes}
@@ -2239,7 +2242,7 @@ export function PublicLeadForm({
                   disabled={previewMode || state === "loading"}
                   className="mt-4 block min-h-12 w-full rounded-[14px] bg-[var(--public-cta)] px-5 py-3 text-base font-bold text-[var(--public-cta-text)] shadow-[0_10px_24px_rgba(255,90,31,0.2)] transition hover:bg-[var(--public-cta-hover)] focus-visible:outline-3 focus-visible:outline-offset-2 focus-visible:outline-[var(--public-accent-soft)] disabled:opacity-60"
                 >
-                  {previewMode ? "預覽表格" : state === "loading" ? "正在提交..." : "提交預約  →"}
+                  {previewMode ? "預覽表格" : state === "loading" ? "正在提交..." : isGeneralEnquiry ? "提交療程查詢" : "提交預約  →"}
                 </button>
                 </fieldset>
               </form>
@@ -2254,7 +2257,7 @@ export function PublicLeadForm({
               )}
 
               <p className="mt-3 text-center text-xs leading-5 text-[var(--public-muted)]">
-                提交後，預約專員會與你確認時段。
+                {isGeneralEnquiry ? "客服會透過 WhatsApp 或電話跟進你嘅查詢。" : "提交後，預約專員會與你確認時段。"}
               </p>
               {isEmbed && (
                 <PublicLegalFooter
