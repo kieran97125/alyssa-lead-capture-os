@@ -607,26 +607,30 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
   expect(redirectUrl.searchParams.get("form_id")).toBe(formId);
 });
 
-test("GOS general enquiry submits without choosing a booking date or time", async ({ page }) => {
-  const config = publicFormConfig();
-  const enquiry = { ...config.treatments[0], slug: "general-treatment-enquiry" };
-  await page.route(`**/api/public/forms/${formToken}`, route =>
-    route.fulfill({ json: { ...config, treatments: [enquiry] } })
-  );
-  await page.route("**/api/public/events", route => route.fulfill({ json: { ok: true } }));
-  await page.route("**/api/public/leads", route => route.fulfill({
-    json: { ok: true, lead_id: "enquiry-test", form_id: formId, conversion_mode: "form_submit_pixel", value: 0 },
-  }));
-  await page.goto(`/embed/${formToken}?brand=gos-beauty&form_id=${formId}`);
-  await expect(page.getByText("心水日期（選填）")).toBeVisible();
-  await page.getByLabel("姓名").fill("Test Enquiry");
-  await page.getByLabel("聯絡電話").fill("00001126");
-  await page.getByRole("checkbox").check();
-  const submitted = page.waitForRequest(request =>
-    request.url().endsWith("/api/public/leads") && request.method() === "POST"
-  );
-  await page.getByRole("button", { name: "提交療程查詢" }).click();
-  expect((await submitted).postDataJSON()).toMatchObject({
-    treatment_id: treatmentId, appointment_date: "", appointment_time: "",
+for (const cached of [false, true]) {
+  test(`GOS enquiry submits without an appointment with ${cached ? "previously cached" : "current"} config`, async ({ page }) => {
+    const config = publicFormConfig();
+    const token = cached ? "gos-beauty-general-enquiry-test" : formToken;
+    const form = { ...config.form, public_form_token: token };
+    const enquiry = cached ? config.treatments[0] : { ...config.treatments[0], slug: "general-treatment-enquiry" };
+    await page.route(`**/api/public/forms/${token}`, route =>
+      route.fulfill({ json: { ...config, form, treatments: [enquiry] } })
+    );
+    await page.route("**/api/public/events", route => route.fulfill({ json: { ok: true } }));
+    await page.route("**/api/public/leads", route => route.fulfill({
+      json: { ok: true, lead_id: "enquiry-test", form_id: formId, conversion_mode: "form_submit_pixel", value: 0 },
+    }));
+    await page.goto(`/embed/${token}?brand=gos-beauty&form_id=${formId}`);
+    await expect(page.getByText("心水日期（選填）")).toBeVisible();
+    await page.getByLabel("姓名").fill("Test Enquiry");
+    await page.getByLabel("聯絡電話").fill("00001126");
+    await page.getByRole("checkbox").check();
+    const submitted = page.waitForRequest(request =>
+      request.url().endsWith("/api/public/leads") && request.method() === "POST"
+    );
+    await page.getByRole("button", { name: "提交療程查詢" }).click();
+    expect((await submitted).postDataJSON()).toMatchObject({
+      treatment_id: treatmentId, appointment_date: "", appointment_time: "",
+    });
   });
-});
+}

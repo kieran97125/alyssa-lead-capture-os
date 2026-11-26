@@ -272,7 +272,7 @@ const getCachedPublicFormConfig = unstable_cache(
     if (result.status >= 500) throw new Error("public_form_configuration_unavailable");
     return result;
   },
-  ["public-form-config-v3"],
+  ["public-form-config-v4"],
   {
     revalidate: 60,
     tags: [PUBLIC_FORM_CONFIG_CACHE_TAG],
