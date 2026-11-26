@@ -1297,7 +1297,11 @@ export function PublicLeadForm({
     [publicTheme]
   );
   const isCompactPublicForm = publicTheme.formLayout === "compact";
-  const isGeneralEnquiry = brand.slug === "gos-beauty" && selectedTreatment?.slug === "general-treatment-enquiry";
+  // Previously rendered public form configs can omit the treatment slug.
+  const isGeneralEnquiry = brand.slug === "gos-beauty" && (
+    selectedTreatment?.slug === "general-treatment-enquiry" ||
+    (!selectedTreatment?.slug && publicForm.publicFormToken.startsWith("gos-beauty-general-enquiry-"))
+  );
   const allowsPackageChoice =
     publicForm.packageSelectionMode === "customer_choice" &&
     availablePackages.length > 1;
