@@ -72,7 +72,7 @@ await test("browser retry identity survives reload and rotates when fields chang
 });
 
 const p=loader()("src/lib/integrations/googleSheetsLeadSync.ts");
-const sheetPayload=p.buildGoogleSheetsLeadPayload({brandId,leadKey:leadId,createdAt:"2026-11-16T00:00:00Z",customerName:"Synthetic",phone:"10000001",email:null,brandName:"GOS Beauty",formName:"Synthetic",treatmentName:"Synthetic",packageName:"Synthetic",price:588,branchName:"Synthetic",appointmentDate:null,appointmentTime:null,pageUrl:null,touch:{}});sheetPayload.secret="";
+const sheetPayload=p.buildGoogleSheetsLeadPayload({brandId,leadKey:leadId,createdAt:"2026-11-16T00:00:00Z",customerName:"Synthetic",phone:"10000001",email:"native-sheet@example.test",brandName:"GOS Beauty",formName:"Synthetic",treatmentName:"Synthetic",packageName:"Synthetic",price:588,branchName:"Synthetic",appointmentDate:null,appointmentTime:null,pageUrl:null,touch:{}});sheetPayload.secret="";
 async function nativeScenario(options={}) {
   const calls=[],intents=[];
   const headers=[...p.GOOGLE_SHEETS_LEAD_HEADERS,...(options.missingIdentity?[]:["Omni Lead ID"])];
@@ -97,7 +97,7 @@ async function nativeScenario(options={}) {
 }
 await test("native delivery persists intent before one routed atomic append",async()=>{
   const run=await nativeScenario();assert.equal(run.result.status,"delivered",JSON.stringify(run));assert.equal(run.posts.length,1);assert.equal(run.intents.length,1);assert.equal(run.result.updatedRange,"'GOS Beauty'!A12:Z12");
-  const row=JSON.parse(run.posts[0].init.body).requests[0].appendCells.rows[0].values.map(c=>c.userEnteredValue?.stringValue);assert.equal(row[25],`lead_${leadId}`);assert.equal(row[20],"GOS Beauty");
+  const row=JSON.parse(run.posts[0].init.body).requests[0].appendCells.rows[0].values.map(c=>c.userEnteredValue?.stringValue);assert.equal(row[25],`lead_${leadId}`);assert.equal(row[20],"GOS Beauty");assert.equal(row[13],"native-sheet@example.test","GOS Email column N");
 });
 await test("existing matching ID reconciles without issuing append",async()=>{
   const run=await nativeScenario({existing:[[""],[`lead_${leadId}`]],reconcileOnly:true});assert.equal(run.result.status,"delivered");assert.equal(run.posts.length,0);assert.equal(run.intents.length,0);
@@ -172,12 +172,13 @@ await test("retry budget exhaustion becomes visible blocked state",async()=>{
 const next=native("next/server");
 let adminReady=true,persisted=[],background=[],replayedReceipt=null,receiptExpectedHash=null,routeError=null,scheduleFailure=false;
 const form={id:formId,public_form_token:"synthetic-form",brand_id:brandId,status:"active",allowed_domains:["https://example.test"],default_treatment_id:treatmentId,default_package_id:packageId,default_branch_id:branchId,form_name:"Synthetic",package_selection_mode:"fixed",conversion_mode:"thank_you_redirect",success_redirect_url:"https://example.test/thanks"};
+let routeBrandSlug = "gos";
 const routeDb={from(table){const q={select(){return q},eq(){return q},order(){return q},single(){return q},maybeSingle(){return q},then(resolve,reject){
-  const data=table==="forms"?form:table==="form_branches"?[{branch_id:branchId,is_default:true,is_active:true}]:table==="packages"?{id:packageId,treatment_id:treatmentId,name:"Synthetic",promo_price:588,currency:"HKD",payment_required:false}:table==="treatments"?{id:treatmentId,brand_id:brandId,name:"Synthetic"}:table==="branches"?{id:branchId,brand_id:brandId,name:"Synthetic"}:table==="brands"?{slug:"gos",name:"Synthetic Brand"}:null;
+  const data=table==="forms"?form:table==="form_branches"?[{branch_id:branchId,is_default:true,is_active:true}]:table==="packages"?{id:packageId,treatment_id:treatmentId,name:"Synthetic",promo_price:588,currency:"HKD",payment_required:false}:table==="treatments"?{id:treatmentId,brand_id:brandId,name:"Synthetic"}:table==="branches"?{id:branchId,brand_id:brandId,name:"Synthetic"}:table==="brands"?{slug:routeBrandSlug,name:"Synthetic Brand"}:null;
   return Promise.resolve({data,error:null}).then(resolve,reject);
 }};return q;}};
 const route=loader({"next/server":{...next,after:fn=>{if(scheduleFailure)throw Error("Synthetic scheduler unavailable");background.push(fn)}},"@/lib/supabase/admin":{hasSupabaseAdminEnv:()=>adminReady,createSupabaseAdminClient:()=>routeDb},"@/lib/capture/publicCapture":{...capture,readPublicCaptureReceipt:async(input)=>{if(replayedReceipt&&receiptExpectedHash&&input.requestHash!==receiptExpectedHash)throw new capture.PublicCaptureError("capture_idempotency_conflict");return replayedReceipt;},persistPublicCapture:async(input)=>{if(routeError)throw new capture.PublicCaptureError(routeError);persisted.push(input);return{response,replayed:false};}},"@/lib/capture/leadDelivery":{processPublicLeadDeliveries:async()=>{throw Error("Only an explicitly invoked background fixture may deliver");}}})("src/app/api/public/leads/route.ts");
-const validBody={form_token:"synthetic-form",submission_id:uuid("b"),customer_name:"Synthetic",phone:"10000001",treatment_id:treatmentId,package_id:packageId,branch_id:branchId,appointment_date:"2026-11-20",appointment_time:"14:00",payment_option:"booking_only",legalConsentAccepted:true,submitted_touch_json:{current_page_url:"https://example.test/campaign?utm_source=meta&utm_medium=paid&utm_campaign=synthetic",utm_source:"meta",utm_medium:"paid",utm_campaign:"synthetic"}};
+const validBody={form_token:"synthetic-form",submission_id:uuid("b"),customer_name:"Synthetic",phone:"10000001",email:"  form+receipt@example.test  ",treatment_id:treatmentId,package_id:packageId,branch_id:branchId,appointment_date:"2026-11-20",appointment_time:"14:00",payment_option:"booking_only",legalConsentAccepted:true,submitted_touch_json:{current_page_url:"https://example.test/campaign?utm_source=meta&utm_medium=paid&utm_campaign=synthetic",utm_source:"meta",utm_medium:"paid",utm_campaign:"synthetic"}};
 let ip=1;
 async function request(body=validBody) {return route.POST(new next.NextRequest("https://example.test/api/public/leads",{method:"POST",headers:{"content-type":"application/json",origin:"https://example.test","x-forwarded-for":`203.0.113.${ip++}`},body:JSON.stringify(body)}));}
 const envBefore={NODE_ENV:process.env.NODE_ENV,ALYSSA_E2E_FIXTURES:process.env.ALYSSA_E2E_FIXTURES,GOOGLE_SHEETS_SYNC_ENABLED:process.env.GOOGLE_SHEETS_SYNC_ENABLED,GOOGLE_SHEETS_WEBHOOK_SECRET:process.env.GOOGLE_SHEETS_WEBHOOK_SECRET};
@@ -186,9 +187,20 @@ try {
   await test("production missing database rejects rather than faking accepted registration",async()=>{
     adminReady=false;const result=await request();assert.equal(result.status,503);assert.equal((await result.json()).ok,false);assert.equal(persisted.length,0);adminReady=true;
   });
+  await test("GOS rejects missing and invalid email before any capture or delivery", async () => {
+    for (const [email, code] of [[undefined, "email_required"], ["   ", "email_required"], ["bad-address", "invalid_email"], ["x@b", "invalid_email"]]) {
+      const result = await request({ ...validBody, email, brand_id: "other-brand" });
+      assert.equal(result.status, 400);
+      assert.equal((await result.json()).error, code);
+    }
+    assert.equal(persisted.length, 0);
+    assert.equal(background.length, 0);
+  });
   await test("accepted HTTP capture persists consent/source and defers Google work",async()=>{
     const result=await request();assert.equal(result.status,201);const body=await result.json();assert.equal(body.lead_id,leadId);
     assert.ok(body.final_redirect_url.includes(leadId));assert.equal(persisted.length,1);assert.equal(background.length,1);
+    assert.equal(persisted[0].contact.email,"form+receipt@example.test");
+    assert.equal(persisted[0].delivery.payload.rowValues[13],"form+receipt@example.test");
     assert.equal(persisted[0].delivery.payload.secret,"");assert.equal(persisted[0].events.length,3);
     assert.ok(persisted[0].events.some(e=>e.event_payload_json.consent_event==="legal_consent_accepted"));
     assert.equal(persisted[0].snapshot.utm_source,"meta");assert.equal(persisted[0].lead.normalized_phone,"+85210000001");
@@ -210,6 +222,20 @@ try {
     [form.default_treatment_id,form.default_package_id,form.default_branch_id]=[uuid("a"),uuid("b"),uuid("c")];
     try {assert.equal((await request(omitted)).status,201);assert.equal(persisted.length,acceptedCount);}
     finally {[form.default_treatment_id,form.default_package_id,form.default_branch_id]=original;receiptExpectedHash=null;replayedReceipt=null;}
+  });
+  await test("existing GOS receipts from before mandatory email still replay", async () => {
+    const before = persisted.length;
+    replayedReceipt = response;
+    try {
+      const result = await request({ ...validBody, email: undefined });
+      assert.equal(result.status, 201);
+      assert.equal(persisted.length, before);
+    } finally { replayedReceipt = null; }
+  });
+  await test("other brands still accept a fresh submission without email", async () => {
+    routeBrandSlug = "ineffable";
+    try { assert.equal((await request({ ...validBody, email: undefined })).status, 201); }
+    finally { routeBrandSlug = "gos"; }
   });
   await test("background scheduler failure cannot revoke a committed acceptance",async()=>{
     scheduleFailure=true;const before=persisted.length;
