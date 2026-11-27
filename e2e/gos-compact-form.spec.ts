@@ -210,7 +210,7 @@ test("GOS compact form shows the configured item and submits the short booking f
   await expect(page.getByRole("radio")).toHaveCount(20);
   await expect(page.getByRole("radio", { name: "11:00" })).toBeDisabled();
   await expect(page.getByRole("radio", { name: "12:00" })).toBeVisible();
-  await expect(page.getByLabel("Email")).toHaveCount(0);
+  await expect(page.getByLabel("電郵地址（必填）")).toHaveAttribute("required", "");
   await expect(page.getByLabel("療程")).toHaveCount(0);
   await expect(page.getByLabel("套餐")).toHaveCount(0);
   await expect(page.getByLabel("分店")).toHaveCount(0);
@@ -242,7 +242,17 @@ test("GOS compact form shows the configured item and submits the short booking f
   await page
     .getByRole("checkbox", { name: "我已閱讀並同意相關條款。" })
     .check();
-  await page.getByRole("button", { name: "提交預約 →" }).click();
+  const submit = page.getByRole("button", { name: "提交預約 →" });
+  const email = page.getByLabel("電郵地址（必填）");
+  await submit.click();
+  await expect(email).toBeFocused();
+  expect(await email.evaluate(input => (input as HTMLInputElement).validity.valueMissing)).toBe(true);
+  await email.fill("invalid-address");
+  await submit.click();
+  expect(await email.evaluate(input => (input as HTMLInputElement).validity.typeMismatch)).toBe(true);
+  expect(submittedPayload).toBeNull();
+  await email.fill("gos-fixture@example.test");
+  await submit.click();
 
   await expect(
     page.getByRole("heading", { name: "已收到你的預約" })
@@ -252,6 +262,7 @@ test("GOS compact form shows the configured item and submits the short booking f
     form_id: formId,
     customer_name: "GOS Test",
     phone: "91234567",
+    email: "gos-fixture@example.test",
     appointment_date: bookingDate,
     appointment_time: "16:00",
     treatment_id: treatmentId,
@@ -291,7 +302,7 @@ test("GOS early slots follow the selected day and clear an invalidated choice", 
   await expect(hours.getByRole("radio", { name: "20:30" })).toBeEnabled();
 });
 
-test("GOS compact form stacks the four fields on mobile without overflow", async ({
+test("GOS compact form stacks contact fields on mobile without overflow", async ({
   page,
 }) => {
   await page.route(`**/api/public/forms/${formToken}`, async (route) => {
@@ -431,6 +442,7 @@ test("GOS compact form lets customers choose one of eight configured pricing ite
 
   await page.getByLabel("姓名").fill("GOS Choice");
   await page.getByLabel("聯絡電話").fill("98765432");
+  await page.getByLabel("電郵地址（必填）").fill("gos-fixture@example.test");
   await page.getByLabel("預約日期").click();
   bookingDate = await selectFirstAvailableBookingDateFromOpenDialog(page);
   await page.getByRole("radio", { name: "18:00" }).click();
@@ -485,6 +497,7 @@ test("GOS form uses the brand Pixel from LaunchHub after a successful lead", asy
   );
   await page.getByLabel("姓名").fill("GOS Pixel");
   await page.getByLabel("聯絡電話").fill("92345678");
+  await page.getByLabel("電郵地址（必填）").fill("gos-fixture@example.test");
   await page.getByLabel("預約日期").click();
   bookingDate = await selectFirstAvailableBookingDateFromOpenDialog(page);
   await page.getByRole("radio", { name: "16:00" }).click();
@@ -590,6 +603,7 @@ test("GOS form overrides a legacy LaunchHub redirect with the official thank-you
   await expect(form.getByLabel("姓名")).toBeVisible({ timeout: 15_000 });
   await form.getByLabel("姓名").fill("GOS Redirect");
   await form.getByLabel("聯絡電話").fill("93456789");
+  await form.getByLabel("電郵地址（必填）").fill("gos-fixture@example.test");
   await form.getByLabel("預約日期").click();
   await form.locator(`[data-day="${bookingDate}"] button`).first().click();
   await form.getByRole("radio", { name: "18:00" }).click();
@@ -624,13 +638,14 @@ for (const cached of [false, true]) {
     await expect(page.getByText("心水日期（選填）")).toBeVisible();
     await page.getByLabel("姓名").fill("Test Enquiry");
     await page.getByLabel("聯絡電話").fill("00001126");
+    await page.getByLabel("電郵地址（必填）").fill("gos-fixture@example.test");
     await page.getByRole("checkbox").check();
     const submitted = page.waitForRequest(request =>
       request.url().endsWith("/api/public/leads") && request.method() === "POST"
     );
     await page.getByRole("button", { name: "提交療程查詢" }).click();
     expect((await submitted).postDataJSON()).toMatchObject({
-      treatment_id: treatmentId, appointment_date: "", appointment_time: "",
+      treatment_id: treatmentId, email: "gos-fixture@example.test", appointment_date: "", appointment_time: "",
     });
   });
 }

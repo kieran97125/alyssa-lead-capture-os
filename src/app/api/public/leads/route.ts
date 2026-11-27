@@ -27,6 +27,7 @@ import {
 } from "@/lib/legal/consent";
 import { buildSubmittedSuccessRedirectUrl } from "@/lib/data/brandDefaults";
 import { buildGoogleSheetsLeadPayload } from "@/lib/integrations/googleSheetsLeadSync";
+import { INVALID_EMAIL_MESSAGE, isValidRegistrationEmail, REQUIRED_EMAIL_MESSAGE, requiresRegistrationEmail } from "@/lib/capture/registrationEmail";
 import { normalizedSubmissionId, persistPublicCapture, PublicCaptureError, publicCaptureRequestHash, readPublicCaptureReceipt, type CaptureResponse } from "@/lib/capture/publicCapture";
 import { processPublicLeadDeliveries } from "@/lib/capture/leadDelivery";
 import {
@@ -783,11 +784,6 @@ function isValidNormalizedPhone(value: string) {
   return digits.length >= 8 && digits.length <= 15;
 }
 
-function isValidEmail(value: string | null) {
-  if (!value) return true;
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value);
-}
-
 function isReasonableDate(value: string | null) {
   if (!value) return true;
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
@@ -983,7 +979,7 @@ export async function POST(request: NextRequest) {
   const customerName = cleanText(payload.customer_name, 120);
   const phone = cleanText(payload.phone, 80);
   const normalizedPhone = phone ? normalizePhone(phone) : "";
-  const email = cleanText(payload.email, 200);
+  const email = typeof payload.email === "string" ? payload.email.trim() || null : null;
   const appointmentDate = cleanText(payload.appointment_date, 20);
   const appointmentTime = cleanText(payload.appointment_time, 20);
   const clientIp = getClientIp(request);
@@ -998,12 +994,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!isValidEmail(email)) {
+  if (email && !isValidRegistrationEmail(email)) {
     return rejectPublicSubmit(
       request,
       400,
       "invalid_email",
-      publicMessages.validation,
+      INVALID_EMAIL_MESSAGE,
       { formToken, normalizedPhone }
     );
   }
@@ -1272,6 +1268,16 @@ export async function POST(request: NextRequest) {
         .eq("id", form.brand_id)
         .maybeSingle(),
     ]);
+
+  if (!brandRecord?.slug) {
+    return rejectPublicSubmit(request, 503, "brand_unavailable", publicMessages.unavailable,
+      { formToken, normalizedPhone });
+  }
+
+  if (!email && requiresRegistrationEmail(brandRecord.slug)) {
+    return rejectPublicSubmit(request, 400, "email_required", REQUIRED_EMAIL_MESSAGE,
+      { formToken, normalizedPhone });
+  }
 
   if (!packageRecord) {
     return rejectPublicSubmit(

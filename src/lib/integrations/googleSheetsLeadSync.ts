@@ -416,6 +416,9 @@ export function alignLeadRowToDestinationHeaders(
   }
 
   const destinationHeaderSet = new Set(normalizedDestinationHeaders);
+  if (payload.email && canonicalHeader(payload.brand) === "gos beauty" && !destinationHeaderSet.has("email")) {
+    throw new Error("GOS Beauty 工作表缺少 Email 欄，未能寫入電郵地址。");
+  }
   if (destinationHeaderSet.has(canonicalHeader("Omni Lead ID")) && !stableLeadKey) {
     throw new Error("Google Sheet Lead 缺少穩定來源 ID，寫入已安全停止。");
   }

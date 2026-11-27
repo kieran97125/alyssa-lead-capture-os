@@ -1,3 +1,7 @@
+## 2026-11-27 — Required email for GOS registration
+
+GOS treatment bookings and general enquiries show the same labelled email input after the phone number, with email autofill and a full row on desktop. The public form checks the resolved brand for both new and existing offers. The compact-form regression covers missing and malformed addresses, phone widths and successful submission. The capture suite checks the address in contact storage and column N of the native GOS sheet. To reverse this policy, revert the capture and form change together.
+
 ## 2026-11-26 — General enquiry on GOS registration
 
 The general enquiry accepts a name, phone and consent without an appointment slot. Optional fields and the submit button use enquiry wording. The compact-form regression covers an empty booking date and time. Revert this change to restore appointment validation for this enquiry.

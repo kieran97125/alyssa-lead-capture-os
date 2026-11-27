@@ -1,6 +1,7 @@
 "use client";
 
 import { clearSubmissionIdentity, getSubmissionIdentity, type SubmissionIdentity } from "@/lib/capture/submissionIdentity";
+import { INVALID_EMAIL_MESSAGE, isValidRegistrationEmail, REGISTRATION_EMAIL_MAX_LENGTH, REQUIRED_EMAIL_MESSAGE, requiresRegistrationEmail } from "@/lib/capture/registrationEmail";
 import dynamic from "next/dynamic";
 import {
   FormEvent,
@@ -1297,6 +1298,7 @@ export function PublicLeadForm({
     [publicTheme]
   );
   const isCompactPublicForm = publicTheme.formLayout === "compact";
+  const emailRequired = requiresRegistrationEmail(brand.slug || brandSlug);
   // Previously rendered public form configs can omit the treatment slug.
   const isGeneralEnquiry = brand.slug === "gos-beauty" && (
     selectedTreatment?.slug === "general-treatment-enquiry" ||
@@ -1825,6 +1827,13 @@ export function PublicLeadForm({
       return;
     }
 
+    const email = formData.email.trim();
+    if ((!email && emailRequired) || (email && !isValidRegistrationEmail(email))) {
+      setState("error");
+      setMessage(email ? INVALID_EMAIL_MESSAGE : REQUIRED_EMAIL_MESSAGE);
+      return;
+    }
+
     let liveAttribution = captureCurrentPageAttribution({
       formToken,
       formId: publicForm.id,
@@ -1899,6 +1908,7 @@ export function PublicLeadForm({
     try {
       const resolvedFormData = {
         ...formData,
+        email,
         treatment_id: selectedTreatment?.id || formData.treatment_id,
         package_id: selectedPackage?.id || formData.package_id,
       };
@@ -2039,6 +2049,24 @@ export function PublicLeadForm({
       </section>
     );
   }
+
+  const emailField = (
+    <Field label={emailRequired ? "電郵地址（必填）" : "Email"}>
+      <input
+        type="email"
+        name="email"
+        autoComplete="email"
+        required={emailRequired}
+        maxLength={REGISTRATION_EMAIL_MAX_LENGTH}
+        className={isCompactPublicForm
+          ? "mt-1.5 block h-12 w-full min-w-0 rounded-[13px] border border-[var(--public-border)] bg-white px-3.5 text-base outline-none transition focus:border-[var(--public-accent)] focus:ring-3 focus:ring-[var(--public-accent-soft)] sm:text-sm"
+          : "mt-1.5 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"}
+        value={formData.email}
+        onChange={(event) => updateField("email", event.target.value)}
+        placeholder="name@example.com"
+      />
+    </Field>
+  );
 
   if (isCompactPublicForm) {
     return (
@@ -2186,6 +2214,8 @@ export function PublicLeadForm({
                       placeholder="例如：9123 4567"
                     />
                   </Field>
+
+                  <div className="min-w-0 sm:col-span-2">{emailField}</div>
 
                   <div className="block min-w-0 text-[13px] font-semibold text-[var(--public-heading)] sm:text-[13px] sm:font-bold">
                     <span>{isGeneralEnquiry ? "心水日期（選填）" : "預約日期"}</span>
@@ -2461,15 +2491,7 @@ export function PublicLeadForm({
                     </Field>
                   </div>
 
-                  <Field label="Email">
-                    <input
-                      type="email"
-                      className="mt-1.5 w-full rounded-2xl border border-[var(--public-border)] px-4 py-3 text-sm outline-none focus:border-[var(--public-cta)]"
-                      value={formData.email}
-                      onChange={(event) => updateField("email", event.target.value)}
-                      placeholder="name@example.com"
-                    />
-                  </Field>
+                  {emailField}
                 </FormSection>
 
                 <FormSection title="預約安排">
