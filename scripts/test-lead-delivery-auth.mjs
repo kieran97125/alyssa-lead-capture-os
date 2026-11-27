@@ -31,9 +31,9 @@ try{
   const path=kind==="wrong-path"?"/api/cron/marketing-data-sources":auth.LEAD_DELIVERY_WORKER_PATH+(kind==="query"?"?dispatch=1":"");
   const result=await route.GET(new next.NextRequest(`https://example.test${path}`,{headers}));assert.equal(result.status,kind==="valid"?200:401,kind);passed++;console.log(`PASS HTTP ${kind}`);
  }
- assert.equal(workerCalls,1,"only a fresh dedicated proof reaches the worker");
+ assert.equal(workerCalls,2,"only a fresh dedicated proof reaches both source queues");
  delete process.env.LEAD_DELIVERY_SIGNING_SECRET;const timestamp=String(Math.floor(Date.now()/1000));const headers={[auth.LEAD_DELIVERY_TIMESTAMP_HEADER]:timestamp,[auth.LEAD_DELIVERY_SIGNATURE_HEADER]:sign(timestamp)};
- assert.equal((await route.GET(new next.NextRequest(`https://example.test${auth.LEAD_DELIVERY_WORKER_PATH}`,{headers}))).status,401);assert.equal(workerCalls,1);passed++;console.log("PASS HTTP missing deployment key");
+ assert.equal((await route.GET(new next.NextRequest(`https://example.test${auth.LEAD_DELIVERY_WORKER_PATH}`,{headers}))).status,401);assert.equal(workerCalls,2);passed++;console.log("PASS HTTP missing deployment key");
 }finally{if(oldSigning===undefined)delete process.env.LEAD_DELIVERY_SIGNING_SECRET;else process.env.LEAD_DELIVERY_SIGNING_SECRET=oldSigning;if(oldGlobal===undefined)delete process.env.CRON_SECRET;else process.env.CRON_SECRET=oldGlobal;}
 const recipe=readFileSync(new URL("../supabase/drafts/public_lead_delivery_schedule.sql",import.meta.url),"utf8");
 assert.ok(recipe.includes("extensions.hmac("));assert.ok(!recipe.includes("'Authorization'"));assert.ok(!recipe.includes("Bearer "));assert.ok(recipe.includes("65000"));assert.equal(recipe.match(/where name = 'public_lead_delivery_signing_secret'/g)?.length,2);

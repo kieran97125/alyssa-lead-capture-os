@@ -17,14 +17,17 @@ const jobSchema = z.object({
 });
 const payloadSchema = z.object({
   secret: z.literal(""), schemaVersion: z.literal(GOOGLE_SHEETS_LEAD_SCHEMA_VERSION),
-  leadKey: z.uuid(), brand: z.string().min(1), phone: z.string().min(8).max(80),
+  leadKey: z.uuid(), brand: z.string().min(1), phone: z.string().max(80),
   headers: z.array(z.string()).length(GOOGLE_SHEETS_LEAD_HEADERS.length),
   rowValues: z.array(z.string().max(4000)).length(GOOGLE_SHEETS_LEAD_HEADERS.length),
 }).passthrough().refine((payload) => payload.headers.every((header, index) => header === GOOGLE_SHEETS_LEAD_HEADERS[index]));
 
-export async function processPublicLeadDeliveries(input: { deliveryId?: string; limit?: number } = {}) {
+export async function processPublicLeadDeliveries(input: { deliveryId?: string; limit?: number; source?: "gos_wix" } = {}) {
   const supabase = createSupabaseAdminClient();
-  const { data, error } = await supabase.rpc("claim_public_lead_deliveries", {
+  const isWix = input.source === "gos_wix";
+  const table = isWix ? "gos_wix_registration_deliveries" : "public_lead_delivery_outbox";
+  const claim = isWix ? "claim_gos_wix_registration_deliveries" : "claim_public_lead_deliveries";
+  const { data, error } = await supabase.rpc(claim, {
     p_delivery_id: input.deliveryId ?? null, p_limit: Math.max(1, Math.min(input.limit ?? 3, 3)),
   });
   if (error || !Array.isArray(data)) {
@@ -36,7 +39,7 @@ export async function processPublicLeadDeliveries(input: { deliveryId?: string; 
     if (!parsed.success) return "failed" as const;
     const job = parsed.data;
     async function journal(patch: Record<string, unknown>) {
-      const { data: rows, error: writeError } = await supabase.from("public_lead_delivery_outbox")
+      const { data: rows, error: writeError } = await supabase.from(table)
         .update({ ...patch, updated_at: new Date().toISOString() })
         .eq("id", job.id).eq("lease_token", job.lease_token).eq("status", "processing")
         .gt("lease_expires_at", new Date().toISOString()).select("id");
@@ -46,14 +49,15 @@ export async function processPublicLeadDeliveries(input: { deliveryId?: string; 
     let outcome: PublicLeadDeliveryOutcome;
     const parsedPayload = payloadSchema.safeParse(job.payload_json);
     const target = job.destination_json == null ? null : targetSchema.safeParse(job.destination_json);
-    if (!parsedPayload.success || parsedPayload.data.leadKey !== job.lead_id || (target && !target.success)) {
+    const validPhone = parsedPayload.success && (parsedPayload.data.phone.length >= 8 || (isWix && !parsedPayload.data.phone));
+    if (!parsedPayload.success || !validPhone || parsedPayload.data.leadKey !== job.lead_id || (target && !target.success)) {
       outcome = { status: "blocked", code: "delivery_payload_invalid" };
     } else if (process.env.GOOGLE_SHEETS_SYNC_ENABLED?.trim().toLowerCase() !== "true") {
       outcome = { status: "blocked", code: "sync_disabled", safeToRetry: true };
     } else {
       outcome = await deliverCapturedLeadToNativeSheet({
         brandId: job.brand_id, payload: parsedPayload.data as unknown as GoogleSheetsLeadWebhookPayload,
-        pinnedTarget: target?.success ? target.data : null,
+        pinnedTarget: target?.success ? target.data : null, allowEmptyPhone: isWix,
         reconcileOnly: job.append_started_at !== null,
         beforeAppend: async (destination) => journal({
           destination_json: destination, append_started_at: new Date().toISOString(),

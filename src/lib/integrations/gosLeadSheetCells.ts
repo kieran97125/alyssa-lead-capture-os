@@ -1,5 +1,5 @@
 // Native cell types keep date validation, calendar ordering and leading phone digits intact.
-export function gosLeadSheetCells(headers: string[], values: string[]) {
+export function gosLeadSheetCells(headers: string[], values: string[], allowEmptyPhone = false) {
   return headers.map((rawHeader, index) => {
     const header = rawHeader.trim().toLowerCase();
     const value = values[index] ?? "";
@@ -23,6 +23,7 @@ export function gosLeadSheetCells(headers: string[], values: string[]) {
       return { userEnteredValue: { numberValue: seconds / 86400 }, userEnteredFormat: format };
     }
     if (header === "電話") {
+      if (!value && allowEmptyPhone) return {};
       const digits = value.replace(/\D/g, "");
       if (!/^\d{8,15}$/.test(digits)) throw new Error("Invalid lead sheet phone");
       return { userEnteredValue: { stringValue: digits }, userEnteredFormat: { numberFormat: { type: "TEXT", pattern: "@" } } };

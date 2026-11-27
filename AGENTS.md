@@ -48,4 +48,6 @@ For any shared UI, UX, layout or interaction change:
 
 ## GOS campaign destinations
 
+GOS registration forms must collect a valid required email on every new form, copy and edit. Managed forms inherit the shared brand rule. For a Wix-native registration, preserve the required contact email field `contact_email_gos` and its placement after the phone field on every layout. Before publishing a new native form, check the Wix form schema, its submitted email and the existing GOS Beauty sheet's Email mapping. Wix Bookings uses its shared required email field. Native submissions and confirmed customer bookings use their Wix event IDs for delivery and keep Wix as their source.
+
 For GOS advertisements, organic feed posts and promotional images, point the caption, button, printed URL and QR code to the treatment page featured in the creative. Keep campaign tracking parameters on that URL. Reserve `/register` for general website navigation and existing links.
