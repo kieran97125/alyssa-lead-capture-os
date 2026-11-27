@@ -1,0 +1,70 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+const source = fs.readFileSync(path.join(__dirname, 'apps-script/selected-identity-tools.gs'), 'utf8');
+const r = {row: 12, account: 'Alyssa Main', leadId: 'l', appointmentId: 'a', customerKey: 'k'};
+const a = {id: 'a', leadId: 'l', account: r.account, customerKey: 'k', queueId: 'q'};
+const queue = {row: 34, appointmentId: 'a', entryId: 'q', account: r.account, customerKey: 'k', origin: 'managed', raw: []};
+queue.raw[23] = 'l';
+const env = {OA2: {ARRIVAL: '到店紀錄', HISTORY: '_appointment_history', LEDGER: '_appointment_registry', FIRST_ROW: 8}, OMNI_ACCOUNT_TABS: [r.account]};
+vm.createContext(env);
+vm.runInContext(source, env);
+env.oa2IdentityDiscovery_ = () => ({identityComplete: true, sources: [r]});
+env.oa2ReadRegistry_ = () => ({appointments: {a}});
+env.oa3ManualQueueSnapshot_ = () => [queue];
+let activated = 0, registrations = 0;
+const ss = {getSheetByName: () => ({getRange: row => ({activate() {activated = row;}})}), setActiveSheet() {}};
+ss.getId=()=>'test';
+env.columnLetter_=n=>String.fromCharCode(64+n);
+const headers=[['Omni Lead ID','Appointment ID'],['Appointment ID','Lead ID','Account','Customer Key','Queue Entry ID'],
+  ['Appointment ID','Omni Lead ID','Account','穩定客戶識別（內部）','到店紀錄ID（內部）','Record Origin']];
+const sourceRows=Array.from({length:10},()=>[]).concat([['l','a']]);
+const queueRows=Array.from({length:26},()=>[]).concat([['a','l',r.account,'k','q','managed']]);
+const data=[sourceRows,[['a','l',r.account,'k','q']],queueRows];
+env.Sheets={Spreadsheets:{Values:{batchGet:(id,request)=>({valueRanges:
+  (request.ranges[0].endsWith('1:1')?headers.map(x=>[x]):data).map(values=>({values}))})}}};
+assert.equal(env.oaSelectedArrival_(ss,r),34);
+queueRows.push(queueRows[26]);
+assert.equal(env.oaSelectedArrival_(ss,r),0);
+queueRows.pop();
+sourceRows.push(['l','a']);
+assert.equal(env.oaSelectedArrival_(ss,r),0);
+sourceRows.pop();
+queueRows[26][5]='allocating';
+assert.equal(env.oaSelectedArrival_(ss,r),-1);
+queueRows[26][5]='managed';
+assert.match(env.oaSelectedIdentityReview_({...r, leadId: '', appointmentId: ''}, {appointments:{a}}, []), /原有 ID/);
+assert.match(env.oaSelectedIdentityReview_({...r, appointmentId: ''}, {appointments:{a, b: {...a, id:'b'}}}, []), /多筆/);
+env.oa2Spreadsheet_ = () => ss;
+env.LockService = {getDocumentLock: () => ({tryLock: () => true, releaseLock() {}})};
+env.oa2QueueLayout_ = () => ({});
+env.oa2QueueRange_ = () => ({getValues: () => [['a','','','','l']]});
+env.oa2PrioritizeSourceIdentities_ = () => {registrations++;throw Error('Unexpected allocation');};
+const view = {row:12, account:r.account, tag:'selected', lead:true, appointment:true, booked:true, leadCell:'Z12', appointmentCell:'AA12'};
+env.oaIdentitySelection_ = () => ({record:r,view});
+for (const action of ['lead','appointment']) {
+  assert.equal(env.applyOmniIdentityAction(action,'selected').arrivalRow,34);
+  assert.match(env.applyOmniIdentityAction(action,'stale').error,/重新讀取/);
+}
+assert.equal(env.applyOmniIdentityAction('arrival','selected').arrivalRow,34);
+assert.equal(activated,34);
+assert.equal(registrations,0);
+env.oaIdentitySelection_ = () => ({record:{...r,appointmentId:''},view:{...view,appointment:false,booked:false}});
+assert.match(env.applyOmniIdentityAction('appointment','selected').error,/已預約/);
+env.LockService = {getDocumentLock: () => ({tryLock: () => false})};
+assert.equal(env.applyOmniIdentityAction('lead','selected').busy,true);
+const html=env.oaIdentityPanelHtml_();
+for (const label of ['補回 Omni Lead ID','補回 Appointment ID','開啟到店紀錄']) assert.ok(html.includes(label));
+new vm.Script(html.match(/<script>([\s\S]*?)<\/script>/)[1]);
+console.log('Selected-row identity actions passed.');
+const native = {};
+vm.createContext(native);
+vm.runInContext(fs.readFileSync(path.join(__dirname, 'apps-script/releases/20261022/native-main.gs'), 'utf8'), native);
+const sourcePhone = {...r, fullPhone: '12345678 / +85298765432'};
+const prefix = r.account + ' · 電話 ';
+assert.equal(native.oa2AllocatedQueueLabelMatches_(prefix+'12345678/+85298765432',a,sourcePhone),true);
+for (const text of ['12345678/+85398765432','+85298765432/12345678','12345678+85298765432','12345678/98765432']) {
+  assert.equal(native.oa2AllocatedQueueLabelMatches_(prefix+text,a,sourcePhone),false);
+}
+assert.equal(native.oa2AllocatedQueueLabelMatches_(prefix+'12345678/+85298765432',a,{...sourcePhone,appointmentId:'another'}),false);
