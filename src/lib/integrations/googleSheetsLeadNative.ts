@@ -558,6 +558,7 @@ export async function appendLeadViaNativeGoogleSheets(input: {
 export async function deliverCapturedLeadToNativeSheet(input: {
   brandId: string;
   payload: GoogleSheetsLeadWebhookPayload;
+  allowEmptyPhone?: boolean;
   pinnedTarget: import("@/lib/capture/deliveryPolicy").PublicLeadDeliveryTarget | null;
   reconcileOnly: boolean;
   beforeAppend: (target: import("@/lib/capture/deliveryPolicy").PublicLeadDeliveryTarget) => Promise<boolean>;
@@ -637,7 +638,7 @@ export async function deliverCapturedLeadToNativeSheet(input: {
     if (gosIndex >= 0 && typeof sheetId !== "number") return { status: "blocked", code: "destination_header_invalid", target, safeToRetry: true };
     let typedCells: ReturnType<typeof gosLeadSheetCells> | undefined;
     if (gosIndex >= 0) {
-      try { typedCells = gosLeadSheetCells(headers, values); }
+      try { typedCells = gosLeadSheetCells(headers, values, input.allowEmptyPhone); }
       catch { return { status: "blocked", code: "destination_cell_value_invalid", target, safeToRetry: true }; }
     }
     // Persist target + append intent with the current lease before issuing a write.

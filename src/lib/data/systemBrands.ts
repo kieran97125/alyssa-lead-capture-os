@@ -1,6 +1,7 @@
 import { alyssaBrand } from "@/lib/data/alyssaConfig";
 
 export const AM_BRAND_ID = "4a4d0000-0000-4000-8000-000000000001";
+export const GOS_BRAND_ID = "787fceca-2f8a-4f77-9e3e-94a859369e5f";
 
 export const fallbackSystemBrands = [
   {
@@ -55,7 +56,7 @@ export const fallbackSystemBrands = [
     metaPixelPageViewOnEmbed: false,
   },
   {
-    id: "787fceca-2f8a-4f77-9e3e-94a859369e5f",
+    id: GOS_BRAND_ID,
     name: "GOS Beauty",
     slug: "gos-beauty",
     logoUrl: null,

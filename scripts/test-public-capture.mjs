@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { webcrypto } from "node:crypto";
+import { createHash, webcrypto } from "node:crypto";
 import path from "node:path";
 import ts from "typescript";
 const native = createRequire(import.meta.url);
@@ -243,4 +243,20 @@ try {
     finally {scheduleFailure=false;}
   });
 } finally {for(const[k,v]of Object.entries(envBefore)){if(v===undefined)delete process.env[k];else process.env[k]=v;}}
+await test("native Wix email-only bookings keep the submitted email, Hong Kong time and immutable source", async () => {
+  const wix = loader()("src/lib/capture/gosWixRegistration.ts");
+  const body = { kind:"booking", eventId:formId, email:"native@example.test", firstName:"Synthetic",
+    label:"Synthetic service", initiator:"VISITOR", startsAt:"2026-11-30T03:30:00Z" };
+  const secret = "a".repeat(64);
+  const digest = createHash("sha256").update(secret).digest("hex");
+  assert.equal(wix.authenticGosWixWebhook(secret, digest), true);
+  assert.equal(wix.authenticGosWixWebhook("b".repeat(64), digest), false);
+  assert.equal(wix.gosWixEvent.safeParse({...body,email:"invalid"}).success, false);
+  const payload = wix.gosWixSheetPayload(wix.gosWixEvent.parse(body), leadId);
+  assert.equal(payload.email,body.email); assert.equal(payload.phone,""); assert.equal(payload.secret,"");
+  assert.equal(payload.appointmentDate,"2026-11-30"); assert.equal(payload.appointmentTime,"11:30");
+  const cells = loader()("src/lib/integrations/gosLeadSheetCells.ts");
+  assert.deepEqual(cells.gosLeadSheetCells(["電話","Email"],["",body.email],true), [{},{userEnteredValue:{stringValue:body.email}}]);
+  assert.throws(()=>cells.gosLeadSheetCells(["電話"],[""]));
+});
 console.log(`PASS ${passed} public capture, HTTP acceptance, browser identity and durable delivery cases; no external network/database mutations.`);
